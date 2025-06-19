@@ -1,22 +1,32 @@
-import { BuildingOfficeIcon, XMarkIcon } from "@heroicons/react/24/outline";
+import { BuildingOfficeIcon, XMarkIcon, ArrowRightOnRectangleIcon } from "@heroicons/react/24/outline";
 import { getMenuByRole } from "@/routes/menuItems.tsx";
-import {Accordion, AccordionItem} from "@heroui/react";
+import {Accordion, AccordionItem, Button} from "@heroui/react";
 import {Avatar} from "@heroui/avatar";
 import {FC} from "react";
-import {Link} from "react-router-dom";
+import {Link, useNavigate} from "react-router-dom";
 import {UserRole} from "@/routes/menuTypes.ts";
+import { useAuth } from "@/store/authStore";
 
 interface SideBarProps {
     sidebarOpen: boolean;
     setSidebarOpen: (open: boolean) => void;
-    userRole: UserRole;
 }
+
 export const useMenuByRole = (userRole: UserRole) => {
     return getMenuByRole(userRole);
 };
 
-const SideBar: FC<SideBarProps> = ({sidebarOpen,setSidebarOpen,userRole}) => {
-    const menuForRole = useMenuByRole(userRole);
+const SideBar: FC<SideBarProps> = ({sidebarOpen,setSidebarOpen}) => {
+    const { currentUser, logout } = useAuth();
+    const navigate = useNavigate();
+    
+    // Get menu based on current user's role
+    const menuForRole = currentUser ? useMenuByRole(currentUser.role) : [];
+
+    const handleLogout = () => {
+        logout();
+        navigate('/login');
+    };
     return (
         <aside
             className={`bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 fixed inset-y-0 left-0 z-50 transform w-72 transition-transform duration-300 ease-in-out shadow-xl ${
@@ -104,22 +114,35 @@ const SideBar: FC<SideBarProps> = ({sidebarOpen,setSidebarOpen,userRole}) => {
             </nav>
 
             {/* FOOTER del Sidebar */}
-            <div className="p-4 dark:border-gray-700">
-                <div className="flex items-center space-x-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-750">
+            <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+                <div className="flex items-center space-x-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-750 mb-3">
                     <Avatar
                         size="sm"
-                        src="https://i.pravatar.cc/150?u=user@example.com"
-                        name="Usuario"
+                        src={currentUser?.avatar}
+                        name={`${currentUser?.firstName} ${currentUser?.lastName}`}
                     />
                     <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                            Admin Usuario
+                            {currentUser?.firstName} {currentUser?.lastName}
                         </p>
                         <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                            admin@empresa.com
+                            {currentUser?.email}
+                        </p>
+                        <p className="text-xs text-blue-600 dark:text-blue-400 truncate capitalize">
+                            {currentUser?.role}
                         </p>
                     </div>
                 </div>
+                <Button
+                    size="sm"
+                    variant="flat"
+                    color="danger"
+                    className="w-full"
+                    startContent={<ArrowRightOnRectangleIcon className="h-4 w-4" />}
+                    onPress={handleLogout}
+                >
+                    Cerrar Sesión
+                </Button>
             </div>
         </aside>
     );
