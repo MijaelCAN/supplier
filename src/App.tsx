@@ -1,8 +1,10 @@
-import AppRoutes from "@/routes";
+import { RouterProvider } from "react-router-dom";
+import router from "@/routes";
+
 function App() {
   return (
-    <div className="min-h-screen  text-gray-500">
-        <AppRoutes />
+    <div className="min-h-screen text-gray-500">
+      <RouterProvider router={router} />
     </div>
   );
 }
