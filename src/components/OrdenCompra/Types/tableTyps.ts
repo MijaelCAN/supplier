@@ -1,4 +1,4 @@
-import {Supplier} from "@/store";
+import type {Supplier} from "@/store/extendedStore";
 import {Key, ReactNode} from "react";
 import {SortDescriptor} from "@heroui/react";
 import {PurchaseOrder} from "@/components/OrdenCompra/Types/orderTypes.ts";

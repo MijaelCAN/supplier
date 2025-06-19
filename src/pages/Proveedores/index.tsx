@@ -29,7 +29,7 @@ import {
     BuildingOfficeIcon,
 } from "@heroicons/react/24/outline";
 import Dashboard from "@/layouts/Dashboard";
-import {Supplier, useSuppliers} from "@/store";
+import {Supplier, useSuppliers} from "@/store/extendedStore";
 import HeaderComponent from "@/components/headerComponent.tsx";
 import OrderTable from "@/components/OrdenCompra/orderTable.tsx";
 import {ModalRegister} from "@/components/Proveedores/modalRegister.tsx";

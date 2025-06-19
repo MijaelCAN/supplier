@@ -1,4 +1,4 @@
-import { useState } from "react";
+// import { useState } from "react";
 import { Button } from "@heroui/button";
 import { Link } from "@heroui/link";
 
@@ -17,7 +17,7 @@ export default function Drawer({ isOpen, onClose }: DrawerProps) {
             <div className="flex flex-col h-full">
                 <header className="flex justify-between items-center py-4 px-6 border-b border-gray-200">
                     <h2 className="text-lg font-bold">Menú de Opciones</h2>
-                    <Button onClick={onClose} variant="text" className="text-gray-600">
+                    <Button onClick={onClose} variant="light" className="text-gray-600">
                         Cerrar
                     </Button>
                 </header>
