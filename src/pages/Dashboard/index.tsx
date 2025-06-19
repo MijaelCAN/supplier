@@ -15,7 +15,7 @@ import {
     ShoppingCartIcon,
     DocumentTextIcon,
     BanknotesIcon,
-    TrendingUpIcon,
+    ArrowTrendingUpIcon,
     TrendingDownIcon,
     ClockIcon,
     CheckCircleIcon,
@@ -96,7 +96,7 @@ const DashboardHome = () => {
                                 <p className="text-sm text-gray-500">Proveedores Activos</p>
                                 <p className="text-2xl font-bold">{metrics.activeSuppliers}</p>
                                 <div className="flex items-center gap-1 mt-1">
-                                    <TrendingUpIcon className="h-4 w-4 text-green-500" />
+                                    <ArrowTrendingUpIcon className="h-4 w-4 text-green-500" />
                                     <span className="text-xs text-green-500">Total: {metrics.totalSuppliers}</span>
                                 </div>
                             </div>
