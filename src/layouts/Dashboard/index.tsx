@@ -8,6 +8,7 @@ const Dashboard = ({ children }: { children: ReactNode }) => {
     const item = localStorage.getItem("supplier");
     const userData = item ? JSON.parse(item) : null;
     //const userRole = userData && userData.role;
+    const val = "nuevavariable";
     const userRole = UserRole.PROVEEDOR;
 
     return (
