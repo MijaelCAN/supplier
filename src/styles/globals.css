@@ -1,0 +1,11 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@font-face {
+    /*font-family: 'vistony-light';
+    src: url('../assets/Fonts/RBNo3.1-ExtraLight.otf') format('opentype');*/
+}
+*{
+    font-family: 'vistony-light', sans-serif;
+}
