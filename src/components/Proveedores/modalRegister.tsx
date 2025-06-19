@@ -190,6 +190,7 @@ import {
     Divider
 } from "@heroui/react"
 import {Supplier, useConfigData} from '@/store'
+import { useAuth, useAuthStore } from '@/store/authStore'
 
 // Schema de validación con Zod
 /*const supplierRegisterSchema2 = z.object({
@@ -270,6 +271,7 @@ const ModalRegister: FC<ModalRegisterProps> = ({
    addSupplier
 }) => {
     const { terminosPago, estadosRegister, tipoPersona } = useConfigData()
+    const { createSupplierUser } = useAuthStore()
     const [isConsultingRuc, setIsConsultingRuc] = useState(false)
     const [sunatData, setSunatData] = useState<SunatData | null>(null)
     const [isRucValid, setIsRucValid] = useState(false)
@@ -307,9 +309,6 @@ const ModalRegister: FC<ModalRegisterProps> = ({
             registrationDate: 'asd',
             lastOrderDate: 'asdas',
             avatar: 'https://i.pravatar.cc/150?u=medicos',
-            salesManager: '',
-            adminManager: 'Marco',
-            generalManager: 'Avril',
         }
     });
 
@@ -342,9 +341,10 @@ const ModalRegister: FC<ModalRegisterProps> = ({
                     setValue('cardName', data.razonSocial)
                     setValue('address', data.domicilioFiscal)
 
-                    if (data.gerenteGeneral) setValue('generalManager', data.gerenteGeneral)
-                    if (data.gerenteAdministrativo) setValue('adminManager', data.gerenteAdministrativo)
-                    if (data.gerenteVentas) setValue('salesManager', data.gerenteVentas)
+                    // Manager fields temporarily disabled
+                    // if (data.gerenteGeneral) setValue('generalManager', data.gerenteGeneral)
+                    // if (data.gerenteAdministrativo) setValue('adminManager', data.gerenteAdministrativo)
+                    // if (data.gerenteVentas) setValue('salesManager', data.gerenteVentas)
                 } else {
                     alert(`RUC no válido: Estado ${data.estado}, Condición ${data.condicion}`)
                 }
@@ -391,36 +391,96 @@ const ModalRegister: FC<ModalRegisterProps> = ({
                 docEntry: data.docEntry,
                 cardCode: data.cardCode,
                 cardName: data.cardName,
-                //businessType: data.businessType,
+                businessType: data.businessType,
                 email: data.email,
-                //phone: data.phone || '',
-                //website: 'www.miempresa.com.pe',
+                phone: data.phone || '',
+                website: data.website || 'www.miempresa.com.pe',
                 address: data.address,
-                //city: '',
+                city: data.city,
                 country: 'PERU',
                 contactPerson: data.contactPerson,
-                //contactEmail: data.email,
+                contactEmail: data.contactEmail,
                 contactPhone: data.contactPhone || '',
                 paymentTerms: data.paymentTerms,
                 certifications: data.certifications,
                 status: data.status,
                 rating: data.rating,
                 totalAmount: data.totalAmount,
-                totalOrders: data.totalOrders
-                //personType: data.personType,
-                // Campos adicionales específicos del registro
-                //gerenteGeneral: data.generalManager,
-                //gerenteAdministrativo: data.adminManager,
-                //gerenteVentas: data.salesManager,
-                //avatar: data.avatar
+                totalOrders: data.totalOrders,
+                registrationDate: new Date().toLocaleDateString('es-PE'),
+                lastOrderDate: new Date().toLocaleDateString('es-PE'),
+                avatar: data.avatar,
+                personType: data.personType || 'Juridica'
             }
 
+            // Add supplier to store
             await addSupplier(newSupplier)
+            
+            // Simulate email sending and create user account
+            await simulateEmailSending(data.contactEmail, data.cardName, data.contactPerson, data.docEntry)
+            
+            // Close modal after success
             handleClose()
         } catch (error) {
             console.error('Error al registrar el proveedor:', error)
             alert('Error al registrar el proveedor')
         }
+    }
+
+    // Simulate sending credentials via email
+    const simulateEmailSending = async (email: string, companyName: string, contactPerson: string, supplierId: string): Promise<void> => {
+        return new Promise((resolve) => {
+            setTimeout(() => {
+                // Generate temporary credentials
+                const tempPassword = generateTempPassword()
+                
+                // Create user account for the supplier
+                createSupplierUser({
+                    email: email,
+                    companyName: companyName,
+                    contactPerson: contactPerson,
+                    supplierId: supplierId,
+                    tempPassword: tempPassword
+                })
+                
+                // Simulate email sending
+                console.log(`
+                    ===== EMAIL SIMULADO =====
+                    Para: ${email}
+                    Asunto: Credenciales de acceso al Portal de Proveedores
+                    
+                    Estimado/a ${contactPerson} de ${companyName},
+                    
+                    Su empresa ha sido registrada exitosamente en nuestro Portal de Proveedores.
+                    
+                    Sus credenciales de acceso son:
+                    - Usuario: ${email}
+                    - Contraseña temporal: ${tempPassword}
+                    
+                    Por favor, ingrese al portal usando estas credenciales y cambie su contraseña.
+                    
+                    Portal: ${window.location.origin}/login
+                    
+                    Saludos cordiales,
+                    Equipo de Administración
+                    ===========================
+                `)
+                
+                alert(`¡Proveedor registrado exitosamente!\n\nSe han enviado las credenciales de acceso al correo: ${email}\n\nCredenciales temporales:\nUsuario: ${email}\nContraseña: ${tempPassword}\n\nEl proveedor ya puede ingresar al sistema con estas credenciales.`)
+                
+                resolve()
+            }, 2000) // Simulate 2 second delay for email sending
+        })
+    }
+
+    // Generate a temporary password
+    const generateTempPassword = (): string => {
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+        let password = ''
+        for (let i = 0; i < 8; i++) {
+            password += chars.charAt(Math.floor(Math.random() * chars.length))
+        }
+        return password
     }
 
     const handleClose = () => {

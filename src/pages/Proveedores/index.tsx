@@ -27,6 +27,7 @@ import {
     CheckCircleIcon,
     ExclamationTriangleIcon,
     BuildingOfficeIcon,
+    PlusIcon,
 } from "@heroicons/react/24/outline";
 import Dashboard from "@/layouts/Dashboard";
 import {Supplier, useSuppliers} from "@/store/extendedStore";
@@ -319,9 +320,9 @@ export default function SupplierManagement() {
                                 ))}
                             </DropdownMenu>
                         </Dropdown>
-                        {/*<Button color="primary" endContent={<PlusIcon className="h-4 w-4" />} onPress={()=> {onRegisterOpen()}}>
+                        <Button color="primary" endContent={<PlusIcon className="h-4 w-4" />} onPress={() => {onRegisterOpen()}}>
                             Nuevo Proveedor
-                        </Button>*/}
+                        </Button>
                     </div>
                 </div>
                 <div className="flex justify-between items-center">

@@ -69,42 +69,52 @@ const Login = () => {
         setError("");
 
         try {
-            const response = await fetch("http://192.168.254.27:8085/api/Login", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                    correo: email,
-                    clave: password,
-                }),
-            });
+            // Importar dinámicamente el store de auth
+            const { useAuthStore } = await import('@/store/authStore');
+            const { login } = useAuthStore.getState();
+            
+            const result = await login(email, password);
 
-            const result = await response.json();
+            if (result.success && result.user) {
+                addToast({
+                    title: "Login Exitoso",
+                    description: `Bienvenido ${result.user.firstName} ${result.user.lastName}`,
+                    timeout: 3000,
+                    color: "success",
+                    shouldShowTimeoutProgress: true,
+                });
 
-            if (result.statusCode === 200 && result.data.length > 0) {
-                const proveedor = result.data[0];
-
-                // Guarda el token y los datos del proveedor en localStorage
-                localStorage.setItem("token", proveedor.token);
-                localStorage.setItem("supplier", JSON.stringify(proveedor));
-
-                // Redirige al dashboard
-                navigate("/dashboard");
+                // Redirigir según el rol del usuario
+                switch (result.user.role) {
+                    case 'admin':
+                        navigate("/");
+                        break;
+                    case 'proveedor':
+                        navigate("/");
+                        break;
+                    case 'compras':
+                        navigate("/");
+                        break;
+                    case 'finanzas':
+                        navigate("/");
+                        break;
+                    default:
+                        navigate("/");
+                }
             } else {
                 addToast({
                     title: "Error de Login",
-                    description: "Correo o contraseña incorrectos.",
+                    description: result.message,
                     timeout: 3000,
                     color: "danger",
                     shouldShowTimeoutProgress: true,
                 });
             }
         } catch (error) {
-            setError("Error en el servidor.");
+            setError("Error en el sistema de autenticación.");
             addToast({
-                title: "Error del servidor",
-                description: "No se pudo conectar al servidor.",
+                title: "Error del sistema",
+                description: "No se pudo autenticar el usuario.",
                 timeout: 3000,
                 color: "danger",
                 shouldShowTimeoutProgress: true,

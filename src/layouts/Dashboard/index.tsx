@@ -1,14 +1,9 @@
 import {ReactNode, useState} from "react";
 import {Header} from "@/layouts/Dashboard/header.tsx";
 import SideBar from "@/layouts/Dashboard/sideBar.tsx";
-import {UserRole} from "@/routes/menuTypes.ts";
 
 const Dashboard = ({ children }: { children: ReactNode }) => {
     const [sidebarOpen, setSidebarOpen] = useState(false);
-    const item = localStorage.getItem("supplier");
-    const userData = item ? JSON.parse(item) : null;
-    //const userRole = userData && userData.role;
-    const userRole = UserRole.PROVEEDOR;
 
     return (
         <div className="flex h-screen bg-gray-50 dark:bg-gray-900">
@@ -21,7 +16,7 @@ const Dashboard = ({ children }: { children: ReactNode }) => {
             )}
 
             {/* Sidebar - MENU LATERAL */}
-            <SideBar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} userRole={userRole} />
+            <SideBar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
 
             {/* Contenido Principal */}
             <div className="flex-1 flex flex-col min-w-0">
