@@ -1,10 +1,11 @@
-import React from 'react';
 import { useAuth } from '@/store/authStore';
 import { UserRole } from '@/routes/menuTypes';
 import AdminHome from './AdminHome';
 import ProveedorHome from './ProveedorHome';
 import ComprasHome from './ComprasHome';
 import FinanzasHome from './FinanzasHome';
+import UnauthorizedHome from "@/pages/Home/UnauthorizedHome.tsx";
+import AlmacenHome from "@/pages/Home/AlmacenHome.tsx";
 
 const Home = () => {
     const { currentUser, isAuthenticated } = useAuth();
@@ -24,9 +25,11 @@ const Home = () => {
             return <ComprasHome />;
         case UserRole.FINANZAS:
             return <FinanzasHome />;
+        case UserRole.ALMACEN:
+            return <AlmacenHome />;
         default:
-            // Default to AdminHome if role is not recognized
-            return <AdminHome />;
+            // Default to UnauthorizedHome if role is not recognized
+            return <UnauthorizedHome />;
     }
 };
 

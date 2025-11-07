@@ -504,7 +504,7 @@ const Evaluaciones: React.FC<EvaluacionesProps> = ({ rol }) => {
 
     return (
         <Dashboard>
-            <div className="p-6 max-w-7xl mx-auto">
+            <div className="mx-auto">
                 {/* Header */}
                 <div className="mb-6">
                     <h1 className="text-3xl font-bold text-gray-900 mb-2">Evaluaciones de Proveedores</h1>
@@ -566,7 +566,7 @@ const Evaluaciones: React.FC<EvaluacionesProps> = ({ rol }) => {
 
                         {/* Tabla de evaluaciones */}
                         <Card>
-                            <CardBody className="p-0">
+                            <CardBody className="p-4">
                                 <Table aria-label="Tabla de evaluaciones" removeWrapper>
                                     <TableHeader>
                                         <TableColumn>PROVEEDOR</TableColumn>

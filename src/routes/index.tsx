@@ -1,18 +1,23 @@
-import React from "react";
-import { createBrowserRouter, Navigate } from "react-router-dom";
+import {createBrowserRouter, Navigate} from "react-router-dom";
 import Auth from "@/layouts/Auth";
 import Dashboard from "@/layouts/Dashboard";
 import NotFoundPage from "@/pages/NotFound";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Home from "@/pages/Home";
-import { UserRole } from "./menuTypes";
+import {UserRole} from "./menuTypes";
 
 // Import pages
-import Proveedores from "@/pages/Proveedores";
 import ProveedorProfile from "@/pages/Proveedores/Profile/CardProfile";
 import EvaluationSuppliers from "@/pages/Proveedores/evaluations";
 import EvaluationForm from "@/pages/Proveedores/evalForm";
 import ExecutiveDashboard from "@/pages/Reportes/dashboard";
+import SupplierManagement from "@/pages/Proveedores/index.tsx";
+import PurchaseOrdersList from "@/pages/OrdenCompra";
+import UserManagement from "@/pages/Configuracion/usuarios.tsx";
+import PaymentsList from "@/pages/Finanzas/pagos.tsx";
+import {SolicitudCompra} from "@/pages/SolicitudCompra";
+import GanttChart from "@/pages/Configuracion/GanttChart.tsx";
+import AgendaPage from "@/pages/Agenda";
 
 const router = createBrowserRouter([
   {
@@ -35,14 +40,14 @@ const router = createBrowserRouter([
     path: "/proveedores",
     element: (
       <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.COMPRAS]}>
-        <Proveedores />
+        <SupplierManagement />
       </ProtectedRoute>
     ),
   },
   {
     path: "/proveedor/perfil",
     element: (
-      <ProtectedRoute requiredRoles={[UserRole.PROVEEDOR]}>
+      <ProtectedRoute requiredRoles={[UserRole.PROVEEDOR, UserRole.ADMIN]}>
         <ProveedorProfile />
       </ProtectedRoute>
     ),
@@ -71,17 +76,33 @@ const router = createBrowserRouter([
       </ProtectedRoute>
     ),
   },
+  // Solicitud de compra
+  {
+    path: "/solicitud-compra",
+    element: (
+        <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.COMPRAS, UserRole.PROVEEDOR]}>
+          {/*<Dashboard>
+          <div className="p-6">
+            <h1 className="text-2xl font-bold mb-4">Órdenes de Compra</h1>
+            <p className="text-gray-600">Página en construcción - Gestión de órdenes de compra</p>
+          </div>
+        </Dashboard>*/}
+          <SolicitudCompra />
+        </ProtectedRoute>
+    ),
+  },
   // Placeholder routes for future implementation
   {
     path: "/orden-compra",
     element: (
       <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.COMPRAS, UserRole.PROVEEDOR]}>
-        <Dashboard>
+        {/*<Dashboard>
           <div className="p-6">
             <h1 className="text-2xl font-bold mb-4">Órdenes de Compra</h1>
             <p className="text-gray-600">Página en construcción - Gestión de órdenes de compra</p>
           </div>
-        </Dashboard>
+        </Dashboard>*/}
+        <PurchaseOrdersList />
       </ProtectedRoute>
     ),
   },
@@ -102,12 +123,13 @@ const router = createBrowserRouter([
     path: "/finanzas/pagos",
     element: (
       <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.FINANZAS]}>
-        <Dashboard>
+        {/*<Dashboard>
           <div className="p-6">
             <h1 className="text-2xl font-bold mb-4">Gestión de Pagos</h1>
             <p className="text-gray-600">Página en construcción - Procesamiento de pagos</p>
           </div>
-        </Dashboard>
+        </Dashboard>*/}
+        <PaymentsList />
       </ProtectedRoute>
     ),
   },
@@ -115,12 +137,13 @@ const router = createBrowserRouter([
     path: "/configuracion/usuarios",
     element: (
       <ProtectedRoute requiredRoles={[UserRole.ADMIN]}>
-        <Dashboard>
+        {/*<Dashboard>
           <div className="p-6">
             <h1 className="text-2xl font-bold mb-4">Gestión de Usuarios</h1>
             <p className="text-gray-600">Página en construcción - Administración de usuarios</p>
           </div>
-        </Dashboard>
+        </Dashboard>*/}
+        < UserManagement />
       </ProtectedRoute>
     ),
   },
@@ -138,28 +161,37 @@ const router = createBrowserRouter([
     ),
   },
   {
+    path: "/configuracion/permisos",
+    element: (
+        <ProtectedRoute requiredRoles={[UserRole.ADMIN]}>
+          {/*<Dashboard>
+            <div className="p-6">
+              <h1 className="text-2xl font-bold mb-4">Configuración del Sistema</h1>
+              <p className="text-gray-600">Página en construcción - Configuración general</p>
+            </div>
+          </Dashboard>*/}
+          <GanttChart/>
+        </ProtectedRoute>
+    ),
+  },
+  {
     path: "/cotizaciones",
     element: (
-      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.COMPRAS, UserRole.PROVEEDOR]}>
-        <Dashboard>
-          <div className="p-6">
-            <h1 className="text-2xl font-bold mb-4">Cotizaciones</h1>
-            <p className="text-gray-600">Página en construcción - Gestión de cotizaciones</p>
-          </div>
-        </Dashboard>
-      </ProtectedRoute>
+        <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.COMPRAS, UserRole.PROVEEDOR]}>
+          <Dashboard>
+            <div className="p-6">
+              <h1 className="text-2xl font-bold mb-4">Cotizaciones</h1>
+              <p className="text-gray-600">Página en construcción - Gestión de cotizaciones</p>
+            </div>
+          </Dashboard>
+        </ProtectedRoute>
     ),
   },
   {
     path: "/agenda",
     element: (
-      <ProtectedRoute requiredRoles={[UserRole.PROVEEDOR]}>
-        <Dashboard>
-          <div className="p-6">
-            <h1 className="text-2xl font-bold mb-4">Mi Agenda</h1>
-            <p className="text-gray-600">Página en construcción - Calendario y fechas importantes</p>
-          </div>
-        </Dashboard>
+      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.ALMACEN]}>
+        <AgendaPage />
       </ProtectedRoute>
     ),
   },

@@ -304,7 +304,7 @@ const PaymentsList = () => {
                 </div>
 
                 <Card>
-                    <CardBody className="p-0">
+                    <CardBody className="p-4">
                         <Table
                             aria-label="Tabla de pagos"
                             topContent={topContent}

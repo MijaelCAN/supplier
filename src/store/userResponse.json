@@ -1,0 +1,42 @@
+{
+  "user": {
+    "user_code": "3550 / PROV_7890",
+    "user_name": "Laura Mendoza Torres / Suministros Industriales SAC",
+    "role": "admin / almacen",
+    "role_type": "internal / provider",
+    "department": "Almacen I&M / national",
+    "position": "Supervisor de Recepcion / A",
+    "email": "lmendoza@empresa.com / contacto@suministros.com",
+    "phone": "963852741 / 987654321",
+    "avatar": "https://i.pravatar.cc/150?u=admin",
+    "account_status": "active / suspend / inactive",
+    "last_login": "2023-11-15T09:15:00Z",
+    "use_supplier_portal": true,
+    "settings": {
+      "edit_profile": true,
+      "view_providers": true,
+      "validate_providers": true,
+      "schedule_visits": true,
+      "view_visits": true,
+      "confirm_availability": true,
+      "upload_delivery_docs": true,
+      "validate_entry": true,
+      "approve_quality": true,
+      "register_reception": true,
+      "upload_invoices": true,
+      "validate_documents": true,
+      "schedule_payments": true,
+      "create_bids": true,
+      "participate_bids": true,
+      "evaluate_providers": true,
+      "system_config": true
+    }
+  },
+
+
+  "request":{
+    "username": "jefe_compras_01",
+    "password": "S3gur4.2025*",
+    "role_type": "provider/internal"
+  }
+}

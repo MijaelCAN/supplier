@@ -174,7 +174,7 @@ const ModalRegister: FC<ModalRegisterProps> = ({isRegisterOpen,onRegisterClose, 
 }
 export {ModalRegister}*/
 import { FC, useState } from 'react'
-import { useForm, Controller } from 'react-hook-form'
+import {useForm, Controller} from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import {
@@ -189,8 +189,9 @@ import {
     SelectItem,
     Divider
 } from "@heroui/react"
-import {Supplier, useConfigData} from '@/store'
-import { useAuth, useAuthStore } from '@/store/authStore'
+import {Supplier, useConfigData, useSuppliers} from '@/store'
+import { useAuthStore } from '@/store/authStore'
+import {useExtendedStore} from "@/store/extendedStore.ts";
 
 // Schema de validación con Zod
 /*const supplierRegisterSchema2 = z.object({
@@ -224,12 +225,12 @@ const supplierRegisterSchema = z.object({
     address: z.string().min(1, "La dirección es requerida"),
     city: z.string().min(1, "La ciudad es requerida"),
     country: z.string().min(1, "El país es requerido"),
-    contactPerson: z.string().min(1, "El nombre del contacto es requerido"),
+    contactPerson: z.string().min(1, "El nombre de contacto es requerido, xd"),
     contactEmail: z.string().email("Email de contacto inválido").min(1, "El email de contacto es requerido"),
     contactPhone: z.string().min(1, "El teléfono de contacto es requerido"),
-    personType: z.string().min(1,"Seleccione un tipo de persona"),
+    personType: z.string().optional(),
     businessType: z.string().min(1, "La actividad económica es requerida"),
-    status: z.enum(["A", "I", "P", "S"], undefined),
+    status: z.enum(["Activo", "Inactivo", "Pendiente", "Suspendido"], undefined),
     rating: z.number().min(0, "La calificación debe ser al menos 0"),
     totalOrders: z.number().int().min(0, "El número de órdenes debe ser 0 o mayor"),
     totalAmount: z.number().min(0, "El monto total debe ser 0 o mayor"),
@@ -238,9 +239,9 @@ const supplierRegisterSchema = z.object({
     registrationDate: z.string().min(1, "La fecha de registro es requerida"),
     lastOrderDate: z.string().min(1, "La fecha de última orden es requerida"),
     avatar: z.string().url("La URL del avatar debe ser válida"),
-    //generalManager: z.string().min(1, "generalManager es requerido"),
-    //adminManager: z.string().min(1, "adminManager es requerido"),
-    //salesManager: z.string().min(1, "salesManager es requerido"),
+    generalManager: z.string().min(1, "generalManager es requerido"),
+    adminManager: z.string().optional(),
+    salesManager: z.string().min(1, "salesManager es requerido"),
 });
 
 
@@ -267,14 +268,16 @@ interface ModalRegisterProps {
 
 const ModalRegister: FC<ModalRegisterProps> = ({
    isRegisterOpen,
-   onRegisterClose,
-   addSupplier
+   onRegisterClose
 }) => {
-    const { terminosPago, estadosRegister, tipoPersona } = useConfigData()
+    const { suppliers } = useSuppliers();
+    const { terminosPago, tipoPersona } = useConfigData()
     const { createSupplierUser } = useAuthStore()
     const [isConsultingRuc, setIsConsultingRuc] = useState(false)
     const [sunatData, setSunatData] = useState<SunatData | null>(null)
     const [isRucValid, setIsRucValid] = useState(false)
+
+    const estadosSupplier = useExtendedStore( state => state.estadosSupplier )
 
     const {
         control,
@@ -286,7 +289,7 @@ const ModalRegister: FC<ModalRegisterProps> = ({
     } = useForm<SupplierRegisterFormData>({
         resolver: zodResolver(supplierRegisterSchema),
         defaultValues: {
-            docEntry: '123456',
+            docEntry:`${suppliers.length}`,
             cardCode: '',
             cardName: '',
             email: '',
@@ -295,12 +298,12 @@ const ModalRegister: FC<ModalRegisterProps> = ({
             address: '',
             city: 'Lima',
             country: 'PERU',
-            contactPerson: '',
+            contactPerson: 'Mijael Cano Rojas',
             contactEmail: 'contacto@gmail.com',
             contactPhone: '',
-            personType: '',
+            personType: 'TPJ',
             businessType: 'SALUD',
-            status: 'P',            // Puedes usar un valor por defecto válido del enum
+            status: 'Pendiente',
             rating: 0.0,
             totalOrders: 0,
             totalAmount: 0,
@@ -311,6 +314,8 @@ const ModalRegister: FC<ModalRegisterProps> = ({
             avatar: 'https://i.pravatar.cc/150?u=medicos',
         }
     });
+
+    //const { fields, append, remove} = useFieldArray({control, name: "contactPerson"});
 
     const watchedRuc = watch('cardCode')
 
@@ -388,36 +393,40 @@ const ModalRegister: FC<ModalRegisterProps> = ({
         try {
             // Transformar los datos del formulario al formato Supplier
             const newSupplier = {
-                docEntry: data.docEntry,
+                //docEntry: data.docEntry,
                 cardCode: data.cardCode,
                 cardName: data.cardName,
                 businessType: data.businessType,
                 email: data.email,
                 phone: data.phone || '',
-                website: data.website || 'www.miempresa.com.pe',
+                //website: data.website || 'www.miempresa.com.pe',
                 address: data.address,
-                city: data.city,
-                country: 'PERU',
+                //city: data.city,
+                //country: 'PERU',
                 contactPerson: data.contactPerson,
                 contactEmail: data.contactEmail,
                 contactPhone: data.contactPhone || '',
                 paymentTerms: data.paymentTerms,
-                certifications: data.certifications,
+                //certifications: data.certifications,
                 status: data.status,
-                rating: data.rating,
-                totalAmount: data.totalAmount,
-                totalOrders: data.totalOrders,
+                //rating: data.rating,
+                //totalAmount: data.totalAmount,
+                //totalOrders: data.totalOrders,
                 registrationDate: new Date().toLocaleDateString('es-PE'),
-                lastOrderDate: new Date().toLocaleDateString('es-PE'),
-                avatar: data.avatar,
-                personType: data.personType || 'Juridica'
+                //lastOrderDate: new Date().toLocaleDateString('es-PE'),
+                //avatar: data.avatar,
+                personType: data.personType || 'Juridica',
+                adminManager: data.adminManager,
+                generalManager: data.generalManager,
+                salesManager: data.salesManager
             }
+            console.log( "Proveedor",newSupplier)
 
             // Add supplier to store
-            await addSupplier(newSupplier)
+            //await addSupplier(newSupplier)
             
             // Simulate email sending and create user account
-            await simulateEmailSending(data.contactEmail, data.cardName, data.contactPerson, data.docEntry)
+            //await simulateEmailSending(data.contactEmail, data.cardName, data.contactPerson, data.docEntry)
             
             // Close modal after success
             handleClose()
@@ -577,238 +586,244 @@ const ModalRegister: FC<ModalRegisterProps> = ({
                                     />
 
                                     <Controller
-                                        name="personType"
+                                        name="phone"
                                         control={control}
                                         render={({field}) => (
-                                            <Select
+                                            <Input
                                                 {...field}
-                                                label="Tipo de persona"
+                                                label="Telefono Proveedor"
+                                                type="text"
+                                                placeholder="958746932"
                                                 size="sm"
-                                                placeholder="Seleccione un tipo"
-                                                selectedKeys={field.value ? [field.value] : []}
-                                                onSelectionChange={(keys) => {
-                                                    const selectedKey = Array.from(keys)[0] as string
-                                                    field.onChange(selectedKey)
-                                                }}
-                                                isInvalid={!!errors.personType}
-                                                errorMessage={errors.personType?.message}
-                                            >
-                                                {tipoPersona.map((tipo) => (
-                                                    <SelectItem key={tipo.key}>{tipo.label}</SelectItem>
-                                                ))}
-                                            </Select>
+                                                isInvalid={!!errors.phone}
+                                                errorMessage={errors.phone?.message}
+                                            />
                                         )}
                                     />
                                 </div>
 
-                                {/* Campos de gerentes - solo mostrar si tienen datos */}
-                                {sunatData?.gerenteGeneral && (
-                                    <Controller
-                                        name="generalManager"
-                                        control={control}
-                                        render={({field}) => (
-                                            <Input
-                                                {...field}
-                                                label="Gerente General"
-                                                placeholder="Se completará automáticamente"
-                                                size="sm"
-                                                isDisabled
-                                            />
-                                        )}
-                                    />
-                                )}
-
-                                {sunatData?.gerenteAdministrativo && (
-                                    <Controller
-                                        name="adminManager"
-                                        control={control}
-                                        render={({field}) => (
-                                            <Input
-                                                {...field}
-                                                label="Gerente Administrativo"
-                                                placeholder="Se completará automáticamente"
-                                                size="sm"
-                                                isDisabled
-                                            />
-                                        )}
-                                    />
-                                )}
-
-                                {sunatData?.gerenteVentas && (
-                                    <Controller
-                                        name="salesManager"
-                                        control={control}
-                                        render={({field}) => (
-                                            <Input
-                                                {...field}
-                                                label="Gerente de Ventas"
-                                                placeholder="Se completará automáticamente"
-                                                size="sm"
-                                                isDisabled
-                                                isInvalid={!!errors.salesManager}
-                                                errorMessage={errors.generalManager?.message}
-                                            />
-                                        )}
-                                    />
-                                )}
-
                                 <Divider/>
 
-                                <div>
+                                <div className="space-y-4">
                                     <h4 className="font-semibold mb-4">Persona de Contacto</h4>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <Controller
-                                            name="contactPerson"
-                                            control={control}
-                                            render={({field}) => (
-                                                <Input
-                                                    {...field}
-                                                    size="sm"
-                                                    label="Nombre Completo"
-                                                    placeholder="Nombre del contacto principal"
-                                                    isInvalid={!!errors.contactPerson}
-                                                    errorMessage={errors.contactPerson?.message}
-                                                />
-                                            )}
-                                        />
-                                        <Controller
-                                            name="contactPhone"
-                                            control={control}
-                                            render={({field}) => (
-                                                <Input
-                                                    {...field}
-                                                    size="sm"
-                                                    label="Teléfono de Contacto"
-                                                    placeholder="+51 999 999 999"
-                                                    isInvalid={!!errors.contactPerson}
-                                                    errorMessage={errors.contactPerson?.message}
-                                                />
-                                            )}
-                                        />
+                                    <Controller
+                                        name="contactPerson"
+                                        control={control}
+                                        render={({field}) => (
+                                            <Input
+                                                {...field}
+                                                label="Nombre Completo"
+                                                placeholder="Nombre del contacto principal"
+                                                size="sm"
+                                                isInvalid={!!errors.contactPerson}
+                                                errorMessage={errors.contactPerson?.message}
+                                            />
+                                        )}
+                                    />
+                                        {<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <Controller
+                                                name="contactEmail"
+                                                control={control}
+                                                render={({field}) => (
+                                                    <Input
+                                                        {...field}
+                                                        size="sm"
+                                                        label="Email"
+                                                        placeholder="proveedor@nogasa.com.pe"
+                                                        isInvalid={!!errors.contactEmail}
+                                                        errorMessage={errors.contactEmail?.message}
+                                                    />
+                                                )}
+                                            />
+                                            <Controller
+                                                name="contactPhone"
+                                                control={control}
+                                                render={({field}) => (
+                                                    <Input
+                                                        {...field}
+                                                        size="sm"
+                                                        label="Teléfono de Contacto"
+                                                        placeholder="+51 999 999 999"
+                                                        isInvalid={!!errors.contactPhone}
+                                                        errorMessage={errors.contactPhone?.message}
+                                                    />
+                                                )}
+                                            />
+                                        </div>}
+                                        {/*fields.map((field, index) => (
+                                        <div key={field.id} className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                            <Controller
+                                                name={`contactPerson.${index}.name`}
+                                                control={control}
+                                                render={({ field }) => (
+                                                    <div>
+                                                        <label className="block font-medium">Nombre Completo</label>
+                                                        <input
+                                                            {...field}
+                                                            placeholder="Nombre del contacto"
+                                                            className={`w-full border rounded px-2 py-1 ${
+                                                                errors.contactPerson?.[index]?.name ? "border-red-500" : "border-gray-300"
+                                                            }`}
+                                                        />
+                                                        {errors.contactPerson?.[index]?.name && (
+                                                            <p className="text-red-600 text-sm mt-1">
+                                                                {errors.contactPerson[index]?.name?.message}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            />
+
+                                            <Controller
+                                                name={`contactPerson.${index}.phone`}
+                                                control={control}
+                                                render={({ field }) => (
+                                                    <div>
+                                                        <label className="block font-medium">Teléfono de Contacto</label>
+                                                        <input
+                                                            {...field}
+                                                            placeholder="+51 999 999 999"
+                                                            className={`w-full border rounded px-2 py-1 ${
+                                                                errors.contactPerson?.[index]?.phone ? "border-red-500" : "border-gray-300"
+                                                            }`}
+                                                        />
+                                                        {errors.contactPerson?.[index]?.phone && (
+                                                            <p className="text-red-600 text-sm mt-1">
+                                                                {errors.contactPerson[index]?.phone?.message}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            />
+                                        </div>
+                                    ))*/}
+
+                                    </div>
+
+                                    <Divider/>
+
+                                    <div>
+                                        <h4 className="font-semibold mb-4">Otros</h4>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <Controller
+                                                name="generalManager"
+                                                control={control}
+                                                render={({field}) => (
+                                                    <Input
+                                                        {...field}
+                                                        size="sm"
+                                                        label="Gerente general"
+                                                        isInvalid={!!errors.generalManager}
+                                                        errorMessage={errors.generalManager?.message}
+                                                    />
+                                                )}
+                                            />
+                                            <Controller
+                                                name="salesManager"
+                                                control={control}
+                                                render={({field}) => (
+                                                    <Input
+                                                        {...field}
+                                                        size="sm"
+                                                        label="Gerente de ventas"
+                                                        isInvalid={!!errors.salesManager}
+                                                        errorMessage={errors.salesManager?.message}
+                                                    />
+                                                )}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <Controller
+                                                name="adminManager"
+                                                control={control}
+                                                render={({field}) => (
+                                                    <Input
+                                                        {...field}
+                                                        size="sm"
+                                                        label="Gerente administrativo"
+                                                        isInvalid={!!errors.adminManager}
+                                                        errorMessage={errors.adminManager?.message}
+                                                    />
+                                                )}
+                                            />
+                                            <Controller
+                                                name="paymentTerms"
+                                                control={control}
+                                                render={({field}) => (
+                                                    <Select
+                                                        {...field}
+                                                        label="Término de pago"
+                                                        size="sm"
+                                                        placeholder="Seleccione un término"
+                                                        selectedKeys={field.value ? [field.value] : []}
+                                                        onSelectionChange={(keys) => {
+                                                            const selectedKey = Array.from(keys)[0] as string
+                                                            field.onChange(selectedKey)
+                                                        }}
+                                                        isInvalid={!!errors.paymentTerms}
+                                                        errorMessage={errors.paymentTerms?.message}
+                                                    >
+                                                        {terminosPago.map((termino) => (
+                                                            <SelectItem key={termino.key}>{termino.label}</SelectItem>
+                                                        ))}
+                                                    </Select>
+                                                )}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className={`p-3 rounded-lg ${isRucValid ? 'bg-green-50' : 'bg-blue-50'}`}>
+                                        <p className={`text-xs ${isRucValid ? 'text-green-600' : 'text-blue-600'}`}>
+                                            <strong>Nota:</strong> {
+                                            isRucValid
+                                                ? 'RUC válido. Los campos se han completado automáticamente.'
+                                                : 'Consulte el RUC para completar automáticamente la información de la empresa. Solo se habilitarán los campos si el estado es ACTIVO y HABIDO.'
+                                        }
+                                        </p>
+                                        {errors.docEntry?.message && <p>docEntry: {errors.docEntry.message}</p>}
+                                        {errors.cardCode?.message && <p>cardCode: {errors.cardCode.message}</p>}
+                                        {errors.cardName?.message && <p>cardName: {errors.cardName.message}</p>}
+                                        {errors.email?.message && <p>email: {errors.email.message}</p>}
+                                        {errors.phone?.message && <p>phone: {errors.phone.message}</p>}
+                                        {errors.website?.message && <p>website: {errors.website.message}</p>}
+                                        {errors.address?.message && <p>address: {errors.address.message}</p>}
+                                        {errors.city?.message && <p>city: {errors.city.message}</p>}
+                                        {errors.country?.message && <p>country: {errors.country.message}</p>}
+                                        {errors.contactPerson?.message &&
+                                            <p>contactPerson: {errors.contactPerson.message}</p>}
+                                        {errors.contactEmail?.message &&
+                                            <p>contactEmail: {errors.contactEmail.message}</p>}
+                                        {errors.contactPhone?.message &&
+                                            <p>contactPhone: {errors.contactPhone.message}</p>}
+                                        {errors.personType?.message && <p>personType: {errors.personType.message}</p>}
+                                        {errors.businessType?.message &&
+                                            <p>businessType: {errors.businessType.message}</p>}
+                                        {errors.status?.message && <p>status: {errors.status.message}</p>}
+                                        {errors.rating?.message && <p>rating: {errors.rating.message}</p>}
+                                        {errors.totalOrders?.message &&
+                                            <p>totalOrders: {errors.totalOrders.message}</p>}
+                                        {errors.totalAmount?.message &&
+                                            <p>totalAmount: {errors.totalAmount.message}</p>}
+                                        {errors.paymentTerms?.message &&
+                                            <p>paymentTerms: {errors.paymentTerms.message}</p>}
+                                        {errors.certifications?.message &&
+                                            <p>certifications: {errors.certifications.message}</p>}
+                                        {errors.registrationDate?.message &&
+                                            <p>registrationDate: {errors.registrationDate.message}</p>}
+                                        {errors.lastOrderDate?.message &&
+                                            <p>lastOrderDate: {errors.lastOrderDate.message}</p>}
+                                        {errors.avatar?.message && <p>avatar: {errors.avatar.message}</p>}
+                                        {errors.adminManager?.message &&
+                                            <p>adminManager: {errors.adminManager.message}</p>}
+                                        {errors.salesManager?.message &&
+                                            <p>salesManager: {errors.salesManager.message}</p>}
+
+
                                     </div>
                                 </div>
-
-                                <Divider/>
-
-                                <div>
-                                    <h4 className="font-semibold mb-4">Otros</h4>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <Controller
-                                            name="paymentTerms"
-                                            control={control}
-                                            render={({field}) => (
-                                                <Select
-                                                    {...field}
-                                                    label="Término de pago"
-                                                    size="sm"
-                                                    placeholder="Seleccione un término"
-                                                    selectedKeys={field.value ? [field.value] : []}
-                                                    onSelectionChange={(keys) => {
-                                                        const selectedKey = Array.from(keys)[0] as string
-                                                        field.onChange(selectedKey)
-                                                    }}
-                                                    isInvalid={!!errors.paymentTerms}
-                                                    errorMessage={errors.paymentTerms?.message}
-                                                >
-                                                    {terminosPago.map((termino) => (
-                                                        <SelectItem key={termino.key}>{termino.label}</SelectItem>
-                                                    ))}
-                                                </Select>
-                                            )}
-                                        />
-                                        <Controller
-                                            name="status"
-                                            control={control}
-                                            render={({field}) => (
-                                                <Select
-                                                    {...field}
-                                                    label="Estado inicial"
-                                                    size="sm"
-                                                    placeholder="Seleccione un estado"
-                                                    selectedKeys={field.value ? [field.value] : []}
-                                                    onSelectionChange={(keys) => {
-                                                        const selectedKey = Array.from(keys)[0] as string
-                                                        field.onChange(selectedKey)
-                                                    }}
-                                                    isInvalid={!!errors.status}
-                                                    errorMessage={errors.status?.message}
-                                                >
-                                                    {estadosRegister.map((estado) => (
-                                                        <SelectItem key={estado.key}>{estado.label}</SelectItem>
-                                                    ))}
-                                                </Select>
-                                            )}
-                                        />
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <h4 className="font-semibold mb-4">Otros</h4>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <Controller
-                                            name="generalManager"
-                                            control={control}
-                                            render={({field}) => (
-                                                <Input
-                                                    {...field}
-                                                    size="sm"
-                                                    label="Gerente general"
-                                                    isInvalid={!!errors.generalManager}
-                                                    errorMessage={errors.generalManager?.message}
-                                                />
-                                            )}
-                                        />
-                                        <Controller
-                                            name="salesManager"
-                                            control={control}
-                                            render={({field}) => (
-                                                <Input
-                                                    {...field}
-                                                    size="sm"
-                                                    label="Gerente de ventas"
-                                                    isInvalid={!!errors.salesManager}
-                                                    errorMessage={errors.salesManager?.message}
-                                                />
-                                            )}
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className={`p-3 rounded-lg ${isRucValid ? 'bg-green-50' : 'bg-blue-50'}`}>
-                                    <p className={`text-xs ${isRucValid ? 'text-green-600' : 'text-blue-600'}`}>
-                                        <strong>Nota:</strong> {
-                                        isRucValid
-                                            ? 'RUC válido. Los campos se han completado automáticamente.'
-                                            : 'Consulte el RUC para completar automáticamente la información de la empresa. Solo se habilitarán los campos si el estado es ACTIVO y HABIDO.'
-                                    }
-                                    </p>
-                                    <p>{errors.docEntry?.message}</p>
-                                    <p>{errors.cardCode?.message}</p>
-                                    <p>{errors.cardName?.message}</p>
-                                    <p>{errors.email?.message}</p>
-                                    <p>{errors.phone?.message}</p>
-                                    <p>{errors.website?.message}</p>
-                                    <p>{errors.address?.message}</p>
-                                    <p>{errors.city?.message}</p>
-                                    <p>{errors.country?.message}</p>
-                                    <p>{errors.contactPerson?.message}</p>
-                                    <p>{errors.contactEmail?.message}</p>
-                                    <p>{errors.contactPhone?.message}</p>
-                                    <p>{errors.personType?.message}</p>
-                                    <p>{errors.businessType?.message}</p>
-                                    <p>{errors.status?.message}</p>
-                                    <p>{errors.rating?.message}</p>
-                                    <p>{errors.totalOrders?.message}</p>
-                                    <p>{errors.totalAmount?.message}</p>
-                                    <p>{errors.paymentTerms?.message}</p>
-                                    <p>{errors.certifications?.message}</p>
-                                    <p>{errors.registrationDate?.message}</p>
-                                    <p>{errors.lastOrderDate?.message}</p>
-                                    <p>{errors.avatar?.message}</p>
-                                    <p>{errors.adminManager?.message}</p>
-                                    <p>{errors.salesManager?.message}</p>
-                                </div>
-                            </div>
                         </ModalBody>
 
                         <ModalFooter>

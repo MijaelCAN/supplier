@@ -132,7 +132,7 @@ const PurchaseOrdersList = () => {
             supplierName: supplier.cardName,
             totalAmount: formData.totalAmount,
             currency: formData.currency,
-            status: 'Borrador',
+            status: 'Pendiente', // Borrador
             priority: formData.priority as any,
             createdDate: new Date().toISOString().split('T')[0],
             deliveryDate: formData.deliveryDate,
@@ -231,7 +231,7 @@ const PurchaseOrdersList = () => {
                 </div>
 
                 <Card>
-                    <CardBody className="p-0">
+                    <CardBody className="p-4">
                         <Table
                             aria-label="Tabla de órdenes de compra"
                             topContent={topContent}

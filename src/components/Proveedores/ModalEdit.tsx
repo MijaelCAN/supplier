@@ -167,6 +167,7 @@ import {
     Divider
 } from "@heroui/react";
 import {Supplier, useConfigData} from "@/store";
+import {useExtendedStore} from "@/store/extendedStore.ts";
 
 // Schema de validación con Zod
 const supplierSchema = z.object({
@@ -201,7 +202,8 @@ const ModalEdit: FC<ModalEditProps> = ({
    selectedSupplier,
    updateSupplier
 }) => {
-    const { estadosSupplier } = useConfigData()
+    //const { estadosSupplier } = useConfigData()
+    const estadosSupplier = useExtendedStore( state => state.estadosSupplier)
 
     const {
         control,

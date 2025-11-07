@@ -49,13 +49,34 @@ const staticUsers: User[] = [
     },
     {
         id: '4',
-        email: 'proveedor@techcorp.com',
+        email: 'almacen@vistony.com',
+        password: 'almacen123',
+        firstName: 'Barrenzuela',
+        lastName: 'Jefe de Almacen',
+        role: UserRole.ALMACEN,
+        avatar: 'https://i.pravatar.cc/150?u=proveedor',
+        isActive: true
+    },
+    {
+        id: '5',
+        email: 'ventas@industrial.com',
         password: 'proveedor123',
-        firstName: 'Ana',
+        firstName: 'Industrial Supplies SAC',
         lastName: 'Proveedor',
         role: UserRole.PROVEEDOR,
-        avatar: 'https://i.pravatar.cc/150?u=proveedor',
-        supplierId: '1', // Relacionado con el primer proveedor del store
+        avatar: 'https://i.pravatar.cc/150?u=industrial',
+        supplierId: '2', // Relacionado con el primer proveedor del store
+        isActive: true
+    },
+    {
+        id: '6',
+        email: 'info@construcciones.com',
+        password: 'proveedor456',
+        firstName: 'Construcciones del Norte EIRL',
+        lastName: 'Proveedor',
+        role: UserRole.PROVEEDOR,
+        avatar: 'https://i.pravatar.cc/150?u=construcciones',
+        supplierId: '3', // Relacionado con el primer proveedor del store
         isActive: true
     }
 ];

@@ -109,8 +109,8 @@ const AdminHome = () => {
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <Card className="cursor-pointer hover:shadow-lg transition-shadow" isPressable onPress={() => navigate('/proveedores')}>
                         <CardBody className="flex flex-row items-center gap-4">
-                            <div className="p-3 bg-blue-100 rounded-lg">
-                                <BuildingOfficeIcon className="h-8 w-8 text-blue-600" />
+                            <div className="p-3 bg-gray-100 rounded-lg">
+                                <BuildingOfficeIcon className="h-8 w-8 text-gray-600" />
                             </div>
                             <div className="flex-1">
                                 <p className="text-sm text-gray-500">Proveedores</p>

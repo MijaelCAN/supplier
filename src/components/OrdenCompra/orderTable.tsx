@@ -55,7 +55,7 @@ const OrderTable: FC<TableProps> = ({
                     </TableHeader>
                     <TableBody emptyContent={messageEmpty} items={sortedItems}>
                         {(item) => (
-                            <TableRow key={item.id}>
+                            <TableRow key={item}>
                                 {(columnKey) => <TableCell>{renderCell(item, columnKey)}</TableCell>}
                             </TableRow>
                         )}

@@ -1,10 +1,22 @@
 import {
     BookOpenIcon,
-    BuildingOfficeIcon, CalendarDaysIcon, ChartBarIcon, ClockIcon, Cog6ToothIcon, CreditCardIcon, CurrencyDollarIcon,
-    DocumentTextIcon, FolderIcon,
-    HomeIcon, PresentationChartBarIcon, ScaleIcon, ShieldCheckIcon,
+    BuildingOfficeIcon,
+    CalendarDaysIcon,
+    ChartBarIcon,
+    ClipboardDocumentListIcon,
+    ClockIcon,
+    Cog6ToothIcon,
+    CreditCardIcon,
+    CurrencyDollarIcon,
+    DocumentTextIcon,
+    FolderIcon,
+    HomeIcon,
+    PresentationChartBarIcon,
+    ScaleIcon,
+    ShieldCheckIcon,
     ShoppingCartIcon,
-    StarIcon, UserCircleIcon,
+    StarIcon,
+    UserCircleIcon,
     UsersIcon
 } from "@heroicons/react/24/outline";
 import {MenuItem, UserRole} from "@/routes/menuTypes.ts";
@@ -64,7 +76,7 @@ export const menuItems: MenuItem[] = [
         icon: <HomeIcon className="h-5 w-5" />,
         href: "/dashboard",
         single: true,
-        roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.FINANZAS]
+        roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.FINANZAS, UserRole.ALMACEN]
     },
     {
         title: "Proveedores",
@@ -119,12 +131,30 @@ export const menuItems: MenuItem[] = [
     {
         title: "Procesos de Compra",
         icon: <ShoppingCartIcon className="h-5 w-5" />,
-        roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.FINANZAS],
+        roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.FINANZAS, UserRole.ALMACEN],
         items: [
+            {
+                title: "Solicitud de compra",
+                icon: <ClipboardDocumentListIcon  className="h-4 w-4" />,
+                href: "/solicitud-compra",
+                roles: [UserRole.ADMIN, UserRole.SOLICITANTE, UserRole.COMPRAS]
+            },
             {
                 title: "Orden de compra",
                 icon: <ShoppingCartIcon className="h-4 w-4" />,
                 href: "/orden-compra",
+                roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS]
+            },
+            {
+                title: "Agenda",
+                icon: <BookOpenIcon className="h-4 w-4" />,
+                href: "/agenda",
+                roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.ALMACEN]
+            },
+            {
+                title: "Fecha de entrega",
+                icon: <CalendarDaysIcon className="h-4 w-4" />,
+                href: "/entrega",
                 roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS]
             },
             {
@@ -140,28 +170,16 @@ export const menuItems: MenuItem[] = [
                 roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.FINANZAS]
             },
             {
-                title: "Pagos",
-                icon: <CreditCardIcon className="h-4 w-4" />,
-                href: "/pagos",
-                roles: [UserRole.ADMIN, UserRole.FINANZAS]
-            },
-            {
-                title: "Fecha de entrega",
-                icon: <CalendarDaysIcon className="h-4 w-4" />,
-                href: "/entrega",
-                roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS]
-            },
-            {
                 title: "Cronograma de pago",
                 icon: <ClockIcon className="h-4 w-4" />,
                 href: "/cronograma",
                 roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.FINANZAS]
             },
             {
-                title: "Agenda",
-                icon: <BookOpenIcon className="h-4 w-4" />,
-                href: "/agenda",
-                roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS]
+                title: "Pagos",
+                icon: <CreditCardIcon className="h-4 w-4" />,
+                href: "/pagos",
+                roles: [UserRole.ADMIN, UserRole.FINANZAS]
             },
             {
                 title: "Licitación",

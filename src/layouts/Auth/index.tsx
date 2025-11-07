@@ -233,7 +233,7 @@ const Login = () => {
                                         alt="google"
                                         className="h-6 w-6"
                                     />{" "}*/}
-                                    Registrarse
+                                    Recuperar Contraseña
                                 </Button>
                                 <h6 className="text-center mx-auto max-w-[19rem] text-sm font-medium text-gray-600 dark:text-gray-400">
                                     Al iniciar sesión, usted acepta cumplir con nuestros{" "}
@@ -255,88 +255,19 @@ const Login = () => {
                 <DrawerContent>
                     {(onClose) => (
                         <>
-                            <DrawerHeader className="flex flex-col gap-1">Registro de Proveedor</DrawerHeader>
+                            <DrawerHeader className="flex flex-col gap-1">Recuperar Contraseña</DrawerHeader>
                             <DrawerBody>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <Input
-                                        label="RUC"
-                                        type="text"
-                                        size="sm"
-                                        labelPlacement="outside-left"
-                                        isRequired
-                                        className="flex-1"
-                                        value={documentNumber}
-                                        onChange={handleValueChange}
-                                    />
-                                    <Button
-                                        color="danger"
-                                        size="sm"
-                                        className="bg-gris text-white dark:bg-azul"
-                                        onPress={() => {
-                                            handleRegister()
-                                        }}
-                                    >
-                                        Consultar
-                                    </Button>
-                                </div>
-                                <Divider className="mb-6 mt-6"/>
-
-                                <Input
-                                    label="Razon social"
-                                    type="text"
-                                    size="sm"
-                                    labelPlacement="outside"
-                                    placeholder="Rason social"
-                                    isRequired
-                                />
-                                <Input
-                                    type="text"
-                                    size="sm"
-                                    placeholder="Digite dirección"
-                                    isRequired
-                                />
-                                <Input
-                                    label="Persona de contacto"
-                                    type="text"
-                                    size="sm"
-                                    labelPlacement="outside"
-                                    placeholder="Digite"
-                                    isRequired
-                                />
-
-
                                 <Input
                                     endContent={
                                         <MailIcon
                                             className="text-2xl text-default-400 pointer-events-none flex-shrink-0"/>
                                     }
                                     label="Email"
-                                    placeholder="Enter your email"
+                                    placeholder="Digite su correo"
                                     variant="bordered"
                                 />
 
-                                <Input
-                                    endContent={
-                                        <LockIcon
-                                            className="text-2xl text-default-400 pointer-events-none flex-shrink-0"/>
-                                    }
-                                    label="Password"
-                                    placeholder="Enter your password"
-                                    type="password"
-                                    variant="bordered"
-                                />
-                                <div className="flex py-2 px-1 justify-between">
-                                    <Checkbox
-                                        classNames={{
-                                            label: "text-small",
-                                        }}
-                                    >
-                                        Remember me
-                                    </Checkbox>
-                                    <Link color="primary" href="#" size="sm">
-                                        Forgot password?
-                                    </Link>
-                                </div>
+                                <Divider className="mb-6 mt-6"/>
                             </DrawerBody>
                             <DrawerFooter>
                                 <Button color="danger" variant="flat" onPress={onClose}>

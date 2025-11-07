@@ -1,31 +1,109 @@
 // src/store/types.ts
 export interface Supplier {
     docEntry: string;
-    cardCode: string;
-    cardName: string;
-    email: string;
-    phone: string;
-    website?: string;
-    address: string;
-    city: string;
-    country: string;
-    contactPerson: string;
-    contactEmail: string;
-    contactPhone: string;
-    businessType: string;
-    personType: string;
-    status: "A" | "I" | "P" | "S";
-    rating: number;
-    totalOrders: number;
-    totalAmount: number;
-    paymentTerms: string;
-    certifications: string[];
-    registrationDate: string;
-    lastOrderDate: string;
+    cardCode: string; // general
+    cardName: string; // general
+    email: string; // general
+    phone: string; // general
+    cellPhone?: string; // general
+    currency?: string; // general
+    website?: string; // general
+    address: string; // general
+    taxPayerCategory?: string; // general
+    businessType: string; // general
+    personType: string; // general
+    documentType?: string; // general
+    agenteRetencion?: boolean; // general
+    agentePercepcion?: boolean; // general
+    exoneradoPercepcion?: boolean; // general
+    registradoMype?: boolean; // general
+    emisorFacElectronica?: boolean; // general
+    estado?: string; // general
+    condicion?: string; // general
+    status: "Activo" | "Inactivo" | "Pendiente" | "Suspendido"| "Observado" | "Rechazado" | "EnProceso"; // general
+    approvalDate: string; // general
+    rejectionReason?: string[]; // general
+    rating: number; // general
+    totalOrders: number; // general
+    totalAmount: number; // general
+    paymentTerms: string; // general
+    registrationDate?: string; // general
+    lastOrderDate?: string;
+    lastProfileUpdate?: string;
+    coverImage?: string;
     avatar?: string;
     generalManager?: string;
     adminManager?: string;
     salesManager?: string;
+    addresses?: Direccion[]; // Direcciones
+    contactPerson?: contactPerson;
+    contactEmail: string,
+    contactPhone: string,
+    listaContactos?: contactPerson[], // Personas de Contacto
+    bankReferences?: ReferenciaBancaria[],
+    commercialReferences?: ReferenciaComercial[],
+    ServiciosOfrecidos?: ServiciosOfrecidos[]; // Servicios Ofrecidos
+    Documentos?: Documentos; // Documentos
+}
+interface Direccion {
+    address: string;
+    type: string;
+    departament: string;
+    province: string;
+    city: string;
+    ubigeo: string;
+}
+interface contactPerson {
+    name: string;
+    email?: string;
+    phone?: string;
+    active?: boolean;
+    position?: string;
+}
+
+interface Documentos {
+    certificacionISO: DocumentosDetalle[],
+    licenciaMuni: DocumentosDetalle[],
+    referenciasComerciales: DocumentosDetalle[],
+    referenciasBancarias: DocumentosDetalle[],
+    historicoPrecios: DocumentosDetalle,
+    condicionesPago: DocumentosDetalle,
+    vigenciaPoder: DocumentosDetalle,
+    fichaRuc: DocumentosDetalle,
+    matrizAAmbientales: DocumentosDetalle,
+    matrizIPERC: DocumentosDetalle,
+
+}
+interface DocumentosDetalle {
+    cargado: boolean;
+    archivo?: File;
+    uploadDate: string;
+    state: 'pendiente' | 'aprobado' | 'observado';
+    observation: string;
+}
+interface ReferenciaBancaria {
+    bankName: string,
+    accountNumber: string,
+    phoneNumber: string,
+    sectorista: string,
+    address: string,
+    swiftCode: string,
+    iban: string,
+    accountType: string,
+    currency: string,
+    registrationDate?: string;
+}
+
+interface ReferenciaComercial {
+    name: string,
+    contact: string,
+    phone: string,
+    registrationDate?: string;
+}
+interface ServiciosOfrecidos {
+    principalActivity: string;
+    serviceLine: string;
+    paymentTerms: string;
 }
 
 export interface PurchaseOrder {
@@ -250,3 +328,97 @@ export interface PaymentTrend {
     amount: number;
     count: number;
 }
+
+interface File{
+    name: string;
+    type: string;
+    base64: string
+}
+
+// Agenda Module Types
+export interface DeliveryAppointment {
+    id: string;
+    appointmentNumber: string;
+    supplierId: string;
+    supplierRUC: string;
+    supplierName: string;
+    supplierEmail: string;
+    supplierPhone: string;
+    deliveryDate: string; // ISO date string
+    deliveryTime: string; // Time string (HH:MM) - Hora de inicio
+    deliveryTimeEnd: string; // Time string (HH:MM) - Hora de fin
+    scheduledDateTime: string; // Combined ISO datetime
+    scheduledDateTimeEnd: string; // Combined ISO datetime - Fecha/hora de fin
+    status: 'Pendiente' | 'PackingListCompletado' | 'TransporteCompletado' | 'DocumentosCompletados' | 'ListaParaEntrega' | 'Completada' | 'Cancelada';
+    createdBy: string;
+    createdDate: string;
+    notes?: string;
+    warehouse?: string; // Almacén destino
+    packingList?: PackingList;
+    transportData?: TransportData;
+    documents?: DeliveryDocuments;
+    notificationSent: boolean;
+}
+
+export interface PackingList {
+    id: string;
+    appointmentId: string;
+    supplierId: string;
+    date: string;
+    warehouse: string;
+    items: PackingListItem[];
+    comment?: string;
+    commentWms?: string;
+    createdBy: string;
+    createdDate: string;
+    completed: boolean;
+}
+
+export interface PackingListItem {
+    id: string;
+    productCode: string;
+    productName: string;
+    quantity: number;
+    pendingQuantity: number;
+    unit: string;
+    category?: string;
+}
+
+export interface TransportData {
+    id: string;
+    appointmentId: string;
+    transportCompany?: string;
+    driverName: string;
+    driverLicense?: string;
+    vehiclePlate: string;
+    vehicleType?: string;
+    contactPhone: string;
+    estimatedArrival?: string;
+    notes?: string;
+    completed: boolean;
+    completedDate?: string;
+}
+
+export interface DeliveryDocuments {
+    id: string;
+    appointmentId: string;
+    invoice?: DocumentFile;
+    purchaseOrder?: DocumentFile;
+    deliveryGuide?: DocumentFile;
+    cdr?: DocumentFile;
+    xml?: DocumentFile;
+    otherDocuments?: DocumentFile[];
+    completed: boolean;
+    completedDate?: string;
+}
+
+export interface DocumentFile {
+    id: string;
+    name: string;
+    type: string;
+    url?: string;
+    file?: File;
+    uploadDate: string;
+    uploadedBy: string;
+}
+

@@ -30,6 +30,8 @@ import {
 import Dashboard from "@/layouts/Dashboard";
 import HeaderComponent from "@/components/headerComponent.tsx";
 
+// ======================= NO SE ESTA UTILIZANDO POR AHORA => CARD PROFILE ======================================= //
+
 const ProveedorProfile = () => {
     const [formData, setFormData] = useState({
         // Datos generales

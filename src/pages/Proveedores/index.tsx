@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import {useState, useMemo, Key} from "react";
 import {
     Input,
     Button,
@@ -40,17 +40,17 @@ import {ModalEdit} from "@/components/Proveedores/ModalEdit.tsx";
 import {useNavigate} from "react-router-dom";
 
 const statusColorMap: Record<string, ChipProps["color"]> = {
-    A: "success",
-    P: "warning",
-    S: "danger",
-    I: "default",
+    Activo: "success",
+    Pendiente: "warning",
+    Suspendido: "danger",
+    Inactivo: "default",
 };
 
 const statusLabels: Record<string, string> = {
-    A: "Activo",
-    P: "Pendiente",
-    S: "Suspendido",
-    I: "Inactivo",
+    Activo: "Activo",
+    Pendiente: "Pendiente",
+    Suspendido: "Suspendido",
+    Inactivo: "Inactivo",
 };
 
 const columns = [
@@ -131,7 +131,7 @@ export default function SupplierManagement() {
         });
     }, [sortDescriptor, items]);
 
-    const renderCell = (supplier: Supplier, columnKey: React.Key) => {
+    const renderCell = (supplier: Supplier, columnKey: Key) => {
         const cellValue = supplier[columnKey as keyof Supplier];
 
         switch (columnKey) {
@@ -148,15 +148,15 @@ export default function SupplierManagement() {
             case "contact":
                 return (
                     <div className="flex flex-col">
-                        <p className="text-bold text-sm capitalize">{supplier.contactPerson}</p>
-                        <p className="text-bold text-sm capitalize text-default-400">{supplier.contactEmail}</p>
+                        <p className="text-bold text-sm capitalize">{ supplier.contactPerson?.[0]?.name || "Sin contacto"}</p>
+                        <p className="text-bold text-sm capitalize text-default-400">{supplier.contactPerson?.[0]?.email || "Sin Email"}</p>
                     </div>
                 );
             case "businessType":
                 return (
                     <div className="flex flex-col">
                         <p className="text-bold text-sm capitalize">{supplier.businessType}</p>
-                        <p className="text-bold text-sm capitalize text-default-400">{supplier.city}</p>
+                        {/*<p className="text-bold text-sm capitalize text-default-400">{supplier.city}</p>*/}
                     </div>
                 );
             case "rating":
@@ -195,8 +195,8 @@ export default function SupplierManagement() {
                                     key="view"
                                     startContent={<EyeIcon className="h-4 w-4" />}
                                     onPress={() => {
-                                        /*setSelectedSupplier(supplier);
-                                        onViewOpen();*/
+                                        setSelectedSupplier(supplier);
+                                        //onViewOpen();
                                         navigate("/proveedor/perfil")
                                     }}
                                 >
@@ -293,10 +293,10 @@ export default function SupplierManagement() {
                                 selectionMode="multiple"
                                 onSelectionChange={setStatusFilter}
                             >
-                                <DropdownItem key="A">Activo</DropdownItem>
-                                <DropdownItem key="P">Pendiente</DropdownItem>
-                                <DropdownItem key="S">Suspendido</DropdownItem>
-                                <DropdownItem key="I">Inactivo</DropdownItem>
+                                <DropdownItem key="Activo">Activo</DropdownItem>
+                                <DropdownItem key="Pendiente">Pendiente</DropdownItem>
+                                <DropdownItem key="Suspendido">Suspendido</DropdownItem>
+                                <DropdownItem key="Inactivo">Inactivo</DropdownItem>
                             </DropdownMenu>
                         </Dropdown>
                         <Dropdown>
@@ -320,9 +320,9 @@ export default function SupplierManagement() {
                                 ))}
                             </DropdownMenu>
                         </Dropdown>
-                        <Button color="primary" endContent={<PlusIcon className="h-4 w-4" />} onPress={() => {onRegisterOpen()}}>
+                        {/*<Button color="primary" endContent={<PlusIcon className="h-4 w-4" />} onPress={() => {onRegisterOpen()}}>
                             Nuevo Proveedor
-                        </Button>
+                        </Button>*/}
                     </div>
                 </div>
                 <div className="flex justify-between items-center">
@@ -389,7 +389,7 @@ export default function SupplierManagement() {
 
                 <HeaderComponent title={title} subtitle={subtitle} isOptions={true} onRegisterOpen={onRegisterOpen} />
                 {/* Stats Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"   >
                     <Card>
                         <CardBody className="flex flex-row items-center space-x-4">
                             <div className="p-3 bg-blue-100 dark:bg-blue-900 rounded-lg">

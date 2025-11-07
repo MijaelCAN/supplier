@@ -85,7 +85,8 @@ const UserManagement = () => {
         { key: 'admin', label: 'Administrador', color: 'danger' },
         { key: 'compras', label: 'Compras', color: 'primary' },
         { key: 'finanzas', label: 'Finanzas', color: 'success' },
-        { key: 'proveedor', label: 'Proveedor', color: 'warning' }
+        { key: 'proveedor', label: 'Proveedor', color: 'warning' },
+        { key: 'almacen', label: 'Almacén', color: 'warning' }
     ];
 
     const allPermissions = [
@@ -350,7 +351,7 @@ const UserManagement = () => {
                 </div>
 
                 <Card>
-                    <CardBody className="p-0">
+                    <CardBody className="p-4">
                         <Table
                             aria-label="Tabla de usuarios"
                             topContent={topContent}

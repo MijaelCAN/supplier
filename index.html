@@ -563,3 +563,591 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 </body>
 </html>-->
+
+<!--<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Perfil de Proveedor</title>
+  <style>
+    :root {
+      --primary-color: #2c3e50;
+      --secondary-color: #3498db;
+      --accent-color: #e74c3c;
+      --light-color: #ecf0f1;
+      --dark-color: #34495e;
+      --success-color: #2ecc71;
+      --text-color: #333;
+      --border-radius: 8px;
+      --box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    body {
+      background-color: #f5f7fa;
+      color: var(--text-color);
+      line-height: 1.6;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    header {
+      background-color: var(--primary-color);
+      color: white;
+      padding: 15px 20px;
+      border-radius: var(--border-radius);
+      margin-bottom: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .logo {
+      font-size: 24px;
+      font-weight: bold;
+    }
+
+    .user-actions {
+      display: flex;
+      gap: 15px;
+    }
+
+    .btn {
+      padding: 8px 16px;
+      border: none;
+      border-radius: var(--border-radius);
+      cursor: pointer;
+      font-weight: 500;
+      transition: all 0.3s ease;
+    }
+
+    .btn-primary {
+      background-color: var(--secondary-color);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background-color: #2980b9;
+    }
+
+    .btn-outline {
+      background-color: transparent;
+      border: 1px solid white;
+      color: white;
+    }
+
+    .btn-outline:hover {
+      background-color: rgba(255, 255, 255, 0.1);
+    }
+
+    .supplier-profile {
+      display: grid;
+      grid-template-columns: 300px 1fr;
+      gap: 20px;
+    }
+
+    .profile-card {
+      background-color: white;
+      border-radius: var(--border-radius);
+      box-shadow: var(--box-shadow);
+      padding: 20px;
+    }
+
+    .profile-header {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .profile-image {
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 3px solid var(--secondary-color);
+      margin-bottom: 15px;
+    }
+
+    .profile-name {
+      font-size: 24px;
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+
+    .profile-category {
+      color: var(--secondary-color);
+      font-weight: 500;
+      margin-bottom: 10px;
+    }
+
+    .rating {
+      color: #f39c12;
+      margin-bottom: 15px;
+    }
+
+    .profile-details {
+      margin-bottom: 20px;
+    }
+
+    .detail-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid #eee;
+    }
+
+    .detail-item:last-child {
+      border-bottom: none;
+    }
+
+    .detail-label {
+      font-weight: 500;
+      color: var(--dark-color);
+    }
+
+    .detail-value {
+      text-align: right;
+    }
+
+    .status-badge {
+      display: inline-block;
+      padding: 5px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .status-active {
+      background-color: rgba(46, 204, 113, 0.2);
+      color: var(--success-color);
+    }
+
+    .status-inactive {
+      background-color: rgba(231, 76, 60, 0.2);
+      color: var(--accent-color);
+    }
+
+    .profile-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .content-area {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .tab-container {
+      background-color: white;
+      border-radius: var(--border-radius);
+      box-shadow: var(--box-shadow);
+      overflow: hidden;
+    }
+
+    .tabs {
+      display: flex;
+      background-color: var(--light-color);
+      border-bottom: 1px solid #ddd;
+    }
+
+    .tab {
+      padding: 15px 20px;
+      cursor: pointer;
+      font-weight: 500;
+      transition: all 0.3s ease;
+    }
+
+    .tab.active {
+      border-bottom: 3px solid var(--secondary-color);
+      color: var(--secondary-color);
+    }
+
+    .tab-content {
+      padding: 20px;
+    }
+
+    .tab-pane {
+      display: none;
+    }
+
+    .tab-pane.active {
+      display: block;
+    }
+
+    .products-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 20px;
+    }
+
+    .product-card {
+      background-color: white;
+      border-radius: var(--border-radius);
+      overflow: hidden;
+      box-shadow: var(--box-shadow);
+      transition: transform 0.3s ease;
+    }
+
+    .product-card:hover {
+      transform: translateY(-5px);
+    }
+
+    .product-image {
+      width: 100%;
+      height: 150px;
+      object-fit: cover;
+    }
+
+    .product-info {
+      padding: 15px;
+    }
+
+    .product-name {
+      font-weight: 500;
+      margin-bottom: 5px;
+    }
+
+    .product-price {
+      color: var(--accent-color);
+      font-weight: bold;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th, td {
+      padding: 12px 15px;
+      text-align: left;
+      border-bottom: 1px solid #eee;
+    }
+
+    th {
+      background-color: var(--light-color);
+      font-weight: 600;
+    }
+
+    tr:hover {
+      background-color: #f9f9f9;
+    }
+
+    .stats-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+      gap: 20px;
+    }
+
+    .stat-card {
+      background-color: white;
+      border-radius: var(--border-radius);
+      padding: 20px;
+      box-shadow: var(--box-shadow);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .stat-value {
+      font-size: 28px;
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+
+    .stat-label {
+      color: var(--dark-color);
+      font-size: 14px;
+    }
+
+    .stat-trend {
+      margin-top: 10px;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+    }
+
+    .trend-up {
+      color: var(--success-color);
+    }
+
+    .trend-down {
+      color: var(--accent-color);
+    }
+
+    @media (max-width: 900px) {
+      .supplier-profile {
+        grid-template-columns: 1fr;
+      }
+
+      .products-grid {
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <div class="logo">Sistema de Proveedores</div>
+    <div class="user-actions">
+      <button class="btn btn-outline">Notificaciones</button>
+      <button class="btn btn-primary">Cerrar Sesión</button>
+    </div>
+  </header>
+
+  <div class="supplier-profile">
+    <div class="profile-sidebar">
+      <div class="profile-card">
+        <div class="profile-header">
+          <img src="https://via.placeholder.com/120" alt="Imagen del proveedor" class="profile-image">
+          <h2 class="profile-name">Suministros Industriales S.A.</h2>
+          <div class="profile-category">Materiales de Construcción</div>
+          <div class="rating">★★★★☆ (4.2/5)</div>
+        </div>
+
+        <div class="profile-details">
+          <div class="detail-item">
+            <span class="detail-label">ID Proveedor:</span>
+            <span class="detail-value">PROV-2589</span>
+          </div>
+          <div class="detail-item">
+            <span class="detail-label">Estado:</span>
+            <span class="detail-value"><span class="status-badge status-active">Activo</span></span>
+          </div>
+          <div class="detail-item">
+            <span class="detail-label">Contacto:</span>
+            <span class="detail-value">Juan Pérez</span>
+          </div>
+          <div class="detail-item">
+            <span class="detail-label">Teléfono:</span>
+            <span class="detail-value">+34 912 345 678</span>
+          </div>
+          <div class="detail-item">
+            <span class="detail-label">Email:</span>
+            <span class="detail-value">juan.perez@suministros.com</span>
+          </div>
+          <div class="detail-item">
+            <span class="detail-label">Ubicación:</span>
+            <span class="detail-value">Madrid, España</span>
+          </div>
+          <div class="detail-item">
+            <span class="detail-label">Fecha de registro:</span>
+            <span class="detail-value">15/03/2020</span>
+          </div>
+        </div>
+
+        <div class="profile-actions">
+          <button class="btn btn-primary">Editar Perfil</button>
+          <button class="btn btn-outline" style="color: var(--text-color); border-color: #ddd;">Enviar Mensaje</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="content-area">
+      <div class="stats-cards">
+        <div class="stat-card">
+          <div class="stat-value">€42,580</div>
+          <div class="stat-label">Ventas Totales</div>
+          <div class="stat-trend trend-up">↑ 12.5% vs mes anterior</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">48</div>
+          <div class="stat-label">Productos Activos</div>
+          <div class="stat-trend trend-up">↑ 3 nuevos este mes</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">94%</div>
+          <div class="stat-label">Tasa de Entrega</div>
+          <div class="stat-trend trend-down">↓ 2% vs mes anterior</div>
+        </div>
+      </div>
+
+      <div class="tab-container">
+        <div class="tabs">
+          <div class="tab active" data-tab="products">Productos</div>
+          <div class="tab" data-tab="orders">Pedidos</div>
+          <div class="tab" data-tab="transactions">Transacciones</div>
+          <div class="tab" data-tab="documents">Documentos</div>
+        </div>
+
+        <div class="tab-content">
+          <div class="tab-pane active" id="products">
+            <div class="products-grid">
+              <div class="product-card">
+                <img src="https://via.placeholder.com/200" alt="Producto" class="product-image">
+                <div class="product-info">
+                  <div class="product-name">Cemento Gris 25kg</div>
+                  <div class="product-price">€8.50</div>
+                </div>
+              </div>
+              <div class="product-card">
+                <img src="https://via.placeholder.com/200" alt="Producto" class="product-image">
+                <div class="product-info">
+                  <div class="product-name">Ladrillos Refractarios</div>
+                  <div class="product-price">€12.75</div>
+                </div>
+              </div>
+              <div class="product-card">
+                <img src="https://via.placeholder.com/200" alt="Producto" class="product-image">
+                <div class="product-info">
+                  <div class="product-name">Varilla Corrugada 12mm</div>
+                  <div class="product-price">€15.20</div>
+                </div>
+              </div>
+              <div class="product-card">
+                <img src="https://via.placeholder.com/200" alt="Producto" class="product-image">
+                <div class="product-info">
+                  <div class="product-name">Pintura Blanca 10L</div>
+                  <div class="product-price">€32.90</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="tab-pane" id="orders">
+            <table>
+              <thead>
+              <tr>
+                <th>Nº Pedido</th>
+                <th>Fecha</th>
+                <th>Cliente</th>
+                <th>Total</th>
+                <th>Estado</th>
+              </tr>
+              </thead>
+              <tbody>
+              <tr>
+                <td>ORD-78945</td>
+                <td>12/05/2023</td>
+                <td>Constructora Norte</td>
+                <td>€2,450.00</td>
+                <td><span class="status-badge status-active">Entregado</span></td>
+              </tr>
+              <tr>
+                <td>ORD-78932</td>
+                <td>10/05/2023</td>
+                <td>Inversiones López</td>
+                <td>€1,890.50</td>
+                <td><span class="status-badge status-active">En camino</span></td>
+              </tr>
+              <tr>
+                <td>ORD-78899</td>
+                <td>08/05/2023</td>
+                <td>Proyectos Sureños</td>
+                <td>€3,245.75</td>
+                <td><span class="status-badge status-active">Procesando</span></td>
+              </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="tab-pane" id="transactions">
+            <table>
+              <thead>
+              <tr>
+                <th>Referencia</th>
+                <th>Fecha</th>
+                <th>Método</th>
+                <th>Monto</th>
+                <th>Estado</th>
+              </tr>
+              </thead>
+              <tbody>
+              <tr>
+                <td>TRX-56478</td>
+                <td>13/05/2023</td>
+                <td>Transferencia</td>
+                <td>€2,450.00</td>
+                <td><span class="status-badge status-active">Completado</span></td>
+              </tr>
+              <tr>
+                <td>TRX-56451</td>
+                <td>11/05/2023</td>
+                <td>Tarjeta</td>
+                <td>€1,890.50</td>
+                <td><span class="status-badge status-active">Completado</span></td>
+              </tr>
+              <tr>
+                <td>TRX-56399</td>
+                <td>09/05/2023</td>
+                <td>Transferencia</td>
+                <td>€3,245.75</td>
+                <td><span class="status-badge status-inactive">Pendiente</span></td>
+              </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="tab-pane" id="documents">
+            <table>
+              <thead>
+              <tr>
+                <th>Documento</th>
+                <th>Tipo</th>
+                <th>Fecha</th>
+                <th>Acciones</th>
+              </tr>
+              </thead>
+              <tbody>
+              <tr>
+                <td>Certificado de Calidad 2023</td>
+                <td>Certificado</td>
+                <td>15/01/2023</td>
+                <td><button class="btn btn-primary">Descargar</button></td>
+              </tr>
+              <tr>
+                <td>Contrato de Proveedor</td>
+                <td>Contrato</td>
+                <td>20/03/2020</td>
+                <td><button class="btn btn-primary">Descargar</button></td>
+              </tr>
+              <tr>
+                <td>Catálogo Productos 2023</td>
+                <td>Catálogo</td>
+                <td>05/01/2023</td>
+                <td><button class="btn btn-primary">Descargar</button></td>
+              </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const tabs = document.querySelectorAll('.tab');
+    const tabPanes = document.querySelectorAll('.tab-pane');
+
+    tabs.forEach(tab => {
+      tab.addEventListener('click', function() {
+        const tabId = this.getAttribute('data-tab');
+
+        // Remove active class from all tabs and panes
+        tabs.forEach(t => t.classList.remove('active'));
+        tabPanes.forEach(p => p.classList.remove('active'));
+
+        // Add active class to current tab and corresponding pane
+        this.classList.add('active');
+        document.getElementById(tabId).classList.add('active');
+      });
+    });
+  });
+</script>
+</body>
+</html>-->

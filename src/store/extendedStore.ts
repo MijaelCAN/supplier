@@ -55,6 +55,7 @@ interface ExtendedAppStore {
     currencies: { key: string; label: string }[];
     departments: { key: string; label: string }[];
     priorities: { key: string; label: string; color: string }[];
+    estadosSupplier: { key: string; label: string; color: string }[];
 
     // Acciones para Proveedores
     addSupplier: (supplier: Omit<Supplier, 'docEntry'>) => void;
@@ -120,45 +121,51 @@ interface ExtendedAppStore {
 // Datos iniciales de prueba
 const initialSuppliers: Supplier[] = [
     {
-        docEntry: "1",
-        cardCode: "20123456789",
-        cardName: "TechCorp Solutions SAC",
-        email: "contact@techcorp.com",
+        docEntry: "1", //
+        cardCode: "20123456789", //
+        cardName: "TechCorp Solutions SAC", //
+        email: "contact@techcorp.com", //
         phone: "+51 987 654 321",
         website: "www.techcorp.com",
         address: "Av. Javier Prado 1234",
-        city: "Lima",
-        country: "Peru",
-        contactPerson: "Carlos Rodriguez",
-        contactEmail: "carlos@techcorp.com",
-        contactPhone: "+51 987 654 322",
+        contactPerson:[{name:"Carlos Rodriguez",email: "carlos@techcorp.com", phone: "+51 987 654 322"}], //
         personType: "Persona Jurídica",
-        businessType: "Tecnología",
-        status: "A",
-        rating: 4.8,
-        totalOrders: 156,
-        totalAmount: 2850000,
+        businessType: "Tecnología",//
+        status: "Activo", //
+        rating: 4.8, //
+        totalOrders: 156, //
+        totalAmount: 2850000, //
         paymentTerms: "30",
         certifications: ["ISO 9001", "ISO 27001"],
         registrationDate: "2023-01-15",
         lastOrderDate: "2024-06-15",
-        avatar: "https://i.pravatar.cc/150?u=techcorp"
+        avatar: "https://i.pravatar.cc/150?u=techcorp", //
+        referenciasComerciales: [],
+        Documentos:
+            {
+                certificacionISO: false,
+                referenciasBancarias: false,
+                vigenciaPoder: false,
+                matrizIPERC: false,
+                licenciaMuni: false,
+                historicoPrecios: true,
+                fichaRuc: false,
+                referenciasComerciales: false,
+                condicionesPago: false,
+                matrizAAmbientales: false
+            }
     },
     {
         docEntry: "2",
-        cardCode: "20987654321",
+        cardCode: "20456789123", // 20987654321
         cardName: "Industrial Supplies SAC",
         email: "ventas@industrial.com",
         phone: "+51 956 789 123",
         address: "Jr. Industrial 567",
-        city: "Lima",
-        country: "Peru",
-        contactPerson: "Ana Martinez",
-        contactEmail: "ana@industrial.com",
-        contactPhone: "+51 956 789 124",
+        contactPerson:[{name:"Ana Martinez",email: "ana@industrial.com", phone: "+51 956 789 124"}],
         personType: "Persona Jurídica",
         businessType: "Industrial",
-        status: "A",
+        status: "Activo",
         rating: 4.2,
         totalOrders: 89,
         totalAmount: 1250000,
@@ -170,19 +177,15 @@ const initialSuppliers: Supplier[] = [
     },
     {
         docEntry: "3",
-        cardCode: "20456789123",
+        cardCode: "20987654321", //20456789123
         cardName: "Construcciones del Norte EIRL",
         email: "info@construcciones.com",
         phone: "+51 912 345 678",
         address: "Av. Construcción 890",
-        city: "Trujillo",
-        country: "Peru",
-        contactPerson: "Miguel Santos",
-        contactEmail: "miguel@construcciones.com",
-        contactPhone: "+51 912 345 679",
+        contactPerson:[{name:"Miguel Santos",email: "miguel@construcciones.com", phone: "+51 912 345 679"}],
         personType: "Persona Jurídica",
         businessType: "Construcción",
-        status: "P",
+        status: "Activo",//"Pendiente",
         rating: 3.9,
         totalOrders: 45,
         totalAmount: 890000,
@@ -688,6 +691,12 @@ export const useExtendedStore = create<ExtendedAppStore>()(
                 { key: 'Alta', label: 'Alta', color: 'danger' },
                 { key: 'Urgente', label: 'Urgente', color: 'danger' }
             ],
+            estadosSupplier: [
+                { key: 'Activo', label: 'Activo', color: 'success' },
+                { key: 'Pendiente', label: 'Pendiente', color: 'warning' },
+                { key: 'Suspendido', label: 'Suspendido', color: 'success' },
+                { key: 'Inactivo', label: 'Inactivo', color: 'danger' }
+            ],
 
             // Implementación de acciones
             addSupplier: (supplierData) => set((state) => {
@@ -913,7 +922,7 @@ export const useExtendedStore = create<ExtendedAppStore>()(
             updateMetrics: () => set((state) => {
                 const metrics = {
                     totalSuppliers: state.suppliers.length,
-                    activeSuppliers: state.suppliers.filter(s => s.status === 'A').length,
+                    activeSuppliers: state.suppliers.filter(s => s.status === 'Activo').length,
                     pendingOrders: state.purchaseOrders.filter(o => o.status === 'Pendiente').length,
                     totalOrderAmount: state.purchaseOrders.reduce((sum, o) => sum + o.totalAmount, 0),
                     pendingInvoices: state.invoices.filter(i => i.status === 'En Revisión').length,
@@ -938,6 +947,7 @@ export const useExtendedStore = create<ExtendedAppStore>()(
         {
             name: 'extended-app-storage',
             partialize: (state) => ({
+                selectedSupplier: state.selectedSupplier,
                 suppliers: state.suppliers,
                 purchaseOrders: state.purchaseOrders,
                 invoices: state.invoices,
