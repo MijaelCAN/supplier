@@ -58,6 +58,7 @@ interface ExtendedAppStore {
     estadosSupplier: { key: string; label: string; color: string }[];
 
     // Acciones para Proveedores
+    setSuppliers: (suppliers: Supplier[]) => void;
     addSupplier: (supplier: Omit<Supplier, 'docEntry'>) => void;
     updateSupplier: (id: string, supplier: Partial<Supplier>) => void;
     deleteSupplier: (id: string) => void;
@@ -699,6 +700,8 @@ export const useExtendedStore = create<ExtendedAppStore>()(
             ],
 
             // Implementación de acciones
+            setSuppliers: (suppliers) => set({ suppliers }),
+
             addSupplier: (supplierData) => set((state) => {
                 const newSupplier = {
                     ...supplierData,
@@ -965,6 +968,7 @@ export const useExtendedStore = create<ExtendedAppStore>()(
 // Hooks personalizados
 export const useSuppliers = () => {
     const suppliers = useExtendedStore(state => state.suppliers);
+    const setSuppliers = useExtendedStore(state => state.setSuppliers);
     const addSupplier = useExtendedStore(state => state.addSupplier);
     const updateSupplier = useExtendedStore(state => state.updateSupplier);
     const deleteSupplier = useExtendedStore(state => state.deleteSupplier);
@@ -974,6 +978,7 @@ export const useSuppliers = () => {
 
     return {
         suppliers,
+        setSuppliers,
         addSupplier,
         updateSupplier,
         deleteSupplier,

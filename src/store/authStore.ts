@@ -1,222 +1,143 @@
-import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
-import { UserRole } from '@/routes/menuTypes'
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+import { UserRole } from '@/routes/menuTypes';
+import {
+    AuthError,
+    AuthErrorCode,
+    createSupplierUserDocument,
+    LoginSuccess,
+    loginWithFirestore,
+    PortalUser,
+} from '@/services/auth/firestoreAuth';
 
-// Tipos para autenticación
-export interface User {
-    id: string;
-    email: string;
-    password: string;
-    firstName: string;
-    lastName: string;
-    role: UserRole;
-    avatar?: string;
-    supplierId?: string; // Para usuarios proveedores
-    isActive: boolean;
+export type RoleType = 'internal' | 'provider';
+
+export interface LoginResultSuccess {
+    success: true;
+    message: string;
+    user: PortalUser;
+    token: string;
 }
 
-// Usuarios estáticos para demostración
-const staticUsers: User[] = [
-    {
-        id: '1',
-        email: 'admin@vistony.com',
-        password: 'admin123',
-        firstName: 'Juan',
-        lastName: 'Administrador',
-        role: UserRole.ADMIN,
-        avatar: 'https://i.pravatar.cc/150?u=admin',
-        isActive: true
-    },
-    {
-        id: '2',
-        email: 'compras@vistony.com',
-        password: 'compras123',
-        firstName: 'María',
-        lastName: 'Compras',
-        role: UserRole.COMPRAS,
-        avatar: 'https://i.pravatar.cc/150?u=compras',
-        isActive: true
-    },
-    {
-        id: '3',
-        email: 'finanzas@vistony.com',
-        password: 'finanzas123',
-        firstName: 'Carlos',
-        lastName: 'Finanzas',
-        role: UserRole.FINANZAS,
-        avatar: 'https://i.pravatar.cc/150?u=finanzas',
-        isActive: true
-    },
-    {
-        id: '4',
-        email: 'almacen@vistony.com',
-        password: 'almacen123',
-        firstName: 'Barrenzuela',
-        lastName: 'Jefe de Almacen',
-        role: UserRole.ALMACEN,
-        avatar: 'https://i.pravatar.cc/150?u=proveedor',
-        isActive: true
-    },
-    {
-        id: '5',
-        email: 'ventas@industrial.com',
-        password: 'proveedor123',
-        firstName: 'Industrial Supplies SAC',
-        lastName: 'Proveedor',
-        role: UserRole.PROVEEDOR,
-        avatar: 'https://i.pravatar.cc/150?u=industrial',
-        supplierId: '2', // Relacionado con el primer proveedor del store
-        isActive: true
-    },
-    {
-        id: '6',
-        email: 'info@construcciones.com',
-        password: 'proveedor456',
-        firstName: 'Construcciones del Norte EIRL',
-        lastName: 'Proveedor',
-        role: UserRole.PROVEEDOR,
-        avatar: 'https://i.pravatar.cc/150?u=construcciones',
-        supplierId: '3', // Relacionado con el primer proveedor del store
-        isActive: true
-    }
-];
+export interface LoginResultError {
+    success: false;
+    message: string;
+    code: AuthErrorCode;
+}
+
+export type LoginResult = LoginResultSuccess | LoginResultError;
 
 interface AuthState {
-    currentUser: User | null;
+    currentUser: PortalUser | null;
     isAuthenticated: boolean;
-    users: User[];
-    
-    // Acciones
-    login: (email: string, password: string) => Promise<{ success: boolean; message: string; user?: User }>;
+    sessionToken: string | null;
+    isLoading: boolean;
+    error: string | null;
+    login: (username: string, password: string, roleType: RoleType) => Promise<LoginResult>;
     logout: () => void;
-    getCurrentUser: () => User | null;
-    getUsersByRole: (role: UserRole) => User[];
-    addUser: (userData: Omit<User, 'id'>) => User;
-    updateUser: (id: string, updates: Partial<User>) => void;
-    deleteUser: (id: string) => void;
+    clearError: () => void;
+    createSupplierUser: (supplierData: {
+        email: string;
+        companyName: string;
+        contactPerson: string;
+        supplierId: string;
+        tempPassword: string;
+    }) => Promise<void>;
 }
+
+const mapLoginSuccess = ({ token, user }: LoginSuccess): LoginResultSuccess => ({
+    success: true,
+    message: 'Login exitoso',
+    user,
+    token,
+});
+
+const mapAuthError = (error: AuthError | Error): LoginResultError => {
+    if (error instanceof AuthError) {
+        return {
+            success: false,
+            message: error.message,
+            code: error.code,
+        };
+    }
+
+    return {
+        success: false,
+        message: 'No se pudo completar el inicio de sesión. Intente nuevamente.',
+        code: 'UNKNOWN',
+    };
+};
 
 export const useAuthStore = create<AuthState>()(
     persist(
-        (set, get) => ({
+        (set) => ({
             currentUser: null,
             isAuthenticated: false,
-            users: staticUsers,
+            sessionToken: null,
+            isLoading: false,
+            error: null,
 
-            login: async (email: string, password: string) => {
-                // Simular delay de autenticación
-                await new Promise(resolve => setTimeout(resolve, 1000));
-                
-                const user = get().users.find(u => 
-                    u.email === email && 
-                    u.password === password && 
-                    u.isActive
-                );
+            login: async (username: string, password: string, roleType: RoleType) => {
+                set({ isLoading: true, error: null });
 
-                if (user) {
-                    set({ 
-                        currentUser: user, 
-                        isAuthenticated: true 
+                try {
+                    const result = await loginWithFirestore({
+                        username,
+                        password,
+                        roleType,
                     });
-                    
-                    return { 
-                        success: true, 
-                        message: 'Login exitoso', 
-                        user 
-                    };
-                } else {
-                    return { 
-                        success: false, 
-                        message: 'Credenciales incorrectas o usuario inactivo' 
-                    };
+
+                    const loginResult = mapLoginSuccess(result);
+
+                    set({
+                        currentUser: loginResult.user,
+                        isAuthenticated: true,
+                        sessionToken: loginResult.token,
+                        isLoading: false,
+                    });
+
+                    return loginResult;
+                } catch (error) {
+                    const mappedError = mapAuthError(error as Error);
+                    set({
+                        error: mappedError.message,
+                        isAuthenticated: false,
+                        currentUser: null,
+                        sessionToken: null,
+                        isLoading: false,
+                    });
+                    return mappedError;
                 }
             },
 
             logout: () => {
-                set({ 
-                    currentUser: null, 
-                    isAuthenticated: false 
+                set({
+                    currentUser: null,
+                    isAuthenticated: false,
+                    sessionToken: null,
+                    error: null,
                 });
             },
 
-            getCurrentUser: () => {
-                return get().currentUser;
+            clearError: () => {
+                set({ error: null });
             },
 
-            getUsersByRole: (role: UserRole) => {
-                return get().users.filter(u => u.role === role);
-            },
-
-            addUser: (userData) => {
-                const newUser: User = {
-                    ...userData,
-                    id: Date.now().toString(),
-                };
-                
-                set(state => ({
-                    users: [...state.users, newUser]
-                }));
-                
-                return newUser;
-            },
-
-            updateUser: (id: string, updates: Partial<User>) => {
-                set(state => ({
-                    users: state.users.map(user => 
-                        user.id === id ? { ...user, ...updates } : user
-                    ),
-                    currentUser: state.currentUser?.id === id 
-                        ? { ...state.currentUser, ...updates }
-                        : state.currentUser
-                }));
-            },
-
-            deleteUser: (id: string) => {
-                set(state => ({
-                    users: state.users.filter(user => user.id !== id),
-                    currentUser: state.currentUser?.id === id ? null : state.currentUser,
-                    isAuthenticated: state.currentUser?.id === id ? false : state.isAuthenticated
-                }));
-            },
-
-            // Function to create a supplier user account
-            createSupplierUser: (supplierData: { 
-                email: string; 
-                companyName: string; 
-                contactPerson: string; 
-                supplierId: string;
-                tempPassword: string;
-            }) => {
-                const newUser: User = {
-                    id: Date.now().toString(),
-                    email: supplierData.email,
-                    password: supplierData.tempPassword,
-                    firstName: supplierData.contactPerson.split(' ')[0] || 'Usuario',
-                    lastName: supplierData.contactPerson.split(' ').slice(1).join(' ') || 'Proveedor',
-                    role: UserRole.PROVEEDOR,
-                    avatar: `https://i.pravatar.cc/150?u=${supplierData.email}`,
-                    supplierId: supplierData.supplierId,
-                    isActive: true
-                };
-                
-                set(state => ({
-                    users: [...state.users, newUser]
-                }));
-                
-                return newUser;
+            createSupplierUser: async (supplierData) => {
+                await createSupplierUserDocument(supplierData);
             },
         }),
         {
             name: 'auth-storage',
-            partialize: (state) => ({ 
+            partialize: (state) => ({
                 currentUser: state.currentUser,
-                isAuthenticated: state.isAuthenticated 
+                isAuthenticated: state.isAuthenticated,
+                sessionToken: state.sessionToken,
             }),
-        }
-    )
+        },
+    ),
 );
 
-// Hook personalizado para acceso fácil a la autenticación
 export const useAuth = () => {
     const store = useAuthStore();
     return {

@@ -36,7 +36,7 @@ export interface Supplier {
     adminManager?: string;
     salesManager?: string;
     addresses?: Direccion[]; // Direcciones
-    contactPerson?: contactPerson;
+    contactPerson?: contactPerson[];
     contactEmail: string,
     contactPhone: string,
     listaContactos?: contactPerson[], // Personas de Contacto
@@ -53,7 +53,7 @@ interface Direccion {
     city: string;
     ubigeo: string;
 }
-interface contactPerson {
+export interface contactPerson {
     name: string;
     email?: string;
     phone?: string;
@@ -81,7 +81,7 @@ interface DocumentosDetalle {
     state: 'pendiente' | 'aprobado' | 'observado';
     observation: string;
 }
-interface ReferenciaBancaria {
+export interface ReferenciaBancaria {
     bankName: string,
     accountNumber: string,
     phoneNumber: string,

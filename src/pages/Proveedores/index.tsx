@@ -1,4 +1,4 @@
-import {useState, useMemo, Key} from "react";
+import {useState, useMemo, Key, useEffect} from "react";
 import {
     Input,
     Button,
@@ -15,6 +15,7 @@ import {
     useDisclosure,
     Card,
     CardBody,
+    Alert,
 } from "@heroui/react";
 import {
     ChevronDownIcon,
@@ -38,6 +39,7 @@ import {ModalDelete} from "@/components/Proveedores/ModalDelete.tsx";
 import {ModalDetail} from "@/components/Proveedores/ModalDetail.tsx";
 import {ModalEdit} from "@/components/Proveedores/ModalEdit.tsx";
 import {useNavigate} from "react-router-dom";
+import { fetchSuppliersFromApi } from '@/services/providers/providersApi';
 
 const statusColorMap: Record<string, ChipProps["color"]> = {
     Activo: "success",
@@ -69,7 +71,7 @@ const INITIAL_VISIBLE_COLUMNS = ["name", "contact", "businessType", "rating", "t
 
 export default function SupplierManagement() {
     const navigate = useNavigate()
-    const { suppliers, deleteSupplier, setSelectedSupplier, selectedSupplier, addSupplier, updateSupplier} = useSuppliers()
+    const { suppliers, deleteSupplier, setSelectedSupplier, selectedSupplier, addSupplier, updateSupplier, setSuppliers} = useSuppliers()
     const [filterValue, setFilterValue] = useState("");
     const [selectedKeys, setSelectedKeys] = useState<Selection>(new Set([]));
     const [visibleColumns, setVisibleColumns] = useState<Selection>(new Set(INITIAL_VISIBLE_COLUMNS));
@@ -80,11 +82,47 @@ export default function SupplierManagement() {
         direction: "ascending",
     });
     const [page, setPage] = useState(1);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
     const { isOpen: isRegisterOpen, onOpen: onRegisterOpen, onClose: onRegisterClose } = useDisclosure();
     const { isOpen: isViewOpen, onOpen: onViewOpen, onClose: onViewClose } = useDisclosure();
     const { isOpen: isEditOpen, onOpen: onEditOpen, onClose: onEditClose } = useDisclosure();
     const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
+
+    useEffect(() => {
+        let isMounted = true;
+
+        const loadSuppliers = async () => {
+            setIsLoading(true);
+            setError(null);
+            if (isMounted) {
+                setSuppliers([]);
+            }
+
+            try {
+                const apiSuppliers = await fetchSuppliersFromApi();
+                if (isMounted) {
+                    setSuppliers(apiSuppliers);
+                }
+            } catch (err) {
+                console.error('No se pudo obtener la lista de proveedores.', err);
+                if (isMounted) {
+                    setError('No se pudo cargar la lista de proveedores.');
+                }
+            } finally {
+                if (isMounted) {
+                    setIsLoading(false);
+                }
+            }
+        };
+
+        loadSuppliers();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [setSuppliers]);
 
     const hasSearchFilter = Boolean(filterValue);
 
@@ -97,15 +135,32 @@ export default function SupplierManagement() {
         let filteredSuppliers = [...suppliers];
 
         if (hasSearchFilter) {
-            filteredSuppliers = filteredSuppliers.filter((supplier) =>
-                supplier.cardName.toLowerCase().includes(filterValue.toLowerCase()) ||
-                supplier.email.toLowerCase().includes(filterValue.toLowerCase()) ||
-                supplier.contactPerson.toLowerCase().includes(filterValue.toLowerCase())
-            );
+            const query = filterValue.toLowerCase();
+            filteredSuppliers = filteredSuppliers.filter((supplier) => {
+                const contacts = Array.isArray(supplier.contactPerson)
+                    ? supplier.contactPerson
+                    : supplier.contactPerson
+                        ? [supplier.contactPerson]
+                        : [];
+
+                const contactMatches = contacts.some((contact) =>
+                    (contact?.name ?? '').toLowerCase().includes(query) ||
+                    (contact?.email ?? '').toLowerCase().includes(query) ||
+                    (contact?.phone ?? '').toLowerCase().includes(query),
+                );
+
+                return (
+                    supplier.cardName.toLowerCase().includes(query) ||
+                    supplier.email.toLowerCase().includes(query) ||
+                    supplier.cardCode.toLowerCase().includes(query) ||
+                    contactMatches
+                );
+            });
         }
-        if (statusFilter !== "all" && Array.from(statusFilter).length !== 0) {
+        const selectedStatuses = statusFilter === "all" ? [] : Array.from(statusFilter) as string[];
+        if (selectedStatuses.length > 0) {
             filteredSuppliers = filteredSuppliers.filter((supplier) =>
-                Array.from(statusFilter).includes(supplier.status),
+                selectedStatuses.includes(supplier.status),
             );
         }
 
@@ -339,6 +394,9 @@ export default function SupplierManagement() {
                         </select>
                     </label>
                 </div>
+                {error && (
+                    <Alert color="danger" variant="flat" description={error} />
+                )}
             </div>
         );
     }, [
@@ -349,6 +407,7 @@ export default function SupplierManagement() {
         suppliers.length,
         onSearchChange,
         hasSearchFilter,
+        error,
     ]);
 
     const bottomContent = useMemo(() => {
@@ -380,8 +439,14 @@ export default function SupplierManagement() {
         );
     }, [selectedKeys, items.length, page, pages, hasSearchFilter]);
 
+    const emptyMessage = isLoading ? 'Cargando proveedores...' : (error ?? 'No se encontraron proveedores');
+
     const title = "Gestion de Proveedores"
     const subtitle = "Administra todos tus proveedores, evaluaciones y homologaciones"
+
+    const averageRating = suppliers.length > 0
+        ? (suppliers.reduce((acc, supplier) => acc + (supplier.rating || 0), 0) / suppliers.length).toFixed(1)
+        : '0.0';
 
     return (
         <Dashboard>
@@ -409,7 +474,7 @@ export default function SupplierManagement() {
                             <div>
                                 <p className="text-sm text-gray-600 dark:text-gray-400">Activos</p>
                                 <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                                    {suppliers.filter(s => s.status === 'A').length}
+                                    {suppliers.filter(s => s.status === 'Activo').length}
                                 </p>
                             </div>
                         </CardBody>
@@ -422,7 +487,7 @@ export default function SupplierManagement() {
                             <div>
                                 <p className="text-sm text-gray-600 dark:text-gray-400">Pendientes</p>
                                 <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                                    {suppliers.filter(s => s.status === 'P').length}
+                                    {suppliers.filter(s => s.status === 'Pendiente').length}
                                 </p>
                             </div>
                         </CardBody>
@@ -435,7 +500,7 @@ export default function SupplierManagement() {
                             <div>
                                 <p className="text-sm text-gray-600 dark:text-gray-400">Rating Promedio</p>
                                 <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                                    {(suppliers.reduce((acc, s) => acc + s.rating, 0) / suppliers.length).toFixed(1)}
+                                    {averageRating}
                                 </p>
                             </div>
                         </CardBody>
@@ -453,6 +518,7 @@ export default function SupplierManagement() {
                     setSelectedKeys={setSelectedKeys}
                     sortDescriptor={sortDescriptor}
                     setSortDescriptor={setSortDescriptor}
+                    messageEmpty={emptyMessage}
                 />
 
                 <ModalRegister isRegisterOpen={isRegisterOpen} onRegisterClose={onRegisterClose} addSupplier={addSupplier} />

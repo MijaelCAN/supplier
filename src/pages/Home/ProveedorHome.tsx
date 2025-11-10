@@ -35,6 +35,7 @@ const ProveedorHome = () => {
     const { suppliers } = useSuppliers();
     const navigate = useNavigate();
 
+
     // Encontrar los datos del proveedor basado en el supplierId del usuario
     const supplierData = suppliers.find(s => s.docEntry === currentUser?.supplierId);
 

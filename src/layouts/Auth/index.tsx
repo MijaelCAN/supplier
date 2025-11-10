@@ -1,136 +1,131 @@
-import {useEffect, useState} from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-    Accordion,
-    addToast, Alert,
+    addToast,
+    Alert,
     Button,
     Card,
     CardBody,
-    CardHeader, Checkbox,
-    Drawer, DrawerBody, DrawerContent, DrawerFooter, DrawerHeader,
-    Listbox,
-    ListboxItem,
+    CardHeader,
+    Drawer,
+    DrawerBody,
+    DrawerContent,
+    DrawerFooter,
+    DrawerHeader,
+    Input,
+    Select,
+    SelectItem,
     Tab,
-    Tabs, ToastProvider, useDisclosure
+    Tabs,
+    ToastProvider,
+    useDisclosure,
 } from "@heroui/react";
-import {Input} from "@heroui/react";
-import {EyeFilledIcon, EyeSlashFilledIcon, LockIcon, MailIcon} from "@/components/icons.tsx";
-import {Link} from "@heroui/link";
-import {Divider} from "@heroui/divider";
+import { EyeFilledIcon, EyeSlashFilledIcon, MailIcon } from "@/components/icons.tsx";
+import { Divider } from "@heroui/divider";
+import { RoleType, useAuthStore } from "@/store/authStore";
 
 
 const Login = () => {
-
-    const [email, setEmail] = useState("");
-    const [password, setPassword] = useState("");
-    const [isVisible, setIsVisible] = useState(false);
-    const [activeTab, setActiveTab] = useState("proveedor");
-    const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState("");
-    const [isSupplier, setIsSupplier] = useState(false)
-    const [documentNumber, setDocumentNumber] = useState('');
     const navigate = useNavigate();
+
+    const login = useAuthStore((state) => state.login);
+    const isLoading = useAuthStore((state) => state.isLoading);
+    const authError = useAuthStore((state) => state.error);
+    const clearError = useAuthStore((state) => state.clearError);
+    const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+    const currentUser = useAuthStore((state) => state.currentUser);
+
+    const [username, setUsername] = useState("");
+    const [password, setPassword] = useState("");
+    const [roleType, setRoleType] = useState<RoleType>("provider");
+    const [isVisible, setIsVisible] = useState(false);
+    const [activeTab, setActiveTab] = useState<"proveedor" | "corporativo">("proveedor");
+    const [formError, setFormError] = useState("");
 
     const toggleVisibility = () => setIsVisible(!isVisible);
 
-    const {isOpen, onOpen, onOpenChange} = useDisclosure();
+    const { isOpen, onOpen, onOpenChange } = useDisclosure();
     const [backdrop, setBackdrop] = useState("opaque");
 
-    const handleBackdropChange = (backdrop) => {
-        setBackdrop(backdrop);
+    const handleBackdropChange = (nextBackdrop: "opaque" | "blur") => {
+        setBackdrop(nextBackdrop);
         onOpen();
     };
 
-    const handleValueChange = (e) => {
-        const value = e.target.value;
-        if (value.length <= 11) {
-            if (/^\d*$/.test(value)) {
-                setDocumentNumber(value);
-            }
-        }
-    };
+    const handleLogin = async (event: React.FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        setFormError("");
+        clearError();
 
-
-
-    const handleRegister = () => {
-        setPlacement("top-left")
-        addToast({
-            title: "Registro",
-            description: "Se esta navegand a la seccion de registro de un Proveedor",
-            timeout: 3000,
-            color: "primary",
-            shouldShowTimeoutProgress: true,
-        });
-    };
-
-    const handleLogin = async (e) => {
-        e.preventDefault();
-        setIsLoading(true);
-        setError("");
-
-        try {
-            // Importar dinámicamente el store de auth
-            const { useAuthStore } = await import('@/store/authStore');
-            const { login } = useAuthStore.getState();
-            
-            const result = await login(email, password);
-
-            if (result.success && result.user) {
-                addToast({
-                    title: "Login Exitoso",
-                    description: `Bienvenido ${result.user.firstName} ${result.user.lastName}`,
-                    timeout: 3000,
-                    color: "success",
-                    shouldShowTimeoutProgress: true,
-                });
-
-                // Redirigir según el rol del usuario
-                switch (result.user.role) {
-                    case 'admin':
-                        navigate("/");
-                        break;
-                    case 'proveedor':
-                        navigate("/");
-                        break;
-                    case 'compras':
-                        navigate("/");
-                        break;
-                    case 'finanzas':
-                        navigate("/");
-                        break;
-                    default:
-                        navigate("/");
-                }
-            } else {
-                addToast({
-                    title: "Error de Login",
-                    description: result.message,
-                    timeout: 3000,
-                    color: "danger",
-                    shouldShowTimeoutProgress: true,
-                });
-            }
-        } catch (error) {
-            setError("Error en el sistema de autenticación.");
+        if (!username.trim() || !password.trim()) {
+            const message = "Los campos 'Usuario', 'Contraseña' y 'Tipo de Rol' son obligatorios.";
+            setFormError(message);
             addToast({
-                title: "Error del sistema",
-                description: "No se pudo autenticar el usuario.",
+                title: "Datos incompletos",
+                description: message,
+                timeout: 3000,
+                color: "warning",
+                shouldShowTimeoutProgress: true,
+            });
+            return;
+        }
+
+        const result = await login(username.trim().toLowerCase(), password, roleType);
+
+        if (result.success) {
+            addToast({
+                title: "Login exitoso",
+                description: `Bienvenido ${result.user.fullName}`,
+                timeout: 2500,
+                color: "success",
+                shouldShowTimeoutProgress: true,
+            });
+
+            switch (result.user.role) {
+                case 'admin':
+                case 'compras':
+                case 'finanzas':
+                case 'almacen':
+                default:
+                    navigate("/");
+                    break;
+                case 'proveedor':
+                    navigate("/proveedor/perfil");
+                    break;
+            }
+        } else {
+            setFormError(result.message);
+            addToast({
+                title: "Error de autenticación",
+                description: result.message,
                 timeout: 3000,
                 color: "danger",
                 shouldShowTimeoutProgress: true,
             });
-        } finally {
-            setIsLoading(false);
         }
     };
 
     useEffect(() => {
-        setEmail("");
-        setPassword("");
-        setIsLoading(false)
-    },[activeTab])
+        if (isAuthenticated && currentUser) {
+            navigate("/");
+        }
+    }, [isAuthenticated, currentUser, navigate]);
 
-    let tabs = [
+    useEffect(() => {
+        setUsername("");
+        setPassword("");
+        setRoleType(activeTab === "proveedor" ? "provider" : "internal");
+        setFormError("");
+        clearError();
+    }, [activeTab, clearError]);
+
+    useEffect(() => {
+        if (authError) {
+            setFormError(authError);
+        }
+    }, [authError]);
+
+    const tabs = [
         {
             id: "proveedor",
             label: "Soy Proveedor",
@@ -144,12 +139,11 @@ const Login = () => {
                 "Ut enim ad minim nulla pariatur.",
         },
     ];
-
-    const [placement, setPlacement] = useState("bottom-right");
+    const toastPlacement = "bottom-right" as const;
 
     return (
         <section className="px-8">
-            <ToastProvider placement={placement} toastOffset={placement.includes("top") ? 60 : 0}/>
+            <ToastProvider placement={toastPlacement} toastOffset={toastPlacement.includes("top") ? 60 : 0}/>
             <div className="container mx-auto h-screen grid place-items-center">
                 <Card className="md:px-24 md:py-14 py-8 border border-gray-300">
                     <div className="absolute top-0 left-0 w-16 h-16 bg-rojo clip-triangle"></div>
@@ -166,7 +160,14 @@ const Login = () => {
                     </CardHeader>
                     <CardBody>
                         <div className="flex w-full flex-col items-center">
-                            <Tabs aria-label="Dynamic tabs" items={tabs} selectedKey={activeTab} onSelectionChange={setActiveTab}>
+                            <Tabs
+                                aria-label="Dynamic tabs"
+                                items={tabs}
+                                selectedKey={activeTab}
+                                onSelectionChange={(key) =>
+                                    setActiveTab(key as "proveedor" | "corporativo")
+                                }
+                            >
                                 {(item) => (
                                     <Tab key={item.id} title={item.label}></Tab>
                                 )}
@@ -176,19 +177,25 @@ const Login = () => {
                             onSubmit={handleLogin}
                             className="flex flex-col gap-4 md:mt-1"
                         >
-                            <div className="flex w-full flex-wrap md:flex-nowrap mb-6 md:mb-0 md:gap-4">
+                            {formError && (
+                                <Alert
+                                    color="danger"
+                                    variant="flat"
+                                    description={formError}
+                                />
+                            )}
+                            <div className="flex w-full flex-wrap md:flex-nowrap gap-4">
                                 <Input
-                                    key="outside"
                                     size="md"
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    label="Correo"
+                                    value={username}
+                                    onChange={(e) => setUsername(e.target.value)}
+                                    label="Usuario"
+                                    placeholder="Ej. jefe_compras_01"
                                     labelPlacement="outside"
-                                    type="email"
+                                    type="text"
                                     className="w-full placeholder:opacity-100 focus:border-t-primary border-t-blue-gray-200"
                                 />
                                 <Input
-                                    key="password"
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
                                     size="md"
@@ -212,39 +219,51 @@ const Login = () => {
                                     }
                                 />
                             </div>
+                            <Select
+                                selectedKeys={[roleType]}
+                                onSelectionChange={(keys) =>
+                                    setRoleType(Array.from(keys)[0] as RoleType)
+                                }
+                                label="Tipo de Rol"
+                                labelPlacement="outside"
+                            >
+                                <SelectItem key="internal" value="internal">
+                                    Usuario interno
+                                </SelectItem>
+                                <SelectItem key="provider" value="provider">
+                                    Proveedor
+                                </SelectItem>
+                            </Select>
                             <Button
                                 isLoading={isLoading}
                                 type="submit"
-                                variant={"solid"}
+                                variant="solid"
                                 size="lg"
-                                className="bg-gris text-white dark:bg-azul" fullWidth
+                                className="bg-gris text-white dark:bg-azul"
+                                fullWidth
+                                isDisabled={isLoading}
                             >
                                 INGRESAR
                             </Button>
-                                <Button
-                                    onPress={() => handleBackdropChange("opaque")}
-                                    variant="bordered"
-                                    size="lg"
-                                    className="flex h-12 border-blue-gray-200 items-center justify-center gap-2"
-                                    fullWidth
-                                >
-                                    {/*<img
-                                        src={`https://www.material-tailwind.com/logos/logo-google.png`}
-                                        alt="google"
-                                        className="h-6 w-6"
-                                    />{" "}*/}
-                                    Recuperar Contraseña
-                                </Button>
-                                <h6 className="text-center mx-auto max-w-[19rem] text-sm font-medium text-gray-600 dark:text-gray-400">
-                                    Al iniciar sesión, usted acepta cumplir con nuestros{" "}
-                                    <a href="#" className="text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-600 transition-colors">
-                                        Terminos de Servicio
-                                    </a>{" "}
-                                    &{" "}
-                                    <a href="#" className="text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-600 transition-colors">
-                                        Politica de privacidad.
-                                    </a>
-                                </h6>
+                            <Button
+                                onPress={() => handleBackdropChange("opaque")}
+                                variant="bordered"
+                                size="lg"
+                                className="flex h-12 border-blue-gray-200 items-center justify-center gap-2"
+                                fullWidth
+                            >
+                                Recuperar Contraseña
+                            </Button>
+                            <h6 className="text-center mx-auto max-w-[19rem] text-sm font-medium text-gray-600 dark:text-gray-400">
+                                Al iniciar sesión, usted acepta cumplir con nuestros{" "}
+                                <a href="#" className="text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-600 transition-colors">
+                                    Terminos de Servicio
+                                </a>{" "}
+                                &{" "}
+                                <a href="#" className="text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-600 transition-colors">
+                                    Politica de privacidad.
+                                </a>
+                            </h6>
                         </form>
                     </CardBody>
                 </Card>
