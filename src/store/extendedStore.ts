@@ -58,6 +58,7 @@ interface ExtendedAppStore {
     estadosSupplier: { key: string; label: string; color: string }[];
 
     // Acciones para Proveedores
+    setSuppliers: (suppliers: Supplier[]) => void;
     addSupplier: (supplier: Omit<Supplier, 'docEntry'>) => void;
     updateSupplier: (id: string, supplier: Partial<Supplier>) => void;
     deleteSupplier: (id: string) => void;
@@ -139,20 +140,20 @@ const initialSuppliers: Supplier[] = [
         certifications: ["ISO 9001", "ISO 27001"],
         registrationDate: "2023-01-15",
         lastOrderDate: "2024-06-15",
-        avatar: "https://i.pravatar.cc/150?u=techcorp", //
+        avatar: "https://www.envase.com.pe/img/logo.jpg", //
         referenciasComerciales: [],
-        Documentos:
+            Documentos:
             {
-                certificacionISO: false,
+                certificaciones: false,
                 referenciasBancarias: false,
                 vigenciaPoder: false,
-                matrizIPERC: false,
-                licenciaMuni: false,
-                historicoPrecios: true,
+                matrizIperc: false,
+                licenciaMunicipal: false,
+                historialPrecios: true,
                 fichaRuc: false,
                 referenciasComerciales: false,
                 condicionesPago: false,
-                matrizAAmbientales: false
+                matrizAmbiental: false
             }
     },
     {
@@ -173,7 +174,7 @@ const initialSuppliers: Supplier[] = [
         certifications: ["ISO 9001"],
         registrationDate: "2023-03-10",
         lastOrderDate: "2024-06-10",
-        avatar: "https://i.pravatar.cc/150?u=industrial"
+        avatar: "https://www.envase.com.pe/img/logo.jpg"
     },
     {
         docEntry: "3",
@@ -193,7 +194,7 @@ const initialSuppliers: Supplier[] = [
         certifications: ["ISO 9001", "OHSAS 18001"],
         registrationDate: "2023-05-20",
         lastOrderDate: "2024-05-28",
-        avatar: "https://i.pravatar.cc/150?u=construcciones"
+        avatar: "https://www.envase.com.pe/img/logo.jpg"
     }
 ];
 
@@ -610,7 +611,7 @@ export const useExtendedStore = create<ExtendedAppStore>()(
             isLoading: false,
             
             config: {
-                darkMode: false,
+                darkMode: true,
                 primaryColor: '#006FEE',
                 sidebarCollapsed: false,
                 language: 'es',
@@ -682,7 +683,15 @@ export const useExtendedStore = create<ExtendedAppStore>()(
                 { key: 'Finanzas', label: 'Finanzas' },
                 { key: 'Producción', label: 'Producción' },
                 { key: 'RRHH', label: 'Recursos Humanos' },
-                { key: 'Comercial', label: 'Comercial' }
+                { key: 'Ventas', label: 'Ventas' },
+                { key: 'Proyectos', label: 'Proyectos' },
+                { key: 'Vigilancia', label: 'Vigilancia' },
+                { key: 'Tecnica', label: 'Área Técnica' },
+                { key: 'Almacen', label: 'Almacen de Insumos' },
+                { key: 'Costos', label: 'Costos' },
+                { key: 'Contabilidad', label: 'Contabilidad' },
+                { key: 'Calidad', label: 'Aseguramiento de la calidad' },
+                { key: 'Comex', label: 'Comex' }
             ],
 
             priorities: [
@@ -699,6 +708,8 @@ export const useExtendedStore = create<ExtendedAppStore>()(
             ],
 
             // Implementación de acciones
+            setSuppliers: (suppliers) => set({ suppliers: Array.isArray(suppliers) ? suppliers : [] }),
+
             addSupplier: (supplierData) => set((state) => {
                 const newSupplier = {
                     ...supplierData,
@@ -965,6 +976,7 @@ export const useExtendedStore = create<ExtendedAppStore>()(
 // Hooks personalizados
 export const useSuppliers = () => {
     const suppliers = useExtendedStore(state => state.suppliers);
+    const setSuppliers = useExtendedStore(state => state.setSuppliers);
     const addSupplier = useExtendedStore(state => state.addSupplier);
     const updateSupplier = useExtendedStore(state => state.updateSupplier);
     const deleteSupplier = useExtendedStore(state => state.deleteSupplier);
@@ -974,6 +986,7 @@ export const useSuppliers = () => {
 
     return {
         suppliers,
+        setSuppliers,
         addSupplier,
         updateSupplier,
         deleteSupplier,

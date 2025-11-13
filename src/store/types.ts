@@ -1,6 +1,7 @@
 // src/store/types.ts
 export interface Supplier {
     docEntry: string;
+    RUC: string;
     cardCode: string; // general
     cardName: string; // general
     email: string; // general
@@ -16,7 +17,7 @@ export interface Supplier {
     agenteRetencion?: boolean; // general
     agentePercepcion?: boolean; // general
     exoneradoPercepcion?: boolean; // general
-    registradoMype?: boolean; // general
+    goodContributor?: boolean; // general
     emisorFacElectronica?: boolean; // general
     estado?: string; // general
     condicion?: string; // general
@@ -35,8 +36,8 @@ export interface Supplier {
     generalManager?: string;
     adminManager?: string;
     salesManager?: string;
-    addresses?: Direccion[]; // Direcciones
-    contactPerson?: contactPerson;
+    addresses?: Direction[]; // Direcciones
+    contactPerson?: contactPerson[];
     contactEmail: string,
     contactPhone: string,
     listaContactos?: contactPerson[], // Personas de Contacto
@@ -45,7 +46,7 @@ export interface Supplier {
     ServiciosOfrecidos?: ServiciosOfrecidos[]; // Servicios Ofrecidos
     Documentos?: Documentos; // Documentos
 }
-interface Direccion {
+export interface Direction {
     address: string;
     type: string;
     departament: string;
@@ -53,7 +54,7 @@ interface Direccion {
     city: string;
     ubigeo: string;
 }
-interface contactPerson {
+export interface contactPerson {
     name: string;
     email?: string;
     phone?: string;
@@ -61,18 +62,19 @@ interface contactPerson {
     position?: string;
 }
 
-interface Documentos {
-    certificacionISO: DocumentosDetalle[],
-    licenciaMuni: DocumentosDetalle[],
-    referenciasComerciales: DocumentosDetalle[],
-    referenciasBancarias: DocumentosDetalle[],
-    historicoPrecios: DocumentosDetalle,
-    condicionesPago: DocumentosDetalle,
-    vigenciaPoder: DocumentosDetalle,
-    fichaRuc: DocumentosDetalle,
-    matrizAAmbientales: DocumentosDetalle,
-    matrizIPERC: DocumentosDetalle,
+type DocumentValue = boolean | DocumentosDetalle | DocumentosDetalle[];
 
+interface Documentos {
+    certificaciones: DocumentValue,
+    licenciaMunicipal: DocumentValue,
+    referenciasComerciales: DocumentValue,
+    referenciasBancarias: DocumentValue,
+    historialPrecios: DocumentValue,
+    condicionesPago: DocumentValue,
+    vigenciaPoder: DocumentValue,
+    fichaRuc: DocumentValue,
+    matrizAmbiental: DocumentValue,
+    matrizIperc: DocumentValue,
 }
 interface DocumentosDetalle {
     cargado: boolean;
@@ -81,7 +83,7 @@ interface DocumentosDetalle {
     state: 'pendiente' | 'aprobado' | 'observado';
     observation: string;
 }
-interface ReferenciaBancaria {
+export interface ReferenciaBancaria {
     bankName: string,
     accountNumber: string,
     phoneNumber: string,
@@ -94,13 +96,13 @@ interface ReferenciaBancaria {
     registrationDate?: string;
 }
 
-interface ReferenciaComercial {
+export interface ReferenciaComercial {
     name: string,
     contact: string,
     phone: string,
     registrationDate?: string;
 }
-interface ServiciosOfrecidos {
+export interface ServiciosOfrecidos {
     principalActivity: string;
     serviceLine: string;
     paymentTerms: string;

@@ -128,4 +128,296 @@ const SupplierProfile = () => {
                                                 color={getStatusColor(supplierData.status) as any} 
                                                 variant="flat" 
                                                 size="sm"
-                                            >\n                                                {getStatusLabel(supplierData.status)}\n                                            </Chip>\n                                            <div className=\"flex items-center gap-1\">\n                                                {[...Array(5)].map((_, i) => (\n                                                    <StarIcon \n                                                        key={i} \n                                                        className={`h-4 w-4 ${\n                                                            i < Math.floor(supplierData.rating) \n                                                                ? 'text-yellow-400 fill-yellow-400' \n                                                                : 'text-gray-300'\n                                                        }`}\n                                                    />\n                                                ))}\n                                                <span className=\"text-sm text-gray-600 ml-1\">\n                                                    {supplierData.rating.toFixed(1)}\n                                                </span>\n                                            </div>\n                                        </div>\n\n                                        <div className=\"grid grid-cols-2 md:grid-cols-4 gap-4 text-sm\">\n                                            <div className=\"flex items-center gap-2\">\n                                                <UserIcon className=\"h-4 w-4 text-gray-500\" />\n                                                <span>{supplierData.cardCode}</span>\n                                            </div>\n                                            <div className=\"flex items-center gap-2\">\n                                                <EnvelopeIcon className=\"h-4 w-4 text-gray-500\" />\n                                                <span>{supplierData.email}</span>\n                                            </div>\n                                            <div className=\"flex items-center gap-2\">\n                                                <PhoneIcon className=\"h-4 w-4 text-gray-500\" />\n                                                <span>{supplierData.phone}</span>\n                                            </div>\n                                            {supplierData.website && (\n                                                <div className=\"flex items-center gap-2\">\n                                                    <GlobeAltIcon className=\"h-4 w-4 text-gray-500\" />\n                                                    <a \n                                                        href={supplierData.website} \n                                                        target=\"_blank\" \n                                                        rel=\"noopener noreferrer\"\n                                                        className=\"text-blue-600 hover:underline\"\n                                                    >\n                                                        Sitio Web\n                                                    </a>\n                                                </div>\n                                            )}\n                                        </div>\n                                    </div>\n                                    <Button\n                                        color=\"primary\"\n                                        variant=\"flat\"\n                                        startContent={<PencilIcon className=\"h-4 w-4\" />}\n                                    >\n                                        Editar Perfil\n                                    </Button>\n                                </div>\n                            </div>\n                        </div>\n                    </CardBody>\n                </Card>\n\n                {/* KPIs */}\n                <div className=\"grid grid-cols-1 md:grid-cols-4 gap-4\">\n                    <Card>\n                        <CardBody className=\"flex flex-row items-center gap-4\">\n                            <div className=\"p-3 bg-blue-100 rounded-lg\">\n                                <ShoppingCartIcon className=\"h-8 w-8 text-blue-600\" />\n                            </div>\n                            <div>\n                                <p className=\"text-sm text-gray-500\">Total Órdenes</p>\n                                <p className=\"text-2xl font-bold\">{totalOrders}</p>\n                                <p className=\"text-xs text-green-600\">{completedOrders} completadas</p>\n                            </div>\n                        </CardBody>\n                    </Card>\n\n                    <Card>\n                        <CardBody className=\"flex flex-row items-center gap-4\">\n                            <div className=\"p-3 bg-green-100 rounded-lg\">\n                                <BanknotesIcon className=\"h-8 w-8 text-green-600\" />\n                            </div>\n                            <div>\n                                <p className=\"text-sm text-gray-500\">Monto Total</p>\n                                <p className=\"text-2xl font-bold\">{formatCurrency(totalAmount)}</p>\n                                <p className=\"text-xs text-gray-600\">Promedio: {formatCurrency(averageOrderValue)}</p>\n                            </div>\n                        </CardBody>\n                    </Card>\n\n                    <Card>\n                        <CardBody className=\"flex flex-row items-center gap-4\">\n                            <div className=\"p-3 bg-purple-100 rounded-lg\">\n                                <DocumentTextIcon className=\"h-8 w-8 text-purple-600\" />\n                            </div>\n                            <div>\n                                <p className=\"text-sm text-gray-500\">Facturas</p>\n                                <p className=\"text-2xl font-bold\">{supplierInvoices.length}</p>\n                                <p className=\"text-xs text-orange-600\">{pendingInvoices} pendientes</p>\n                            </div>\n                        </CardBody>\n                    </Card>\n\n                    <Card>\n                        <CardBody className=\"flex flex-row items-center gap-4\">\n                            <div className=\"p-3 bg-orange-100 rounded-lg\">\n                                <ChartBarIcon className=\"h-8 w-8 text-orange-600\" />\n                            </div>\n                            <div>\n                                <p className=\"text-sm text-gray-500\">Tasa Completada</p>\n                                <p className=\"text-2xl font-bold\">{completionRate.toFixed(1)}%</p>\n                                <Progress \n                                    size=\"sm\" \n                                    color=\"success\" \n                                    value={completionRate} \n                                    className=\"mt-1\"\n                                />\n                            </div>\n                        </CardBody>\n                    </Card>\n                </div>\n\n                {/* Detailed Information */}\n                <Tabs aria-label=\"Información detallada\" className=\"w-full\">\n                    <Tab key=\"orders\" title=\"Mis Órdenes\">\n                        <Card>\n                            <CardHeader>\n                                <h3 className=\"text-lg font-semibold\">Órdenes de Compra Recientes</h3>\n                            </CardHeader>\n                            <CardBody>\n                                <Table aria-label=\"Órdenes del proveedor\">\n                                    <TableHeader>\n                                        <TableColumn>N° ORDEN</TableColumn>\n                                        <TableColumn>FECHA</TableColumn>\n                                        <TableColumn>MONTO</TableColumn>\n                                        <TableColumn>ESTADO</TableColumn>\n                                        <TableColumn>ENTREGA</TableColumn>\n                                    </TableHeader>\n                                    <TableBody>\n                                        {supplierOrders.slice(0, 10).map((order) => (\n                                            <TableRow key={order.id}>\n                                                <TableCell>\n                                                    <div>\n                                                        <p className=\"font-medium text-sm\">{order.orderNumber}</p>\n                                                        <p className=\"text-xs text-gray-500\">{order.department}</p>\n                                                    </div>\n                                                </TableCell>\n                                                <TableCell>\n                                                    <p className=\"text-sm\">{order.createdDate}</p>\n                                                </TableCell>\n                                                <TableCell>\n                                                    <p className=\"font-medium\">\n                                                        {formatCurrency(order.totalAmount, order.currency)}\n                                                    </p>\n                                                </TableCell>\n                                                <TableCell>\n                                                    <Chip \n                                                        color={getStatusColor(order.status) as any} \n                                                        variant=\"flat\" \n                                                        size=\"sm\"\n                                                    >\n                                                        {order.status}\n                                                    </Chip>\n                                                </TableCell>\n                                                <TableCell>\n                                                    <p className=\"text-sm\">{order.deliveryDate}</p>\n                                                </TableCell>\n                                            </TableRow>\n                                        ))}\n                                    </TableBody>\n                                </Table>\n                            </CardBody>\n                        </Card>\n                    </Tab>\n\n                    <Tab key=\"invoices\" title=\"Mis Facturas\">\n                        <Card>\n                            <CardHeader>\n                                <h3 className=\"text-lg font-semibold\">Facturas Emitidas</h3>\n                            </CardHeader>\n                            <CardBody>\n                                <Table aria-label=\"Facturas del proveedor\">\n                                    <TableHeader>\n                                        <TableColumn>N° FACTURA</TableColumn>\n                                        <TableColumn>FECHA EMISIÓN</TableColumn>\n                                        <TableColumn>MONTO</TableColumn>\n                                        <TableColumn>ESTADO</TableColumn>\n                                        <TableColumn>VENCIMIENTO</TableColumn>\n                                    </TableHeader>\n                                    <TableBody>\n                                        {supplierInvoices.slice(0, 10).map((invoice) => (\n                                            <TableRow key={invoice.id}>\n                                                <TableCell>\n                                                    <p className=\"font-medium text-sm\">{invoice.invoiceNumber}</p>\n                                                </TableCell>\n                                                <TableCell>\n                                                    <p className=\"text-sm\">{invoice.issueDate}</p>\n                                                </TableCell>\n                                                <TableCell>\n                                                    <p className=\"font-medium\">\n                                                        {formatCurrency(invoice.totalAmount, invoice.currency)}\n                                                    </p>\n                                                </TableCell>\n                                                <TableCell>\n                                                    <Chip \n                                                        color={getStatusColor(invoice.status) as any} \n                                                        variant=\"flat\" \n                                                        size=\"sm\"\n                                                    >\n                                                        {invoice.status}\n                                                    </Chip>\n                                                </TableCell>\n                                                <TableCell>\n                                                    <p className=\"text-sm\">{invoice.dueDate}</p>\n                                                </TableCell>\n                                            </TableRow>\n                                        ))}\n                                    </TableBody>\n                                </Table>\n                            </CardBody>\n                        </Card>\n                    </Tab>\n\n                    <Tab key=\"info\" title=\"Información\">\n                        <div className=\"grid grid-cols-1 lg:grid-cols-2 gap-6\">\n                            <Card>\n                                <CardHeader>\n                                    <h3 className=\"text-lg font-semibold\">Información de Contacto</h3>\n                                </CardHeader>\n                                <CardBody className=\"space-y-4\">\n                                    <div className=\"space-y-3\">\n                                        <div>\n                                            <p className=\"text-sm font-medium text-gray-500\">Persona de Contacto</p>\n                                            <p className=\"text-sm\">{supplierData.contactPerson}</p>\n                                        </div>\n                                        <div>\n                                            <p className=\"text-sm font-medium text-gray-500\">Email de Contacto</p>\n                                            <p className=\"text-sm\">{supplierData.contactEmail}</p>\n                                        </div>\n                                        <div>\n                                            <p className=\"text-sm font-medium text-gray-500\">Teléfono de Contacto</p>\n                                            <p className=\"text-sm\">{supplierData.contactPhone}</p>\n                                        </div>\n                                        <Divider />\n                                        <div>\n                                            <p className=\"text-sm font-medium text-gray-500\">Dirección</p>\n                                            <p className=\"text-sm\">{supplierData.address}</p>\n                                            <p className=\"text-sm\">{supplierData.city}, {supplierData.country}</p>\n                                        </div>\n                                    </div>\n                                </CardBody>\n                            </Card>\n\n                            <Card>\n                                <CardHeader>\n                                    <h3 className=\"text-lg font-semibold\">Información Comercial</h3>\n                                </CardHeader>\n                                <CardBody className=\"space-y-4\">\n                                    <div className=\"space-y-3\">\n                                        <div>\n                                            <p className=\"text-sm font-medium text-gray-500\">Términos de Pago</p>\n                                            <p className=\"text-sm\">{supplierData.paymentTerms || 'No especificado'}</p>\n                                        </div>\n                                        <div>\n                                            <p className=\"text-sm font-medium text-gray-500\">Tipo de Negocio</p>\n                                            <p className=\"text-sm\">{supplierData.businessType}</p>\n                                        </div>\n                                        <div>\n                                            <p className=\"text-sm font-medium text-gray-500\">Fecha de Registro</p>\n                                            <p className=\"text-sm\">{supplierData.fechaRegistro}</p>\n                                        </div>\n                                        <Divider />\n                                        <div>\n                                            <p className=\"text-sm font-medium text-gray-500\">Certificaciones</p>\n                                            <div className=\"flex flex-wrap gap-1 mt-1\">\n                                                {supplierData.certifications?.map((cert, index) => (\n                                                    <Chip key={index} size=\"sm\" variant=\"flat\">\n                                                        {cert}\n                                                    </Chip>\n                                                )) || <p className=\"text-sm text-gray-400\">Sin certificaciones</p>}\n                                            </div>\n                                        </div>\n                                    </div>\n                                </CardBody>\n                            </Card>\n                        </div>\n                    </Tab>\n                </Tabs>\n            </div>\n        </Dashboard>\n    );\n};\n\nexport default SupplierProfile;\n
+                                            >
+                                                {getStatusLabel(supplierData.status)}
+                                            </Chip>
+                                            <div className="flex items-center gap-1">
+                                                {[...Array(5)].map((_, i) => (
+                                                    <StarIcon 
+                                                        key={i} 
+                                                        className={`h-4 w-4 ${
+                                                            i < Math.floor(supplierData.rating) 
+                                                                ? 'text-yellow-400 fill-yellow-400' 
+                                                                : 'text-gray-300'
+                                                        }`}
+                                                    />
+                                                ))}
+                                                <span className="text-sm text-gray-600 ml-1">
+                                                    {supplierData.rating.toFixed(1)}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                                            <div className="flex items-center gap-2">
+                                                <UserIcon className="h-4 w-4 text-gray-500" />
+                                                <span>{supplierData.cardCode}</span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <EnvelopeIcon className="h-4 w-4 text-gray-500" />
+                                                <span>{supplierData.email}</span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <PhoneIcon className="h-4 w-4 text-gray-500" />
+                                                <span>{supplierData.phone}</span>
+                                            </div>
+                                            {supplierData.website && (
+                                                <div className="flex items-center gap-2">
+                                                    <GlobeAltIcon className="h-4 w-4 text-gray-500" />
+                                                    <a 
+                                                        href={supplierData.website} 
+                                                        target="_blank" 
+                                                        rel="noopener noreferrer"
+                                                        className="text-blue-600 hover:underline"
+                                                    >
+                                                        Sitio Web
+                                                    </a>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <Button
+                                        color="primary"
+                                        variant="flat"
+                                        startContent={<PencilIcon className="h-4 w-4" />}
+                                    >
+                                        Editar Perfil
+                                    </Button>
+                                </div>
+                            </div>
+                        </div>
+                    </CardBody>
+                </Card>
+
+                {/* KPIs */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <Card>
+                        <CardBody className="flex flex-row items-center gap-4">
+                            <div className="p-3 bg-blue-100 rounded-lg">
+                                <ShoppingCartIcon className="h-8 w-8 text-blue-600" />
+                            </div>
+                            <div>
+                                <p className="text-sm text-gray-500">Total Órdenes</p>
+                                <p className="text-2xl font-bold">{totalOrders}</p>
+                                <p className="text-xs text-green-600">{completedOrders} completadas</p>
+                            </div>
+                        </CardBody>
+                    </Card>
+
+                    <Card>
+                        <CardBody className="flex flex-row items-center gap-4">
+                            <div className="p-3 bg-green-100 rounded-lg">
+                                <BanknotesIcon className="h-8 w-8 text-green-600" />
+                            </div>
+                            <div>
+                                <p className="text-sm text-gray-500">Monto Total</p>
+                                <p className="text-2xl font-bold">{formatCurrency(totalAmount)}</p>
+                                <p className="text-xs text-gray-600">Promedio: {formatCurrency(averageOrderValue)}</p>
+                            </div>
+                        </CardBody>
+                    </Card>
+
+                    <Card>
+                        <CardBody className="flex flex-row items-center gap-4">
+                            <div className="p-3 bg-purple-100 rounded-lg">
+                                <DocumentTextIcon className="h-8 w-8 text-purple-600" />
+                            </div>
+                            <div>
+                                <p className="text-sm text-gray-500">Facturas</p>
+                                <p className="text-2xl font-bold">{supplierInvoices.length}</p>
+                                <p className="text-xs text-orange-600">{pendingInvoices} pendientes</p>
+                            </div>
+                        </CardBody>
+                    </Card>
+
+                    <Card>
+                        <CardBody className="flex flex-row items-center gap-4">
+                            <div className="p-3 bg-orange-100 rounded-lg">
+                                <ChartBarIcon className="h-8 w-8 text-orange-600" />
+                            </div>
+                            <div>
+                                <p className="text-sm text-gray-500">Tasa Completada</p>
+                                <p className="text-2xl font-bold">{completionRate.toFixed(1)}%</p>
+                                <Progress 
+                                    size="sm" 
+                                    color="success" 
+                                    value={completionRate} 
+                                    className="mt-1"
+                                />
+                            </div>
+                        </CardBody>
+                    </Card>
+                </div>
+
+                {/* Detailed Information */}
+                <Tabs aria-label="Información detallada" className="w-full">
+                    <Tab key="orders" title="Mis Órdenes">
+                        <Card>
+                            <CardHeader>
+                                <h3 className="text-lg font-semibold">Órdenes de Compra Recientes</h3>
+                            </CardHeader>
+                            <CardBody>
+                                <Table aria-label="Órdenes del proveedor">
+                                    <TableHeader>
+                                        <TableColumn>N° ORDEN</TableColumn>
+                                        <TableColumn>FECHA</TableColumn>
+                                        <TableColumn>MONTO</TableColumn>
+                                        <TableColumn>ESTADO</TableColumn>
+                                        <TableColumn>ENTREGA</TableColumn>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {supplierOrders.slice(0, 10).map((order) => (
+                                            <TableRow key={order.id}>
+                                                <TableCell>
+                                                    <div>
+                                                        <p className="font-medium text-sm">{order.orderNumber}</p>
+                                                        <p className="text-xs text-gray-500">{order.department}</p>
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <p className="text-sm">{order.createdDate}</p>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <p className="font-medium">
+                                                        {formatCurrency(order.totalAmount, order.currency)}
+                                                    </p>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Chip 
+                                                        color={getStatusColor(order.status) as any} 
+                                                        variant="flat" 
+                                                        size="sm"
+                                                    >
+                                                        {order.status}
+                                                    </Chip>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <p className="text-sm">{order.deliveryDate}</p>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </CardBody>
+                        </Card>
+                    </Tab>
+
+                    <Tab key="invoices" title="Mis Facturas">
+                        <Card>
+                            <CardHeader>
+                                <h3 className="text-lg font-semibold">Facturas Emitidas</h3>
+                            </CardHeader>
+                            <CardBody>
+                                <Table aria-label="Facturas del proveedor">
+                                    <TableHeader>
+                                        <TableColumn>N° FACTURA</TableColumn>
+                                        <TableColumn>FECHA EMISIÓN</TableColumn>
+                                        <TableColumn>MONTO</TableColumn>
+                                        <TableColumn>ESTADO</TableColumn>
+                                        <TableColumn>VENCIMIENTO</TableColumn>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {supplierInvoices.slice(0, 10).map((invoice) => (
+                                            <TableRow key={invoice.id}>
+                                                <TableCell>
+                                                    <p className="font-medium text-sm">{invoice.invoiceNumber}</p>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <p className="text-sm">{invoice.issueDate}</p>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <p className="font-medium">
+                                                        {formatCurrency(invoice.totalAmount, invoice.currency)}
+                                                    </p>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Chip 
+                                                        color={getStatusColor(invoice.status) as any} 
+                                                        variant="flat" 
+                                                        size="sm"
+                                                    >
+                                                        {invoice.status}
+                                                    </Chip>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <p className="text-sm">{invoice.dueDate}</p>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </CardBody>
+                        </Card>
+                    </Tab>
+
+                    <Tab key="info" title="Información">
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <Card>
+                                <CardHeader>
+                                    <h3 className="text-lg font-semibold">Información de Contacto</h3>
+                                </CardHeader>
+                                <CardBody className="space-y-4">
+                                    <div className="space-y-3">
+                                        <div>
+                                            <p className="text-sm font-medium text-gray-500">Persona de Contacto</p>
+                                            <p className="text-sm">{supplierData.contactPerson}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-medium text-gray-500">Email de Contacto</p>
+                                            <p className="text-sm">{supplierData.contactEmail}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-medium text-gray-500">Teléfono de Contacto</p>
+                                            <p className="text-sm">{supplierData.contactPhone}</p>
+                                        </div>
+                                        <Divider />
+                                        <div>
+                                            <p className="text-sm font-medium text-gray-500">Dirección</p>
+                                            <p className="text-sm">{supplierData.address}</p>
+                                            <p className="text-sm">{supplierData.city}, {supplierData.country}</p>
+                                        </div>
+                                    </div>
+                                </CardBody>
+                            </Card>
+
+                            <Card>
+                                <CardHeader>
+                                    <h3 className="text-lg font-semibold">Información Comercial</h3>
+                                </CardHeader>
+                                <CardBody className="space-y-4">
+                                    <div className="space-y-3">
+                                        <div>
+                                            <p className="text-sm font-medium text-gray-500">Términos de Pago</p>
+                                            <p className="text-sm">{supplierData.paymentTerms || 'No especificado'}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-medium text-gray-500">Tipo de Negocio</p>
+                                            <p className="text-sm">{supplierData.businessType}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-medium text-gray-500">Fecha de Registro</p>
+                                            <p className="text-sm">{supplierData.fechaRegistro}</p>
+                                        </div>
+                                        <Divider />
+                                        <div>
+                                            <p className="text-sm font-medium text-gray-500">Certificaciones</p>
+                                            <div className="flex flex-wrap gap-1 mt-1">
+                                                {supplierData.certifications?.map((cert, index) => (
+                                                    <Chip key={index} size="sm" variant="flat">
+                                                        {cert}
+                                                    </Chip>
+                                                )) || <p className="text-sm text-gray-400">Sin certificaciones</p>}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </CardBody>
+                            </Card>
+                        </div>
+                    </Tab>
+                </Tabs>
+            </div>
+        </Dashboard>
+    );
+};
+
+export default SupplierProfile;

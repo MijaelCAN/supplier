@@ -47,6 +47,7 @@ const LoginPage = () => {
                     break;
                 case 'proveedor':
                     navigate('/proveedor/perfil');
+                    //navigate('/proveedor/perfil');
                     break;
                 case 'compras':
                     navigate('/orden-compra');

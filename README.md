@@ -1,53 +1,51 @@
-# Vite & HeroUI Template
+# Portal de Proveedores VISTONY
 
-This is a template for creating applications using Vite and HeroUI (v2).
+## Resumen Ejecutivo
 
-[Try it on CodeSandbox](https://githubbox.com/frontio-ai/vite-template)
+El Portal de Proveedores es una plataforma web que concentra la relación con los aliados comerciales de Vistony. Permite a las áreas internas y a los proveedores trabajar sobre un mismo entorno para registrar información, gestionar procesos de compra, monitorear compromisos financieros y medir desempeño. Su objetivo principal es dar visibilidad total del ciclo de abastecimiento y reducir tiempos administrativos desde la solicitud hasta el pago.
 
-## Technologies Used
+## Experiencia del Portal
 
-- [Vite](https://vitejs.dev/guide/)
-- [HeroUI](https://heroui.com)
-- [Tailwind CSS](https://tailwindcss.com)
-- [Tailwind Variants](https://tailwind-variants.org)
-- [TypeScript](https://www.typescriptlang.org)
-- [Framer Motion](https://www.framer.com/motion)
+- Acceso centralizado con autenticación por rol y panel de bienvenida con indicadores clave.
+- Interfaz intuitiva orientada a tareas, con filtros, buscadores y vistas resumidas.
+- Flujo guiado que conecta alta de proveedores, gestión documental, órdenes, recepciones, facturación y pagos.
+- Notificaciones contextuales sobre aprobaciones pendientes, vencimientos y eventos críticos.
 
-## How to Use
+## Perfiles de Usuario
 
-To clone the project, run the following command:
+- **Administrador:** configura políticas, gestiona usuarios y controla permisos.
+- **Compras:** lidera el alta de proveedores, órdenes de compra, licitaciones y agenda de entregas.
+- **Finanzas:** valida facturas, programa pagos y da seguimiento a conciliaciones.
+- **Proveedor:** mantiene su ficha, adjunta documentos, consulta órdenes, facturas y pagos.
+- **Almacén y áreas operativas:** reciben mercadería, confirman entregas y actualizan estados.
+- **Solicitante y otros roles especializados:** participan según definición de permisos (calidad, seguridad, proyectos, etc.).
 
-```bash
-git clone https://github.com/frontio-ai/vite-template.git
-```
+## Módulos Principales
 
-### Install dependencies
+- **Dashboard Ejecutivo:** consolida métricas de proveedores activos, órdenes por estado, facturas en revisión, gastos del mes y alertas de pagos vencidos.
+- **Gestión de Proveedores:** directorio con búsqueda avanzada, filtros por estado, historial de órdenes, evaluaciones y homologaciones. Incluye alta asistida, edición guiada, detalle por empresa y control documental.
+- **Procesos de Compra:** seguimiento integral de solicitudes, órdenes, licitaciones, agenda de citas, entregas y recepción en almacén. Cada orden muestra prioridades, responsables, ítems y estado de aprobación.
+- **Facturación y Pagos:** registro de facturas vinculadas a órdenes, control de aprobación, impuestos, notas y observaciones. Finanzas visualiza cronogramas, métodos de pago, conciliaciones y estatus (programado, procesado, completado).
+- **Finanzas:** panel dedicado a cuentas por pagar, historial de desembolsos, conciliación bancaria y visibilidad de obligaciones futuras.
+- **Reportes:** vistas consolidadas para analizar desempeño de proveedores, métricas de compras, reportes financieros y tablero ejecutivo.
+- **Configuración:** parametrización de la compañía, políticas de aprobación, apariencia del portal, gestión de usuarios y asignación de permisos.
 
-You can use one of them `npm`, `yarn`, `pnpm`, `bun`, Example using `npm`:
+## Flujos Destacados
 
-```bash
-npm install
-```
+1. **Onboarding de Proveedores:** registro digital, recopilación de datos fiscales y contactos en SUNAT, verificación documental y homologación antes de asignar órdenes.
+2. **Gestión de Órdenes:** creación desde solicitudes, aprobación multietapa, seguimiento de entregas y control de recepción.
+3. **Ciclo de Facturas:** carga por parte del proveedor, revisión por compras, aprobación por finanzas y registro de incidencias.
+4. **Pagos y Conciliación:** programación según condiciones pactadas, alertas de vencimientos y cierre del ciclo con evidencia de transferencia.
 
-### Run the development server
+## Beneficios para la Organización
 
-```bash
-npm run dev
-```
+- Visibilidad 360° del relacionamiento con proveedores y del gasto comprometido.
+- Reducción de tiempos administrativos y eliminación de reprocesos al compartir un único registro.
+- Mayor control del cumplimiento documental, normativo y financiero.
+- Experiencia transparente para los proveedores, con trazabilidad completa de cada interacción.
 
-### Setup pnpm (optional)
+## Información Operativa
 
-If you are using `pnpm`, you need to add the following code to your `.npmrc` file:
-
-```bash
-public-hoist-pattern[]=*@heroui/*
-```
-
-After modifying the `.npmrc` file, you need to run `pnpm install` again to ensure that the dependencies are installed correctly.
-
-## License
-
-Licensed under the [MIT license](https://github.com/frontio-ai/vite-template/blob/main/LICENSE).
-# supplier
-# supplier
-# supplier
+- Portal disponible 24/7 desde navegadores modernos (Chrome, Edge, Firefox).
+- Compatible con equipos de escritorio y portátiles; vista adaptable para tablets.
+- Soporte centralizado para consultas funcionales y atención a incidentes operativos.

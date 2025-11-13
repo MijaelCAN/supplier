@@ -173,7 +173,7 @@ const ModalRegister: FC<ModalRegisterProps> = ({isRegisterOpen,onRegisterClose, 
     )
 }
 export {ModalRegister}*/
-import { FC, useState } from 'react'
+import { FC, useMemo, useState } from 'react'
 import {useForm, Controller} from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -189,9 +189,11 @@ import {
     SelectItem,
     Divider
 } from "@heroui/react"
-import {Supplier, useConfigData, useSuppliers} from '@/store'
+import {useConfigData} from '@/store'
+import { useSuppliers as useExtendedSuppliers } from '@/store/extendedStore'
 import { useAuthStore } from '@/store/authStore'
-import {useExtendedStore} from "@/store/extendedStore.ts";
+import { UserRole } from '@/routes/menuTypes'
+import { createSupplierProfile, fetchSunatSupplierData, fetchSuppliersListFromApi, type SupplierApiRecord } from '@/services/providers/providersApi';
 
 // Schema de validación con Zod
 /*const supplierRegisterSchema2 = z.object({
@@ -223,6 +225,7 @@ const supplierRegisterSchema = z.object({
     phone: z.string().min(1, "El teléfono es requerido"),
     website: z.string().url("La página web debe ser una URL válida").optional(),
     address: z.string().min(1, "La dirección es requerida"),
+    ubigeo: z.string().min(1, "El ubigeo es requerido"),
     city: z.string().min(1, "La ciudad es requerida"),
     country: z.string().min(1, "El país es requerido"),
     contactPerson: z.string().min(1, "El nombre de contacto es requerido, xd"),
@@ -251,33 +254,53 @@ type SupplierRegisterFormData = z.infer<typeof supplierRegisterSchema>
 
 // Interface para los datos de SUNAT
 interface SunatData {
-    razonSocial: string
-    domicilioFiscal: string
-    estado: string
-    condicion: string
-    gerenteGeneral?: string
-    gerenteAdministrativo?: string
-    gerenteVentas?: string
+    ruc: string;
+    razon_social: string;
+    tipo_contribuyente: string;
+    nombre_comercial: string;
+    fecha_inscripcion: string;
+    fecha_inicio_actividades: string;
+    estado: string;
+    condicion: string;
+    domicilio_fiscal: {
+        direccion: string;
+        distrito: string;
+        provincia: string;
+        departamento: string;
+    };
+    actividades_economicas?: string[];
+    agente_retencion?: string;
+    agente_percepcion?: string;
 }
 
 interface ModalRegisterProps {
     isRegisterOpen: boolean
     onRegisterClose: () => void
-    addSupplier: (supplier: Omit<Supplier, 'id' | 'fechaRegistro'>) => void
+    onRegistered?: () => Promise<void> | void
 }
 
 const ModalRegister: FC<ModalRegisterProps> = ({
    isRegisterOpen,
-   onRegisterClose
+   onRegisterClose,
+   onRegistered
 }) => {
-    const { suppliers } = useSuppliers();
+    const { suppliers, setSuppliers } = useExtendedSuppliers();
+    const supplierList = Array.isArray(suppliers) ? suppliers : [];
     const { terminosPago, tipoPersona } = useConfigData()
-    const { createSupplierUser } = useAuthStore()
+    const createSupplierUser = useAuthStore((state) => state.createSupplierUser);
     const [isConsultingRuc, setIsConsultingRuc] = useState(false)
     const [sunatData, setSunatData] = useState<SunatData | null>(null)
     const [isRucValid, setIsRucValid] = useState(false)
-
-    const estadosSupplier = useExtendedStore( state => state.estadosSupplier )
+    const [isSummaryOpen, setIsSummaryOpen] = useState(false);
+    const [emailSummary, setEmailSummary] = useState<{
+        email: string;
+        username: string;
+        tempPassword: string;
+        portalLink: string;
+        userFullName: string;
+        supplierName: string;
+    } | null>(null);
+    const portalLink = useMemo(() => (typeof window !== 'undefined' ? `${window.location.origin}/login` : '/login'), []);
 
     const {
         control,
@@ -293,9 +316,10 @@ const ModalRegister: FC<ModalRegisterProps> = ({
             cardCode: '',
             cardName: '',
             email: '',
-            phone: '963852741',
-            website: 'https://www.miempresa.com.pe',
+            phone: '', // 963852741
+            website: 'Sin pagina web', // https://www.miempresa.com.pe
             address: '',
+            ubigeo: '',
             city: 'Lima',
             country: 'PERU',
             contactPerson: 'Mijael Cano Rojas',
@@ -329,167 +353,181 @@ const ModalRegister: FC<ModalRegisterProps> = ({
         setIsConsultingRuc(true)
 
         try {
-            // Aquí iría tu llamada real a la API de SUNAT
-            // Por ahora simulo una respuesta
-            const response = await simulateRucConsultation(watchedRuc)
+            const response = await fetchSunatSupplierData(watchedRuc)
 
-            if (response.success) {
-                const data = response.data
-                setSunatData(data)
+            if (!response.success || !response.datos) {
+                throw new Error('La consulta a SUNAT no devolvió información válida.')
+            }
 
-                // Solo habilitar campos si está ACTIVO y HABIDO
-                const isValidStatus = data.estado === 'ACTIVO' && data.condicion === 'HABIDO'
-                setIsRucValid(isValidStatus)
+            const data = response.datos
+            setSunatData(data)
 
-                if (isValidStatus) {
-                    // Llenar automáticamente los campos
-                    setValue('cardName', data.razonSocial)
-                    setValue('address', data.domicilioFiscal)
+            const isValidStatus = data.estado === 'ACTIVO' && data.condicion === 'HABIDO'
+            setIsRucValid(isValidStatus)
 
-                    // Manager fields temporarily disabled
-                    // if (data.gerenteGeneral) setValue('generalManager', data.gerenteGeneral)
-                    // if (data.gerenteAdministrativo) setValue('adminManager', data.gerenteAdministrativo)
-                    // if (data.gerenteVentas) setValue('salesManager', data.gerenteVentas)
-                } else {
-                    alert(`RUC no válido: Estado ${data.estado}, Condición ${data.condicion}`)
-                }
+            if (isValidStatus) {
+                setValue('cardName', data.razon_social ?? '')
+                setValue('address', data.domicilio_fiscal?.direccion ?? '')
+                setValue('businessType', data.actividades_economicas?.[0] ?? '')
+                setValue('ubigeo', '')
+                setValue('paymentTerms', '')
+                setValue('personType', data.tipo_contribuyente?.includes('NATURAL') ? 'TPN' : 'TPJ')
             } else {
-                alert('Error al consultar RUC en SUNAT')
+                alert(`RUC no válido: Estado ${data.estado}, Condición ${data.condicion}`)
             }
         } catch (error) {
             console.error('Error consultando RUC:', error)
-            alert('Error al consultar RUC')
+            alert(error instanceof Error ? error.message : 'Error al consultar RUC')
         } finally {
             setIsConsultingRuc(false)
         }
     }
 
-    // Simulación de consulta RUC (reemplazar con tu API real)
-    const simulateRucConsultation = async (ruc: string): Promise<{success: boolean, data: SunatData}> => {
-        console.log("RUC", ruc)
-        return new Promise((resolve) => {
-            setTimeout(() => {
-                resolve({
-                    success: true,
-                    data: {
-                        razonSocial: 'AXIOM Solutions S.A.C',
-                        domicilioFiscal: 'AV. Constructores 2839, LIMA, LIMA',
-                        estado: 'ACTIVO',
-                        condicion: 'HABIDO',
-                        gerenteGeneral: 'JUAN PEREZ GARCIA'
-                    }
-                })
-            }, 1500)
-        })
-    }
+    const generateTempPassword = () => {
+        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+        let password = '';
+        for (let i = 0; i < 8; i++) {
+            password += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return password;
+    };
 
     const onSubmit = async (data: SupplierRegisterFormData) => {
-        console.log("ENTRO A FUNCION DE ENVIO")
-        if (!isRucValid) {
-            alert('Debe consultar un RUC válido antes de registrar')
+        if (!isRucValid || !sunatData) {
+            alert('Debe consultar y validar un RUC antes de registrar.')
             return
         }
 
-        try {
-            // Transformar los datos del formulario al formato Supplier
-            const newSupplier = {
-                //docEntry: data.docEntry,
-                cardCode: data.cardCode,
-                cardName: data.cardName,
-                businessType: data.businessType,
-                email: data.email,
-                phone: data.phone || '',
-                //website: data.website || 'www.miempresa.com.pe',
-                address: data.address,
-                //city: data.city,
-                //country: 'PERU',
-                contactPerson: data.contactPerson,
-                contactEmail: data.contactEmail,
-                contactPhone: data.contactPhone || '',
-                paymentTerms: data.paymentTerms,
-                //certifications: data.certifications,
-                status: data.status,
-                //rating: data.rating,
-                //totalAmount: data.totalAmount,
-                //totalOrders: data.totalOrders,
-                registrationDate: new Date().toLocaleDateString('es-PE'),
-                //lastOrderDate: new Date().toLocaleDateString('es-PE'),
-                //avatar: data.avatar,
-                personType: data.personType || 'Juridica',
-                adminManager: data.adminManager,
-                generalManager: data.generalManager,
-                salesManager: data.salesManager
-            }
-            console.log( "Proveedor",newSupplier)
+        if (!data.email) {
+            alert('El correo del proveedor es obligatorio.');
+            return;
+        }
 
-            // Add supplier to store
-            //await addSupplier(newSupplier)
-            
-            // Simulate email sending and create user account
-            //await simulateEmailSending(data.contactEmail, data.cardName, data.contactPerson, data.docEntry)
-            
-            // Close modal after success
+        try {
+            const nowIso = new Date().toISOString()
+            const domicilioFiscal = sunatData.domicilio_fiscal?.direccion ?? data.address
+            const distrito = sunatData.domicilio_fiscal?.distrito ?? ''
+            const provincia = sunatData.domicilio_fiscal?.provincia ?? ''
+            const departamento = sunatData.domicilio_fiscal?.departamento ?? ''
+            const economicActivity = sunatData.actividades_economicas?.[0] ?? data.businessType ?? ''
+            const ubigeoValue = data.ubigeo ?? ''
+            const supplierId = `P${data.cardCode}`
+
+            const payload: SupplierApiRecord = {
+                CodigoSN: supplierId,
+                NombreSN: data.cardName,
+                RUC: data.cardCode,
+                TipoPersona: data.personType ?? 'TPJ',
+                Moneda: 'S/',
+                Telefono1: data.phone ?? '',
+                Telefono2: '',
+                TelefonoMovil: data.contactPhone ?? '',
+                Correo: data.email ?? '',
+                TipoDocumento: '6',
+                Direccion: data.address,
+                Distrito: distrito,
+                Provincia: provincia,
+                Departamento: departamento,
+                Ubigeo: ubigeoValue,
+                CondicionPago: data.paymentTerms ?? '',
+                DireccionSUNAT: domicilioFiscal,
+                ResolucionAgenteRetencion: '',
+                ResolucionAgentePercepcion: '',
+                website: data.website ?? '',
+                createDate: nowIso,
+                updateDate: nowIso,
+                statusContributer: sunatData.estado === "ACTIVO" ? '00' :'10',
+                statusDomicilio: sunatData.condicion === "HABIDO" ? '00' :'12',
+                agentePercepcion: sunatData.agente_percepcion === 'SI' ? 'Y' : 'N',
+                exoPercepcion: 'N',
+                agenteRetencion: sunatData.agente_retencion === 'SI' ? 'Y' : 'N',
+                goodContributor: 'N',
+                economiActivitySunat: "007", // CAMBIAR AL CODIGO DE SAP de momento duro - 007
+                status: data.status ?? (sunatData.estado === 'ACTIVO' ? 'Pendiente' : 'Pendiente'),
+                approvalDate: '',
+                coverImage: '',
+                Avatar: '',
+                generalManager: data.generalManager ?? '',
+                adminManager: data.adminManager ?? '',
+                salesManager: data.salesManager ?? '',
+                Contactos: [
+                    {
+                        Active: 'Y',
+                        Name: data.contactPerson,
+                        Profesion: '',
+                        Telefono: data.contactPhone ?? '',
+                        E_MailL: data.contactEmail ?? '',
+                    }
+                ],
+                Bancos: [],
+                Direcciones: [
+                    {
+                        CodDireccion: '01',
+                        Departamento: departamento,
+                        Direccion: domicilioFiscal,
+                        Distrito: distrito,
+                        Provincia: provincia,
+                        NroLinea: '0',
+                        Ubigeo: ubigeoValue
+                    }
+                ],
+                DocumentoEvaluacion: [],
+                ReferenciasComerciales: [],
+                ServiciosOfrecidos: [],
+            }
+
+            const result = await createSupplierProfile(payload)
+            const docEntryCode = result.record.DocEntry?.toString() ?? `USR-${Math.floor(Math.random() * 1_000_000)
+                .toString()
+                .padStart(6, '0')}`
+            const username = data.cardCode.trim()
+            const isNaturalPerson = username.startsWith('10')
+            const userFullName = (isNaturalPerson ? data.cardName : data.cardName || data.contactPerson).trim() || data.contactPerson
+            const tempPassword = generateTempPassword()
+
+            await createSupplierUser({
+                username,
+                email: data.email,
+                userCode: docEntryCode,
+                userName: userFullName,
+                supplierId,
+                tempPassword,
+                companyName: data.cardName,
+                phone: data.phone,
+                avatar: result.supplier.avatar,
+                useSupplierPortal: true,
+                accountStatus: 'active',
+                role: UserRole.PROVEEDOR,
+            });
+
+            const withoutCurrent = supplierList.filter((supplier) => supplier.docEntry !== result.supplier.docEntry);
+            setSuppliers([...withoutCurrent, result.supplier]);
+
+            if (onRegistered) {
+                await onRegistered();
+            } else {
+                try {
+                    const refreshed = await fetchSuppliersListFromApi();
+                    setSuppliers(refreshed);
+                } catch (refreshError) {
+                    console.error('No se pudo refrescar la lista de proveedores después del registro.', refreshError);
+                }
+            }
+
+            setEmailSummary({
+                email: data.email,
+                username,
+                tempPassword,
+                portalLink,
+                userFullName,
+                supplierName: data.cardName,
+            });
+            setIsSummaryOpen(true);
             handleClose()
         } catch (error) {
             console.error('Error al registrar el proveedor:', error)
-            alert('Error al registrar el proveedor')
+            alert(error instanceof Error ? error.message : 'Error al registrar el proveedor')
         }
-    }
-
-    // Simulate sending credentials via email
-    const simulateEmailSending = async (email: string, companyName: string, contactPerson: string, supplierId: string): Promise<void> => {
-        return new Promise((resolve) => {
-            setTimeout(() => {
-                // Generate temporary credentials
-                const tempPassword = generateTempPassword()
-                
-                // Create user account for the supplier
-                createSupplierUser({
-                    email: email,
-                    companyName: companyName,
-                    contactPerson: contactPerson,
-                    supplierId: supplierId,
-                    tempPassword: tempPassword
-                })
-                
-                // Simulate email sending
-                console.log(`
-                    ===== EMAIL SIMULADO =====
-                    Para: ${email}
-                    Asunto: Credenciales de acceso al Portal de Proveedores
-                    
-                    Estimado/a ${contactPerson} de ${companyName},
-                    
-                    Su empresa ha sido registrada exitosamente en nuestro Portal de Proveedores.
-                    
-                    Sus credenciales de acceso son:
-                    - Usuario: ${email}
-                    - Contraseña temporal: ${tempPassword}
-                    
-                    Por favor, ingrese al portal usando estas credenciales y cambie su contraseña.
-                    
-                    Portal: ${window.location.origin}/login
-                    
-                    Saludos cordiales,
-                    Equipo de Administración
-                    ===========================
-                `)
-                
-                alert(`¡Proveedor registrado exitosamente!\n\nSe han enviado las credenciales de acceso al correo: ${email}\n\nCredenciales temporales:\nUsuario: ${email}\nContraseña: ${tempPassword}\n\nEl proveedor ya puede ingresar al sistema con estas credenciales.`)
-                
-                resolve()
-            }, 2000) // Simulate 2 second delay for email sending
-        })
-    }
-
-    // Generate a temporary password
-    const generateTempPassword = (): string => {
-        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
-        let password = ''
-        for (let i = 0; i < 8; i++) {
-            password += chars.charAt(Math.floor(Math.random() * chars.length))
-        }
-        return password
     }
 
     const handleClose = () => {
@@ -499,127 +537,148 @@ const ModalRegister: FC<ModalRegisterProps> = ({
         onRegisterClose()
     }
 
+    const closeSummary = () => {
+        setIsSummaryOpen(false);
+        setEmailSummary(null);
+    };
+
     return (
-        <Modal isOpen={isRegisterOpen} onClose={handleClose} size="3xl">
-            <ModalContent>
-                {() => (
-                    <form onSubmit={handleSubmit(onSubmit)}>
-                        <ModalHeader>
-                            <h3 className="text-xl font-bold">Registrar Nuevo Proveedor</h3>
-                        </ModalHeader>
-                        <ModalBody>
-                            <div className="space-y-4">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <Controller
-                                        name="cardCode"
-                                        control={control}
-                                        render={({field}) => (
-                                            <Input
-                                                {...field}
-                                                label="RUC"
-                                                size="sm"
-                                                placeholder="20123456789"
-                                                isInvalid={!!errors.cardCode}
-                                                errorMessage={errors.cardCode?.message}
-                                            />
-                                        )}
-                                    />
-                                    <Button
-                                        color="danger"
-                                        size="lg"
-                                        className="bg-gris text-white dark:bg-azul"
-                                        onPress={consultarRUC}
-                                        isLoading={isConsultingRuc}
-                                        isDisabled={!watchedRuc || watchedRuc.length !== 11}
-                                    >
-                                        {isConsultingRuc ? 'Consultando...' : 'Consultar'}
-                                    </Button>
-                                </div>
-
-                                <Controller
-                                    name="cardName"
-                                    control={control}
-                                    render={({field}) => (
-                                        <Input
-                                            {...field}
-                                            label="Razón Social"
-                                            placeholder="Se completará automáticamente"
-                                            size="sm"
-                                            isDisabled={!isRucValid}
-                                            isInvalid={!!errors.cardName}
-                                            errorMessage={errors.cardName?.message}
-                                        />
-                                    )}
-                                />
-
-                                <Controller
-                                    name="address"
-                                    control={control}
-                                    render={({field}) => (
-                                        <Input
-                                            {...field}
-                                            label="Domicilio fiscal"
-                                            placeholder="Se completará automáticamente"
-                                            size="sm"
-                                            isDisabled={!isRucValid}
-                                            isInvalid={!!errors.address}
-                                            errorMessage={errors.address?.message}
-                                        />
-                                    )}
-                                />
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <Controller
-                                        name="email"
-                                        control={control}
-                                        render={({field}) => (
-                                            <Input
-                                                {...field}
-                                                label="Email Proveedor"
-                                                type="email"
-                                                placeholder="email@empresa.com"
-                                                size="sm"
-                                                isInvalid={!!errors.email}
-                                                errorMessage={errors.email?.message}
-                                            />
-                                        )}
-                                    />
-
-                                    <Controller
-                                        name="phone"
-                                        control={control}
-                                        render={({field}) => (
-                                            <Input
-                                                {...field}
-                                                label="Telefono Proveedor"
-                                                type="text"
-                                                placeholder="958746932"
-                                                size="sm"
-                                                isInvalid={!!errors.phone}
-                                                errorMessage={errors.phone?.message}
-                                            />
-                                        )}
-                                    />
-                                </div>
-
-                                <Divider/>
-
+        <>
+            <Modal isOpen={isRegisterOpen} onClose={handleClose} size="3xl">
+                <ModalContent>
+                    {() => (
+                        <form onSubmit={handleSubmit(onSubmit)}>
+                            <ModalHeader>
+                                <h3 className="text-xl font-bold">Registrar Nuevo Proveedor</h3>
+                            </ModalHeader>
+                            <ModalBody>
                                 <div className="space-y-4">
-                                    <h4 className="font-semibold mb-4">Persona de Contacto</h4>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <Controller
+                                            name="cardCode"
+                                            control={control}
+                                            render={({field}) => (
+                                                <Input
+                                                    {...field}
+                                                    label="RUC"
+                                                    size="sm"
+                                                    placeholder="20123456789"
+                                                    isInvalid={!!errors.cardCode}
+                                                    errorMessage={errors.cardCode?.message}
+                                                />
+                                            )}
+                                        />
+                                        <Button
+                                            color="danger"
+                                            size="lg"
+                                            className="bg-gris text-white dark:bg-azul"
+                                            onPress={consultarRUC}
+                                            isLoading={isConsultingRuc}
+                                            isDisabled={!watchedRuc || watchedRuc.length !== 11}
+                                        >
+                                            {isConsultingRuc ? 'Consultando...' : 'Consultar'}
+                                        </Button>
+                                    </div>
+
                                     <Controller
-                                        name="contactPerson"
+                                        name="cardName"
                                         control={control}
                                         render={({field}) => (
                                             <Input
                                                 {...field}
-                                                label="Nombre Completo"
-                                                placeholder="Nombre del contacto principal"
+                                                label="Razón Social"
+                                                placeholder="Se completará automáticamente"
                                                 size="sm"
-                                                isInvalid={!!errors.contactPerson}
-                                                errorMessage={errors.contactPerson?.message}
+                                                isDisabled={!isRucValid}
+                                                isInvalid={!!errors.cardName}
+                                                errorMessage={errors.cardName?.message}
                                             />
                                         )}
                                     />
+
+                                    <Controller
+                                        name="address"
+                                        control={control}
+                                        render={({field}) => (
+                                            <Input
+                                                {...field}
+                                                label="Domicilio fiscal"
+                                                placeholder="Se completará automáticamente"
+                                                size="sm"
+                                                isDisabled={!isRucValid}
+                                                isInvalid={!!errors.address}
+                                                errorMessage={errors.address?.message}
+                                            />
+                                        )}
+                                    />
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <Controller
+                                            name="email"
+                                            control={control}
+                                            render={({field}) => (
+                                                <Input
+                                                    {...field}
+                                                    label="Email Proveedor"
+                                                    type="email"
+                                                    placeholder="email@empresa.com"
+                                                    size="sm"
+                                                    isInvalid={!!errors.email}
+                                                    errorMessage={errors.email?.message}
+                                                />
+                                            )}
+                                        />
+
+                                        <Controller
+                                            name="phone"
+                                            control={control}
+                                            render={({field}) => (
+                                                <Input
+                                                    {...field}
+                                                    label="Telefono Proveedor"
+                                                    type="text"
+                                                    placeholder="958746932"
+                                                    size="sm"
+                                                    isInvalid={!!errors.phone}
+                                                    errorMessage={errors.phone?.message}
+                                                />
+                                            )}
+                                        />
+                                    </div>
+
+                                    <Controller
+                                        name="ubigeo"
+                                        control={control}
+                                        render={({field}) => (
+                                            <Input
+                                                {...field}
+                                                label="Ubigeo"
+                                                placeholder="Ej: 150101"
+                                                size="sm"
+                                                isInvalid={!!errors.ubigeo}
+                                                errorMessage={errors.ubigeo?.message}
+                                            />
+                                        )}
+                                    />
+
+                                    <Divider/>
+
+                                    <div className="space-y-4">
+                                        <h4 className="font-semibold mb-4">Persona de Contacto</h4>
+                                        <Controller
+                                            name="contactPerson"
+                                            control={control}
+                                            render={({field}) => (
+                                                <Input
+                                                    {...field}
+                                                    label="Nombre Completo"
+                                                    placeholder="Nombre del contacto principal"
+                                                    size="sm"
+                                                    isInvalid={!!errors.contactPerson}
+                                                    errorMessage={errors.contactPerson?.message}
+                                                />
+                                            )}
+                                        />
                                         {<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                             <Controller
                                                 name="contactEmail"
@@ -824,30 +883,65 @@ const ModalRegister: FC<ModalRegisterProps> = ({
 
                                     </div>
                                 </div>
-                        </ModalBody>
+                            </ModalBody>
 
-                        <ModalFooter>
-                            <Button
-                                color="danger"
-                                variant="light"
-                                onPress={handleClose}
-                                isDisabled={isSubmitting}
-                            >
-                                Cancelar
-                            </Button>
-                            <Button
-                                color="primary"
-                                type="submit"
-                                isLoading={isSubmitting}
-                                isDisabled={!isRucValid}
-                            >
-                                Registrar Proveedor
-                            </Button>
-                        </ModalFooter>
-                    </form>
-                )}
-            </ModalContent>
-        </Modal>
+                            <ModalFooter>
+                                <Button
+                                    color="danger"
+                                    variant="light"
+                                    onPress={handleClose}
+                                    isDisabled={isSubmitting}
+                                >
+                                    Cancelar
+                                </Button>
+                                <Button
+                                    color="primary"
+                                    type="submit"
+                                    isLoading={isSubmitting}
+                                    isDisabled={!isRucValid}
+                                >
+                                    Registrar Proveedor
+                                </Button>
+                            </ModalFooter>
+                        </form>
+                    )}
+                </ModalContent>
+            </Modal>
+
+            <Modal isOpen={isSummaryOpen} onClose={closeSummary} size="md">
+                <ModalContent>
+                    {(onClose) => (
+                        <>
+                            <ModalHeader>
+                                <h3 className="text-lg font-semibold">Resumen de credenciales enviadas</h3>
+                            </ModalHeader>
+                            <ModalBody>
+                                {emailSummary ? (
+                                    <div className="space-y-2 text-sm">
+                                        <p><strong>Proveedor:</strong> {emailSummary.supplierName}</p>
+                                        <p><strong>Usuario (RUC):</strong> {emailSummary.username}</p>
+                                        <p><strong>Nombre mostrado:</strong> {emailSummary.userFullName}</p>
+                                        <p><strong>Correo de destino:</strong> {emailSummary.email}</p>
+                                        <p><strong>Contraseña temporal:</strong> {emailSummary.tempPassword}</p>
+                                        <p><strong>Portal:</strong> <a className="text-primary" href={emailSummary.portalLink} target="_blank" rel="noreferrer">{emailSummary.portalLink}</a></p>
+                                        <p className="text-xs text-default-500">
+                                            Comparte estas credenciales con el proveedor. Se recomienda solicitar el cambio de contraseña en el primer ingreso.
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <p>No hay información disponible.</p>
+                                )}
+                            </ModalBody>
+                            <ModalFooter>
+                                <Button color="primary" onPress={() => { onClose(); closeSummary(); }}>
+                                    Entendido
+                                </Button>
+                            </ModalFooter>
+                        </>
+                    )}
+                </ModalContent>
+            </Modal>
+        </>
     )
 }
 
