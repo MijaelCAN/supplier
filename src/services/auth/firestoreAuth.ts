@@ -214,42 +214,56 @@ export const loginWithFirestore = async (
 };
 
 export interface CreateSupplierUserPayload {
+    username: string;
     email: string;
-    companyName: string;
-    contactPerson: string;
+    userCode: string;
+    userName: string;
     supplierId: string;
     tempPassword: string;
+    companyName?: string;
+    phone?: string;
+    avatar?: string;
+    useSupplierPortal?: boolean;
+    accountStatus?: 'active' | 'inactive' | 'suspended';
+    role?: UserRole;
 }
 
 export const createSupplierUserDocument = async (
     payload: CreateSupplierUserPayload,
 ): Promise<void> => {
-    const { email, contactPerson, supplierId, tempPassword, companyName } = payload;
+    const {
+        username,
+        email,
+        userCode,
+        userName,
+        supplierId,
+        tempPassword,
+        companyName,
+        phone,
+        avatar,
+        useSupplierPortal,
+        accountStatus,
+        role,
+    } = payload;
 
     const { hash } = await import('bcryptjs');
-
-    const username = email.split('@')[0].toLowerCase();
-    const [firstName, ...rest] = contactPerson.trim().split(' ');
-    const lastName = rest.join(' ');
 
     const hashedPassword = await hash(tempPassword, 10);
 
     const usersRef = collection(db, USERS_COLLECTION);
 
     await addDoc(usersRef, {
-        username,
+        username: username.trim().toLowerCase(),
         email,
-        user_code: supplierId,
-        user_name: contactPerson,
-        role: 'proveedor',
+        user_code: userCode,
+        user_name: userName,
+        role: role ?? 'proveedor',
         role_type: 'provider',
-        department: 'Ventas',
-        position: 'Representante',
-        phone: '',
-        avatar: `https://i.pravatar.cc/150?u=${email}`,
+        phone: phone ?? '',
+        avatar: avatar ?? `https://i.pravatar.cc/150?u=${email}`,
         supplier_id: supplierId,
-        account_status: 'active',
-        use_supplier_portal: true,
+        account_status: accountStatus ?? 'active',
+        use_supplier_portal: useSupplierPortal ?? true,
         settings: {
             view_providers: true,
             view_visits: true,
@@ -258,8 +272,51 @@ export const createSupplierUserDocument = async (
         },
         passwordHash: hashedPassword,
         last_login: null,
-        company: companyName,
+        company: companyName ?? '',
         created_at: serverTimestamp(),
+    });
+};
+
+export const findUserByUsername = async (
+    username: string,
+): Promise<{ id: string; data: FirestoreUserDocument } | null> => {
+    if (!username) {
+        return null;
+    }
+
+    const usersRef = collection(db, USERS_COLLECTION);
+    const userQuery = query(
+        usersRef,
+        where('username', '==', username.trim().toLowerCase()),
+        limit(1),
+    );
+
+    const snapshot = await getDocs(userQuery);
+
+    if (snapshot.empty) {
+        return null;
+    }
+
+    const docSnap = snapshot.docs[0];
+    return {
+        id: docSnap.id,
+        data: docSnap.data() as FirestoreUserDocument,
+    };
+};
+
+export const updateUserPassword = async (
+    userId: string,
+    newPassword: string,
+): Promise<void> => {
+    const { hash } = await import('bcryptjs');
+    const hashedPassword = await hash(newPassword, 10);
+
+    const userRef = doc(db, USERS_COLLECTION, userId);
+
+    await updateDoc(userRef, {
+        passwordHash: hashedPassword,
+        password: null,
+        updated_at: serverTimestamp(),
     });
 };
 

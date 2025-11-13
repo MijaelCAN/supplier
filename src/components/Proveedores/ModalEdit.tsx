@@ -150,7 +150,7 @@ const ModalEdit: FC<ModalEditProps> = ({isEditOpen, onEditClose, selectedSupplie
 }
 
 export { ModalEdit }*/
-import { FC, useEffect } from 'react'
+import { FC, useEffect, useState, useCallback } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -164,10 +164,13 @@ import {
     Input,
     Select,
     SelectItem,
-    Divider
+    Divider,
+    Spinner,
+    Alert,
 } from "@heroui/react";
-import {Supplier, useConfigData} from "@/store";
+import {Supplier} from "@/store/types";
 import {useExtendedStore} from "@/store/extendedStore.ts";
+import { fetchSupplierByCardCode, updateSupplierProfile, type SupplierApiRecord } from '@/services/providers/providersApi';
 
 // Schema de validación con Zod
 const supplierSchema = z.object({
@@ -178,8 +181,9 @@ const supplierSchema = z.object({
     website: z.string().url('URL inválida').optional().or(z.literal('')),
     cardCode: z.string().min(1, 'El RUC/Tax ID es requerido'),
     address: z.string().min(1, 'La dirección es requerida'),
-    city: z.string().min(1, 'La ciudad es requerida'),
-    country: z.string().min(1, 'El país es requerido'),
+    department: z.string().min(1, 'El departamento es requerido'),
+    province: z.string().min(1, 'La provincia es requerida'),
+    district: z.string().min(1, 'El distrito es requerido'),
     contactPerson: z.string().min(1, 'El nombre del contacto es requerido'),
     contactEmail: z.string().email('Email de contacto inválido').min(1, 'El email de contacto es requerido'),
     contactPhone: z.string().min(1, 'El teléfono de contacto es requerido'),
@@ -193,7 +197,8 @@ interface ModalEditProps {
     isEditOpen: boolean;
     onEditClose: () => void;
     selectedSupplier: Supplier | null;
-    updateSupplier: (id: string, supplier: SupplierFormData) => void
+    updateSupplier: (id: string, supplier: Partial<Supplier>) => void;
+    onUpdated?: () => Promise<void> | void;
 }
 
 const ModalEdit: FC<ModalEditProps> = ({
@@ -202,8 +207,11 @@ const ModalEdit: FC<ModalEditProps> = ({
    selectedSupplier,
    updateSupplier
 }) => {
-    //const { estadosSupplier } = useConfigData()
     const estadosSupplier = useExtendedStore( state => state.estadosSupplier)
+    const setSelectedSupplier = useExtendedStore(state => state.setSelectedSupplier);
+    const [apiRecord, setApiRecord] = useState<SupplierApiRecord | null>(null);
+    const [isLoadingRecord, setIsLoadingRecord] = useState(false);
+    const [apiError, setApiError] = useState<string | null>(null);
 
     const {
         control,
@@ -220,8 +228,9 @@ const ModalEdit: FC<ModalEditProps> = ({
             website: '',
             cardCode: '',
             address: '',
-            city: '',
-            country: '',
+            department: '',
+            province: '',
+            district: '',
             contactPerson: '',
             contactEmail: '',
             contactPhone: '',
@@ -230,42 +239,130 @@ const ModalEdit: FC<ModalEditProps> = ({
         }
     })
 
-    // Resetear el formulario cuando cambie el supplier seleccionado
-    useEffect(() => {
-        if (selectedSupplier) {
-            reset({
-                cardName: selectedSupplier.cardName || '',
-                businessType: selectedSupplier.businessType || '',
-                email: selectedSupplier.email || '',
-                phone: selectedSupplier.phone || '',
-                website: selectedSupplier.website || '',
-                cardCode: selectedSupplier.cardCode || '',
-                address: selectedSupplier.address || '',
-                city: selectedSupplier.city || '',
-                country: selectedSupplier.country || '',
-                contactPerson: selectedSupplier.contactPerson || '',
-                contactEmail: selectedSupplier.contactEmail || '',
-                contactPhone: selectedSupplier.contactPhone || '',
-                paymentTerms: selectedSupplier.paymentTerms || '',
-                status: selectedSupplier.status || 'P'
-            })
+    const loadSupplierRecord = useCallback(async (cardCode: string) => {
+        setIsLoadingRecord(true);
+        setApiError(null);
+        try {
+            const response = await fetchSupplierByCardCode(cardCode);
+            if (response?.record) {
+                setApiRecord(response.record);
+                const contactoPrincipal = response.record.Contactos?.[0];
+                reset({
+                    cardName: response.record.NombreSN ?? selectedSupplier?.cardName ?? '',
+                    businessType: selectedSupplier?.businessType ?? '',
+                    email: response.record.Correo ?? selectedSupplier?.email ?? '',
+                    phone: response.record.Telefono1 ?? selectedSupplier?.phone ?? '',
+                    website: response.record.website ?? selectedSupplier?.website ?? '',
+                    cardCode: response.record.RUC ?? cardCode,
+                    address: response.record.Direccion ?? selectedSupplier?.address ?? '',
+                    department: response.record.Departamento ?? '',
+                    province: response.record.Provincia ?? '',
+                    district: response.record.Distrito ?? '',
+                    contactPerson: contactoPrincipal?.Name ?? selectedSupplier?.contactPerson ?? '',
+                    contactEmail: contactoPrincipal?.E_MailL ?? selectedSupplier?.contactEmail ?? '',
+                    contactPhone: contactoPrincipal?.Telefono ?? selectedSupplier?.contactPhone ?? '',
+                    paymentTerms: response.record.CondicionPago ?? selectedSupplier?.paymentTerms ?? '',
+                    status: selectedSupplier?.status ?? 'Pendiente'
+                });
+            } else {
+                setApiError('No se pudo obtener la información actual del proveedor.');
+            }
+        } catch (error) {
+            console.error('Error al consultar el proveedor en SAP.', error);
+            setApiError('No se pudo obtener la información actual del proveedor.');
+        } finally {
+            setIsLoadingRecord(false);
         }
-    }, [selectedSupplier, reset])
+    }, [reset, selectedSupplier]);
+
+    useEffect(() => {
+        if (isEditOpen && selectedSupplier?.cardCode) {
+            loadSupplierRecord(selectedSupplier.cardCode);
+        } else {
+            setApiRecord(null);
+            reset({
+                cardName: '',
+                businessType: '',
+                email: '',
+                phone: '',
+                website: '',
+                cardCode: '',
+                address: '',
+                department: '',
+                province: '',
+                district: '',
+                contactPerson: '',
+                contactEmail: '',
+                contactPhone: '',
+                paymentTerms: '',
+                status: 'P'
+            });
+        }
+    }, [isEditOpen, selectedSupplier, reset, loadSupplierRecord]);
 
     const onSubmit = async (data: SupplierFormData) => {
-        if (!selectedSupplier?.docEntry) return
+        if (!selectedSupplier?.docEntry || !selectedSupplier.cardCode || !apiRecord) {
+            return;
+        }
 
         try {
-            updateSupplier(selectedSupplier.docEntry, data)
-            onEditClose()
+            const contactos = [...(apiRecord.Contactos ?? [])];
+            if (contactos.length === 0) {
+                contactos.push({
+                    Active: 'Y',
+                    Name: data.contactPerson,
+                    Profesion: '',
+                    Telefono: data.contactPhone,
+                    E_MailL: data.contactEmail,
+                });
+            } else {
+                contactos[0] = {
+                    ...contactos[0],
+                    Active: 'Y',
+                    Name: data.contactPerson,
+                    Telefono: data.contactPhone,
+                    E_MailL: data.contactEmail,
+                };
+            }
+
+            const updatedRecord: SupplierApiRecord = {
+                ...apiRecord,
+                NombreSN: data.cardName,
+                RUC: data.cardCode,
+                Correo: data.email,
+                Telefono1: data.phone,
+                website: data.website || null,
+                Direccion: data.address,
+                DireccionSUNAT: apiRecord.DireccionSUNAT ?? data.address,
+                Departamento: data.department,
+                Provincia: data.province,
+                Distrito: data.district,
+                CondicionPago: data.paymentTerms,
+                status: data.status,
+                Contactos: contactos,
+            };
+
+            const response = await updateSupplierProfile(updatedRecord.CodigoSN, updatedRecord);
+            const refreshedSupplier = response.supplier;
+
+            updateSupplier(refreshedSupplier.docEntry, refreshedSupplier);
+            setSelectedSupplier(refreshedSupplier);
+
+            if (onUpdated) {
+                await onUpdated();
+            }
+
+            onEditClose();
         } catch (error) {
             console.error('Error al actualizar el proveedor:', error)
         }
     }
 
     const handleClose = () => {
-        reset() // Limpiar el formulario al cerrar
-        onEditClose()
+        reset();
+        onEditClose();
+        setApiRecord(null);
+        setApiError(null);
     }
 
     return (
@@ -381,30 +478,43 @@ const ModalEdit: FC<ModalEditProps> = ({
                                         )}
                                     />
 
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                         <Controller
-                                            name="city"
+                                            name="department"
                                             control={control}
                                             render={({ field }) => (
                                                 <Input
                                                     {...field}
-                                                    label="Ciudad"
-                                                    placeholder="Ciudad"
-                                                    isInvalid={!!errors.city}
-                                                    errorMessage={errors.city?.message}
+                                                    label="Departamento"
+                                                    placeholder="Departamento"
+                                                    isInvalid={!!errors.department}
+                                                    errorMessage={errors.department?.message}
                                                 />
                                             )}
                                         />
                                         <Controller
-                                            name="country"
+                                            name="province"
                                             control={control}
                                             render={({ field }) => (
                                                 <Input
                                                     {...field}
-                                                    label="País"
-                                                    placeholder="País"
-                                                    isInvalid={!!errors.country}
-                                                    errorMessage={errors.country?.message}
+                                                    label="Provincia"
+                                                    placeholder="Provincia"
+                                                    isInvalid={!!errors.province}
+                                                    errorMessage={errors.province?.message}
+                                                />
+                                            )}
+                                        />
+                                        <Controller
+                                            name="district"
+                                            control={control}
+                                            render={({ field }) => (
+                                                <Input
+                                                    {...field}
+                                                    label="Distrito"
+                                                    placeholder="Distrito"
+                                                    isInvalid={!!errors.district}
+                                                    errorMessage={errors.district?.message}
                                                 />
                                             )}
                                         />

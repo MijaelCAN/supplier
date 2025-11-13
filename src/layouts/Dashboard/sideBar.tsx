@@ -41,8 +41,8 @@ const SideBar: FC<SideBarProps> = ({sidebarOpen,setSidebarOpen}) => {
                         <BuildingOfficeIcon className="h-5 w-5 text-white"/>
                     </div>
                     <div>
-                        <h1 className="text-xl font-bold text-gray-900 dark:text-white">AXIOM Solutions</h1>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">v2.1.0</p>
+                        <h1 className="text-xl font-bold text-gray-900 dark:text-white">Portal de proveedores VISTONY</h1>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">v1.0.0</p>
                     </div>
                 </div>
                 <button

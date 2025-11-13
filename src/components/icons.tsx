@@ -467,23 +467,28 @@ export const EvaluationIcon = (props: IconSvgProps) => (
 );
 // FIn de iconos de opciones de menu
 
+type HeartIconProps = IconSvgProps & {
+    strokeWidth?: number;
+    fill?: string;
+};
+
 export const HeartIcon = ({
-                            size = 24,
-                            width,
-                            height,
-                            strokeWidth = 1.5,
-                            fill = "none",
-                            ...props
-                          }) => {
+                              size = 24,
+                              width,
+                              height,
+                              strokeWidth = 1.5,
+                              fill = "none",
+                              ...props
+                          }: HeartIconProps) => {
   return (
       <svg
           aria-hidden="true"
           fill={fill}
           focusable="false"
-          height={size || height}
+          height={height ?? size}
           role="presentation"
           viewBox="0 0 24 24"
-          width={size || width}
+          width={width ?? size}
           {...props}
       >
         <path
@@ -497,16 +502,16 @@ export const HeartIcon = ({
   );
 };
 
-export const PauseCircleIcon = ({size = 24, width, height, ...props}) => {
+export const PauseCircleIcon = ({size = 24, width, height, ...props}: IconSvgProps) => {
   return (
       <svg
           aria-hidden="true"
           fill="none"
           focusable="false"
-          height={size || height}
+          height={height ?? size}
           role="presentation"
           viewBox="0 0 24 24"
-          width={size || width}
+          width={width ?? size}
           {...props}
       >
         <path
@@ -517,16 +522,16 @@ export const PauseCircleIcon = ({size = 24, width, height, ...props}) => {
   );
 };
 
-export const NextIcon = ({size = 24, width, height, ...props}) => {
+export const NextIcon = ({size = 24, width, height, ...props}: IconSvgProps) => {
   return (
       <svg
           aria-hidden="true"
           fill="none"
           focusable="false"
-          height={size || height}
+          height={height ?? size}
           role="presentation"
           viewBox="0 0 24 24"
-          width={size || width}
+          width={width ?? size}
           {...props}
       >
         <path
@@ -541,16 +546,16 @@ export const NextIcon = ({size = 24, width, height, ...props}) => {
   );
 };
 
-export const PreviousIcon = ({size = 24, width, height, ...props}) => {
+export const PreviousIcon = ({size = 24, width, height, ...props}: IconSvgProps) => {
   return (
       <svg
           aria-hidden="true"
           fill="none"
           focusable="false"
-          height={size || height}
+          height={height ?? size}
           role="presentation"
           viewBox="0 0 24 24"
-          width={size || width}
+          width={width ?? size}
           {...props}
       >
         <path
@@ -565,16 +570,16 @@ export const PreviousIcon = ({size = 24, width, height, ...props}) => {
   );
 };
 
-export const RepeatOneIcon = ({size = 24, width, height, ...props}) => {
+export const RepeatOneIcon = ({size = 24, width, height, ...props}: IconSvgProps) => {
   return (
       <svg
           aria-hidden="true"
           fill="none"
           focusable="false"
-          height={size || height}
+          height={height ?? size}
           role="presentation"
           viewBox="0 0 24 24"
-          width={size || width}
+          width={width ?? size}
           {...props}
       >
         <path
@@ -593,16 +598,16 @@ export const RepeatOneIcon = ({size = 24, width, height, ...props}) => {
   );
 };
 
-export const ShuffleIcon = ({size = 24, width, height, ...props}) => {
+export const ShuffleIcon = ({size = 24, width, height, ...props}: IconSvgProps) => {
   return (
       <svg
           aria-hidden="true"
           fill="none"
           focusable="false"
-          height={size || height}
+          height={height ?? size}
           role="presentation"
           viewBox="0 0 24 24"
-          width={size || width}
+          width={width ?? size}
           {...props}
       >
         <path
@@ -743,7 +748,7 @@ export const EditIcon = (props: IconSvgProps) => {
   );
 };
 
-export const EyeSlashFilledIcon = (props) => {
+export const EyeSlashFilledIcon = (props: IconSvgProps) => {
   return (
       <svg
           aria-hidden="true"
@@ -779,7 +784,7 @@ export const EyeSlashFilledIcon = (props) => {
   );
 };
 
-export const EyeFilledIcon = (props) => {
+export const EyeFilledIcon = (props: IconSvgProps) => {
   return (
       <svg
           aria-hidden="true"
@@ -803,7 +808,7 @@ export const EyeFilledIcon = (props) => {
   );
 };
 
-export const MailIcon = (props) => {
+export const MailIcon = (props: IconSvgProps) => {
   return (
       <svg
           aria-hidden="true"
@@ -823,7 +828,7 @@ export const MailIcon = (props) => {
   );
 };
 
-export const LockIcon = (props) => {
+export const LockIcon = (props: IconSvgProps) => {
   return (
       <svg
           aria-hidden="true"

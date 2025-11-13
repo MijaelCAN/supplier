@@ -157,16 +157,16 @@
     ],
     "ServiciosOfrecidos": [],
     "Documentos": {
-      "certificacionISO": [],
-      "licenciaMuni": [],
+      "certificaciones": [],
+      "licenciaMunicipal": [],
       "referenciasComerciales": [],
       "referenciasBancarias": [],
-      "historicoPrecios": [],
+      "historialPrecios": [],
       "condicionesPago": [],
       "vigenciaPoder": [],
       "fichaRuc": [],
-      "matrizAAmbientales": [],
-      "matrizIPERC": []
+      "matrizAmbiental": [],
+      "matrizIperc": []
     }
   }
 }
@@ -254,7 +254,7 @@
       "Galería y distribución de obras"
     ],
     "Documentos": {
-      "certificacionISO": [
+      "certificaciones": [
         {
           "cargado": true,
           "uploadDate": "2024-01-10T09:00:00Z",
@@ -265,14 +265,14 @@
           }
         }
       ],
-      "licenciaMuni": [
+      "licenciaMunicipal": [
         {
           "cargado": true,
           "uploadDate": "2023-11-20T11:30:00Z",
           "archivo": {
             "name": "licencia_municipal.pdf",
             "type": "application/pdf",
-            "base64": "JVBERi0xLjMKJSVFT0YKMSAwIG9iago8PC9UeXBlL1BhZ2UvUGFyZW50IDEgMCBS..."
+            "base64": "JVBERi0xLjMKJSVFT0YKMSAwIG9iago8PC9UeXBlL0NvbmRpY2lvbkxpc3QvQ29kZVJhbmdlIDAg..."
           }
         }
       ],
@@ -298,7 +298,7 @@
           }
         }
       ],
-      "historicoPrecios": {
+      "historialPrecios": {
         "cargado": true,
         "uploadDate": "2025-06-10T10:00:00Z",
         "archivo": {
@@ -334,22 +334,22 @@
           "base64": "JVBERi0xLjMKJSVFT0YKMSAwIG9iagpbXS9BaWRFcmVnaXN0ZXJlZCAyIDAgUi9GcmFtZSAzIDAgUi9D..."
         }
       },
-      "matrizAAmbientales": {
+      "matrizAmbiental": {
         "cargado": true,
         "uploadDate": "2024-05-05T13:00:00Z",
         "archivo": {
-          "name": "matriz_ambientales.pdf",
+          "name": "matriz_ambiental.pdf",
           "type": "application/pdf",
-          "base64": "JVBERi0xLjMKJSVFT0YKMSAwIG9iago8PC9UeXBlL01hdHJpeC9OYW1lIChBc21AcmlidGFsZXMpL1BhcmV..."
+          "base64": "JVBERi0xLjMKJSVFT0YKMSAwIG9iagpbXS9CYWwzX0VsZW1lbnRPUkQgMiAwIFIvQ29udGVudHMgMyAwIFIKPj4KZW5kb2JqCg=="
         }
       },
-      "matrizIPERC": {
+      "matrizIperc": {
         "cargado": true,
-        "uploadDate": "2024-06-10T15:30:00Z",
+        "uploadDate": "2025-01-08T09:15:00Z",
         "archivo": {
           "name": "matriz_iperc.pdf",
           "type": "application/pdf",
-          "base64": "JVBERi0xLjMKJSVFT0YKMSAwIG9iago8PC9UeXBlL0Zvcm18c3R1bJhsbmVycy9DZXJ0aWZpY2Fkb3Mv..."
+          "base64": "JVBERi0xLjMKJSVFT0YKMSAwIG9iago8PC9UeXBlL1BhZ2UvUGFyZW50IDEgMCBSL0NvbnRlbnRzIDIgMCBS..."
         }
       }
     }

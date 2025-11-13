@@ -5,6 +5,9 @@ import {
     CardBody,
     Avatar,
     Button,
+    Select,
+    SelectItem,
+    Selection,
     Chip,
     Progress,
     Accordion,
@@ -39,7 +42,6 @@ import {
     EnvelopeIcon,
     PhoneArrowDownLeftIcon,
     GlobeAltIcon,
-    CheckCircleIcon,
     DocumentTextIcon,
     ExclamationTriangleIcon,
     BuildingOffice2Icon,
@@ -47,13 +49,15 @@ import {
     IdentificationIcon,
     StarIcon
 } from '@heroicons/react/24/outline';
-import {Link} from "@heroui/link";
-import {DeleteIcon} from "@/components/icons.tsx";
+import { Link } from "@heroui/link";
+import { DeleteIcon } from "@/components/icons.tsx";
 import Dashboard from "@/layouts/Dashboard";
-import {useNavigate} from "react-router-dom";
-import {useSuppliers} from "@/store/extendedStore.ts";
+import { useNavigate } from "react-router-dom";
+import { useSuppliers } from "@/store/extendedStore.ts";
 import { useAuthStore } from '@/store/authStore';
-import {createDefaultDocuments, fetchSupplierByCardCode, updateSupplierProfile, type SupplierApiRecord, type Contacto, type Banco, type DocumentoEvaluacion} from '@/services/providers/providersApi';
+import { createDefaultDocuments, fetchSupplierByCardCode, updateSupplierProfile, type SupplierApiRecord, type Contacto, type Banco, type DocumentoEvaluacion} from '@/services/providers/providersApi';
+import { ProveedorValidator, TipoProveedorCodigo } from "@/pages/Proveedores/Profile/ProveedorValidator.ts";
+import {TicketIcon } from "@heroicons/react/16/solid";
 
 type BankTheme = {
     cardClass: string;
@@ -62,6 +66,31 @@ type BankTheme = {
     valueColor: string;
     badgeClass: string;
 };
+
+export enum PersonaTypeCode {
+    JURIDICA = 'TPJ',
+    NATURAL = 'TPN',
+    NO_DOMICILIADO = 'SND',
+    ADQUIRIENTE_TICKET = 'AT'
+}
+
+export enum DocumentTypeCode {
+    DNI = '1',
+    CARNET_EXTRANJERIA = '4',
+    RUC = '6',
+    PASAPORTE = '7',
+    CEDULA_DIPLOMATICA = 'A',
+    DOC_IDENT_PAIS_RESIDENCIA = 'B',
+    TAX_IDENTIFICATION_NUMBER = 'C',
+    IDENTIFICATION_NUMBER = 'D',
+    TARJETA_ANDINA_MIGRACION = 'E',
+    PERMISO_TEMPORAL_PERMANENCIA = 'F',
+    SALVOCONDUCTO = 'G'
+}
+
+export enum PaymentTermsCode{
+
+}
 
 const DEFAULT_BANK_THEME: BankTheme = {
     cardClass: "bg-white border border-gray-200 text-gray-900",
@@ -79,7 +108,7 @@ const BANK_THEME_VARIANTS: Array<{ keywords: string[]; theme: BankTheme }> = [
             headerColor: "text-white",
             labelColor: "text-white/80",
             valueColor: "text-white",
-            badgeClass: "bg-white/20 text-white border border-white/30",
+            badgeClass: "bg-white/50 text-white border border-white/30",
         },
     },
     {
@@ -134,6 +163,180 @@ const getBankTheme = (bankName?: string): BankTheme => {
 const displayBankValue = (value?: string | null) =>
     value && value.trim().length > 0 ? value : "—";
 
+const resolveImageSource = (value?: string | null, fallbackMimeType = 'image/jpeg'): string => {
+    if (!value) {
+        return '';
+    }
+
+    if (/^https?:\/\//i.test(value) || value.startsWith('data:')) {
+        return value;
+    }
+
+    return `data:${fallbackMimeType};base64,${value}`;
+};
+
+const normalizeImagePayloadValue = (value?: string | null): string => {
+    if (!value) {
+        return '';
+    }
+
+    const trimmed = value.trim();
+    if (!trimmed) {
+        return '';
+    }
+
+    if (trimmed.startsWith('data:')) {
+        const [, data] = trimmed.split(',', 2);
+        return data ?? '';
+    }
+
+    return trimmed;
+};
+
+const DOCUMENT_OPTIONS = [
+    { value: 'certificaciones', label: 'Certificaciones ISO' },
+    { value: 'licenciaMunicipal', label: 'Licencia Municipal' },
+    { value: 'referenciasComerciales', label: 'Referencias Comerciales' },
+    { value: 'referenciasBancarias', label: 'Referencias Bancarias' },
+    { value: 'historialPrecios', label: 'Historial de Precios' },
+    { value: 'condicionesPago', label: 'Condiciones de Pago' },
+    { value: 'vigenciaPoder', label: 'Vigencia de Poder' },
+    { value: 'fichaRuc', label: 'Ficha RUC' },
+    { value: 'matrizAmbiental', label: 'Matriz Ambiental' },
+    { value: 'matrizIperc', label: 'Matriz IPERC' },
+] as const;
+
+const DOCUMENT_KEYS = DOCUMENT_OPTIONS.map((option) => option.value);
+const DOCUMENT_KEY_ALIASES: Record<string, string> = {
+    certificacionISO: 'certificaciones',
+    licenciaMuni: 'licenciaMunicipal',
+    historicoPrecios: 'historialPrecios',
+    matrizAAmbientales: 'matrizAmbiental',
+    matrizIPERC: 'matrizIperc',
+};
+
+const normaliseDocumentKey = (value?: string): string | undefined =>
+    value ? DOCUMENT_KEY_ALIASES[value] ?? value : undefined;
+
+type DocumentResource = {
+    href: string;
+    isDataUrl: boolean;
+};
+
+const buildDocumentResource = (value: string, mimeType = 'application/pdf'): DocumentResource | null => {
+    const trimmed = value.trim();
+
+    if (!trimmed) {
+        return null;
+    }
+
+    if (trimmed.startsWith('http')) {
+        return {
+            href: trimmed,
+            isDataUrl: false,
+        };
+    }
+
+    return {
+        href: `data:${mimeType};base64,${trimmed}`,
+        isDataUrl: true,
+    };
+};
+
+const resolveDocumentResource = (value: unknown): DocumentResource | null => {
+    if (!value) {
+        return null;
+    }
+
+    if (typeof value === 'string') {
+        return buildDocumentResource(value);
+    }
+
+    if (Array.isArray(value)) {
+        for (const item of value) {
+            const resource = resolveDocumentResource(item);
+            if (resource) {
+                return resource;
+            }
+        }
+        return null;
+    }
+
+    if (typeof value === 'object') {
+        const record = value as {
+            U_LinkDocumento?: string;
+            link?: string;
+            url?: string;
+            href?: string;
+            U_Link?: string;
+            U_typeArchiv?: string;
+        };
+
+        const mimeType =
+            typeof record.U_typeArchiv === 'string' && record.U_typeArchiv
+                ? record.U_typeArchiv
+                : 'application/pdf';
+
+        const candidates = [
+            record.U_LinkDocumento,
+            record.link,
+            record.url,
+            record.href,
+            record.U_Link,
+        ];
+
+        for (const candidate of candidates) {
+            if (typeof candidate === 'string') {
+                const resource = buildDocumentResource(candidate, mimeType);
+                if (resource) {
+                    return resource;
+                }
+            }
+        }
+        return null;
+    }
+
+    return null;
+};
+
+const fileToBase64 = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+        const reader = new FileReader();
+
+        reader.onload = () => {
+            const result = reader.result;
+
+            if (typeof result === 'string') {
+                const [, base64Value] = result.split(',');
+                resolve(base64Value ?? result);
+            } else {
+                reject(new Error('No se pudo leer el archivo seleccionado.'));
+            }
+        };
+
+        reader.onerror = () => reject(new Error('No se pudo leer el archivo seleccionado.'));
+        reader.readAsDataURL(file);
+    });
+
+const isValueFilled = (value: unknown): boolean => {
+    if (typeof value === 'string') {
+        return value.trim().length > 0;
+    }
+
+    if (Array.isArray(value)) {
+        return value.length > 0;
+    }
+
+    if (value && typeof value === 'object') {
+        return Object.keys(value as Record<string, unknown>).length > 0;
+    }
+
+    return Boolean(value);
+};
+
+const countFilledValues = (values: Array<unknown>): number =>
+    values.reduce<number>((accumulator, current) => accumulator + (isValueFilled(current) ? 1 : 0), 0);
+
 type BankFieldProps = {
     label: string;
     value: string;
@@ -147,9 +350,11 @@ const BankField: React.FC<BankFieldProps> = ({ label, value, theme }) => (
     </div>
 );
 
-type SectionKey = 'general' | 'addresses' | 'contacts' | 'banks' | 'documents' | 'commercial' | 'services';
+type SectionKey = 'coverimage' | 'avatar' | 'general' | 'addresses' | 'contacts' | 'banks' | 'documents' | 'commercial' | 'services';
 
 const SECTION_TITLES: Record<SectionKey, string> = {
+    coverimage: "Imagen de portada",
+    avatar: 'Logo de empresa',
     general: 'Información General',
     addresses: 'Direcciones',
     contacts: 'Personas de Contacto',
@@ -198,6 +403,7 @@ const createEmptyBank = (): Banco => ({
 });
 
 const createEmptyDocument = (cardCode: string): DocumentoEvaluacion => ({
+    DocEntry: '0',
     U_CardCode: cardCode,
     U_DocumentoEvaluacion: '',
     U_LinkDocumento: '',
@@ -247,6 +453,44 @@ const getProgressColor = (puntuacion: number) => {
     return 'default';
 };
 
+// =================================== CONSULTA DE DESCRIPCION DE TIPO DE PERSON ============================
+const getChipConfig = (personType?: string) => {
+    const tipo = ProveedorValidator.obtenerTipoByCodigo(personType) || TipoProveedorCodigo.NATURAL;
+    const descripcion = ProveedorValidator.obtenerDescripcionTipo(tipo);
+
+    const configs = {
+        [TipoProveedorCodigo.JURIDICA]: {
+            color: "primary" as const,
+            icon: DocumentTextIcon,
+        },
+        [TipoProveedorCodigo.NATURAL]: {
+            color: "warning" as const,
+            icon: ExclamationTriangleIcon,
+        },
+        [TipoProveedorCodigo.NO_DOMICILIADO]: {
+            color: "secondary" as const,
+            icon: GlobeAltIcon,
+        },
+        [TipoProveedorCodigo.ADQUIRIENTE_TICKET]: {
+            color: "success" as const,
+            icon: TicketIcon,
+        }
+    };
+
+    return {
+        ...configs[tipo],
+        descripcion
+    };
+};
+export const getPersonTypeEnumKey = (code: string): string => {
+    const entry = Object.entries(PersonaTypeCode).find(([, value]) => value === code);
+    return  entry ? entry[0] : 'UNKNOWN'
+}
+export const getDocumentTypeEnumKey = (code: string): string => {
+    const entry = Object.entries(DocumentTypeCode).find(([, value]) => value === code);
+    return entry ? entry[0] : 'UNKNOWN';
+};
+
 const SupplierProfileCard = () => {
  
      const {selectedSupplier, setSelectedSupplier} = useSuppliers();
@@ -257,8 +501,15 @@ const SupplierProfileCard = () => {
      const [activeSection, setActiveSection] = React.useState<SectionKey | null>(null);
      const {isOpen, onOpen, onOpenChange} = useDisclosure();
      const [isSaving, setIsSaving] = React.useState(false);
-     const [apiError, setApiError] = React.useState<string | null>(null);
+    const [apiError, setApiError] = React.useState<string | null>(null);
+    const [isGlobalLoading, setIsGlobalLoading] = React.useState(false);
      const navigate = useNavigate()
+    const [coverPreview, setCoverPreview] = React.useState<string | null>(null);
+    const [avatarPreview, setAvatarPreview] = React.useState<string | null>(null);
+    const coverImageOriginalRef = React.useRef<string | null>(null);
+    const avatarOriginalRef = React.useRef<string | null>(null);
+    const savedCoverImageRef = React.useRef<string>('');
+    const savedAvatarRef = React.useRef<string>('');
  
      const bankEntries = formData?.Bancos ?? [];
      const bankCards: BankDisplay[] = bankEntries.length > 0
@@ -288,7 +539,7 @@ const SupplierProfileCard = () => {
      const primaryContact = contactList[0];
      const displayName = formData?.NombreSN ?? selectedSupplier?.cardName ?? '—';
      const displayCode = formData?.CodigoSN ?? selectedSupplier?.cardCode ?? '—';
-     const displayPhone = formData?.Telefono1 ?? selectedSupplier?.phone ?? '—';
+     const displayPhone = selectedSupplier?.phone ?? '—';
      const displayEmail = formData?.Correo ?? selectedSupplier?.email ?? '—';
      const displayWebsite = formData?.website ?? selectedSupplier?.website ?? '';
      const displayRegistration = formData?.createDate ?? selectedSupplier?.registrationDate ?? '—';
@@ -303,15 +554,22 @@ const SupplierProfileCard = () => {
 
         const loadSupplier = async () => {
             setIsLoading(true);
+            setIsGlobalLoading(true);
 
             try {
                 console.log("API", "nuevas api");
                 const result = await fetchSupplierByCardCode(supplierCode);
                 if (result && isMounted) {
                     console.log("API-IF",result)
+                    const normalizedCover = normalizeImagePayloadValue(result.record.coverImage);
+                    const normalizedAvatar = normalizeImagePayloadValue(result.record.Avatar);
+                    savedCoverImageRef.current = normalizedCover;
+                    savedAvatarRef.current = normalizedAvatar;
                     setSelectedSupplier(result.supplier);
                     setFormData({
                         ...result.record,
+                        coverImage: normalizedCover,
+                        Avatar: normalizedAvatar,
                         ReferenciasComerciales: result.record.ReferenciasComerciales ?? [],
                         ServiciosOfrecidos: result.record.ServiciosOfrecidos ?? [],
                     });
@@ -321,19 +579,30 @@ const SupplierProfileCard = () => {
             } finally {
                 if (isMounted) {
                     setIsLoading(false);
+                    setIsGlobalLoading(false);
                 }
             }
         };
 
         loadSupplier();
-
+        //ejemplosUso()
+         console.log("Phone-CardProfile", )
         return () => {
             isMounted = false;
         };
     }, [supplierCode, setSelectedSupplier]);
 
+    useEffect(() => {
+        coverImageOriginalRef.current = null;
+        avatarOriginalRef.current = null;
+        setCoverPreview(null);
+        setAvatarPreview(null);
+    }, [selectedSupplier?.cardCode, formData?.CodigoSN]);
+
+
     const handleOpenSection = (section: SectionKey) => {
         if (!formData) {
+            console.log("Notificacion", "Aún no se ha cargado la información del proveedor." )
             addToast({
                 title: 'Información no disponible',
                 description: 'Aún no se ha cargado la información del proveedor.',
@@ -346,6 +615,9 @@ const SupplierProfileCard = () => {
         setApiError(null);
         setActiveSection(section);
         onOpen();
+        setTimeout(() => {
+            setIsGlobalLoading(false);
+        }, 0);
     };
 
     const handleFieldChange = (field: keyof SupplierApiRecord, value: string) => {
@@ -444,6 +716,178 @@ const SupplierProfileCard = () => {
         });
     };
 
+    const handleDocumentFileChange = async (index: number, file: File | null) => {
+        if (!file) {
+            return;
+        }
+
+        try {
+            const base64 = await fileToBase64(file);
+            setFormData((prev) => {
+                if (!prev) return prev;
+                const documentos = [...(prev.DocumentoEvaluacion ?? [])];
+                while (documentos.length <= index) {
+                    documentos.push(createEmptyDocument(prev.CodigoSN));
+                }
+
+                documentos[index] = {
+                    ...documentos[index],
+                    U_LinkDocumento: base64,
+                    U_NombDocu: file.name,
+                    U_typeArchiv: file.type || 'application/pdf',
+                } as DocumentoEvaluacion;
+
+                return {...prev, DocumentoEvaluacion: documentos};
+            });
+        } catch (error) {
+            console.error('No se pudo procesar el archivo seleccionado.', error);
+            addToast({
+                title: 'Error al cargar archivo',
+                description: 'No se pudo procesar el archivo seleccionado.',
+                color: 'danger',
+                timeout: 4000,
+            });
+        }
+    };
+
+    const handleImageSelection = async (field: 'coverImage' | 'Avatar', file: File | null) => {
+        if (!file) {
+            return;
+        }
+
+        if (!file.type || !file.type.startsWith('image/')) {
+            addToast({
+                title: 'Formato no permitido',
+                description: 'Selecciona un archivo de imagen (JPG, PNG, WEBP o similar).',
+                color: 'warning',
+                timeout: 4000,
+            });
+            return;
+        }
+
+        try {
+            const base64 = await fileToBase64(file);
+            const dataUrl = `data:${file.type || 'image/jpeg'};base64,${base64}`;
+
+            setFormData((prev) => {
+                if (!prev) {
+                    return prev;
+                }
+
+                if (field === 'coverImage' && coverImageOriginalRef.current === null) {
+                    coverImageOriginalRef.current = prev.coverImage ?? '';
+                }
+
+                if (field === 'Avatar' && avatarOriginalRef.current === null) {
+                    avatarOriginalRef.current = prev.Avatar ?? '';
+                }
+
+                return {
+                    ...prev,
+                    [field]: base64,
+                } as SupplierApiRecord;
+            });
+
+            if (field === 'coverImage') {
+                setCoverPreview(dataUrl);
+                savedCoverImageRef.current = base64;
+            } else {
+                setAvatarPreview(dataUrl);
+                savedAvatarRef.current = base64;
+            }
+
+            addToast({
+                title: 'Imagen lista para guardar',
+                description: 'Guarda la sección para enviar la imagen en base64 al servidor.',
+                color: 'success',
+                timeout: 3000,
+            });
+        } catch (error) {
+            console.error('No se pudo procesar la imagen seleccionada.', error);
+            addToast({
+                title: 'Error al procesar la imagen',
+                description: 'Inténtalo nuevamente con otro archivo.',
+                color: 'danger',
+                timeout: 4000,
+            });
+        }
+    };
+
+    const handleImageReset = (field: 'coverImage' | 'Avatar') => {
+        if (field === 'coverImage') {
+            const fallbackValue =
+                coverImageOriginalRef.current ??
+                savedCoverImageRef.current ??
+                selectedSupplier?.coverImage ??
+                '';
+            const normalized = normalizeImagePayloadValue(fallbackValue);
+            coverImageOriginalRef.current = null;
+            setCoverPreview(null);
+            setFormData((prev) => (prev ? {
+                ...prev,
+                coverImage: normalized,
+            } as SupplierApiRecord : prev));
+            savedCoverImageRef.current = normalized;
+            addToast({
+                title: 'Cambios descartados',
+                description: 'Se restauró la imagen de portada anterior.',
+                color: 'secondary',
+                timeout: 2500,
+            });
+            return;
+        }
+
+        const fallbackValue =
+            avatarOriginalRef.current ??
+            savedAvatarRef.current ??
+            selectedSupplier?.avatar ??
+            '';
+        const normalized = normalizeImagePayloadValue(fallbackValue);
+        avatarOriginalRef.current = null;
+        setAvatarPreview(null);
+        setFormData((prev) => (prev ? {
+            ...prev,
+            Avatar: normalized,
+        } as SupplierApiRecord : prev));
+        savedAvatarRef.current = normalized;
+        addToast({
+            title: 'Cambios descartados',
+            description: 'Se restauró el logo anterior.',
+            color: 'secondary',
+            timeout: 2500,
+        });
+    };
+
+    const handleDocumentSwitchPress = (documentKey: string, label: string) => {
+        const supplierDocuments = selectedSupplier?.Documentos as Record<string, unknown> | undefined;
+
+        const resource =
+            resolveDocumentResource(supplierDocuments?.[documentKey]) ??
+            resolveDocumentResource(
+                formData?.DocumentoEvaluacion?.find((doc) => doc.U_DocumentoEvaluacion === documentKey),
+            );
+
+        if (resource) {
+            const newWindow = window.open(resource.href, '_blank', 'noopener,noreferrer');
+            if (!newWindow) {
+                addToast({
+                    title: 'No se pudo abrir el documento',
+                    description: 'Permite las ventanas emergentes para visualizar el documento.',
+                    color: 'warning',
+                    timeout: 4000,
+                });
+            }
+            return;
+        }
+
+        addToast({
+            title: 'Documento no disponible',
+            description: `No se encontró un documento para ${label}.`,
+            color: 'warning',
+            timeout: 3000,
+        });
+    };
+
     const handleCommercialChange = (index: number, field: keyof CommercialReference, value: string) => {
          setFormData((prev) => {
              if (!prev) return prev;
@@ -510,16 +954,39 @@ const SupplierProfileCard = () => {
         }
 
         setIsSaving(true);
+        setIsGlobalLoading(true);
         setApiError(null);
 
         try {
-            const result = await updateSupplierProfile(formData);
-            setFormData({
-                ...result.record,
-                ReferenciasComerciales: result.record.ReferenciasComerciales ?? [],
-                ServiciosOfrecidos: result.record.ServiciosOfrecidos ?? [],
-            });
-            setSelectedSupplier(result.supplier);
+            console.log("formData", formData)
+            const payload: SupplierApiRecord = {
+                ...formData,
+                coverImage: normalizeImagePayloadValue(savedCoverImageRef.current || formData.coverImage),
+                Avatar: normalizeImagePayloadValue(savedAvatarRef.current || formData.Avatar),
+            };
+            savedCoverImageRef.current = payload.coverImage;
+            savedAvatarRef.current = payload.Avatar;
+            await updateSupplierProfile(formData.CodigoSN, payload);
+            const refreshed = await fetchSupplierByCardCode(formData.CodigoSN);
+
+            if (refreshed) {
+                const normalizedCover = normalizeImagePayloadValue(refreshed.record.coverImage);
+                const normalizedAvatar = normalizeImagePayloadValue(refreshed.record.Avatar);
+                savedCoverImageRef.current = normalizedCover;
+                savedAvatarRef.current = normalizedAvatar;
+                setFormData({
+                    ...refreshed.record,
+                    coverImage: normalizedCover,
+                    Avatar: normalizedAvatar,
+                    ReferenciasComerciales: refreshed.record.ReferenciasComerciales ?? [],
+                    ServiciosOfrecidos: refreshed.record.ServiciosOfrecidos ?? [],
+                });
+                setSelectedSupplier(refreshed.supplier);
+                setCoverPreview(null);
+                setAvatarPreview(null);
+                coverImageOriginalRef.current = null;
+                avatarOriginalRef.current = null;
+            }
             addToast({
                 title: 'Perfil actualizado',
                 description: 'Los cambios se guardaron correctamente.',
@@ -540,6 +1007,7 @@ const SupplierProfileCard = () => {
             });
         } finally {
             setIsSaving(false);
+            setIsGlobalLoading(false);
         }
     };
 
@@ -549,15 +1017,134 @@ const SupplierProfileCard = () => {
         }
 
         switch (activeSection) {
+            case 'coverimage': {
+                const coverFallback = (formData.coverImage || selectedSupplier?.coverImage || '').trim();
+                const coverImageSrc = coverPreview ?? resolveImageSource(coverFallback);
+                return (
+                    <div className="space-y-6">
+                        <div className="flex flex-col gap-6 md:flex-row">
+                            <div className="flex-1">
+                                <div className="relative aspect-[3/1] w-full overflow-hidden rounded-xl border border-dashed border-gray-300 bg-gray-50">
+                                    {coverImageSrc ? (
+                                        <img
+                                            alt="Vista previa de la portada"
+                                            className="h-full w-full object-cover"
+                                            src={coverImageSrc}
+                                        />
+                                    ) : (
+                                        <div className="flex h-full w-full items-center justify-center text-sm text-gray-400">
+                                            Aún no hay imagen de portada
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                            <div className="w-full space-y-4 md:w-72">
+                                <p className="text-sm text-gray-600">
+                                    Sube una imagen en formato JPG, PNG o WEBP (máx. 5&nbsp;MB). El archivo se convertirá a base64 al guardar esta sección.
+                                </p>
+                                <label className="inline-flex cursor-pointer items-center justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50">
+                                    Seleccionar imagen
+                                    <input
+                                        accept="image/*"
+                                        className="sr-only"
+                                        type="file"
+                                        onChange={async (event) => {
+                                            const file = event.target.files?.[0] ?? null;
+                                            await handleImageSelection('coverImage', file);
+                                            event.target.value = '';
+                                        }}
+                                    />
+                                </label>
+                                <div className="flex flex-wrap items-center gap-3">
+                                    <Chip
+                                        size="sm"
+                                        variant="flat"
+                                        color={coverPreview ? 'success' : 'secondary'}
+                                    >
+                                        {coverPreview ? 'Imagen nueva pendiente de guardar' : 'Mostrando imagen actual'}
+                                    </Chip>
+                                    {coverPreview && (
+                                        <Button
+                                            size="sm"
+                                            variant="light"
+                                            onPress={() => handleImageReset('coverImage')}
+                                        >
+                                            Deshacer
+                                        </Button>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+            case 'avatar': {
+                const avatarFallback = (formData.Avatar || selectedSupplier?.avatar || '').trim();
+                const avatarImageSrc = avatarPreview ?? resolveImageSource(avatarFallback);
+                return (
+                    <div className="space-y-6">
+                        <div className="flex flex-col items-center gap-6 sm:flex-row">
+                            <div className="flex h-40 w-40 items-center justify-center overflow-hidden rounded-full border border-dashed border-gray-300 bg-gray-50">
+                                {avatarImageSrc ? (
+                                    <img
+                                        alt="Vista previa del logo"
+                                        className="h-full w-full object-cover"
+                                        src={avatarImageSrc}
+                                    />
+                                ) : (
+                                    <span className="text-sm text-gray-400">Sin logo</span>
+                                )}
+                            </div>
+                            <div className="flex w-full flex-1 flex-col gap-4">
+                                <p className="text-sm text-gray-600">
+                                    Sube el logo corporativo (recomendado cuadrado). El archivo se transformará a base64 y se enviará al guardar.
+                                </p>
+                                <div className="flex flex-wrap items-center gap-3">
+                                    <label className="inline-flex cursor-pointer items-center justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50">
+                                        Seleccionar logo
+                                        <input
+                                            accept="image/*"
+                                            className="sr-only"
+                                            type="file"
+                                            onChange={async (event) => {
+                                                const file = event.target.files?.[0] ?? null;
+                                                await handleImageSelection('Avatar', file);
+                                                event.target.value = '';
+                                            }}
+                                        />
+                                    </label>
+                                    {avatarPreview && (
+                                        <Button
+                                            size="sm"
+                                            variant="light"
+                                            onPress={() => handleImageReset('Avatar')}
+                                        >
+                                            Deshacer
+                                        </Button>
+                                    )}
+                                </div>
+                                <Chip
+                                    className="w-fit"
+                                    color={avatarPreview ? 'success' : 'secondary'}
+                                    size="sm"
+                                    variant="flat"
+                                >
+                                    {avatarPreview ? 'Logo nuevo pendiente de guardar' : 'Mostrando logo actual'}
+                                </Chip>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
             case 'general':
                 return (
                     <div className="space-y-4">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <Input label="Código" value={formData.CodigoSN} onValueChange={(value) => handleFieldChange('CodigoSN', value)} isDisabled/>
-                            <Input label="Razón Social" value={formData.NombreSN} onValueChange={(value) => handleFieldChange('NombreSN', value)} required/>
-                            <Input label="RUC" value={formData.RUC} onValueChange={(value) => handleFieldChange('RUC', value)} required/>
-                            <Input label="Tipo de Persona" value={formData.TipoPersona} onValueChange={(value) => handleFieldChange('TipoPersona', value)}/>
-                            <Input label="Tipo de Documento" value={formData.TipoDocumento} onValueChange={(value) => handleFieldChange('TipoDocumento', value)}/>
+                            <Input label="Razón Social" value={formData.NombreSN} onValueChange={(value) => handleFieldChange('NombreSN', value)} isDisabled/>
+                            <Input label="RUC" value={formData.RUC} onValueChange={(value) => handleFieldChange('RUC', value)} isDisabled/>
+                            <Input label="Tipo de Persona" value={getPersonTypeEnumKey(formData.TipoPersona)} onValueChange={(value) => handleFieldChange('TipoPersona', value)} isDisabled/>
+                            <Input label="Tipo de Documento" value={getDocumentTypeEnumKey(formData.TipoDocumento)} onValueChange={(value) => handleFieldChange('TipoDocumento', value)}/>
                             <Input label="Moneda" value={formData.Moneda} onValueChange={(value) => handleFieldChange('Moneda', value)}/>
                             <Input label="Teléfono 1" value={formData.Telefono1} onValueChange={(value) => handleFieldChange('Telefono1', value)}/>
                             <Input label="Teléfono 2" value={formData.Telefono2} onValueChange={(value) => handleFieldChange('Telefono2', value)}/>
@@ -565,8 +1152,8 @@ const SupplierProfileCard = () => {
                             <Input label="Correo" value={formData.Correo} onValueChange={(value) => handleFieldChange('Correo', value)}/>
                             <Input label="Sitio Web" value={formData.website ?? ''} onValueChange={(value) => handleFieldChange('website', value)}/>
                             <Input label="Condición de Pago" value={formData.CondicionPago} onValueChange={(value) => handleFieldChange('CondicionPago', value)}/>
-                            <Input label="Resolución Agente Retención" value={formData.ResolucionAgenteRetencion} onValueChange={(value) => handleFieldChange('ResolucionAgenteRetencion', value)}/>
-                            <Input label="Resolución Agente Percepción" value={formData.ResolucionAgentePercepcion} onValueChange={(value) => handleFieldChange('ResolucionAgentePercepcion', value)}/>
+                            <Input label="Resolución Agente Retención" value={formData.ResolucionAgenteRetencion} onValueChange={(value) => handleFieldChange('ResolucionAgenteRetencion', value)} isDisabled/>
+                            <Input label="Resolución Agente Percepción" value={formData.ResolucionAgentePercepcion} onValueChange={(value) => handleFieldChange('ResolucionAgentePercepcion', value)} isDisabled/>
                         </div>
                         <Divider/>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -596,14 +1183,80 @@ const SupplierProfileCard = () => {
             case 'addresses':
                 return (
                     <div className="space-y-4">
-                        <Textarea label="Dirección Fiscal" value={formData.Direccion ?? ''} onValueChange={(value) => handleFieldChange('Direccion', value)}/>
-                        <Textarea label="Dirección SUNAT" value={formData.DireccionSUNAT ?? ''} onValueChange={(value) => handleFieldChange('DireccionSUNAT', value)}/>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <Input label="Distrito" value={formData.Distrito} onValueChange={(value) => handleFieldChange('Distrito', value)}/>
-                            <Input label="Provincia" value={formData.Provincia} onValueChange={(value) => handleFieldChange('Provincia', value)}/>
-                            <Input label="Departamento" value={formData.Departamento} onValueChange={(value) => handleFieldChange('Departamento', value)}/>
-                            <Input label="Ubigeo" value={formData.Ubigeo} onValueChange={(value) => handleFieldChange('Ubigeo', value)}/>
-                        </div>
+                        {(formData.Direcciones ?? []).map((direccion, index) => (
+                            <Card key={`address-${index}`} className="border border-gray-200">
+                                <CardBody className="space-y-4">
+                                    <Input
+                                        label="Dirección"
+                                        value={direccion.Direccion}
+                                        onValueChange={(value) =>
+                                            setFormData((prev) => {
+                                                if (!prev) return prev;
+                                                const updated = [...(prev.Direcciones ?? [])];
+                                                updated[index] = { ...updated[index], Direccion: value };
+                                                return { ...prev, Direcciones: updated };
+                                            })
+                                        }
+                                    />
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        {/*<Input
+                                            label="Dirección SUNAT"
+                                            value={index === 0 ? (formData.DireccionSUNAT ?? '') : ''}
+                                            isDisabled={index !== 0}
+                                            onValueChange={(value) => handleFieldChange('DireccionSUNAT', value)}
+                                        />*/}
+                                        <Input
+                                            label="Departamento"
+                                            value={direccion.Departamento}
+                                            onValueChange={(value) =>
+                                                setFormData((prev) => {
+                                                    if (!prev) return prev;
+                                                    const updated = [...(prev.Direcciones ?? [])];
+                                                    updated[index] = { ...updated[index], Departamento: value };
+                                                    return { ...prev, Direcciones: updated };
+                                                })
+                                            }
+                                        />
+                                        <Input
+                                            label="Provincia"
+                                            value={direccion.Provincia}
+                                            onValueChange={(value) =>
+                                                setFormData((prev) => {
+                                                    if (!prev) return prev;
+                                                    const updated = [...(prev.Direcciones ?? [])];
+                                                    updated[index] = { ...updated[index], Provincia: value };
+                                                    return { ...prev, Direcciones: updated };
+                                                })
+                                            }
+                                        />
+                                        <Input
+                                            label="Distrito"
+                                            value={direccion.Distrito}
+                                            onValueChange={(value) =>
+                                                setFormData((prev) => {
+                                                    if (!prev) return prev;
+                                                    const updated = [...(prev.Direcciones ?? [])];
+                                                    updated[index] = { ...updated[index], Distrito: value };
+                                                    return { ...prev, Direcciones: updated };
+                                                })
+                                            }
+                                        />
+                                        <Input
+                                            label="Ubigeo"
+                                            value={direccion.Ubigeo}
+                                            onValueChange={(value) =>
+                                                setFormData((prev) => {
+                                                    if (!prev) return prev;
+                                                    const updated = [...(prev.Direcciones ?? [])];
+                                                    updated[index] = { ...updated[index], Ubigeo: value };
+                                                    return { ...prev, Direcciones: updated };
+                                                })
+                                            }
+                                        />
+                                    </div>
+                                </CardBody>
+                            </Card>
+                        ))}
                     </div>
                 );
             case 'contacts': {
@@ -623,14 +1276,14 @@ const SupplierProfileCard = () => {
                                         Activo
                                     </Switch>
                                     <div className="flex justify-end">
-                                        <Button color="danger" variant="light" size="sm" onPress={() => removeContact(index)}>
+                                        <Button color="danger" variant="light" size="sm" isDisabled={isGlobalLoading} onPress={() => removeContact(index)}>
                                             Eliminar
                                         </Button>
                                     </div>
                                 </CardBody>
                             </Card>
                         ))}
-                        <Button variant="bordered" size="sm" onPress={addContact}>
+                        <Button variant="bordered" size="sm" isDisabled={isGlobalLoading} onPress={addContact}>
                             Agregar contacto
                         </Button>
                     </div>
@@ -659,7 +1312,7 @@ const SupplierProfileCard = () => {
                                             <Input label="Sectorista" value={banco.Sectorista} onValueChange={(value) => handleBankChange(index, 'Sectorista', value)}/>
                                         </div>
                                         <div className="flex justify-end">
-                                            <Button color="danger" variant="light" size="sm" onPress={() => removeBank(index)}>
+                                        <Button color="danger" variant="light" size="sm" isDisabled={isGlobalLoading} onPress={() => removeBank(index)}>
                                                 Eliminar
                                             </Button>
                                         </div>
@@ -667,7 +1320,7 @@ const SupplierProfileCard = () => {
                                 </Card>
                             );
                         })}
-                        <Button variant="bordered" size="sm" onPress={addBank}>
+                        <Button variant="bordered" size="sm" isDisabled={isGlobalLoading} onPress={addBank}>
                             Agregar cuenta bancaria
                         </Button>
                     </div>
@@ -675,27 +1328,102 @@ const SupplierProfileCard = () => {
             }
             case 'documents': {
                 const documentos = formData.DocumentoEvaluacion ?? [];
+                const usedDocumentKeys = new Set(
+                    documentos
+                        .map((doc) => normaliseDocumentKey(doc.U_DocumentoEvaluacion))
+                        .filter((value): value is string => Boolean(value))
+                );
+                const availableDocumentOptions = DOCUMENT_OPTIONS.filter(
+                    ({ value }) => !usedDocumentKeys.has(value)
+                );
                 return (
                     <div className="space-y-4">
                         {documentos.map((documento, index) => (
                             <Card key={`document-${index}`} className="border border-gray-200 dark:border-gray-700">
                                 <CardBody className="space-y-3">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <Input label="Documento" value={documento.U_DocumentoEvaluacion} onValueChange={(value) => handleDocumentChange(index, 'U_DocumentoEvaluacion', value)}/>
-                                        <Input label="Nombre de Archivo" value={documento.U_NombDocu} onValueChange={(value) => handleDocumentChange(index, 'U_NombDocu', value)}/>
-                                        <Input label="Estado" value={documento.U_Status} onValueChange={(value) => handleDocumentChange(index, 'U_Status', value)}/>
-                                        <Input label="Tipo de Archivo" value={documento.U_typeArchiv} onValueChange={(value) => handleDocumentChange(index, 'U_typeArchiv', value)}/>
+                                        <Select
+                                            label="Documento"
+                                            selectedKeys={
+                                                normaliseDocumentKey(documento.U_DocumentoEvaluacion)
+                                                    ? [normaliseDocumentKey(documento.U_DocumentoEvaluacion)!]
+                                                    : []
+                                            }
+                                            isDisabled={Boolean(documento.U_DocumentoEvaluacion)}
+                                            placeholder="Selecciona un documento"
+                                            onSelectionChange={(keys: Selection) => {
+                                                if (keys === 'all') {
+                                                    return;
+                                                }
+                                                const selectedKey = [...keys][0] as string | undefined;
+                                                if (selectedKey) {
+                                                    const normalizedKey = normaliseDocumentKey(selectedKey) ?? selectedKey;
+                                                    handleDocumentChange(index, 'U_DocumentoEvaluacion', normalizedKey);
+                                                }
+                                            }}
+                                        >
+                                            {(documento.U_DocumentoEvaluacion
+                                                ? DOCUMENT_OPTIONS
+                                                : availableDocumentOptions
+                                            ).map(({ value, label }) => (
+                                                <SelectItem key={value}>
+                                                    {label}
+                                                </SelectItem>
+                                            ))}
+                                        </Select>
+                                        <Input label="Nombre de Archivo" value={documento.U_NombDocu}
+                                               onValueChange={(value) => handleDocumentChange(index, 'U_NombDocu', value)}/>
+                                        <Input label="Estado" value={documento.U_Status}
+                                               onValueChange={(value) => handleDocumentChange(index, 'U_Status', value)}/>
+                                        <Input label="Tipo de Archivo" value={documento.U_typeArchiv}
+                                               onValueChange={(value) => handleDocumentChange(index, 'U_typeArchiv', value)}/>
                                     </div>
-                                    <Textarea label="Enlace" value={documento.U_LinkDocumento} onValueChange={(value) => handleDocumentChange(index, 'U_LinkDocumento', value)}/>
+                                    <div className="flex flex-col gap-2">
+                                        <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+                                            Archivo PDF
+                                        </label>
+                                        <input
+                                            accept="application/pdf"
+                                            className="block w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                            type="file"
+                                            onChange={async (event) => {
+                                                const file = event.target.files?.[0] ?? null;
+                                                await handleDocumentFileChange(index, file);
+                                            }}
+                                        />
+                                        {documento.U_LinkDocumento ? (
+                                            documento.U_LinkDocumento.startsWith('http') ? (
+                                                <Link href={documento.U_LinkDocumento} className="text-xs text-blue-600"
+                                                      target="_blank" rel="noopener noreferrer">
+                                                    Ver documento actual
+                                                </Link>
+                                            ) : (
+                                                <Chip size="sm" variant="flat" color="primary">
+                                                    Archivo cargado (pendiente de guardar)
+                                                </Chip>
+                                            )
+                                        ) : (
+                                            <span className="text-[11px] text-gray-500">
+                                                    Selecciona un archivo PDF para actualizar el documento.
+                                                </span>
+                                        )}
+                                    </div>
+                                    <Textarea
+                                        isReadOnly
+                                        label="Identificador actual"
+                                        minRows={2}
+                                        value={documento.U_LinkDocumento ?? ''}
+                                    />
                                     <div className="flex justify-end">
-                                        <Button color="danger" variant="light" size="sm" onPress={() => removeDocument(index)}>
+                                        <Button color="danger" variant="light" size="sm" isDisabled={isGlobalLoading}
+                                                onPress={() => removeDocument(index)}>
                                             Eliminar
                                         </Button>
                                     </div>
                                 </CardBody>
                             </Card>
                         ))}
-                        <Button variant="bordered" size="sm" onPress={addDocument}>
+                        <Button variant="bordered" size="sm" isDisabled={isGlobalLoading} onPress={addDocument}>
                             Agregar documento
                         </Button>
                     </div>
@@ -708,18 +1436,22 @@ const SupplierProfileCard = () => {
                         {referencias.map((referencia, index) => (
                             <Card key={`ref-${index}`} className="border border-gray-200 dark:border-gray-700">
                                 <CardBody className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                    <Input label="Razón Social" value={referencia.name} onValueChange={(value) => handleCommercialChange(index, 'name', value)}/>
-                                    <Input label="Contacto" value={referencia.contact} onValueChange={(value) => handleCommercialChange(index, 'contact', value)}/>
-                                    <Input label="Teléfono" value={referencia.phone} onValueChange={(value) => handleCommercialChange(index, 'phone', value)}/>
+                                    <Input label="Razón Social" value={referencia.name}
+                                           onValueChange={(value) => handleCommercialChange(index, 'name', value)}/>
+                                    <Input label="Contacto" value={referencia.contact}
+                                           onValueChange={(value) => handleCommercialChange(index, 'contact', value)}/>
+                                    <Input label="Teléfono" value={referencia.phone}
+                                           onValueChange={(value) => handleCommercialChange(index, 'phone', value)}/>
                                     <div className="md:col-span-3 flex justify-end">
-                                        <Button color="danger" variant="light" size="sm" onPress={() => removeCommercial(index)}>
+                                        <Button color="danger" variant="light" size="sm" isDisabled={isGlobalLoading}
+                                                onPress={() => removeCommercial(index)}>
                                             Eliminar
                                         </Button>
                                     </div>
                                 </CardBody>
                             </Card>
                         ))}
-                        <Button variant="bordered" size="sm" onPress={addCommercial}>
+                        <Button variant="bordered" size="sm" isDisabled={isGlobalLoading} onPress={addCommercial}>
                             Agregar referencia comercial
                         </Button>
                     </div>
@@ -736,14 +1468,14 @@ const SupplierProfileCard = () => {
                                     <Input label="Línea de Servicio" value={servicio.serviceLine} onValueChange={(value) => handleServiceChange(index, 'serviceLine', value)}/>
                                     <Input label="Condición de Pago" value={servicio.paymentTerms} onValueChange={(value) => handleServiceChange(index, 'paymentTerms', value)}/>
                                     <div className="md:col-span-3 flex justify-end">
-                                        <Button color="danger" variant="light" size="sm" onPress={() => removeService(index)}>
+                                        <Button color="danger" variant="light" size="sm" isDisabled={isGlobalLoading} onPress={() => removeService(index)}>
                                             Eliminar
                                         </Button>
                                     </div>
                                 </CardBody>
                             </Card>
                         ))}
-                        <Button variant="bordered" size="sm" onPress={addService}>
+                        <Button variant="bordered" size="sm" isDisabled={isGlobalLoading} onPress={addService}>
                             Agregar servicio
                         </Button>
                     </div>
@@ -794,9 +1526,146 @@ const SupplierProfileCard = () => {
 
     function getNumberDocuments() {
         const documents = selectedSupplier?.Documentos ?? createDefaultDocuments();
-        const values = Object.values(documents as unknown as Record<string, unknown>);
-        return values.filter((value) => getDocumentFlag(value)).length;
+        const documentsRecord = (documents ?? {}) as unknown as Record<string, unknown>;
+
+        return DOCUMENT_KEYS.reduce<number>((count, key) => {
+            const value = documentsRecord[key as string];
+            return count + (getDocumentFlag(value) ? 1 : 0);
+        }, 0);
     }
+
+    const completionPercentage = React.useMemo(() => {
+        if (!selectedSupplier && !formData) {
+            return 0;
+        }
+
+        const supplierDocumentsRaw = selectedSupplier?.Documentos ?? createDefaultDocuments();
+        const supplierDocuments = (supplierDocumentsRaw ?? {}) as unknown as Record<string, unknown>;
+        const recordDocuments = formData?.DocumentoEvaluacion ?? [];
+        const supplierAddresses = ((selectedSupplier?.addresses ?? []) as unknown as Array<Record<string, unknown>>);
+        const taxInfo = selectedSupplier as { taxId?: string; ruc?: string } | null | undefined;
+
+        const generalValues = [
+            formData?.NombreSN ?? selectedSupplier?.cardName ?? '',
+            formData?.RUC ?? taxInfo?.taxId ?? taxInfo?.ruc ?? '',
+            formData?.Correo ?? selectedSupplier?.email ?? '',
+            formData?.Telefono1 ?? selectedSupplier?.phone ?? '',
+            formData?.Telefono2 ?? '',
+            formData?.TelefonoMovil ?? '',
+            formData?.CondicionPago ?? '',
+            formData?.Moneda ?? '',
+            formData?.TipoDocumento ?? '',
+            formData?.TipoPersona ?? '',
+            formData?.website ?? selectedSupplier?.website ?? '',
+        ];
+
+        const primaryAddressCandidate = supplierAddresses[0];
+        const addressValuesBase = [
+            formData?.Direccion ?? (primaryAddressCandidate?.address as string | undefined) ?? '',
+            formData?.DireccionSUNAT ?? '',
+            formData?.Distrito ?? (primaryAddressCandidate?.district as string | undefined) ?? (primaryAddressCandidate?.city as string | undefined) ?? '',
+            formData?.Provincia ?? (primaryAddressCandidate?.province as string | undefined) ?? '',
+            formData?.Departamento ?? (primaryAddressCandidate?.departament as string | undefined) ?? '',
+            formData?.Ubigeo ?? (primaryAddressCandidate?.ubigeo as string | undefined) ?? '',
+        ];
+
+        let addressFilled = countFilledValues(addressValuesBase);
+        let addressTotal = addressValuesBase.length;
+
+        supplierAddresses.slice(1).forEach((addressObject) => {
+            const extraValues = [
+                addressObject.address as string | undefined,
+                addressObject.city as string | undefined,
+                addressObject.province as string | undefined,
+                addressObject.departament as string | undefined,
+                addressObject.ubigeo as string | undefined,
+            ];
+            addressFilled += countFilledValues(extraValues);
+            addressTotal += extraValues.length;
+        });
+
+        const contactosFuente = formData?.Contactos ?? [];
+        const contactosFieldTotal = contactosFuente.length * 3;
+        const contactosFilled = contactosFuente.reduce<number>((acc, contacto) => (
+            acc +
+            (isValueFilled(contacto.Name) ? 1 : 0) +
+            (isValueFilled(contacto.E_MailL) ? 1 : 0) +
+            (isValueFilled(contacto.Telefono) ? 1 : 0)
+        ), 0);
+
+        const bancosFuente = (formData?.Bancos ?? []).length > 0
+            ? formData?.Bancos ?? []
+            : ((selectedSupplier?.bankReferences ?? []) as unknown as Array<Record<string, unknown>>).map((bank) => ({
+                Banco: bank.bankName,
+                Cuenta: bank.accountNumber,
+                Sectorista: bank.sectorista,
+            })) as Banco[];
+
+        const bancosFieldTotal = bancosFuente.length * 3;
+        const bancosFilled = bancosFuente.reduce<number>((acc, banco) => (
+            acc +
+            (isValueFilled(banco.Banco) ? 1 : 0) +
+            (isValueFilled(banco.Cuenta) ? 1 : 0) +
+            (isValueFilled(banco.Sectorista) ? 1 : 0)
+        ), 0);
+
+        const documentosFilled = DOCUMENT_KEYS.reduce<number>((count, key) => {
+            const supplierValue = supplierDocuments[key];
+            const matchingRecord = recordDocuments.find((doc) => doc.U_DocumentoEvaluacion === key);
+            const hasRecordDoc = matchingRecord ? isValueFilled(matchingRecord.U_LinkDocumento) : false;
+            const hasDoc = getDocumentFlag(supplierValue) || hasRecordDoc;
+            return count + (hasDoc ? 1 : 0);
+        }, 0);
+
+        const referenciasFuente = formData?.ReferenciasComerciales ?? [];
+        const referenciasFieldTotal = referenciasFuente.length * 3;
+        const referenciasFilled = referenciasFuente.reduce<number>((acc, referencia) => (
+            acc +
+            (isValueFilled(referencia.name) ? 1 : 0) +
+            (isValueFilled(referencia.contact) ? 1 : 0) +
+            (isValueFilled(referencia.phone) ? 1 : 0)
+        ), 0);
+
+        const serviciosFuente = formData?.ServiciosOfrecidos ?? [];
+        const serviciosFieldTotal = serviciosFuente.length * 3;
+        const serviciosFilled = serviciosFuente.reduce<number>((acc, servicio) => (
+            acc +
+            (isValueFilled(servicio.principalActivity) ? 1 : 0) +
+            (isValueFilled(servicio.serviceLine) ? 1 : 0) +
+            (isValueFilled(servicio.paymentTerms) ? 1 : 0)
+        ), 0);
+
+        const safeDivision = (filled: number, total: number) => (total > 0 ? filled / total : 0);
+
+        const sectionScores = {
+            general: safeDivision(countFilledValues(generalValues), generalValues.length),
+            addresses: safeDivision(addressFilled, addressTotal),
+            contacts: safeDivision(contactosFilled, contactosFieldTotal),
+            banks: safeDivision(bancosFilled, bancosFieldTotal),
+            documents: safeDivision(documentosFilled, DOCUMENT_KEYS.length),
+            commercial: safeDivision(referenciasFilled, referenciasFieldTotal),
+            services: safeDivision(serviciosFilled, serviciosFieldTotal),
+        };
+
+        const SECTION_WEIGHTS: Record<SectionKey, number> = {
+            general: 0.25,
+            addresses: 0.15,
+            contacts: 0.15,
+            banks: 0.1,
+            documents: 0.2,
+            commercial: 0.075,
+            services: 0.075,
+            coverimage: 0,
+            avatar: 0,
+        };
+
+        const weightedScore = (Object.entries(sectionScores) as Array<[SectionKey, number]>).reduce(
+            (acc, [section, score]) => acc + score * SECTION_WEIGHTS[section],
+            0,
+        );
+
+        return Math.min(100, Math.max(0, Math.round(weightedScore * 100)));
+    }, [formData, selectedSupplier]);
 
     if (isLoading && !selectedSupplier) {
         return (
@@ -817,9 +1686,15 @@ const SupplierProfileCard = () => {
             </Dashboard>
         );
     }
+    //console.log("Avtar", selectedSupplier.avatar)
 
     return (
         <Dashboard>
+            {(isGlobalLoading || isLoading) && (
+                <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+                    <Spinner label="Procesando..." color="primary" />
+                </div>
+            )}
             <Card className=" mx-auto shadow-lg">
                 {/* Cover Image Section */}
                 <CardHeader className="p-0 relative">
@@ -845,10 +1720,11 @@ const SupplierProfileCard = () => {
 
                         {/* Cover Photo Edit Button */}
                         <Button
+                            isDisabled={isGlobalLoading}
                             isIconOnly
                             className="absolute bottom-4 right-4 bg-white/90 hover:bg-white"
                             size="sm"
-                            onPress={() => handleOpenSection('general')}
+                            onPress={() => handleOpenSection('coverimage')}
                         >
                             <CameraIcon className="w-4 h-4 text-gray-700"/>
                         </Button>
@@ -862,10 +1738,11 @@ const SupplierProfileCard = () => {
                                 className="w-32 h-32 border-4 border-white shadow-lg"
                             />
                             <Button
+                                isDisabled={isGlobalLoading}
                                 isIconOnly
                                 size="sm"
                                 className="absolute bottom-2 right-2 bg-gray-100 hover:bg-gray-200 min-w-8 h-8"
-                                onPress={() => handleOpenSection('general')}
+                                onPress={() => handleOpenSection('avatar')}
                             >
                                 <CameraIcon className="w-4 h-4 text-gray-600"/>
                             </Button>
@@ -880,8 +1757,10 @@ const SupplierProfileCard = () => {
                                 <div className="flex items-center gap-3">
                                     <h1 className="text-3xl font-bold text-gray-900">{displayName}</h1>
                                     <Button
+                                        isDisabled={isGlobalLoading}
                                         isIconOnly
                                         size="sm"
+                                        onPress={() => handleOpenSection('general')}
                                         className="bg-gray-100 hover:bg-gray-200 min-w-8 h-8"
                                     >
                                         <PencilIcon className="w-4 h-4 text-gray-600"/>
@@ -892,19 +1771,7 @@ const SupplierProfileCard = () => {
                                     <span className="font-bold mr-4">{displayPhone}</span>
                                 </div>
                             </div>
-
                             <p className="text-gray-600 mb-1 max-w-md">{displayCode}</p>
-
-                            {/*<div className="flex items-center gap-4 text-sm text-gray-500 mb-4">
-                            <div>
-                                <span className="font-semibold">{friendsCount.toLocaleString()} amigos</span>
-                                <span>{mutualFriends} amigos en común</span>
-                                <span>Última Actualización {lastProfileUpdate}</span>
-                            </div>
-                            <div>
-                                // progresBarr de perfil completado
-                            </div>
-                        </div>*/}
                         </div>
 
 
@@ -935,6 +1802,7 @@ const SupplierProfileCard = () => {
                             </Button>
                         </div>
                     </div>
+
                     <div className="flex justify-between w-full items-center gap-4 text-sm text-gray-500 mb-4">
                         {/* Izquierda */}
                         <div className="flex space-x-5 items-center">
@@ -946,7 +1814,7 @@ const SupplierProfileCard = () => {
                                 {selectedSupplier?.status}
                             </Chip>
                             <div><span
-                                className="font-semibold text-xs">{getNumberDocuments()}/10 </span><span
+                                className="font-semibold text-xs">{getNumberDocuments()}/{DOCUMENT_KEYS.length} </span><span
                                 className="text-xs">Documentos</span></div>
                             <span
                                 className="text-xs">Última actualización: {displayLastUpdate}</span>
@@ -957,13 +1825,13 @@ const SupplierProfileCard = () => {
 
                             <Progress
                                 className="max-w-md"
-                                color={getProgressColor(45)} // HACER DINAMICO ESTE NUMEO
-                                label="Completado                 "
+                                color={getProgressColor(completionPercentage)}
+                                label="Completado"
                                 maxValue={100}
                                 showValueLabel={true}
                                 size="sm"
                                 radius="sm"
-                                value={78} // HACER DINAMICO ESTE NUMERO
+                                value={completionPercentage}
                             />
 
                         </div>
@@ -980,7 +1848,7 @@ const SupplierProfileCard = () => {
                             <div className="flex items-center gap-3 text-gray-700">
                                 <UserPlusIcon className="w-4 h-4 text-gray-500"/>
                                 <span
-                                    className="text-xs">Cotactar con {primaryContact?.Name || " - "}</span>
+                                    className="text-xs">Contactar con {primaryContact?.Name || " - "}</span>
                             </div>
 
                             <div className="flex items-center gap-3 text-gray-700">
@@ -991,7 +1859,7 @@ const SupplierProfileCard = () => {
                         </div>
                         <div className="space-y-0">
                             <div className="flex items-center gap-3 text-gray-700">
-                                <GlobeAltIcon className="w-4 h-4 text-gray-500"/>
+                            <GlobeAltIcon className="w-4 h-4 text-gray-500"/>
                                 <Link className="text-xs" href={displayWebsite}>
                                     {displayWebsite || 'Sin sitio web'}
                                 </Link>
@@ -1003,93 +1871,40 @@ const SupplierProfileCard = () => {
                             </div>
                         </div>
                     </div>
-                    {/* Tags/Interests */}
+
+                    {/*====================== SUNAT STATES ======================*/}
                     <div className="mt-6 pt-4 border-t border-gray-200">
-                        {/*<div className="flex flex-wrap gap-2">
-                        <Chip color="primary" variant="flat" size="sm">React</Chip>
-                        <Chip color="secondary" variant="flat" size="sm">TypeScript</Chip>
-                        <Chip color="success" variant="flat" size="sm">Tailwind CSS</Chip>
-                        <Chip color="warning" variant="flat" size="sm">JavaScript</Chip>
-                        <Chip color="danger" variant="flat" size="sm">Node.js</Chip>
-                    </div>*/}
-                        <div className="flex flex-wrap gap-3 mb-6">
-                            {selectedSupplier?.registradoMype && (
-                                <Chip
-                                    color="primary"
-                                    variant="flat"
-                                    startContent={<CheckCircleIcon className="h-3 w-3"/>}
-                                    size="sm"
-                                >
-                                    Registrado como MyPE
-                                </Chip>
+                        <div className="flex flex-wrap gap-2 mb-6">
+                            { selectedSupplier?.goodContributor && (
+                                <Chip color="success" variant="flat" size="sm">Buen Contribuidor</Chip>
                             )}
 
-                            {selectedSupplier?.emisorFacElectronica ? (
-                                <Chip
-                                    color="success"
-                                    variant="flat"
-                                    startContent={<DocumentTextIcon className="h-3 w-3"/>}
-                                    size="sm"
-                                >
-                                    Emisor de Facturas Electrónicas
-                                </Chip>
-                            ) : (
-                                <Chip
-                                    color="warning"
-                                    variant="flat"
-                                    startContent={<ExclamationTriangleIcon className="h-3 w-3"/>}
-                                    size="sm"
-                                >
-                                    No Emisor de Facturas Electrónicas
-                                </Chip>
+                            {(() => {
+                                const { color, descripcion } = getChipConfig(selectedSupplier?.personType);
+                                return (
+                                    <Chip color={color} variant="flat" size="sm">{descripcion}</Chip>
+                                );
+                            })()}
+
+                            { selectedSupplier?.agentePercepcion && (
+                                <Chip color="warning" variant="flat" size="sm">Agente de Percepción</Chip>
                             )}
+
+                            { selectedSupplier?.exoneradoPercepcion && (
+                                <Chip color="warning" variant="flat" size="sm">Exonerado Percepción</Chip>
+                            )}
+
                         </div>
                     </div>
-                    {/*<Card className="w-full">
-                    <CardBody className="p-0">
-                        <div className="grid grid-cols-6 md:grid-cols-12 gap-6 md:gap-4 items-center justify-center">
-                            <div className="relative col-span-6 md:col-span-4">
-                                <Image
-                                    alt="Album cover"
-                                    className="object-cover"
-                                    height={200}
-                                    shadow="md"
-                                    src="https://heroui.com/images/album-cover.png"
-                                    width="100%"
-                                />
-                            </div>
 
-                            <div className="relative col-span-6 md:col-span-8 p-2">
-                                <div className="flex justify-between gap-3 mb-0">
-                                    <div className="flex items-center gap-3">
-                                        <BuildingOffice2Icon className="h-5 w-5 text-gray-600"/>
-                                        <span className="text-lg font-bold">Almacen</span>
-                                    </div>
-                                    <Button
-                                        isIconOnly
-                                        startContent={
-                                            <PlusIcon  className="h-5 w-5 text-gray-600"/>
-                                        }
-                                    >
-                                    </Button>
-                                </div>
-                                <span className="text-xs text-gray-500">Av. La marina 235, interior 45-B</span>
-                                <span className="text-xs text-gray-500">San Bartolo - Lima - Lima</span>
-                                <span className="text-xs text-gray-500">Ubigeo: 102105</span>
-
-                            </div>
-                        </div>
-                    </CardBody>
-                </Card>*/}
-
-                    <br></br><br></br>
-                    {/*================== DIRECCIONES ======================*/}
+                    {/*====================== ADDRESS TITLE ======================*/}
                     <div className="flex justify-between items-start">
                         <div className="flex-1">
                             <div className="flex justify-between items-center gap-3 mb-2">
                                 <div className="flex items-center gap-3">
-                                    <h1 className="text-xl font-bold text-gray-900">Direcciónes</h1>
+                                    <h1 className="text-xl font-bold text-gray-900">Direcciones</h1>
                                     <Button
+                                        isDisabled={isGlobalLoading}
                                         isIconOnly
                                         size="sm"
                                         className="bg-gray-100 hover:bg-gray-200 min-w-8 h-8"
@@ -1098,48 +1913,24 @@ const SupplierProfileCard = () => {
                                         <PlusIcon className="w-4 h-4 text-gray-600"/>
                                     </Button>
                                 </div>
-                                <div className="flex items-center">
-                                    <PhoneArrowDownLeftIcon className="h-5 w-5 text-gray-600"/>
-                                    <span className="font-bold mr-4">{displayPhone}</span>
-                                </div>
                             </div>
-
-                            {/*<div className="flex items-center gap-4 text-sm text-gray-500 mb-4">
-                            <div>
-                                <span className="font-semibold">{friendsCount.toLocaleString()} amigos</span>
-                                <span>{mutualFriends} amigos en común</span>
-                                <span>Última Actualización {lastProfileUpdate}</span>
-                            </div>
-                            <div>
-                                // progresBarr de perfil completado
-                            </div>
-                        </div>*/}
                         </div>
-                        {/* Action Buttons */}
                     </div>
+
+                    {/*====================== ADDRESS CARD ======================*/}
                     {selectedSupplier?.addresses && selectedSupplier.addresses.length > 0 ? (
                         selectedSupplier.addresses?.map((item, index) => (
                             <Card key={index} radius="lg" shadow="sm" className="w-full  mx-auto mt-4">
                                 <CardBody className="p-4">
                                     <div className="grid grid-cols-6 md:grid-cols-12 gap-6 items-center">
-                                        {/* Imagen */}
-                                        {/*<div className="relative col-span-6 md:col-span-4">
-                                <Image
-                                    alt={`${name} - cover`}
-                                    className="object-cover rounded-lg"
-                                    height="30%"
-                                    src="https://heroui.com/images/album-cover.png"
-                                    width="100%"
-                                />
-                            </div>*/}
 
-                                        {/* Info */}
+                                        {/* INFORMACION EN LA TARJETA COMPLETA */}
                                         <div className="relative col-span-12 md:col-span-12">
-                                            {/* Header */}
-                                            <div className="flex justify-between items-start">
+                                            {/* CABECERA - PRIMERA LINEA */}
+                                            <div className="flex justify-between items-center">
                                                 <div className="flex items-center gap-2 text-gray-800">
-                                                    <BuildingOffice2Icon className="h-5 w-5 text-gray-600"/>
-                                                    <span className="text-lg font-semibold">{item.address}</span>
+                                                    <BuildingOffice2Icon className="h-4 w-4 text-gray-600"/>
+                                                    <span className="text-sm font-semibold">{item.address}</span>
                                                     <span className="text-sm text-gray-500">{`(${item.type})`}</span>
                                                 </div>
 
@@ -1147,21 +1938,21 @@ const SupplierProfileCard = () => {
                                                     isIconOnly
                                                     variant="light"
                                                     radius="full"
+                                                    size="sm"
                                                     startContent={<PencilIcon className="h-4 w-4 text-gray-600"/>}
                                                     aria-label="Agregar"
                                                 />
                                             </div>
 
-                                            {/* Dirección */}
+                                            {/* DIRECCION */}
                                             <div className="flex items-start gap-2 text-sm text-gray-600">
-                                                <MapPinIcon className="h-5 w-5 mt-1 text-gray-500"/>
+                                                <MapPinIcon className="h-4 w-4 mt-0 text-gray-500"/>
                                                 <div className="flex flex-col">
-                                                    <span>{item.address}</span>
                                                     <span>{item.city} - {item.province} - {item.departament}</span>
                                                 </div>
                                             </div>
 
-                                            {/* Ubigeo */}
+                                            {/* UBIGEO */}
                                             <div className="flex items-center gap-2 text-xs text-gray-500">
                                                 <IdentificationIcon className="h-4 w-4 text-gray-400"/>
                                                 <span>Ubigeo: {item.ubigeo}</span>
@@ -1177,13 +1968,14 @@ const SupplierProfileCard = () => {
                         </div>
                     )}
 
-                    {/*=================================== PERSONA DE CONTACTO ================================= */}
+                    { /*====================== CONTACT PERSON TITLE ======================*/ }
                     <div className="flex justify-between items-start mt-6 border-t border-gray-200 pt-6">
                         <div className="flex-1">
                             <div className="flex justify-between items-center gap-3 mb-2">
                                 <div className="flex items-center gap-3">
                                     <h1 className="text-xl font-bold text-gray-900">Persona de Contacto</h1>
                                     <Button
+                                        isDisabled={isGlobalLoading}
                                         isIconOnly
                                         size="sm"
                                         className="bg-gray-100 hover:bg-gray-200 min-w-8 h-8"
@@ -1192,14 +1984,12 @@ const SupplierProfileCard = () => {
                                         <PlusIcon className="w-4 h-4 text-gray-600"/>
                                     </Button>
                                 </div>
-                                {/*<div className="flex items-center">
-                                <PhoneArrowDownLeftIcon className="h-5 w-5 text-gray-600"/>
-                                <span className="font-bold mr-4">{phone}</span>
-                            </div>*/}
                             </div>
                         </div>
-                        {/* Action Buttons */}
                     </div>
+
+
+                    { /*====================== CONTACT PERSON CARD ======================*/ }
                     {contactList.length > 0 ? (
                          <Accordion selectionMode="multiple">
                             {contactList.map((contacto, index) => (
@@ -1217,7 +2007,7 @@ const SupplierProfileCard = () => {
                                     subtitle={
                                         <p className="flex space-x-4 items-center text-sm text-gray-500">
                                             <span className="text-primary ml-3">{contacto.E_MailL || 'Sin correo'}</span>
-                                            <span className="text-xs">{contacto.Telefono || 'Sin teléfono'}</span>
+                                            <span className="text-xs">{contacto.Profesion || 'Sin asignar'}</span>
                                         </p>
                                     }
                                     title={
@@ -1240,13 +2030,14 @@ const SupplierProfileCard = () => {
                     )}
 
 
-                    {/*=================================== REFERENCIAS BANCARIAS ==============================*/}
+                    { /*====================== BANK REFERENCE TITLE ======================*/ }
                     <div className="flex justify-between items-start mt-6 border-t border-gray-200 pt-6">
                         <div className="flex-1">
                             <div className="flex justify-between items-center gap-3 mb-2">
                                 <div className="flex items-center gap-3">
                                     <h1 className="text-xl font-bold text-gray-900">Referencias Bancarias</h1>
                                     <Button
+                                        isDisabled={isGlobalLoading}
                                         isIconOnly
                                         size="sm"
                                         className="bg-gray-100 hover:bg-gray-200 min-w-8 h-8"
@@ -1255,14 +2046,11 @@ const SupplierProfileCard = () => {
                                         <PlusIcon className="w-4 h-4 text-gray-600"/>
                                     </Button>
                                 </div>
-                                {/*<div className="flex items-center">
-                                <PhoneArrowDownLeftIcon className="h-5 w-5 text-gray-600"/>
-                                <span className="font-bold mr-4">{phone}</span>
-                            </div>*/}
                             </div>
                         </div>
-                        {/* Action Buttons */}
                     </div>
+
+                    { /*====================== BANK REFERENCES CARD ======================*/ }
                     {bankCards.length > 0 ? (
                         <div className="flex flex-wrap justify-start gap-4 w-full">
                             {bankCards.map((bank, index) => {
@@ -1305,13 +2093,14 @@ const SupplierProfileCard = () => {
                     )}
 
 
-                    {/*=================================== REFERENCIAS COMERCIALES ==============================*/}
+                    { /*====================== COMMERCIAL REFERENCE TITLE ======================*/ }
                     <div className="flex justify-between items-start mt-6 border-t border-gray-200 pt-6">
                         <div className="flex-1">
                             <div className="flex justify-between items-center gap-3 mb-2">
                                 <div className="flex items-center gap-3">
                                     <h1 className="text-xl font-bold text-gray-900">Referencias Comerciales</h1>
                                     <Button
+                                        isDisabled={isGlobalLoading}
                                         isIconOnly
                                         size="sm"
                                         className="bg-gray-100 hover:bg-gray-200 min-w-8 h-8"
@@ -1320,14 +2109,11 @@ const SupplierProfileCard = () => {
                                         <PlusIcon className="w-4 h-4 text-gray-600"/>
                                     </Button>
                                 </div>
-                                {/*<div className="flex items-center">
-                                <PhoneArrowDownLeftIcon className="h-5 w-5 text-gray-600"/>
-                                <span className="font-bold mr-4">{phone}</span>
-                            </div>*/}
                             </div>
                         </div>
-                        {/* Action Buttons */}
                     </div>
+
+                    { /*====================== COMMERCIAL REFERENCES TABLE ======================*/ }
                     <Table
                         aria-label="Example table with client side sorting"
                     >
@@ -1348,29 +2134,27 @@ const SupplierProfileCard = () => {
                     </Table>
 
 
-                    {/*=================================== SERVICIOS OFRECIDOS ==============================*/}
+                    { /*====================== OFRECED SERVICES TITLE ======================*/ }
                     <div className="flex justify-between items-start mt-6 border-t border-gray-200 pt-6">
                         <div className="flex-1">
                             <div className="flex justify-between items-center gap-3 mb-2">
                                 <div className="flex items-center gap-3">
                                     <h1 className="text-xl font-bold text-gray-900">Servicios Ofrecidos</h1>
                                     <Button
+                                        isDisabled={isGlobalLoading}
                                         isIconOnly
                                         size="sm"
-                                        className="bg-gray-100 hover:bg-gray-200 min-w-8 h-8"
+                                        className="bg-gray-100 hover-bg-gray-200 min-w-8 h-8"
                                         onPress={() => handleOpenSection('services')}
                                     >
                                         <PlusIcon className="w-4 h-4 text-gray-600"/>
                                     </Button>
                                 </div>
-                                {/*<div className="flex items-center">
-                                <PhoneArrowDownLeftIcon className="h-5 w-5 text-gray-600"/>
-                                <span className="font-bold mr-4">{phone}</span>
-                            </div>*/}
                             </div>
                         </div>
-                        {/* Action Buttons */}
                     </div>
+
+                    { /*====================== OFRECED SERVICES CARD ======================*/ }
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {(formData?.ServiciosOfrecidos ?? []).length > 0 ? (
                             (formData?.ServiciosOfrecidos ?? []).map((servicio, index) => (
@@ -1388,13 +2172,14 @@ const SupplierProfileCard = () => {
                     </div>
 
 
-                    {/*=================================== DOCUMENTOS ==============================*/}
+                    { /*====================== DOCUMENTS TITLE ======================*/ }
                     <div className="flex justify-between items-start mt-6 border-t border-gray-200 pt-6">
                         <div className="flex-1">
                             <div className="flex justify-between items-center gap-3 mb-2">
                                 <div className="flex items-center gap-3">
                                     <h1 className="text-xl font-bold text-gray-900">Documentos</h1>
                                     <Button
+                                        isDisabled={isGlobalLoading}
                                         isIconOnly
                                         size="sm"
                                         className="bg-gray-100 hover:bg-gray-200 min-w-8 h-8"
@@ -1403,30 +2188,87 @@ const SupplierProfileCard = () => {
                                         <PlusIcon className="w-4 h-4 text-gray-600"/>
                                     </Button>
                                 </div>
-                                {/*<div className="flex items-center">
-                                <PhoneArrowDownLeftIcon className="h-5 w-5 text-gray-600"/>
-                                <span className="font-bold mr-4">{phone}</span>
-                            </div>*/}
                             </div>
                         </div>
-                        {/* Action Buttons */}
                     </div>
+
+                    { /*====================== DOCUMENTS SWITCH LIST CARD ======================*/ }
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        <Switch size="sm" isSelected={getDocumentFlag(selectedSupplier?.Documentos?.certificacionISO)}>Certificaciones ISO(9001, 14001, 45001)</Switch>
-                        <Switch size="sm" isSelected={getDocumentFlag(selectedSupplier?.Documentos?.licenciaMuni)}>Licencia Municipal de Funcionamiento</Switch>
-                        <Switch size="sm" isSelected={getDocumentFlag(selectedSupplier?.Documentos?.referenciasComerciales)}>Referencias Comerciales</Switch>
-                        <Switch size="sm" isSelected={getDocumentFlag(selectedSupplier?.Documentos?.referenciasBancarias)}>Referencias Bancarias</Switch>
-                        <Switch size="sm" isSelected={getDocumentFlag(selectedSupplier?.Documentos?.historicoPrecios)}>Historial de Precios</Switch>
-                        <Switch size="sm" isSelected={getDocumentFlag(selectedSupplier?.Documentos?.condicionesPago)}>Condiciones de pago</Switch>
-                        <Switch size="sm" isSelected={getDocumentFlag(selectedSupplier?.Documentos?.vigenciaPoder)}>Vigencia de Poder</Switch>
-                        <Switch size="sm" isSelected={getDocumentFlag(selectedSupplier?.Documentos?.fichaRuc)}>Ficha RUC</Switch>
-                        <Switch size="sm" isSelected={getDocumentFlag(selectedSupplier?.Documentos?.matrizAAmbientales)}>Matriz de aspectos e impactos Ambientales</Switch>
-                        <Switch size="sm" isSelected={getDocumentFlag(selectedSupplier?.Documentos?.matrizIPERC)}>Matriz IPERC</Switch>
+                        <Switch
+                            size="sm"
+                            isSelected={getDocumentFlag(selectedSupplier?.Documentos?.certificaciones)}
+                            onValueChange={() => handleDocumentSwitchPress('certificaciones', 'Certificaciones ISO')}
+                        >
+                            Certificaciones ISO(9001, 14001, 45001)
+                        </Switch>
+                        <Switch
+                            size="sm"
+                            isSelected={getDocumentFlag(selectedSupplier?.Documentos?.licenciaMunicipal)}
+                            onValueChange={() => handleDocumentSwitchPress('licenciaMunicipal', 'Licencia Municipal de Funcionamiento')}
+                        >
+                            Licencia Municipal de Funcionamiento
+                        </Switch>
+                        <Switch
+                            size="sm"
+                            isSelected={getDocumentFlag(selectedSupplier?.Documentos?.referenciasComerciales)}
+                            onValueChange={() => handleDocumentSwitchPress('referenciasComerciales', 'Referencias Comerciales')}
+                        >
+                            Referencias Comerciales
+                        </Switch>
+                        <Switch
+                            size="sm"
+                            isSelected={getDocumentFlag(selectedSupplier?.Documentos?.referenciasBancarias)}
+                            onValueChange={() => handleDocumentSwitchPress('referenciasBancarias', 'Referencias Bancarias')}
+                        >
+                            Referencias Bancarias
+                        </Switch>
+                        <Switch
+                            size="sm"
+                            isSelected={getDocumentFlag(selectedSupplier?.Documentos?.historialPrecios)}
+                            onValueChange={() => handleDocumentSwitchPress('historialPrecios', 'Historial de Precios')}
+                        >
+                            Historial de Precios
+                        </Switch>
+                        <Switch
+                            size="sm"
+                            isSelected={getDocumentFlag(selectedSupplier?.Documentos?.condicionesPago)}
+                            onValueChange={() => handleDocumentSwitchPress('condicionesPago', 'Condiciones de pago')}
+                        >
+                            Condiciones de pago
+                        </Switch>
+                        <Switch
+                            size="sm"
+                            isSelected={getDocumentFlag(selectedSupplier?.Documentos?.vigenciaPoder)}
+                            onValueChange={() => handleDocumentSwitchPress('vigenciaPoder', 'Vigencia de Poder')}
+                        >
+                            Vigencia de Poder
+                        </Switch>
+                        <Switch
+                            size="sm"
+                            isSelected={getDocumentFlag(selectedSupplier?.Documentos?.fichaRuc)}
+                            onValueChange={() => handleDocumentSwitchPress('fichaRuc', 'Ficha RUC')}
+                        >
+                            Ficha RUC
+                        </Switch>
+                        <Switch
+                            size="sm"
+                            isSelected={getDocumentFlag(selectedSupplier?.Documentos?.matrizAmbiental)}
+                            onValueChange={() => handleDocumentSwitchPress('matrizAmbiental', 'Matriz de aspectos e impactos Ambientales')}
+                        >
+                            Matriz de aspectos e impactos Ambientales
+                        </Switch>
+                        <Switch
+                            size="sm"
+                            isSelected={getDocumentFlag(selectedSupplier?.Documentos?.matrizIperc)}
+                            onValueChange={() => handleDocumentSwitchPress('matrizIperc', 'Matriz IPERC')}
+                        >
+                            Matriz IPERC
+                        </Switch>
                     </div>
 
                 </CardBody>
             </Card>
-            <Drawer isOpen={isOpen} onOpenChange={onOpenChange} size="lg" placement="right">
+            <Drawer isOpen={isOpen} onOpenChange={onOpenChange} size="4xl" placement="right">
                 <DrawerContent>
                     {(onClose) => (
                         <>
@@ -1445,10 +2287,10 @@ const SupplierProfileCard = () => {
                                 )}
                             </DrawerBody>
                             <DrawerFooter>
-                                <Button variant="light" onPress={onClose}>
+                                <Button variant="light" isDisabled={isSaving || isGlobalLoading} onPress={onClose}>
                                     Cancelar
                                 </Button>
-                                <Button color="primary" isLoading={isSaving} onPress={() => handleSaveSection(onClose)}>
+                                <Button color="primary" isDisabled={isSaving || isGlobalLoading} isLoading={isSaving} onPress={() => handleSaveSection(onClose)}>
                                     Guardar cambios
                                 </Button>
                             </DrawerFooter>

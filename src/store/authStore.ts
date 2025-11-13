@@ -5,9 +5,12 @@ import {
     AuthError,
     AuthErrorCode,
     createSupplierUserDocument,
+    FirestoreUserDocument,
+    findUserByUsername,
     LoginSuccess,
     loginWithFirestore,
     PortalUser,
+    updateUserPassword,
 } from '@/services/auth/firestoreAuth';
 
 export type RoleType = 'internal' | 'provider';
@@ -36,13 +39,9 @@ interface AuthState {
     login: (username: string, password: string, roleType: RoleType) => Promise<LoginResult>;
     logout: () => void;
     clearError: () => void;
-    createSupplierUser: (supplierData: {
-        email: string;
-        companyName: string;
-        contactPerson: string;
-        supplierId: string;
-        tempPassword: string;
-    }) => Promise<void>;
+    createSupplierUser: (supplierData: Parameters<typeof createSupplierUserDocument>[0]) => Promise<void>;
+    findUserByUsername: (username: string) => Promise<{ id: string; data: FirestoreUserDocument } | null>;
+    updateUserPassword: (userId: string, newPassword: string) => Promise<void>;
 }
 
 const mapLoginSuccess = ({ token, user }: LoginSuccess): LoginResultSuccess => ({
@@ -126,6 +125,9 @@ export const useAuthStore = create<AuthState>()(
             createSupplierUser: async (supplierData) => {
                 await createSupplierUserDocument(supplierData);
             },
+            findUserByUsername: async (username) => findUserByUsername(username),
+            updateUserPassword: async (userId, newPassword) =>
+                updateUserPassword(userId, newPassword),
         }),
         {
             name: 'auth-storage',

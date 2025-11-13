@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import type {DrawerProps} from "@heroui/react";
 import {
     addToast,
     Alert,
@@ -13,8 +14,6 @@ import {
     DrawerFooter,
     DrawerHeader,
     Input,
-    Select,
-    SelectItem,
     Tab,
     Tabs,
     ToastProvider,
@@ -34,21 +33,46 @@ const Login = () => {
     const clearError = useAuthStore((state) => state.clearError);
     const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
     const currentUser = useAuthStore((state) => state.currentUser);
+    const findUserByUsername = useAuthStore((state) => state.findUserByUsername);
+    const updateUserPassword = useAuthStore((state) => state.updateUserPassword);
 
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
-    const [roleType, setRoleType] = useState<RoleType>("provider");
     const [isVisible, setIsVisible] = useState(false);
     const [activeTab, setActiveTab] = useState<"proveedor" | "corporativo">("proveedor");
     const [formError, setFormError] = useState("");
 
+    const [resetStep, setResetStep] = useState<'username' | 'code' | 'password'>('username');
+    const [resetUsername, setResetUsername] = useState('');
+    const [resetError, setResetError] = useState('');
+    const [isResetLoading, setIsResetLoading] = useState(false);
+    const [generatedCode, setGeneratedCode] = useState('');
+    const [resetUser, setResetUser] = useState<{ id: string; email?: string; fullName?: string } | null>(null);
+    const [verificationDigits, setVerificationDigits] = useState<string[]>(() => Array(6).fill(''));
+    const codeInputRefs = useRef<Array<HTMLInputElement | null>>([]);
+    const [newPasswordValue, setNewPasswordValue] = useState('');
+    const [confirmPasswordValue, setConfirmPasswordValue] = useState('');
+
     const toggleVisibility = () => setIsVisible(!isVisible);
 
     const { isOpen, onOpen, onOpenChange } = useDisclosure();
-    const [backdrop, setBackdrop] = useState("opaque");
+    const [backdrop, setBackdrop] = useState<DrawerProps["backdrop"]>("opaque");
 
-    const handleBackdropChange = (nextBackdrop: "opaque" | "blur") => {
+    const resetRecoveryFlow = useCallback(() => {
+        setResetStep('username');
+        setResetUsername('');
+        setResetError('');
+        setIsResetLoading(false);
+        setGeneratedCode('');
+        setResetUser(null);
+        setVerificationDigits(Array(6).fill(''));
+        setNewPasswordValue('');
+        setConfirmPasswordValue('');
+    }, []);
+
+    const handleBackdropChange = (nextBackdrop: DrawerProps["backdrop"]) => {
         setBackdrop(nextBackdrop);
+        resetRecoveryFlow();
         onOpen();
     };
 
@@ -58,7 +82,7 @@ const Login = () => {
         clearError();
 
         if (!username.trim() || !password.trim()) {
-            const message = "Los campos 'Usuario', 'Contraseña' y 'Tipo de Rol' son obligatorios.";
+            const message = "Los campos 'Usuario' y 'Contraseña' son obligatorios.";
             setFormError(message);
             addToast({
                 title: "Datos incompletos",
@@ -70,7 +94,8 @@ const Login = () => {
             return;
         }
 
-        const result = await login(username.trim().toLowerCase(), password, roleType);
+        const selectedRole: RoleType = activeTab === "proveedor" ? "provider" : "internal";
+        const result = await login(username.trim().toLowerCase(), password, selectedRole);
 
         if (result.success) {
             addToast({
@@ -114,7 +139,6 @@ const Login = () => {
     useEffect(() => {
         setUsername("");
         setPassword("");
-        setRoleType(activeTab === "proveedor" ? "provider" : "internal");
         setFormError("");
         clearError();
     }, [activeTab, clearError]);
@@ -124,6 +148,18 @@ const Login = () => {
             setFormError(authError);
         }
     }, [authError]);
+
+    useEffect(() => {
+        if (!isOpen) {
+            resetRecoveryFlow();
+        }
+    }, [isOpen, resetRecoveryFlow]);
+
+    useEffect(() => {
+        if (isOpen && resetStep === 'code') {
+            codeInputRefs.current[0]?.focus();
+        }
+    }, [isOpen, resetStep]);
 
     const tabs = [
         {
@@ -140,6 +176,154 @@ const Login = () => {
         },
     ];
     const toastPlacement = "bottom-right" as const;
+
+    const handleSendRecoveryCode = async () => {
+        setResetError('');
+        if (!resetUsername.trim()) {
+            setResetError('Por favor ingresa tu usuario (RUC).');
+            return;
+        }
+
+        setIsResetLoading(true);
+        try {
+            const userResult = await findUserByUsername(resetUsername.trim().toLowerCase());
+            if (!userResult) {
+                setResetError('No se encuentra registrado como Proveedor para Vistony');
+                return;
+            }
+
+            const code = Math.floor(100000 + Math.random() * 900000).toString();
+            setGeneratedCode(code);
+            setResetUser({
+                id: userResult.id,
+                email: userResult.data.email,
+                fullName: userResult.data.user_name,
+            });
+            setVerificationDigits(Array(6).fill(''));
+            setResetStep('code');
+            addToast({
+                title: 'Código enviado',
+                description: `Hemos enviado un código de verificación al correo ${userResult.data.email || 'registrado'}.`,
+                color: 'primary',
+                timeout: 4000,
+                shouldShowTimeoutProgress: true,
+            });
+            console.info('Código de recuperación generado:', code);
+        } catch (error) {
+            console.error('Error al enviar el código de recuperación', error);
+            setResetError('No se pudo enviar el código de recuperación. Inténtalo nuevamente.');
+        } finally {
+            setIsResetLoading(false);
+        }
+    };
+
+    const handleCodeDigitChange = (index: number, value: string) => {
+        if (!/^\d?$/.test(value)) {
+            return;
+        }
+        const nextDigits = [...verificationDigits];
+        nextDigits[index] = value;
+        setVerificationDigits(nextDigits);
+
+        if (value && index < codeInputRefs.current.length - 1) {
+            codeInputRefs.current[index + 1]?.focus();
+        }
+        if (!value && index > 0) {
+            codeInputRefs.current[index - 1]?.focus();
+        }
+    };
+
+    const handleCodeKeyDown = (index: number, event: React.KeyboardEvent<HTMLInputElement>) => {
+        if (event.key === 'Backspace' && !verificationDigits[index] && index > 0) {
+            codeInputRefs.current[index - 1]?.focus();
+        }
+        if (event.key === 'ArrowLeft' && index > 0) {
+            codeInputRefs.current[index - 1]?.focus();
+        }
+        if (event.key === 'ArrowRight' && index < codeInputRefs.current.length - 1) {
+            codeInputRefs.current[index + 1]?.focus();
+        }
+    };
+
+    const handleCodePaste = (event: React.ClipboardEvent<HTMLInputElement>) => {
+        event.preventDefault();
+        const paste = event.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+        if (!paste) return;
+        const digits = Array(6)
+            .fill('')
+            .map((_, idx) => paste[idx] ?? '');
+        setVerificationDigits(digits);
+        if (paste.length === 6) {
+            setTimeout(() => {
+                codeInputRefs.current[5]?.focus();
+            }, 0);
+        }
+    };
+
+    const handleVerifyCode = () => {
+        const inputCode = verificationDigits.join('');
+        if (inputCode.length < 6) {
+            setResetError('Completa el código de verificación.');
+            return;
+        }
+        if (inputCode !== generatedCode) {
+            setResetError('El código ingresado no es correcto.');
+            return;
+        }
+        setResetError('');
+        setResetStep('password');
+    };
+
+    const handleUpdatePassword = async () => {
+        setResetError('');
+
+        if (!newPasswordValue || newPasswordValue.length < 8) {
+            setResetError('La nueva contraseña debe tener al menos 8 caracteres.');
+            return;
+        }
+        if (newPasswordValue !== confirmPasswordValue) {
+            setResetError('Las contraseñas no coinciden.');
+            return;
+        }
+        if (!resetUser) {
+            setResetError('Ocurrió un problema al actualizar la contraseña. Inténtalo nuevamente.');
+            return;
+        }
+
+        setIsResetLoading(true);
+        try {
+            await updateUserPassword(resetUser.id, newPasswordValue);
+            addToast({
+                title: 'Contraseña actualizada',
+                description: 'Ahora puedes iniciar sesión con tu nueva contraseña.',
+                color: 'success',
+                timeout: 3500,
+                shouldShowTimeoutProgress: true,
+            });
+            onOpenChange();
+            resetRecoveryFlow();
+        } catch (error) {
+            console.error('Error al actualizar la contraseña', error);
+            setResetError('No se pudo actualizar la contraseña. Inténtalo nuevamente.');
+        } finally {
+            setIsResetLoading(false);
+        }
+    };
+
+    const handleResetBack = () => {
+        if (resetStep === 'code') {
+            setResetStep('username');
+            setVerificationDigits(Array(6).fill(''));
+            setGeneratedCode('');
+        } else if (resetStep === 'password') {
+            setResetStep('code');
+            setNewPasswordValue('');
+            setConfirmPasswordValue('');
+        }
+        setResetError('');
+    };
+
+    const isCodeComplete = verificationDigits.every((digit) => digit.length === 1);
 
     return (
         <section className="px-8">
@@ -219,21 +403,6 @@ const Login = () => {
                                     }
                                 />
                             </div>
-                            <Select
-                                selectedKeys={[roleType]}
-                                onSelectionChange={(keys) =>
-                                    setRoleType(Array.from(keys)[0] as RoleType)
-                                }
-                                label="Tipo de Rol"
-                                labelPlacement="outside"
-                            >
-                                <SelectItem key="internal" value="internal">
-                                    Usuario interno
-                                </SelectItem>
-                                <SelectItem key="provider" value="provider">
-                                    Proveedor
-                                </SelectItem>
-                            </Select>
                             <Button
                                 isLoading={isLoading}
                                 type="submit"
@@ -246,7 +415,8 @@ const Login = () => {
                                 INGRESAR
                             </Button>
                             <Button
-                                onPress={() => handleBackdropChange("opaque")}
+                                    isDisabled={isLoading}
+                                    onPress={() => handleBackdropChange("opaque")}
                                 variant="bordered"
                                 size="lg"
                                 className="flex h-12 border-blue-gray-200 items-center justify-center gap-2"
@@ -270,31 +440,163 @@ const Login = () => {
             </div>
 
 
-            <Drawer backdrop={backdrop} isOpen={isOpen} onOpenChange={onOpenChange} placement="right">
+            <Drawer backdrop={backdrop} isOpen={isOpen} onOpenChange={onOpenChange} placement="right" size="md">
                 <DrawerContent>
                     {(onClose) => (
                         <>
                             <DrawerHeader className="flex flex-col gap-1">Recuperar Contraseña</DrawerHeader>
                             <DrawerBody>
-                                <Input
-                                    endContent={
-                                        <MailIcon
-                                            className="text-2xl text-default-400 pointer-events-none flex-shrink-0"/>
-                                    }
-                                    label="Email"
-                                    placeholder="Digite su correo"
-                                    variant="bordered"
-                                />
+                                {resetStep === 'username' && (
+                                    <div className="space-y-12">
+                                        <Alert
+                                            color="primary"
+                                            variant="flat"
+                                            title="Recupera tu acceso"
+                                            description="Ingresa tu usuario (RUC) y te enviaremos un código de verificación al correo registrado."
+                                        />
+                                        <Input
+                                            label="Usuario (RUC)"
+                                            placeholder="20100000001"
+                                            labelPlacement="outside"
+                                            value={resetUsername}
+                                            onValueChange={setResetUsername}
+                                            variant="bordered"
+                                            isDisabled={isResetLoading}
+                                        />
+                                    </div>
+                                )}
+                                {resetStep === 'code' && (
+                                    <div className="space-y-4">
+                                        <Alert
+                                            color="primary"
+                                            variant="flat"
+                                            description={`Ingresa el código de 6 dígitos enviado a ${resetUser?.email ?? 'tu correo registrado'}.`}
+                                        />
+                                        <div className="flex justify-center gap-2">
+                                            {verificationDigits.map((digit, index) => (
+                                                <Input
+                                                    key={index}
+                                                    ref={(el) => {
+                                                        codeInputRefs.current[index] = el;
+                                                    }}
+                                                    value={digit}
+                                                    onChange={(event) => handleCodeDigitChange(index, event.target.value)}
+                                                    onKeyDown={(event) => handleCodeKeyDown(index, event)}
+                                                    onPaste={handleCodePaste}
+                                                    maxLength={1}
+                                                    className="w-12 text-center"
+                                                    variant="bordered"
+                                                    size="lg"
+                                                    inputMode="numeric"
+                                                />
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                                {resetStep === 'password' && (
+                                    <div className="space-y-4">
+                                        <Alert
+                                            color="primary"
+                                            variant="flat"
+                                            description="Ingresa tu nueva contraseña y confírmala para completar la recuperación."
+                                        />
+                                        <Input
+                                            label="Nueva contraseña"
+                                            type="password"
+                                            variant="bordered"
+                                            value={newPasswordValue}
+                                            onValueChange={setNewPasswordValue}
+                                            isDisabled={isResetLoading}
+                                        />
+                                        <Input
+                                            label="Confirmar contraseña"
+                                            type="password"
+                                            variant="bordered"
+                                            value={confirmPasswordValue}
+                                            onValueChange={setConfirmPasswordValue}
+                                            isDisabled={isResetLoading}
+                                        />
+                                        {resetError && (
+                                            <Alert
+                                                color="danger"
+                                                variant="flat"
+                                                className="mt-4"
+                                                description={resetError}
+                                            />
+                                        )}
+                                    </div>
+                                )}
+                                {resetError && (
+                                    <div className="space-y-4">
+                                        <Alert
+                                            color="danger"
+                                            variant="flat"
+                                            className="mt-4"
+                                            description={resetError}
+                                        />
+                                    </div>
+                                )}
 
-                                <Divider className="mb-6 mt-6"/>
                             </DrawerBody>
                             <DrawerFooter>
-                                <Button color="danger" variant="flat" onPress={onClose}>
-                                    Close
+                                <Button
+                                    color="danger"
+                                    variant="flat"
+                                    onPress={() => {
+                                        onClose();
+                                        resetRecoveryFlow();
+                                    }}
+                                    isDisabled={isResetLoading}
+                                >
+                                    Cancelar
                                 </Button>
-                                <Button color="primary" onPress={onClose}>
-                                Sign in
-                                </Button>
+                                {resetStep === 'username' && (
+                                    <Button
+                                        color="primary"
+                                        isLoading={isResetLoading}
+                                        onPress={handleSendRecoveryCode}
+                                    >
+                                        Enviar código
+                                    </Button>
+                                )}
+                                {resetStep === 'code' && (
+                                    <div className="flex gap-2">
+                                        <Button
+                                            variant="flat"
+                                            onPress={handleResetBack}
+                                            isDisabled={isResetLoading}
+                                        >
+                                            Volver
+                                        </Button>
+                                        <Button
+                                            color="primary"
+                                            isDisabled={!isCodeComplete || isResetLoading}
+                                            isLoading={isResetLoading}
+                                            onPress={handleVerifyCode}
+                                        >
+                                            Validar código
+                                        </Button>
+                                    </div>
+                                )}
+                                {resetStep === 'password' && (
+                                    <div className="flex gap-2">
+                                        <Button
+                                            variant="flat"
+                                            onPress={handleResetBack}
+                                            isDisabled={isResetLoading}
+                                        >
+                                            Volver
+                                        </Button>
+                                        <Button
+                                            color="primary"
+                                            isDisabled={isResetLoading}
+                                            isLoading={isResetLoading}
+                                            onPress={handleUpdatePassword}
+                                        >
+                                            Confirmar
+                                        </Button>
+                                    </div>
+                                )}
                             </DrawerFooter>
                         </>
                     )}
@@ -307,52 +609,3 @@ const Login = () => {
 };
 
 export default Login;
-{/*
-<div classNameName="flex min-h-screen items-center justify-center ">
-                <div classNameName="w-full max-w-md bg-gray-100 p-8 rounded-lg shadow-lg">
-
-                </div>
-            </div>
-*/
-}
-{/*<div classNameName="flex min-h-screen items-center justify-center ">
-            <Card>
-                <CardHeader classNameName="pb-0 pt-2 px-4 flex-col items-center">
-                    <p classNameName="text-tiny uppercase font-bold">Bienvenido</p>
-                    <small classNameName="text-default-500">Portal de proveedores</small>
-                    <h1 classNameName="font-bold text-large">Iniciar Sesión</h1>
-                </CardHeader>
-                <CardBody>
-                    <h2 classNameName="text-2xl font-bold text-center text-gris">Iniciar Sesión</h2>
-                    <form onSubmit={handleLogin} classNameName="mt-6">
-                        <div classNameName="mb-4">
-                            <label classNameName="block text-gris">Correo Electrónico</label>
-                            <input
-                                type="email"
-                                classNameName="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-azul"
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                                required
-                            />
-                        </div>
-                        <div classNameName="mb-4">
-                            <label classNameName="block text-gris">Contraseña</label>
-                            <input
-                                type="password"
-                                classNameName="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-azul"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                required
-                            />
-                        </div>
-                        <button
-                            type="submit"
-                            classNameName="w-full py-2 bg-rojo text-white font-bold rounded-lg hover:bg-red-700"
-                        >
-                            Ingresar
-                        </button>
-                    </form>
-                </CardBody>
-            </Card>
-        </div>*/
-}
