@@ -97,9 +97,11 @@ export interface ReferenciaBancaria {
 }
 
 export interface ReferenciaComercial {
-    name: string,
-    contact: string,
-    phone: string,
+    DocEntry: string;
+    U_CardCode: string;
+    U_RazonSocial: string,
+    U_Contacto: string,
+    U_Telefonos: string,
     registrationDate?: string;
 }
 export interface ServiciosOfrecidos {
@@ -127,6 +129,7 @@ export interface PurchaseOrder {
     approvedBy?: string;
     department: string;
     requestedBy: string;
+    avance: number
 }
 
 export interface OrderItem {
@@ -155,13 +158,15 @@ export interface Invoice {
     approvedDate?: string;
     paidDate?: string;
     rejectedDate?: string;
-    rejectionReason?: string;
+    paymentTerm?: string;
     taxAmount: number;
     subtotal: number;
+    saldo: number;
     documentUrl?: string;
     notes?: string;
     reviewedBy?: string;
     approvedBy?: string;
+    retention: number
 }
 
 export interface Payment {

@@ -164,9 +164,7 @@ import {
     Input,
     Select,
     SelectItem,
-    Divider,
-    Spinner,
-    Alert,
+    Divider
 } from "@heroui/react";
 import {Supplier} from "@/store/types";
 import {useExtendedStore} from "@/store/extendedStore.ts";
@@ -205,13 +203,14 @@ const ModalEdit: FC<ModalEditProps> = ({
    isEditOpen,
    onEditClose,
    selectedSupplier,
-   updateSupplier
+   updateSupplier,
+   onUpdated
 }) => {
     const estadosSupplier = useExtendedStore( state => state.estadosSupplier)
     const setSelectedSupplier = useExtendedStore(state => state.setSelectedSupplier);
     const [apiRecord, setApiRecord] = useState<SupplierApiRecord | null>(null);
-    const [isLoadingRecord, setIsLoadingRecord] = useState(false);
-    const [apiError, setApiError] = useState<string | null>(null);
+    const [ ,setIsLoadingRecord] = useState(false);
+    const [ ,setApiError] = useState<string | null>(null);
 
     const {
         control,
@@ -375,7 +374,7 @@ const ModalEdit: FC<ModalEditProps> = ({
                         </ModalHeader>
                         <ModalBody>
                             {selectedSupplier && (
-                                <div className="space-y-6">
+                                <div className="space-y-4">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <Controller
                                             name="cardName"
@@ -384,6 +383,7 @@ const ModalEdit: FC<ModalEditProps> = ({
                                                 <Input
                                                     {...field}
                                                     label="Nombre de la Empresa"
+                                                    size="sm"
                                                     placeholder="Ingrese el nombre"
                                                     isInvalid={!!errors.cardName}
                                                     errorMessage={errors.cardName?.message}
@@ -397,6 +397,7 @@ const ModalEdit: FC<ModalEditProps> = ({
                                                 <Input
                                                     {...field}
                                                     label="Tipo de Negocio"
+                                                    size="sm"
                                                     placeholder="Tipo de negocio"
                                                     isInvalid={!!errors.businessType}
                                                     errorMessage={errors.businessType?.message}
@@ -414,6 +415,7 @@ const ModalEdit: FC<ModalEditProps> = ({
                                                     {...field}
                                                     label="Email"
                                                     type="email"
+                                                    size="sm"
                                                     placeholder="email@empresa.com"
                                                     isInvalid={!!errors.email}
                                                     errorMessage={errors.email?.message}
@@ -427,6 +429,7 @@ const ModalEdit: FC<ModalEditProps> = ({
                                                 <Input
                                                     {...field}
                                                     label="Teléfono"
+                                                    size="sm"
                                                     placeholder="+51 999 999 999"
                                                     isInvalid={!!errors.phone}
                                                     errorMessage={errors.phone?.message}
@@ -443,6 +446,7 @@ const ModalEdit: FC<ModalEditProps> = ({
                                                 <Input
                                                     {...field}
                                                     label="Sitio Web"
+                                                    size="sm"
                                                     placeholder="https://www.empresa.com"
                                                     isInvalid={!!errors.website}
                                                     errorMessage={errors.website?.message}
@@ -456,6 +460,7 @@ const ModalEdit: FC<ModalEditProps> = ({
                                                 <Input
                                                     {...field}
                                                     label="RUC/Tax ID"
+                                                    size="sm"
                                                     placeholder="20123456789"
                                                     isInvalid={!!errors.cardCode}
                                                     errorMessage={errors.cardCode?.message}
@@ -471,6 +476,7 @@ const ModalEdit: FC<ModalEditProps> = ({
                                             <Input
                                                 {...field}
                                                 label="Dirección"
+                                                size="sm"
                                                 placeholder="Dirección completa"
                                                 isInvalid={!!errors.address}
                                                 errorMessage={errors.address?.message}
@@ -486,6 +492,7 @@ const ModalEdit: FC<ModalEditProps> = ({
                                                 <Input
                                                     {...field}
                                                     label="Departamento"
+                                                    size="sm"
                                                     placeholder="Departamento"
                                                     isInvalid={!!errors.department}
                                                     errorMessage={errors.department?.message}
@@ -499,6 +506,7 @@ const ModalEdit: FC<ModalEditProps> = ({
                                                 <Input
                                                     {...field}
                                                     label="Provincia"
+                                                    size="sm"
                                                     placeholder="Provincia"
                                                     isInvalid={!!errors.province}
                                                     errorMessage={errors.province?.message}
@@ -512,6 +520,7 @@ const ModalEdit: FC<ModalEditProps> = ({
                                                 <Input
                                                     {...field}
                                                     label="Distrito"
+                                                    size="sm"
                                                     placeholder="Distrito"
                                                     isInvalid={!!errors.district}
                                                     errorMessage={errors.district?.message}
@@ -532,6 +541,7 @@ const ModalEdit: FC<ModalEditProps> = ({
                                                     <Input
                                                         {...field}
                                                         label="Nombre Completo"
+                                                        size="sm"
                                                         placeholder="Nombre del contacto"
                                                         isInvalid={!!errors.contactPerson}
                                                         errorMessage={errors.contactPerson?.message}
@@ -546,6 +556,7 @@ const ModalEdit: FC<ModalEditProps> = ({
                                                         {...field}
                                                         label="Email de Contacto"
                                                         type="email"
+                                                        size="sm"
                                                         placeholder="contacto@empresa.com"
                                                         isInvalid={!!errors.contactEmail}
                                                         errorMessage={errors.contactEmail?.message}
@@ -561,6 +572,7 @@ const ModalEdit: FC<ModalEditProps> = ({
                                                     <Input
                                                         {...field}
                                                         label="Teléfono de Contacto"
+                                                        size="sm"
                                                         placeholder="+51 999 999 999"
                                                         isInvalid={!!errors.contactPhone}
                                                         errorMessage={errors.contactPhone?.message}

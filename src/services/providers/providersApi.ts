@@ -225,9 +225,9 @@ const mapApiRecordToSupplier = (record: SupplierApiRecord): Supplier => {
         registrationDate: undefined,
     }));
     const commercialReferences: ReferenciaComercial[] = (normalizedRecord.ReferenciasComerciales || []).map((ref) => ({
-        name: ref.name,
-        contact: ref.contact,
-        phone: ref.phone,
+        name: ref.U_RazonSocial,
+        contact: ref.U_Contacto,
+        phone: ref.U_Telefonos,
     }));
     const serviciosOfrecidos: ServiciosOfrecidos[] = (normalizedRecord.ServiciosOfrecidos || []).map((serv) => ({
         principalActivity: serv.principalActivity,
@@ -483,7 +483,7 @@ export const fetchSuppliersListFromApi = async (
     return records.map(mapApiRecordToSupplier);
 };
 
-export const fetchSupplierByCardCode = async (
+export const    fetchSupplierByCardCode = async (
     cardCode: string,
 ): Promise<{ supplier: Supplier; record: SupplierApiRecord } | null> => {
     console.log("Codigo de Proveedor a llmar", cardCode)

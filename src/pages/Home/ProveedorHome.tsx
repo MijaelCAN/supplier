@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {useEffect} from 'react';
 import {
     Card,
     CardBody,
@@ -29,15 +29,38 @@ import Dashboard from "@/layouts/Dashboard";
 import { useAuth } from '@/store/authStore';
 import { useSuppliers } from '@/store';
 import { useNavigate } from 'react-router-dom';
+import {fetchSupplierByCardCode} from "@/services/providers/providersApi.ts";
 
 const ProveedorHome = () => {
     const { currentUser } = useAuth();
-    const { suppliers } = useSuppliers();
+    const { selectedSupplier, setSelectedSupplier } = useSuppliers();
     const navigate = useNavigate();
 
 
+    useEffect(() => {
+        const loadSupplier = async () => {
+            try {
+                if(currentUser){
+                    const result = await fetchSupplierByCardCode(currentUser?.username);
+                    console.log( "Result",result);
+                    //setSelectedSupplier()
+                }
+            } catch (e) {
+                console.error("Error en la peticion de Dashborad Proveedor",e);
+            }
+        }
+
+
+        loadSupplier()
+
+
+    }, []);
+
+    console.log("Seleceted Sippler", selectedSupplier);
+    console.log("CurrentUser", currentUser);
     // Encontrar los datos del proveedor basado en el supplierId del usuario
-    const supplierData = suppliers.find(s => s.docEntry === currentUser?.supplierId);
+    //const supplierData = suppliers.find(s => s.docEntry === currentUser?.supplierId);
+    const supplierData = selectedSupplier
 
     // Datos de ejemplo para el proveedor (en una implementación real vendrían de APIs)
     const proveedorStats = {
@@ -54,7 +77,7 @@ const ProveedorHome = () => {
 
     // Actividades recientes de ejemplo
     const actividadesRecientes = [
-        {
+        /*{
             id: 1,
             tipo: 'orden',
             descripcion: 'Nueva orden de compra OC-2024-001',
@@ -74,12 +97,12 @@ const ProveedorHome = () => {
             descripcion: 'Nueva evaluación de desempeño',
             fecha: '2024-06-16',
             estado: 'pendiente'
-        }
+        }*/
     ];
 
     // Próximas fechas importantes
     const proximasFechas = [
-        {
+        /*{
             id: 1,
             evento: 'Entrega OC-2024-001',
             fecha: '2024-06-25',
@@ -90,7 +113,7 @@ const ProveedorHome = () => {
             evento: 'Vencimiento Cotización COT-001',
             fecha: '2024-06-28',
             tipo: 'cotizacion'
-        }
+        }*/
     ];
 
     const formatCurrency = (amount: number) => {
@@ -128,7 +151,7 @@ const ProveedorHome = () => {
                         <div className="flex items-start gap-6">
                             <Avatar
                                 src={supplierData.avatar}
-                                name={supplierData.cardName}
+                                name={supplierData.fullName}
                                 className="w-20 h-20"
                             />
                             <div className="flex-1">

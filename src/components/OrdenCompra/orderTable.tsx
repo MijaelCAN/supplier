@@ -8,12 +8,13 @@ import {
     TableHeader,
     TableRow
 } from "@heroui/react";
-import { FC } from "react";
-import {TableProps} from "@/components/OrdenCompra/Types/tableTyps.ts";
+import { Key, useMemo } from "react";
+import { TableProps } from "@/components/OrdenCompra/Types/tableTyps.ts";
+import { Selection } from "@react-types/shared";
 
-const OrderTable: FC<TableProps> = ({
+const OrderTable = <T extends object>({
     headerColumns,
-    sortedItems,
+    items,
     renderCell,
     topContent,
     bottomContent,
@@ -21,8 +22,16 @@ const OrderTable: FC<TableProps> = ({
     setSelectedKeys,
     sortDescriptor,
     setSortDescriptor,
-    messageEmpty
-}) => {
+    messageEmpty,
+    getRowKey
+}: TableProps<T>) => {
+    const normalizedSelection = useMemo<"all" | Set<Key>>(() => {
+        if (selectedKeys === "all") {
+            return "all";
+        }
+        return new Set(selectedKeys as Iterable<Key>);
+    }, [selectedKeys]);
+
     return (
         <Card>
             <CardBody className="p-6">
@@ -34,12 +43,12 @@ const OrderTable: FC<TableProps> = ({
                     classNames={{
                         wrapper: "max-h-[400px]",
                     }}
-                    selectedKeys={selectedKeys}
+                    selectedKeys={normalizedSelection}
                     selectionMode="multiple"
                     sortDescriptor={sortDescriptor}
                     topContent={topContent}
                     topContentPlacement="outside"
-                    onSelectionChange={setSelectedKeys}
+                    onSelectionChange={(keys) => setSelectedKeys(keys as Selection)}
                     onSortChange={setSortDescriptor}
                 >
                     <TableHeader columns={headerColumns}>
@@ -53,9 +62,9 @@ const OrderTable: FC<TableProps> = ({
                             </TableColumn>
                         )}
                     </TableHeader>
-                    <TableBody emptyContent={messageEmpty} items={sortedItems}>
+                    <TableBody emptyContent={messageEmpty} items={items}>
                         {(item) => (
-                            <TableRow key={item}>
+                            <TableRow key={getRowKey(item)}>
                                 {(columnKey) => <TableCell>{renderCell(item, columnKey)}</TableCell>}
                             </TableRow>
                         )}
@@ -64,6 +73,6 @@ const OrderTable: FC<TableProps> = ({
             </CardBody>
         </Card>
     );
-}
+};
 
 export default OrderTable;

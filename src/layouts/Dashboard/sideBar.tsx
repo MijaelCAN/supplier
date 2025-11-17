@@ -6,6 +6,7 @@ import {FC} from "react";
 import {Link, useNavigate} from "react-router-dom";
 import {UserRole} from "@/routes/menuTypes.ts";
 import { useAuth } from "@/store/authStore";
+import {ThemeSwitch} from "@/components/theme-switch.tsx";
 
 interface SideBarProps {
     sidebarOpen: boolean;

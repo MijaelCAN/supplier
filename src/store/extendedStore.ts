@@ -66,7 +66,9 @@ interface ExtendedAppStore {
     setSelectedSupplier: (supplier: Supplier | null) => void;
 
     // Acciones para Órdenes de Compra
+    setPurchaseOrders: (orders: PurchaseOrder[]) => void;
     addPurchaseOrder: (order: Omit<PurchaseOrder, 'id'>) => void;
+    addApiPurchaseOrder: (order: Omit<PurchaseOrder, 'id'>) => void;
     updatePurchaseOrder: (id: string, order: Partial<PurchaseOrder>) => void;
     deletePurchaseOrder: (id: string) => void;
     getPurchaseOrderById: (id: string) => PurchaseOrder | undefined;
@@ -74,6 +76,7 @@ interface ExtendedAppStore {
     approvePurchaseOrder: (id: string, approvedBy: string) => void;
 
     // Acciones para Facturas
+    setInvoices: (invoices: Invoice[]) => void;
     addInvoice: (invoice: Omit<Invoice, 'id'>) => void;
     updateInvoice: (id: string, invoice: Partial<Invoice>) => void;
     deleteInvoice: (id: string) => void;
@@ -200,32 +203,32 @@ const initialSuppliers: Supplier[] = [
 
 const initialPurchaseOrders: PurchaseOrder[] = [
     {
-        id: "po-001",
-        orderNumber: "OC-2024-001",
-        supplierId: "1",
-        supplierName: "TechCorp Solutions SAC",
-        totalAmount: 45890,
-        currency: "PEN",
+        id: "po-001", // OK
+        orderNumber: "OC-2024-001", // OK
+        supplierId: "1", // OK
+        supplierName: "TechCorp Solutions SAC", // OK
+        totalAmount: 45890, // OK
+        currency: "PEN", // OK
         status: "Completada",
         priority: "Alta",
-        createdDate: "2024-06-01",
-        approvedDate: "2024-06-02",
-        deliveryDate: "2024-06-15",
+        createdDate: "01-06-2024", // OK
+        approvedDate: "2024-06-02", // ok
+        deliveryDate: "2024-06-15", // ok
         paymentTerms: "30",
-        createdBy: "Juan Pérez",
-        approvedBy: "Maria García",
-        department: "TI",
-        requestedBy: "Carlos López",
-        notes: "Equipos urgentes para proyecto Q2",
+        createdBy: "Juan Pérez", // quien creo la compra
+        approvedBy: "Maria García", // quien aprobo la compra
+        department: "TI", // departamento que solicito la compra
+        requestedBy: "Carlos López", // quien solicito la compra
+        notes: "Equipos urgentes para proyecto Q2", // comentario de requerimiento
         items: [
             {
-                id: "item-001",
-                productCode: "LAP-001",
+                id: "item-001", // DocEntry
+                productCode: "LAP-001", // COdigo de producto
                 productName: "Laptop Dell Inspiron 15",
                 description: "Laptop para desarrollo con 16GB RAM, SSD 512GB",
                 quantity: 10,
                 unitPrice: 3500,
-                totalPrice: 35000,
+                totalPrice: 35000, // OK
                 unit: "UND",
                 category: "Equipos"
             },
@@ -597,7 +600,7 @@ export const useExtendedStore = create<ExtendedAppStore>()(
         (set, get) => ({
             // Estados iniciales
             suppliers: initialSuppliers,
-            purchaseOrders: initialPurchaseOrders,
+            purchaseOrders: [],
             invoices: initialInvoices,
             payments: initialPayments,
             users: initialUsers,
@@ -648,20 +651,20 @@ export const useExtendedStore = create<ExtendedAppStore>()(
 
             // Datos de configuración
             orderStatuses: [
-                { key: 'Borrador', label: 'Borrador', color: 'default' },
+                /*{ key: 'Borrador', label: 'Borrador', color: 'default' },
                 { key: 'Pendiente', label: 'Pendiente', color: 'warning' },
-                { key: 'Aprobada', label: 'Aprobada', color: 'success' },
-                { key: 'En Proceso', label: 'En Proceso', color: 'primary' },
-                { key: 'Completada', label: 'Completada', color: 'success' },
-                { key: 'Cancelada', label: 'Cancelada', color: 'danger' }
+                { key: 'Aprobada', label: 'Aprobada', color: 'success' },*/
+                { key: 'En Proceso', label: 'Abierto', color: 'primary' },
+                { key: 'Completada', label: 'Cerrado', color: 'success' },
+                /*{ key: 'Cancelada', label: 'Cancelada', color: 'danger' }*/
             ],
 
             invoiceStatuses: [
-                { key: 'Recibida', label: 'Recibida', color: 'primary' },
-                { key: 'En Revisión', label: 'En Revisión', color: 'warning' },
-                { key: 'Aprobada', label: 'Aprobada', color: 'success' },
+                { key: 'Recibida', label: 'Pendiente', color: 'warning' },
+                /*{ key: 'En Revisión', label: 'En Revisión', color: 'warning' },
+                { key: 'Aprobada', label: 'Aprobada', color: 'success' },*/
                 { key: 'Pagada', label: 'Pagada', color: 'success' },
-                { key: 'Rechazada', label: 'Rechazada', color: 'danger' }
+                /*{ key: 'Rechazada', label: 'Rechazada', color: 'danger' }*/
             ],
 
             paymentMethods: [
@@ -735,12 +738,31 @@ export const useExtendedStore = create<ExtendedAppStore>()(
 
             setSelectedSupplier: (supplier) => set({ selectedSupplier: supplier }),
 
+            setPurchaseOrders: (orders) => set({ purchaseOrders: orders }),
+
             addPurchaseOrder: (orderData) => set((state) => {
                 const newOrder = {
                     ...orderData,
                     id: `po-${String(state.purchaseOrders.length + 1).padStart(3, '0')}`
                 };
                 return { purchaseOrders: [...state.purchaseOrders, newOrder] };
+            }),
+            addApiPurchaseOrder: (orderData) => set((state) => {
+                const orderExists = state.purchaseOrders.some(order =>
+                    order.id === orderData.id ||
+                    order.orderNumber === orderData.orderNumber
+                );
+
+                if (orderExists) {
+                    console.log(`Orden ${orderData.orderNumber} ya existe, omitiendo...`);
+                    return state; // No hacer cambios si ya existe
+                }
+
+                // Si no existe, agregar la nueva orden
+                console.log(`Agregando nueva orden: ${orderData.orderNumber}`);
+                return {
+                    purchaseOrders: [...state.purchaseOrders, orderData]
+                };
             }),
 
             updatePurchaseOrder: (id, orderData) => set((state) => ({
@@ -770,6 +792,8 @@ export const useExtendedStore = create<ExtendedAppStore>()(
                     } : order
                 )
             })),
+
+            setInvoices: (invoices) => set({ invoices: invoices }),
 
             addInvoice: (invoiceData) => set((state) => {
                 const newInvoice = {
@@ -960,8 +984,8 @@ export const useExtendedStore = create<ExtendedAppStore>()(
             partialize: (state) => ({
                 selectedSupplier: state.selectedSupplier,
                 suppliers: state.suppliers,
-                purchaseOrders: state.purchaseOrders,
-                invoices: state.invoices,
+                // purchaseOrders no se persiste porque son datos dinámicos que deben venir siempre de la API
+                // invoices no se persiste porque son datos dinámicos que deben venir siempre de la API
                 payments: state.payments,
                 users: state.users,
                 evaluations: state.evaluations,
@@ -998,7 +1022,9 @@ export const useSuppliers = () => {
 
 export const usePurchaseOrders = () => {
     const purchaseOrders = useExtendedStore(state => state.purchaseOrders);
+    const setPurchaseOrders = useExtendedStore(state => state.setPurchaseOrders);
     const addPurchaseOrder = useExtendedStore(state => state.addPurchaseOrder);
+    const addApiPurchaseOrder = useExtendedStore(state => state.addApiPurchaseOrder);
     const updatePurchaseOrder = useExtendedStore(state => state.updatePurchaseOrder);
     const deletePurchaseOrder = useExtendedStore(state => state.deletePurchaseOrder);
     const getPurchaseOrderById = useExtendedStore(state => state.getPurchaseOrderById);
@@ -1008,7 +1034,9 @@ export const usePurchaseOrders = () => {
 
     return {
         purchaseOrders,
+        setPurchaseOrders,
         addPurchaseOrder,
+        addApiPurchaseOrder,
         updatePurchaseOrder,
         deletePurchaseOrder,
         getPurchaseOrderById,
@@ -1020,6 +1048,7 @@ export const usePurchaseOrders = () => {
 
 export const useInvoices = () => {
     const invoices = useExtendedStore(state => state.invoices);
+    const setInvoices = useExtendedStore(state => state.setInvoices);
     const addInvoice = useExtendedStore(state => state.addInvoice);
     const updateInvoice = useExtendedStore(state => state.updateInvoice);
     const deleteInvoice = useExtendedStore(state => state.deleteInvoice);
@@ -1031,6 +1060,7 @@ export const useInvoices = () => {
 
     return {
         invoices,
+        setInvoices,
         addInvoice,
         updateInvoice,
         deleteInvoice,

@@ -7,18 +7,14 @@ import {
     Button,
     Progress,
     Avatar,
-    Divider
 } from "@heroui/react";
 import {
-    ChartBarIcon,
     BuildingOfficeIcon,
     ShoppingCartIcon,
     DocumentTextIcon,
     BanknotesIcon,
     ArrowTrendingUpIcon,
-    TrendingDownIcon,
     ClockIcon,
-    CheckCircleIcon,
     ExclamationTriangleIcon,
     EyeIcon,
     ArrowRightIcon

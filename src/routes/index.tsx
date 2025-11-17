@@ -13,11 +13,12 @@ import EvaluationForm from "@/pages/Proveedores/evalForm";
 import ExecutiveDashboard from "@/pages/Reportes/dashboard";
 import SupplierManagement from "@/pages/Proveedores/index.tsx";
 import PurchaseOrdersList from "@/pages/OrdenCompra";
+import InvoicesList from "@/pages/Facturas";
 import UserManagement from "@/pages/Configuracion/usuarios.tsx";
 import PaymentsList from "@/pages/Finanzas/pagos.tsx";
 import {SolicitudCompra} from "@/pages/SolicitudCompra";
-import GanttChart from "@/pages/Configuracion/GanttChart.tsx";
 import AgendaPage from "@/pages/Agenda";
+import DocsPage from "@/pages/blog.tsx";
 
 const router = createBrowserRouter([
   {
@@ -56,7 +57,7 @@ const router = createBrowserRouter([
     path: "/proveedores/evaluaciones",
     element: (
       <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.COMPRAS]}>
-        <EvaluationSuppliers />
+        <EvaluationSuppliers rol={"PROVEEDOR"} />
       </ProtectedRoute>
     ),
   },
@@ -64,7 +65,7 @@ const router = createBrowserRouter([
     path: "/proveedor/evaluacion",
     element: (
       <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.COMPRAS]}>
-        <EvaluationForm />
+        <EvaluationForm rol={"PROVEEDOR"} />
       </ProtectedRoute>
     ),
   },
@@ -110,12 +111,7 @@ const router = createBrowserRouter([
     path: "/factura",
     element: (
       <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.FINANZAS, UserRole.PROVEEDOR]}>
-        <Dashboard>
-          <div className="p-6">
-            <h1 className="text-2xl font-bold mb-4">Facturas</h1>
-            <p className="text-gray-600">Página en construcción - Gestión de facturas</p>
-          </div>
-        </Dashboard>
+        <InvoicesList />
       </ProtectedRoute>
     ),
   },
@@ -170,7 +166,7 @@ const router = createBrowserRouter([
               <p className="text-gray-600">Página en construcción - Configuración general</p>
             </div>
           </Dashboard>*/}
-          <GanttChart/>
+          <DocsPage/>
         </ProtectedRoute>
     ),
   },

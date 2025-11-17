@@ -33,8 +33,6 @@ import {
 } from '@heroui/react';
 import {
     UserPlusIcon,
-    ChatBubbleLeftIcon,
-    EllipsisHorizontalIcon,
     CameraIcon,
     PencilIcon,
     MapPinIcon,
@@ -365,9 +363,11 @@ const SECTION_TITLES: Record<SectionKey, string> = {
 };
 
 type CommercialReference = {
-    name: string;
-    contact: string;
-    phone: string;
+    DocEntry: string,
+    U_CardCode: string,
+    U_RazonSocial: string;
+    U_Contacto: string;
+    U_Telefonos: string;
 };
 
 type ServiceOffered = {
@@ -893,17 +893,17 @@ const SupplierProfileCard = () => {
              if (!prev) return prev;
             const referencias: CommercialReference[] = [...(prev.ReferenciasComerciales ?? [])];
             while (referencias.length <= index) {
-                referencias.push({name: '', contact: '', phone: ''});
+                referencias.push({DocEntry: '', U_CardCode: '', U_RazonSocial: '', U_Contacto: '', U_Telefonos: ''});
             }
             referencias[index] = {...referencias[index], [field]: value} as CommercialReference;
             return {...prev, ReferenciasComerciales: referencias};
          });
      };
  
-     const addCommercial = () => {
+     const addCommercial = (codidoSN: string) => {
          setFormData((prev) => (prev ? {
              ...prev,
-            ReferenciasComerciales: [...(prev.ReferenciasComerciales ?? []), {name: '', contact: '', phone: ''}],
+            ReferenciasComerciales: [...(prev.ReferenciasComerciales ?? []), {DocEntry: '0', U_CardCode: codidoSN, U_RazonSocial: '', U_Contacto: '', U_Telefonos: ''}],
          } : prev));
      };
  
@@ -1296,7 +1296,7 @@ const SupplierProfileCard = () => {
                         {bancos.map((banco, index) => {
                             const theme = getBankTheme(banco.Banco);
                             return (
-                                <Card key={`bank-${index}`} className={`${theme.cardClass}`}>
+                                <Card key={`bank-${index}`} >
                                     <CardBody className="space-y-4">
                                         <div className="flex items-start justify-between gap-3">
                                             <div>
@@ -1436,12 +1436,12 @@ const SupplierProfileCard = () => {
                         {referencias.map((referencia, index) => (
                             <Card key={`ref-${index}`} className="border border-gray-200 dark:border-gray-700">
                                 <CardBody className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                    <Input label="Razón Social" value={referencia.name}
-                                           onValueChange={(value) => handleCommercialChange(index, 'name', value)}/>
-                                    <Input label="Contacto" value={referencia.contact}
-                                           onValueChange={(value) => handleCommercialChange(index, 'contact', value)}/>
-                                    <Input label="Teléfono" value={referencia.phone}
-                                           onValueChange={(value) => handleCommercialChange(index, 'phone', value)}/>
+                                    <Input label="Razón Social" value={referencia.U_RazonSocial}
+                                           onValueChange={(value) => handleCommercialChange(index, 'U_RazonSocial', value)}/>
+                                    <Input label="Contacto" value={referencia.U_Contacto}
+                                           onValueChange={(value) => handleCommercialChange(index, 'U_Contacto', value)}/>
+                                    <Input label="Teléfono" value={referencia.U_Telefonos}
+                                           onValueChange={(value) => handleCommercialChange(index, 'U_Telefonos', value)}/>
                                     <div className="md:col-span-3 flex justify-end">
                                         <Button color="danger" variant="light" size="sm" isDisabled={isGlobalLoading}
                                                 onPress={() => removeCommercial(index)}>
@@ -1451,7 +1451,7 @@ const SupplierProfileCard = () => {
                                 </CardBody>
                             </Card>
                         ))}
-                        <Button variant="bordered" size="sm" isDisabled={isGlobalLoading} onPress={addCommercial}>
+                        <Button variant="bordered" size="sm" isDisabled={isGlobalLoading} onPress={() => addCommercial(formData?.CodigoSN)}>
                             Agregar referencia comercial
                         </Button>
                     </div>
@@ -1489,35 +1489,6 @@ const SupplierProfileCard = () => {
     useEffect(()=>{
        console.log("Informacion", "nueva informacion");
     },[])
-
-
-    /*let list =  ({
-        async load({signal}) {
-            delay(3000)
-            let jsonR =  json;
-
-            setIsLoading(false);
-
-            return {
-                items: jsonR.results,
-            };
-        },
-        async sort({items, sortDescriptor}) {
-            return {
-                items: items.sort((a, b) => {
-                    let first = a[sortDescriptor.column];
-                    let second = b[sortDescriptor.column];
-                    let cmp = (parseInt(first) || first) < (parseInt(second) || second) ? -1 : 1;
-
-                    if (sortDescriptor.direction === "descending") {
-                        cmp *= -1;
-                    }
-
-                    return cmp;
-                }),
-            };
-        },
-    });*/
 
     function getRandomColor() {
         const colors = ['rgba(255,107,107,0.68)', 'rgba(107,203,119,0.68)', 'rgba(77,150,255,0.68)', 'rgba(255,217,61,0.68)', '#9D4EDD'];
@@ -1786,7 +1757,7 @@ const SupplierProfileCard = () => {
                             >
                                 EVALUACIÓNES
                             </Button>
-                            <Button
+                            {/*<Button
                                 size="sm"
                                 variant="bordered"
                                 startContent={<ChatBubbleLeftIcon className="w-4 h-4"/>}
@@ -1799,7 +1770,7 @@ const SupplierProfileCard = () => {
                                 variant="bordered"
                             >
                                 <EllipsisHorizontalIcon className="w-5 h-5"/>
-                            </Button>
+                            </Button>*/}
                         </div>
                     </div>
 
@@ -1973,7 +1944,7 @@ const SupplierProfileCard = () => {
                         <div className="flex-1">
                             <div className="flex justify-between items-center gap-3 mb-2">
                                 <div className="flex items-center gap-3">
-                                    <h1 className="text-xl font-bold text-gray-900">Persona de Contacto</h1>
+                                    <h1 className="text-xl font-bold text-gray-900">Personas de Contacto</h1>
                                     <Button
                                         isDisabled={isGlobalLoading}
                                         isIconOnly
@@ -1991,38 +1962,60 @@ const SupplierProfileCard = () => {
 
                     { /*====================== CONTACT PERSON CARD ======================*/ }
                     {contactList.length > 0 ? (
-                         <Accordion selectionMode="multiple">
-                            {contactList.map((contacto, index) => (
-                                <AccordionItem
-                                    key={index}
-                                    aria-label="Zoey Lang"
-                                    startContent={
-                                        <Avatar
-                                            isBordered
-                                            color="warning"
-                                            radius="lg"
-                                            src="https://i.pravatar.cc/150?u=a04258114e29026702d"
-                                        />
-                                    }
-                                    subtitle={
-                                        <p className="flex space-x-4 items-center text-sm text-gray-500">
-                                            <span className="text-primary ml-3">{contacto.E_MailL || 'Sin correo'}</span>
-                                            <span className="text-xs">{contacto.Profesion || 'Sin asignar'}</span>
-                                        </p>
-                                    }
-                                    title={
-                                        <div className="flex justify-between items-center gap-2">
-                                            <span className="text-md ml-3">{contacto.Name || 'Contacto sin nombre'}</span>
-                                            <div className="flex space-x-2">
-                                                <PencilIcon className="w-3 h-3 text-gray-600"/>
-                                                <DeleteIcon className="w-3 h-3 text-gray-600"/>
-                                            </div>
-                                        </div>
-                                    }
-                                >
-                                </AccordionItem>
-                            ))}
-                        </Accordion>
+                         <>
+                         {/*<Accordion selectionMode="multiple">
+                                 {contactList.map((contacto, index) => (
+                                     <AccordionItem
+                                         key={index}
+                                         aria-label="Zoey Lang"
+                                         startContent={
+                                             <Avatar
+                                                 isBordered
+                                                 color="warning"
+                                                 radius="lg"
+                                                 src="https://i.pravatar.cc/150?u=a04258114e29026702d"
+                                             />
+                                         }
+                                         subtitle={
+                                             <p className="flex space-x-4 items-center text-sm text-gray-500">
+                                                 <span className="text-primary ml-3">{contacto.E_MailL || 'Sin correo'}</span>
+                                                 <span className="text-xs">{contacto.Profesion || 'Sin asignar'}</span>
+                                             </p>
+                                         }
+                                         title={
+                                             <div className="flex justify-between items-center gap-2">
+                                                 <span className="text-md ml-3">{contacto.Name || 'Contacto sin nombre'}</span>
+                                                 <div className="flex space-x-2">
+                                                     <PencilIcon className="w-3 h-3 text-gray-600"/>
+                                                     <DeleteIcon className="w-3 h-3 text-gray-600"/>
+                                                 </div>
+                                             </div>
+                                         }
+                                     >
+                                     </AccordionItem>
+                                 ))}
+                             </Accordion>*/}
+                             <Table
+                                 aria-label="Example table with client side sorting"
+                             >
+                                 <TableHeader>
+                                     <TableColumn>Nombres</TableColumn>
+                                     <TableColumn>Cargo</TableColumn>
+                                     <TableColumn>Email</TableColumn>
+                                     <TableColumn>Teléfono</TableColumn>
+                                 </TableHeader>
+                                 <TableBody emptyContent="No hay referencias comerciales">
+                                     {contactList.map((ref, index) => (
+                                         <TableRow key={`ref-row-${index}`}>
+                                             <TableCell>{ref.Name || '-'}</TableCell>
+                                             <TableCell>{ref.Profesion || '-'}</TableCell>
+                                             <TableCell>{ref.E_MailL || '-'}</TableCell>
+                                             <TableCell>{ref.E_Telefono || '-'}</TableCell>
+                                         </TableRow>
+                                     ))}
+                                 </TableBody>
+                             </Table>
+                         </>
                     ) : (
                         <div>
                             <span>No hay personas de Contacto registrada</span>
@@ -2125,9 +2118,9 @@ const SupplierProfileCard = () => {
                         <TableBody emptyContent="No hay referencias comerciales">
                             {(formData?.ReferenciasComerciales ?? []).map((ref, index) => (
                                 <TableRow key={`ref-row-${index}`}>
-                                    <TableCell>{ref.name || '-'}</TableCell>
-                                    <TableCell>{ref.contact || '-'}</TableCell>
-                                    <TableCell>{ref.phone || '-'}</TableCell>
+                                    <TableCell>{ref.U_RazonSocial || '-'}</TableCell>
+                                    <TableCell>{ref.U_Contacto || '-'}</TableCell>
+                                    <TableCell>{ref.U_Telefonos || '-'}</TableCell>
                                 </TableRow>
                             ))}
                         </TableBody>
@@ -2135,7 +2128,7 @@ const SupplierProfileCard = () => {
 
 
                     { /*====================== OFRECED SERVICES TITLE ======================*/ }
-                    <div className="flex justify-between items-start mt-6 border-t border-gray-200 pt-6">
+                    {/*<div className="flex justify-between items-start mt-6 border-t border-gray-200 pt-6">
                         <div className="flex-1">
                             <div className="flex justify-between items-center gap-3 mb-2">
                                 <div className="flex items-center gap-3">
@@ -2152,10 +2145,10 @@ const SupplierProfileCard = () => {
                                 </div>
                             </div>
                         </div>
-                    </div>
+                    </div>*/}
 
                     { /*====================== OFRECED SERVICES CARD ======================*/ }
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {/*<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {(formData?.ServiciosOfrecidos ?? []).length > 0 ? (
                             (formData?.ServiciosOfrecidos ?? []).map((servicio, index) => (
                                 <Card key={`service-display-${index}`} className="border border-gray-200 dark:border-gray-700">
@@ -2169,7 +2162,7 @@ const SupplierProfileCard = () => {
                         ) : (
                             <div className="flex flex-wrap justify-center text-xs"><span>No hay servicios registrados</span></div>
                         )}
-                    </div>
+                    </div>*/}
 
 
                     { /*====================== DOCUMENTS TITLE ======================*/ }

@@ -515,7 +515,7 @@ const PurchaseOrderReception = () => {
                     {viewMode === 'table' ? (
                         <OrderTable
                             headerColumns={headerColumns}
-                            sortedItems={sortedItems}
+                            items={sortedItems}
                             renderCell={renderCell}
                             topContent={topContent}
                             bottomContent={bottomContent}
@@ -523,7 +523,8 @@ const PurchaseOrderReception = () => {
                             setSelectedKeys={setSelectedKeys}
                             sortDescriptor={sortDescriptor}
                             setSortDescriptor={setSortDescriptor}
-                            messageEmpty = {messageEmpty}
+                            messageEmpty={messageEmpty}
+                            getRowKey={(item) => item.id}
                         />
                     ) : (
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

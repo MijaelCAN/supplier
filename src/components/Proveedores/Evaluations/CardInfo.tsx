@@ -1,15 +1,7 @@
-import React from "react";
-import {
-    Card,
-    // CardHeader,
-    // CardBody,
-    Button,
-    // Image,
-    // Input,
-    // Select,
-    // SelectItem,
-    Chip
-} from "@heroui/react";
+import { FC, ReactNode } from "react";
+import { Card, Button, Chip } from "@heroui/react";
+
+type TipoDocumento = "evaluacion" | "cotizacion" | "contrato";
 
 interface ProveedorInfoProps {
     datosProveedor: {
@@ -22,42 +14,59 @@ interface ProveedorInfoProps {
         email?: string;
         telefono?: string;
     };
-    tipoDocumento?: string;
+    tipoDocumento?: TipoDocumento;
 }
 
+type TipoConfig = Record<TipoDocumento, {
+    titulo: string;
+    icono: ReactNode;
+    color: string;
+    bgColor: string;
+    borderColor: string;
+}>;
 
-const ProveedorInfo: React.FC<ProveedorInfoProps> = ({datosProveedor, tipoDocumento = "cotizacion"}) => {
-    const tipoConfig = {
-        evaluacion: {
-            titulo: "Datos de la Evaluación",
-            icono: <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+const tipoConfig: TipoConfig = {
+    evaluacion: {
+        titulo: "Datos de la Evaluación",
+        icono: (
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-            </svg>,
-            color: "text-blue-600",
-            bgColor: "bg-blue-50",
-            borderColor: "border-blue-200"
-        },
-        cotizacion: {
-            titulo: "Datos de la Cotización",
-            icono: <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            </svg>
+        ),
+        color: "text-blue-600",
+        bgColor: "bg-blue-50",
+        borderColor: "border-blue-200"
+    },
+    cotizacion: {
+        titulo: "Datos de la Cotización",
+        icono: (
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-            </svg>,
-            color: "text-green-600",
-            bgColor: "bg-green-50",
-            borderColor: "border-green-200"
-        },
-        contrato: {
-            titulo: "Datos del Contrato",
-            icono: <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            </svg>
+        ),
+        color: "text-green-600",
+        bgColor: "bg-green-50",
+        borderColor: "border-green-200"
+    },
+    contrato: {
+        titulo: "Datos del Contrato",
+        icono: (
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>,
-            color: "text-purple-600",
-            bgColor: "bg-purple-50",
-            borderColor: "border-purple-200"
-        }
-    };
+            </svg>
+        ),
+        color: "text-purple-600",
+        bgColor: "bg-purple-50",
+        borderColor: "border-purple-200"
+    }
+};
 
-    const config = tipoConfig[tipoDocumento] || tipoConfig.evaluacion;
+const ProveedorInfo: FC<ProveedorInfoProps> = ({
+    datosProveedor,
+    tipoDocumento = "cotizacion"
+}) => {
+    const resolvedTipoDocumento: TipoDocumento = tipoDocumento ?? "cotizacion";
+    const config = tipoConfig[resolvedTipoDocumento] ?? tipoConfig.cotizacion;
 
     return (
         <div>
@@ -106,10 +115,14 @@ const ProveedorInfo: React.FC<ProveedorInfoProps> = ({datosProveedor, tipoDocume
 
                                 {/* Info básica */}
                                 <div className="text-white">
-                                    <h1 className="text-2xl md:text-2xl font-bold mb-1">
-                                        {/*datosProveedor?.nombre || "Nombre del Proveedor"*/}
-                                        EVALUACION DE PROVEEDOR
-                                    </h1>
+                                    <div className="flex items-center gap-3 mb-1">
+                                        <span className={`flex items-center justify-center w-10 h-10 rounded-xl ${config.bgColor} ${config.borderColor}`}>
+                                            {config.icono}
+                                        </span>
+                                        <h1 className="text-2xl md:text-2xl font-bold">
+                                            {config.titulo.toUpperCase()}
+                                        </h1>
+                                    </div>
                                     <p className="text-white/80 text-sm md:text-base mb-2">
                                         {datosProveedor?.nombre || "Categoría de Servicios"}
                                     </p>
@@ -117,8 +130,8 @@ const ProveedorInfo: React.FC<ProveedorInfoProps> = ({datosProveedor, tipoDocume
                                         <Chip size="sm" className="bg-white/20 backdrop-blur-sm text-white border border-white/30">
                                             ID: {datosProveedor?.id || "PROV-001"}
                                         </Chip>
-                                        <Chip size="sm" className="bg-green-500/90 backdrop-blur-sm text-white">
-                                            Activo
+                                        <Chip size="sm" className={`bg-white/10 backdrop-blur-sm ${config.color}`}>
+                                            Estado: Activo
                                         </Chip>
                                     </div>
                                 </div>

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import {
     Button,
     Input,
@@ -16,7 +16,6 @@ import {
     Pagination,
     Card,
     CardBody,
-    CardHeader,
     useDisclosure,
     Modal,
     ModalContent,
@@ -35,7 +34,6 @@ import {
     EyeIcon,
     CheckIcon,
     PlayIcon,
-    DocumentTextIcon,
     ChevronDownIcon,
     BanknotesIcon,
     ClockIcon,
@@ -50,14 +48,13 @@ const PaymentsList = () => {
     const {
         payments,
         addPayment,
-        updatePayment,
         processPayment,
         completePayment
     } = usePayments();
     
     const { invoices } = useInvoices();
     const paymentMethods = useExtendedStore(state => state.paymentMethods);
-    const currencies = useExtendedStore(state => state.currencies);
+    //const currencies = useExtendedStore(state => state.currencies);
 
     const [filterValue, setFilterValue] = useState("");
     const [statusFilter, setStatusFilter] = useState("all");
@@ -561,7 +558,7 @@ const PaymentsList = () => {
                                             }}
                                         >
                                             {approvedInvoices.map(invoice => (
-                                                <SelectItem key={invoice.id} value={invoice.id}>
+                                                <SelectItem key={invoice.id}>
                                                     {invoice.invoiceNumber} - {invoice.supplierName} - {formatCurrency(invoice.amount, invoice.currency)}
                                                 </SelectItem>
                                             ))}
@@ -599,7 +596,7 @@ const PaymentsList = () => {
                                             }
                                         >
                                             {paymentMethods.map(method => (
-                                                <SelectItem key={method.key} value={method.key}>
+                                                <SelectItem key={method.key}>
                                                     {method.label}
                                                 </SelectItem>
                                             ))}

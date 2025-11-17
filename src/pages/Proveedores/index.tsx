@@ -559,7 +559,7 @@ export default function SupplierManagement() {
                 {/* Table */}
                 <OrderTable
                     headerColumns={headerColumns}
-                    sortedItems={sortedItems}
+                    items={sortedItems}
                     renderCell={renderCell}
                     topContent={topContent}
                     bottomContent={bottomContent}
@@ -568,6 +568,7 @@ export default function SupplierManagement() {
                     sortDescriptor={sortDescriptor}
                     setSortDescriptor={setSortDescriptor}
                     messageEmpty={emptyMessage}
+                    getRowKey={(item) => item.docEntry}
                 />
 
                 <ModalRegister isRegisterOpen={isRegisterOpen} onRegisterClose={onRegisterClose} onRegistered={handleRefreshSuppliers} />

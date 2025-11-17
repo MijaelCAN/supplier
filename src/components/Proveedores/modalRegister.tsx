@@ -187,33 +187,17 @@ import {
     Input,
     Select,
     SelectItem,
-    Divider
+    Divider,
+    Chip
 } from "@heroui/react"
 import {useConfigData} from '@/store'
 import { useSuppliers as useExtendedSuppliers } from '@/store/extendedStore'
 import { useAuthStore } from '@/store/authStore'
 import { UserRole } from '@/routes/menuTypes'
 import { createSupplierProfile, fetchSunatSupplierData, fetchSuppliersListFromApi, type SupplierApiRecord } from '@/services/providers/providersApi';
+import { sscoList, sscoLastUpdated } from '@/services/sunat/sscoList';
 
 // Schema de validación con Zod
-/*const supplierRegisterSchema2 = z.object({
-    ruc: z.string()
-        .min(11, 'El RUC debe tener 11 dígitos')
-        .max(11, 'El RUC debe tener 11 dígitos')
-        .regex(/^\d{11}$/, 'El RUC debe contener solo números'),
-    razonSocial: z.string().min(1, 'La razón social es requerida'),
-    domicilioFiscal: z.string().min(1, 'El domicilio fiscal es requerido'),
-    email: z.string().email('Email inválido').min(1, 'El email es requerido'),
-    tipoPersona: z.string().min(1, 'El tipo de persona es requerido'), // NO ESTA
-    gerenteGeneral: z.string().optional(), // NO ESTA
-    gerenteAdministrativo: z.string().optional(), // NO ESTA
-    gerenteVentas: z.string().optional(), // NO ESTA
-    contactoNombre: z.string().min(1, 'El nombre del contacto es requerido'),
-    contactoTelefono: z.string().optional(),
-    terminoPago: z.string().min(1, 'El término de pago es requerido'),
-    estadoInicial: z.string().min(1, 'El estado inicial es requerido')
-})*/
-
 const supplierRegisterSchema = z.object({
     docEntry: z.string().min(1, "El identificador de proveedor es requerido"),
     cardCode: z.string()
@@ -223,7 +207,7 @@ const supplierRegisterSchema = z.object({
     cardName: z.string().min(1, "La razón social es requerida"),
     email: z.string().email("Email inválido").min(1, "El email es requerido").optional(),
     phone: z.string().min(1, "El teléfono es requerido"),
-    website: z.string().url("La página web debe ser una URL válida").optional(),
+    //website: z.string().url("La página web debe ser una URL válida").optional(),
     address: z.string().min(1, "La dirección es requerida"),
     ubigeo: z.string().min(1, "El ubigeo es requerido"),
     city: z.string().min(1, "La ciudad es requerida"),
@@ -286,11 +270,15 @@ const ModalRegister: FC<ModalRegisterProps> = ({
 }) => {
     const { suppliers, setSuppliers } = useExtendedSuppliers();
     const supplierList = Array.isArray(suppliers) ? suppliers : [];
-    const { terminosPago, tipoPersona } = useConfigData()
+    const { terminosPago } = useConfigData()
     const createSupplierUser = useAuthStore((state) => state.createSupplierUser);
     const [isConsultingRuc, setIsConsultingRuc] = useState(false)
     const [sunatData, setSunatData] = useState<SunatData | null>(null)
     const [isRucValid, setIsRucValid] = useState(false)
+    const isSSCO = useMemo(() => {
+        if (!sunatData?.ruc) return false
+        return sscoList.has(sunatData.ruc)
+    }, [sunatData])
     const [isSummaryOpen, setIsSummaryOpen] = useState(false);
     const [emailSummary, setEmailSummary] = useState<{
         email: string;
@@ -322,24 +310,23 @@ const ModalRegister: FC<ModalRegisterProps> = ({
             ubigeo: '',
             city: 'Lima',
             country: 'PERU',
-            contactPerson: 'Mijael Cano Rojas',
-            contactEmail: 'contacto@gmail.com',
+            contactPerson: '',
+            contactEmail: '',
             contactPhone: '',
-            personType: 'TPJ',
-            businessType: 'SALUD',
+            personType: '',
+            businessType: '',
             status: 'Pendiente',
             rating: 0.0,
             totalOrders: 0,
             totalAmount: 0,
             paymentTerms: '',
             certifications: ["ISO 14000"],
-            registrationDate: 'asd',
-            lastOrderDate: 'asdas',
+            registrationDate: '',
+            lastOrderDate: '',
             avatar: 'https://i.pravatar.cc/150?u=medicos',
         }
     });
 
-    //const { fields, append, remove} = useFieldArray({control, name: "contactPerson"});
 
     const watchedRuc = watch('cardCode')
 
@@ -372,8 +359,6 @@ const ModalRegister: FC<ModalRegisterProps> = ({
                 setValue('ubigeo', '')
                 setValue('paymentTerms', '')
                 setValue('personType', data.tipo_contribuyente?.includes('NATURAL') ? 'TPN' : 'TPJ')
-            } else {
-                alert(`RUC no válido: Estado ${data.estado}, Condición ${data.condicion}`)
             }
         } catch (error) {
             console.error('Error consultando RUC:', error)
@@ -393,6 +378,11 @@ const ModalRegister: FC<ModalRegisterProps> = ({
     };
 
     const onSubmit = async (data: SupplierRegisterFormData) => {
+
+        if(sunatData?.estado !== "ACTIVO" && sunatData?.condicion !== "HABIDO"){
+            alert('debe ser activo y Habido')
+        }
+
         if (!isRucValid || !sunatData) {
             alert('Debe consultar y validar un RUC antes de registrar.')
             return
@@ -409,7 +399,7 @@ const ModalRegister: FC<ModalRegisterProps> = ({
             const distrito = sunatData.domicilio_fiscal?.distrito ?? ''
             const provincia = sunatData.domicilio_fiscal?.provincia ?? ''
             const departamento = sunatData.domicilio_fiscal?.departamento ?? ''
-            const economicActivity = sunatData.actividades_economicas?.[0] ?? data.businessType ?? ''
+            //const economicActivity = sunatData.actividades_economicas?.[0] ?? data.businessType ?? ''
             const ubigeoValue = data.ubigeo ?? ''
             const supplierId = `P${data.cardCode}`
 
@@ -544,7 +534,7 @@ const ModalRegister: FC<ModalRegisterProps> = ({
 
     return (
         <>
-            <Modal isOpen={isRegisterOpen} onClose={handleClose} size="3xl">
+            <Modal isOpen={isRegisterOpen} onClose={handleClose} size="5xl">
                 <ModalContent>
                     {() => (
                         <form onSubmit={handleSubmit(onSubmit)}>
@@ -552,7 +542,7 @@ const ModalRegister: FC<ModalRegisterProps> = ({
                                 <h3 className="text-xl font-bold">Registrar Nuevo Proveedor</h3>
                             </ModalHeader>
                             <ModalBody>
-                                <div className="space-y-4">
+                                <div className="space-y-4 max-h-[75vh] overflow-y-auto pr-1">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <Controller
                                             name="cardCode"
@@ -580,7 +570,7 @@ const ModalRegister: FC<ModalRegisterProps> = ({
                                         </Button>
                                     </div>
 
-                                    <Controller
+                                    {/*<Controller
                                         name="cardName"
                                         control={control}
                                         render={({field}) => (
@@ -610,7 +600,111 @@ const ModalRegister: FC<ModalRegisterProps> = ({
                                                 errorMessage={errors.address?.message}
                                             />
                                         )}
-                                    />
+                                    />*/}
+
+                                    {/* Sección de Información SUNAT (compacta y completa) */}
+                                    {sunatData && (
+                                        <div className="rounded-md border border-primary-200 bg-primary-50/40 p-3 shadow-sm">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <h4 className="text-sm font-semibold text-primary-800">Información SUNAT</h4>
+                                                <div className="flex items-center gap-2">
+                                                    <Chip
+                                                        size="sm"
+                                                        variant="flat"
+                                                        color={sunatData.estado === 'ACTIVO' ? 'success' : 'danger'}
+                                                    >
+                                                        Estado: {sunatData.estado}
+                                                    </Chip>
+                                                    <Chip
+                                                        size="sm"
+                                                        variant="flat"
+                                                        color={sunatData.condicion === 'HABIDO' ? 'success' : 'warning'}
+                                                    >
+                                                        Condición: {sunatData.condicion}
+                                                    </Chip>
+                                                    <Chip
+                                                        size="sm"
+                                                        variant="flat"
+                                                        color={isSSCO ? 'danger' : 'default'}
+                                                    >
+                                                        Sujeto Sin Capacidad Operativa: {isSSCO ? 'SI' : 'NO'}
+                                                    </Chip>
+                                                </div>
+                                            </div>
+                                            <p className="text-[11px] text-gray-500 mb-2">
+                                                Fuente: SUNAT • <a href="https://www.sunat.gob.pe/padronesnotificaciones/sujeSinCapacidadOperativa.html" target="_blank" rel="noreferrer" className="underline">Sujetos sin Capacidad Operativa</a> • Actualizado: {sscoLastUpdated}
+                                            </p>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-1 text-sm">
+                                                <div className="flex justify-between">
+                                                    <span className="text-gray-500">RUC</span>
+                                                    <span className="font-medium text-right">{sunatData.ruc}</span>
+                                                </div>
+                                                <div className="flex justify-between">
+                                                    <span className="text-gray-500">Razón Social</span>
+                                                    <span className="font-medium text-right">{sunatData.razon_social}</span>
+                                                </div>
+                                                <div className="flex justify-between">
+                                                    <span className="text-gray-500">Nombre Comercial</span>
+                                                    <span className="text-right">{sunatData.nombre_comercial || '-'}</span>
+                                                </div>
+                                                <div className="flex justify-between">
+                                                    <span className="text-gray-500">Tipo Contribuyente</span>
+                                                    <span className="text-right">{sunatData.tipo_contribuyente}</span>
+                                                </div>
+                                                <div className="flex justify-between">
+                                                    <span className="text-gray-500">Fec. Inscripción</span>
+                                                    <span className="text-right">{sunatData.fecha_inscripcion}</span>
+                                                </div>
+                                                <div className="flex justify-between">
+                                                    <span className="text-gray-500">Inicio Actividades</span>
+                                                    <span className="text-right">{sunatData.fecha_inicio_actividades}</span>
+                                                </div>
+                                            </div>
+                                            <div className="mt-3 grid grid-cols-1 lg:grid-cols-2 gap-3">
+                                                <div className="rounded border border-primary-100 bg-white/70 p-2">
+                                                    <p className="text-xs text-gray-500 mb-1">Domicilio Fiscal</p>
+                                                    <p className="text-sm">{sunatData.domicilio_fiscal?.direccion}</p>
+                                                    <p className="text-xs text-gray-500">
+                                                        {sunatData.domicilio_fiscal?.distrito} • {sunatData.domicilio_fiscal?.provincia} • {sunatData.domicilio_fiscal?.departamento}
+                                                    </p>
+                                                </div>
+                                                <div className="rounded border border-primary-100 bg-white/70 p-2">
+                                                    <p className="text-xs text-gray-500 mb-1">Actividades Económicas</p>
+                                                    {sunatData.actividades_economicas?.length ? (
+                                                        <ul className="list-disc list-inside text-sm space-y-0.5">
+                                                            {sunatData.actividades_economicas.map((act, idx) => (
+                                                                <li key={idx}>{act}</li>
+                                                            ))}
+                                                        </ul>
+                                                    ) : (
+                                                        <p className="text-sm">No registradas</p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                <div className="flex items-center justify-between text-sm">
+                                                    <span className="text-gray-500">Agente Retención</span>
+                                                    <Chip
+                                                        size="sm"
+                                                        variant="flat"
+                                                        color={sunatData.agente_retencion === 'SI' ? 'warning' : 'default'}
+                                                    >
+                                                        {sunatData.agente_retencion === 'SI' ? 'SI' : 'NO'}
+                                                    </Chip>
+                                                </div>
+                                                <div className="flex items-center justify-between text-sm">
+                                                    <span className="text-gray-500">Agente Percepción</span>
+                                                    <Chip
+                                                        size="sm"
+                                                        variant="flat"
+                                                        color={sunatData.agente_percepcion === 'SI' ? 'warning' : 'default'}
+                                                    >
+                                                        {sunatData.agente_percepcion === 'SI' ? 'SI' : 'NO'}
+                                                    </Chip>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
 
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <Controller

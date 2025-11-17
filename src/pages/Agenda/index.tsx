@@ -36,22 +36,17 @@ import {
 import Dashboard from "@/layouts/Dashboard";
 import { useAgendaStore } from "@/store/agendaStore";
 import { useAuth } from "@/store/authStore";
-import { useSuppliers } from "@/store/extendedStore";
 import { UserRole } from "@/routes/menuTypes";
 import { DeliveryAppointment, PackingListItem } from "@/store/types";
 
 const Agenda: React.FC = () => {
     const { currentUser } = useAuth();
-    const { suppliers } = useSuppliers();
     const {
         appointments,
         selectedAppointment,
         addAppointment,
         updateAppointment,
-        deleteAppointment,
-        getAppointmentById,
         setSelectedAppointment,
-        getAppointmentsByDateRange,
         lookupSupplierByRUC,
         addPackingList,
         addTransportData,
@@ -60,13 +55,12 @@ const Agenda: React.FC = () => {
 
     // State
     const [currentWeek, setCurrentWeek] = useState(new Date());
-    const [selectedDate, setSelectedDate] = useState<string | null>(null);
-    const [selectedTimeSlot, setSelectedTimeSlot] = useState<string | null>(null);
+    const [, setSelectedDate] = useState<string | null>(null);
+    const [, setSelectedTimeSlot] = useState<string | null>(null);
     const [rucSearch, setRucSearch] = useState('');
     const [isLookingUp, setIsLookingUp] = useState(false);
     const [supplierData, setSupplierData] = useState<any>(null);
     const [packingListItems, setPackingListItems] = useState<PackingListItem[]>([]);
-    const [selectedWarehouse, setSelectedWarehouse] = useState('');
     const [filterStatus, setFilterStatus] = useState<string>('all');
 
     // Modals
@@ -491,12 +485,12 @@ const Agenda: React.FC = () => {
                             onSelectionChange={(keys) => setFilterStatus(Array.from(keys)[0] as string)}
                             className="max-w-xs"
                         >
-                            <SelectItem key="all" value="all">Todos</SelectItem>
-                            <SelectItem key="Pendiente" value="Pendiente">Pendiente</SelectItem>
-                            <SelectItem key="PackingListCompletado" value="PackingListCompletado">PackingList Completado</SelectItem>
-                            <SelectItem key="TransporteCompletado" value="TransporteCompletado">Transporte Completado</SelectItem>
-                            <SelectItem key="ListaParaEntrega" value="ListaParaEntrega">Lista para Entrega</SelectItem>
-                            <SelectItem key="Completada" value="Completada">Completada</SelectItem>
+                            <SelectItem key="all" >Todos</SelectItem>
+                            <SelectItem key="Pendiente" >Pendiente</SelectItem>
+                            <SelectItem key="PackingListCompletado" >PackingList Completado</SelectItem>
+                            <SelectItem key="TransporteCompletado" >Transporte Completado</SelectItem>
+                            <SelectItem key="ListaParaEntrega" >Lista para Entrega</SelectItem>
+                            <SelectItem key="Completada" >Completada</SelectItem>
                         </Select>
                     </CardBody>
                 </Card>
@@ -577,14 +571,14 @@ const Agenda: React.FC = () => {
                                         <div key={time} className="grid grid-cols-8 border-b border-gray-100 hover:bg-gray-50 transition-colors">
                                             {/* Time label */}
                                             <div className="p-2 text-xs font-medium text-gray-500 border-r border-gray-200 bg-gray-50 flex items-center justify-end pr-3">
-                                                {time}
+                                                {time}{timeIndex}
                                             </div>
 
                                             {/* Day columns */}
                                             {weekDays.map((day, dayIndex) => {
                                                 const slotAppointments = getAppointmentsForSlot(day, time);
                                                 const isToday = day.toDateString() === new Date().toDateString();
-                                                
+                                                console.log("SslotAppointments", slotAppointments)
                                                 // Get all appointments for this day to check if this slot is the start
                                                 const dayAppointments = filteredAppointments.filter(apt => {
                                                     const aptDate = new Date(apt.deliveryDate);
@@ -751,7 +745,7 @@ const Agenda: React.FC = () => {
                                                 isRequired
                                             >
                                                 {timeSlots.map((time) => (
-                                                    <SelectItem key={time} value={time}>
+                                                    <SelectItem key={time}>
                                                         {time}
                                                     </SelectItem>
                                                 ))}
@@ -775,7 +769,7 @@ const Agenda: React.FC = () => {
                                                     }
                                                     return true;
                                                 }).map((time) => (
-                                                    <SelectItem key={time} value={time}>
+                                                    <SelectItem key={time}>
                                                         {time}
                                                     </SelectItem>
                                                 ))}
@@ -789,9 +783,9 @@ const Agenda: React.FC = () => {
                                             selectedKeys={scheduleForm.warehouse ? [scheduleForm.warehouse] : []}
                                             onSelectionChange={(keys) => setScheduleForm(prev => ({ ...prev, warehouse: Array.from(keys)[0] as string }))}
                                         >
-                                            <SelectItem key="ALM001" value="ALM001">Almacén Principal</SelectItem>
-                                            <SelectItem key="ALM002" value="ALM002">Almacén Secundario</SelectItem>
-                                            <SelectItem key="ALM003" value="ALM003">Almacén Lima Norte</SelectItem>
+                                            <SelectItem key="ALM001" >Almacén Principal</SelectItem>
+                                            <SelectItem key="ALM002" >Almacén Secundario</SelectItem>
+                                            <SelectItem key="ALM003" >Almacén Lima Norte</SelectItem>
                                         </Select>
 
                                         {/* Notes */}
@@ -1091,9 +1085,9 @@ const Agenda: React.FC = () => {
                                                 selectedKeys={packingListForm.warehouse ? [packingListForm.warehouse] : []}
                                                 onSelectionChange={(keys) => setPackingListForm(prev => ({ ...prev, warehouse: Array.from(keys)[0] as string }))}
                                             >
-                                                <SelectItem key="ALM001" value="ALM001">Almacén Principal</SelectItem>
-                                                <SelectItem key="ALM002" value="ALM002">Almacén Secundario</SelectItem>
-                                                <SelectItem key="ALM003" value="ALM003">Almacén Lima Norte</SelectItem>
+                                                <SelectItem key="ALM001" >Almacén Principal</SelectItem>
+                                                <SelectItem key="ALM002" >Almacén Secundario</SelectItem>
+                                                <SelectItem key="ALM003" >Almacén Lima Norte</SelectItem>
                                             </Select>
                                         </div>
 

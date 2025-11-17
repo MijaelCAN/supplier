@@ -146,7 +146,7 @@ export const menuItems: MenuItem[] = [
                 roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS]
             },
             {
-                title: "Agenda",
+                title: "Agenda - Citas",
                 icon: <BookOpenIcon className="h-4 w-4" />,
                 href: "/agenda",
                 roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.ALMACEN]
@@ -155,16 +155,16 @@ export const menuItems: MenuItem[] = [
                 title: "Fecha de entrega",
                 icon: <CalendarDaysIcon className="h-4 w-4" />,
                 href: "/entrega",
-                roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS]
+                roles: [UserRole.ADMIN, UserRole.COMPRAS]
             },
             {
                 title: "Recepción",
                 icon: <FolderIcon className="h-4 w-4" />,
                 href: "/recepcion",
-                roles: [UserRole.ADMIN, UserRole.COMPRAS]
+                roles: [UserRole.ADMIN, UserRole.COMPRAS, UserRole.PROVEEDOR]
             },
             {
-                title: "Facturación",
+                title: "Facturas",
                 icon: <DocumentTextIcon className="h-4 w-4" />,
                 href: "/factura",
                 roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.FINANZAS]

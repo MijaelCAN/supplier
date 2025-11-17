@@ -19,8 +19,7 @@ import {
     ToastProvider,
     useDisclosure,
 } from "@heroui/react";
-import { EyeFilledIcon, EyeSlashFilledIcon, MailIcon } from "@/components/icons.tsx";
-import { Divider } from "@heroui/divider";
+import { EyeFilledIcon, EyeSlashFilledIcon } from "@/components/icons.tsx";
 import { RoleType, useAuthStore } from "@/store/authStore";
 
 

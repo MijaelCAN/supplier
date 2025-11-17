@@ -1,12 +1,10 @@
-import React from 'react';
 import {
     Card,
     CardBody,
     CardHeader,
     Button,
     Chip,
-    Avatar,
-    Divider
+    Avatar
 } from "@heroui/react";
 import {
     BuildingOfficeIcon,
@@ -19,7 +17,6 @@ import {
     PlusIcon,
     EyeIcon,
     ArrowRightIcon,
-    ClockIcon,
     ExclamationTriangleIcon
 } from "@heroicons/react/24/outline";
 import Dashboard from "@/layouts/Dashboard";

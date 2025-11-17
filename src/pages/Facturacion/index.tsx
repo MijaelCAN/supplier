@@ -411,7 +411,7 @@ const InvoicesList = () => {
                                                                     Ver detalles
                                                                 </div>
                                                             </DropdownItem>
-                                                            {invoice.status === 'En Revisión' && (
+                                                            {invoice.status !== 'En Revisión' && (
                                                                 <>
                                                                     <DropdownItem onPress={() => openApproveModal(invoice)}>
                                                                         <div className="flex items-center gap-2">
