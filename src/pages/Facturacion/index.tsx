@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import {
     Button,
     Input,
@@ -16,7 +16,6 @@ import {
     Pagination,
     Card,
     CardBody,
-    CardHeader,
     useDisclosure,
     Modal,
     ModalContent,
@@ -41,15 +40,13 @@ import {
     ClockIcon
 } from "@heroicons/react/24/outline";
 import Dashboard from "@/layouts/Dashboard";
-import { useInvoices, usePurchaseOrders, useSuppliers, useExtendedStore } from '@/store/extendedStore';
+import { useInvoices, usePurchaseOrders, useExtendedStore } from '@/store/extendedStore';
 import { Invoice } from '@/store/types';
 
 const InvoicesList = () => {
     const {
         invoices,
         addInvoice,
-        updateInvoice,
-        deleteInvoice,
         approveInvoice,
         rejectInvoice,
         selectedInvoice,
@@ -57,7 +54,6 @@ const InvoicesList = () => {
     } = useInvoices();
     
     const { purchaseOrders } = usePurchaseOrders();
-    const { suppliers } = useSuppliers();
     const invoiceStatuses = useExtendedStore(state => state.invoiceStatuses);
     const currencies = useExtendedStore(state => state.currencies);
 
@@ -151,6 +147,8 @@ const InvoicesList = () => {
             receivedDate: new Date().toISOString().split('T')[0],
             dueDate: formData.dueDate,
             taxAmount: taxAmount,
+            saldo: 0,
+            retention: 0,
             subtotal: formData.subtotal,
             notes: formData.notes
         };
@@ -311,7 +309,7 @@ const InvoicesList = () => {
                 </div>
 
                 <Card>
-                    <CardBody className="p-0">
+                    <CardBody className="p-4">
                         <Table
                             aria-label="Tabla de facturas"
                             topContent={topContent}
@@ -405,28 +403,28 @@ const InvoicesList = () => {
                                                             </Button>
                                                         </DropdownTrigger>
                                                         <DropdownMenu>
-                                                            <DropdownItem onPress={() => handleViewDetails(invoice)}>
+                                                            <DropdownItem key="detail" onPress={() => handleViewDetails(invoice)}>
                                                                 <div className="flex items-center gap-2">
                                                                     <EyeIcon className="h-4 w-4" />
                                                                     Ver detalles
                                                                 </div>
                                                             </DropdownItem>
-                                                            {invoice.status === 'En Revisión' && (
+                                                            {invoice.status !== 'En Revisión' ? (
                                                                 <>
-                                                                    <DropdownItem onPress={() => openApproveModal(invoice)}>
+                                                                    <DropdownItem key="aprobar" onPress={() => openApproveModal(invoice)}>
                                                                         <div className="flex items-center gap-2">
                                                                             <CheckIcon className="h-4 w-4 text-green-500" />
                                                                             Aprobar
                                                                         </div>
                                                                     </DropdownItem>
-                                                                    <DropdownItem onPress={() => openRejectModal(invoice)}>
+                                                                    <DropdownItem key="rechazar" onPress={() => openRejectModal(invoice)}>
                                                                         <div className="flex items-center gap-2">
                                                                             <XMarkIcon className="h-4 w-4 text-red-500" />
                                                                             Rechazar
                                                                         </div>
                                                                     </DropdownItem>
                                                                 </>
-                                                            )}
+                                                            ): null}
                                                         </DropdownMenu>
                                                     </Dropdown>
                                                 </div>
@@ -509,13 +507,6 @@ const InvoicesList = () => {
                                                     <p className="text-sm">{selectedInvoice.notes}</p>
                                                 </div>
                                             )}
-
-                                            {selectedInvoice.status === 'Rechazada' && selectedInvoice.rejectionReason && (
-                                                <div>
-                                                    <p className="text-sm font-medium text-red-500">Motivo de Rechazo</p>
-                                                    <p className="text-sm text-red-600">{selectedInvoice.rejectionReason}</p>
-                                                </div>
-                                            )}
                                         </div>
                                     )}
                                 </ModalBody>
@@ -547,9 +538,9 @@ const InvoicesList = () => {
                                             label="Número de Factura"
                                             placeholder="F001-00001"
                                             value={formData.invoiceNumber}
-                                            onChange={(e) => setFormData({
+                                            onValueChange={(value) => setFormData({
                                                 ...formData,
-                                                invoiceNumber: e.target.value
+                                                invoiceNumber: value
                                             })}
                                         />
 
@@ -569,7 +560,7 @@ const InvoicesList = () => {
                                             }}
                                         >
                                             {approvedPurchaseOrders.map(order => (
-                                                <SelectItem key={order.id} value={order.id}>
+                                                <SelectItem key={order.id} >
                                                     {order.orderNumber} - {order.supplierName}
                                                 </SelectItem>
                                             ))}
@@ -580,8 +571,8 @@ const InvoicesList = () => {
                                             type="number"
                                             step="0.01"
                                             value={formData.subtotal.toString()}
-                                            onChange={(e) => {
-                                                const subtotal = parseFloat(e.target.value) || 0;
+                                            onValueChange={(value) => {
+                                                const subtotal = parseFloat(value) || 0;
                                                 const { taxAmount, total } = calculateTotals(subtotal);
                                                 setFormData({
                                                     ...formData,
@@ -603,7 +594,7 @@ const InvoicesList = () => {
                                             }
                                         >
                                             {currencies.map(currency => (
-                                                <SelectItem key={currency.key} value={currency.key}>
+                                                <SelectItem key={currency.key}>
                                                     {currency.label}
                                                 </SelectItem>
                                             ))}
@@ -613,9 +604,9 @@ const InvoicesList = () => {
                                             label="Fecha de Vencimiento"
                                             type="date"
                                             value={formData.dueDate}
-                                            onChange={(e) => setFormData({
+                                            onValueChange={(value) => setFormData({
                                                 ...formData,
-                                                dueDate: e.target.value
+                                                dueDate: value
                                             })}
                                         />
 
@@ -642,9 +633,9 @@ const InvoicesList = () => {
                                         label="Notas"
                                         placeholder="Notas adicionales sobre la factura"
                                         value={formData.notes}
-                                        onChange={(e) => setFormData({
+                                        onValueChange={(value) => setFormData({
                                             ...formData,
-                                            notes: e.target.value
+                                            notes: value
                                         })}
                                     />
                                 </ModalBody>
@@ -702,7 +693,7 @@ const InvoicesList = () => {
                                         label="Motivo del Rechazo"
                                         placeholder="Especifique el motivo del rechazo..."
                                         value={rejectionReason}
-                                        onChange={(e) => setRejectionReason(e.target.value)}
+                                        onValueChange={(value) => setRejectionReason(value)}
                                         isRequired
                                     />
                                 </ModalBody>

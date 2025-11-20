@@ -3,7 +3,7 @@ import {
     Card,
     CardBody,
     CardHeader,
-    Chip, Modal,
+    Modal,
     ModalBody,
     ModalContent, ModalFooter,
     ModalHeader,
@@ -11,8 +11,8 @@ import {
     Tab,
     Tabs
 } from "@heroui/react";
-import {DocumentTextIcon, EyeIcon, ShieldCheckIcon} from "@heroicons/react/24/outline";
-import {Supplier} from "@/store";
+import {DocumentTextIcon, EyeIcon } from "@heroicons/react/24/outline";
+import {Supplier} from "@/store/extendedStore";
 import {FC} from "react";
 
 interface ModalDetailProps {
@@ -50,7 +50,7 @@ const ModalDetail: FC<ModalDetailProps> = ({isViewOpen, onViewClose, selectedSup
                                                 <div>
                                                     <h4 className="font-semibold text-gray-900 dark:text-white mb-2">Certificaciones</h4>
                                                     <div className="flex flex-wrap gap-2">
-                                                        {selectedSupplier.certifications.map((cert, index) => (
+                                                        {/*selectedSupplier.certifications.map((cert, index) => (
                                                             <Chip
                                                                 key={index}
                                                                 size="sm"
@@ -60,7 +60,7 @@ const ModalDetail: FC<ModalDetailProps> = ({isViewOpen, onViewClose, selectedSup
                                                             >
                                                                 {cert}
                                                             </Chip>
-                                                        ))}
+                                                        ))*/}
                                                     </div>
                                                 </div>
                                             </div>
@@ -110,12 +110,12 @@ const ModalDetail: FC<ModalDetailProps> = ({isViewOpen, onViewClose, selectedSup
                                                         <div className="flex justify-between items-center">
                                                             <span className="text-sm text-gray-600">Fecha de Registro:</span>
                                                             <span
-                                                                className="font-semibold">{new Date(selectedSupplier.registrationDate).toLocaleDateString()}</span>
+                                                                className="font-semibold">{/*new Date(selectedSupplier.registrationDate).toLocaleDateString()*/}</span>
                                                         </div>
                                                         <div className="flex justify-between items-center">
                                                             <span className="text-sm text-gray-600">Última Orden:</span>
                                                             <span
-                                                                className="font-semibold">{new Date(selectedSupplier.lastOrderDate).toLocaleDateString()}</span>
+                                                                className="font-semibold">{/*new Date(selectedSupplier.lastOrderDate).toLocaleDateString()*/}</span>
                                                         </div>
                                                     </div>
                                                 </CardBody>

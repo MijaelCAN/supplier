@@ -225,9 +225,12 @@ const mapApiRecordToSupplier = (record: SupplierApiRecord): Supplier => {
         registrationDate: undefined,
     }));
     const commercialReferences: ReferenciaComercial[] = (normalizedRecord.ReferenciasComerciales || []).map((ref) => ({
-        name: ref.name,
-        contact: ref.contact,
-        phone: ref.phone,
+        DocEntry: ref.DocEntry || '',
+        U_CardCode: ref.U_CardCode || '',
+        U_RazonSocial: ref.U_RazonSocial || '',
+        U_Contacto: ref.U_Contacto || '',
+        U_Telefonos: ref.U_Telefonos || '',
+        registrationDate: undefined,
     }));
     const serviciosOfrecidos: ServiciosOfrecidos[] = (normalizedRecord.ServiciosOfrecidos || []).map((serv) => ({
         principalActivity: serv.principalActivity,
@@ -483,7 +486,7 @@ export const fetchSuppliersListFromApi = async (
     return records.map(mapApiRecordToSupplier);
 };
 
-export const fetchSupplierByCardCode = async (
+export const    fetchSupplierByCardCode = async (
     cardCode: string,
 ): Promise<{ supplier: Supplier; record: SupplierApiRecord } | null> => {
     console.log("Codigo de Proveedor a llmar", cardCode)
@@ -540,7 +543,21 @@ export const createSupplierProfile = async (
         body: JSON.stringify(payload),
     });
 
-    const json = await handleResponse(response);
+    // Primero parsear el JSON para verificar el statusCode
+    let json;
+    try {
+        json = await response.json();
+    } catch (error) {
+        throw new Error('No se pudo parsear la respuesta del servidor.');
+    }
+
+    // Verificar si hay un error en el statusCode (cualquier código >= 400 o statusCode en el JSON)
+    if (!response.ok || (json.statusCode && json.statusCode >= 400)) {
+        const errorMessage = json.message || `Error al crear el proveedor (${json.statusCode || response.status})`;
+        throw new Error(errorMessage);
+    }
+
+    // Si la respuesta es exitosa pero no tiene data, intentar refrescar
     let record = Array.isArray(json.data) ? json.data[0] : json.data;
 
     if (!record || typeof record === 'string') {

@@ -13,16 +13,22 @@ import {
     where,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { FirestoreUserDocument, PortalUser, RoleType } from '@/services/auth/firestoreAuth';
+import type { FirestoreUserDocument, RoleType } from '@/services/auth/firestoreAuth';
 import { UserRole } from '@/routes/menuTypes';
 
 const USERS_COLLECTION = 'users';
 
 export type AccountStatus = 'active' | 'inactive' | 'suspended';
 
-export interface ManagedUser extends PortalUser {
+export interface ManagedUser {
+    id: string;
+    username: string;
     email: string;
     userCode: string;
+    firstName: string;
+    lastName: string;
+    fullName: string;
+    role: UserRole;
     department?: string;
     position?: string;
     phone?: string;
@@ -32,6 +38,7 @@ export interface ManagedUser extends PortalUser {
     useSupplierPortal: boolean;
     settings: Record<string, boolean>;
     roleType: RoleType;
+    lastLogin?: string;
     createdAt?: string;
 }
 
@@ -180,7 +187,7 @@ export const listManagedUsers = async (): Promise<ManagedUser[]> => {
 
     return snapshot.docs
         .map((document) => mapDocToManagedUser(document.id, document.data() as FirestoreUserDocument))
-        .sort((a, b) => a.fullName.localeCompare(b.fullName, 'es'));
+        .sort((a, b) => a.userCode.localeCompare(b.userCode, 'es'));
 };
 
 const buildFirestorePayload = (
@@ -253,11 +260,11 @@ const buildFirestorePayload = (
         document.account_status = payload.accountStatus;
     }
 
-    if (payload.roleType === 'provider') {
+    /*if (payload.roleType === 'provider') {
         document.supplier_id = payload.supplierId ?? null;
     } else if (payload.supplierId !== undefined) {
         document.supplier_id = payload.supplierId ?? null;
-    }
+    }*/
 
     return document;
 };
@@ -326,7 +333,7 @@ export const updateManagedUser = async (
 
     const updated = await getDoc(docRef);
 
-    return mapDocToManagedUser(docRef.id, updated.data() as FirestoreUserDocument);
+    return mapDocToManagedUser(id, updated.data() as FirestoreUserDocument);
 };
 
 export const deleteManagedUser = async (id: string): Promise<void> => {

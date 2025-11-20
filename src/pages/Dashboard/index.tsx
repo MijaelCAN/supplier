@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import {
     Card,
     CardBody,
@@ -7,18 +7,14 @@ import {
     Button,
     Progress,
     Avatar,
-    Divider
 } from "@heroui/react";
 import {
-    ChartBarIcon,
     BuildingOfficeIcon,
     ShoppingCartIcon,
     DocumentTextIcon,
     BanknotesIcon,
     ArrowTrendingUpIcon,
-    TrendingDownIcon,
     ClockIcon,
-    CheckCircleIcon,
     ExclamationTriangleIcon,
     EyeIcon,
     ArrowRightIcon

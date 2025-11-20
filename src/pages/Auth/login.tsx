@@ -1,11 +1,10 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     Card,
     CardBody,
     CardHeader,
     Button,
-    Input,
     Select,
     SelectItem,
     Divider,
@@ -131,8 +130,7 @@ const LoginPage = () => {
                                     const roleInfo = getRoleInfo(user.role);
                                     return (
                                         <SelectItem 
-                                            key={user.id} 
-                                            value={user.id}
+                                            key={user.id}
                                             startContent={
                                                 <Avatar 
                                                     src={user.avatar} 

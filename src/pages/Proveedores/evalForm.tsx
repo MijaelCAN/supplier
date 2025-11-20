@@ -1,22 +1,15 @@
-import React, {useState} from 'react';
+import {useState} from 'react';
 import {
     Card,
     CardBody,
     CardHeader,
     Button,
-    Input,
     Textarea,
-    Select,
-    SelectItem,
     Slider,
     Progress,
-    Divider,
     Chip,
     RadioGroup,
     Radio,
-    Checkbox,
-    CheckboxGroup,
-    Avatar,
     Modal,
     ModalContent,
     ModalHeader,
@@ -27,10 +20,6 @@ import {
 import {
     StarIcon,
     CheckCircleIcon,
-    ExclamationTriangleIcon,
-    ClockIcon,
-    TruckIcon,
-    ShieldCheckIcon,
     CurrencyDollarIcon,
     ChartBarIcon,
     UserGroupIcon,
@@ -39,14 +28,9 @@ import {
     DocumentCheckIcon,
     BeakerIcon,
     HandThumbUpIcon,
-    CalendarIcon,
-    BuildingOfficeIcon
 } from "@heroicons/react/24/outline";
 import {StarIcon as StarIconSolid} from "@heroicons/react/24/solid";
 import Dashboard from "@/layouts/Dashboard";
-import SupplierProfileCard from "@/pages/Proveedores/Profile/CardProfile.tsx";
-import ProveedorInfo from "@/components/Proveedores/Evaluations/CardInfo.tsx";
-
 // Criterios de evaluación estructurados
 interface CriterioEvaluacion {
     id: string;
@@ -60,11 +44,7 @@ interface CriterioEvaluacion {
     observaciones?: string;
 }
 
-interface FormularioEvaluacionProps {
-    rol: 'ADMIN' | 'COMPRAS' | 'PROVEEDOR' | 'FINANZAS';
-}
-
-const FormularioEvaluacion: React.FC<FormularioEvaluacionProps> = ({rol}) => {
+const FormularioEvaluacion = () => {
     /*const [datosProveedor, setDatosProveedor] = useState({
         nombre: '',
         ruc: '',
@@ -72,7 +52,7 @@ const FormularioEvaluacion: React.FC<FormularioEvaluacionProps> = ({rol}) => {
         email: '',
         telefono: ''
     });*/
-    const [datosProveedor, setDatosProveedor] = useState({
+    const [datosProveedor,] = useState({
         id: 1,
         categoria: "SERVICIOS",
         logo: "https://i.pravatar.cc/150?u=medicos",
@@ -83,7 +63,7 @@ const FormularioEvaluacion: React.FC<FormularioEvaluacionProps> = ({rol}) => {
         telefono: "+51 956875468",
     })
 
-    const [datosEvaluacion, setDatosEvaluacion] = useState({
+    const [datosEvaluacion,] = useState({
         periodo: '',
         fechaEvaluacion: new Date().toISOString().split('T')[0],
         evaluador: '',
@@ -286,7 +266,7 @@ const FormularioEvaluacion: React.FC<FormularioEvaluacionProps> = ({rol}) => {
             id: 'rsa_002',
             categoria: 'RSA',
             nombre: 'Responsabilidad Social',
-            descripción: 'Desarrolla programas de responsabilidad social corporativa',
+            descripcion: 'Desarrolla programas de responsabilidad social corporativa',
             peso: 5,
             tipo: 'escala',
             valor: 0
@@ -452,14 +432,6 @@ const FormularioEvaluacion: React.FC<FormularioEvaluacionProps> = ({rol}) => {
         onOpen();
     };
 
-    const data = {
-        nombre: "Inversiones Metalica SAC",
-        ruc: "20565879645",
-        contacto: "963852741",
-        email: "inversiones@gmail.com.pe",
-        telefono: "555-66666"
-    }
-
     return (
         <Dashboard>
             <div className="w-full space-y-6">
@@ -474,7 +446,7 @@ const FormularioEvaluacion: React.FC<FormularioEvaluacionProps> = ({rol}) => {
 
                 {/* Información del Proveedor */}
                 <div className="flex flex-col">
-                    <ProveedorInfo datosProveedor={datosProveedor} />
+                    {/*<ProveedorInfo datosProveedor={datosProveedor} />*/}
                     <Card className="shadow-lg border-0" radius="none">
 
                         <CardBody>
@@ -1035,7 +1007,7 @@ const FormularioEvaluacion: React.FC<FormularioEvaluacionProps> = ({rol}) => {
                                                 <Textarea
                                                     placeholder="Agregue comentarios, observaciones o detalles específicos para este criterio..."
                                                     value={criterio.observaciones || ''}
-                                                    onChange={(e) => updateCriterio(criterio.id, criterio.valor, e.target.value)}
+                                                    onValueChange={(value) => updateCriterio(criterio.id, criterio.valor, value)}
                                                     minRows={3}
                                                     size="md"
                                                     classNames={{
@@ -1073,7 +1045,7 @@ const FormularioEvaluacion: React.FC<FormularioEvaluacionProps> = ({rol}) => {
                             label="Observaciones Generales"
                             placeholder="Comentarios generales sobre el desempeño del proveedor..."
                             value={observacionesGenerales}
-                            onChange={(e) => setObservacionesGenerales(e.target.value)}
+                            onValueChange={(value) => setObservacionesGenerales(value)}
                             minRows={4}
                         />
 
@@ -1081,7 +1053,7 @@ const FormularioEvaluacion: React.FC<FormularioEvaluacionProps> = ({rol}) => {
                             label="Recomendaciones"
                             placeholder="Recomendaciones para mejorar la relación comercial..."
                             value={recomendaciones}
-                            onChange={(e) => setRecomendaciones(e.target.value)}
+                            onValueChange={(value) => setRecomendaciones(value)}
                             minRows={4}
                         />
                     </CardBody>

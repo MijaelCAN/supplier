@@ -1,73 +1,3 @@
-/*import React from "react";;
-import {UserRole} from "@/routes/menuTypes.ts";
-import {ClipboardDocumentCheckIcon} from "@heroicons/react/24/outline";
-import Dashboard from "@/layouts/Dashboard";
-
-interface EvaluacionesProps {
-    role: UserRole;
-}
-
-const SupplierEvaluations: React.FC<EvaluacionesProps> = ({ role }) => {
-
-    return (
-        <Dashboard>
-            <div className="w-full space-y-6">
-                <header className="flex items-center mb-6">
-                    <ClipboardDocumentCheckIcon className="h-8 w-8 text-blue-600 mr-3"/>
-                    <h1 className="text-2xl font-semibold text-gray-800">Evaluaciones de Proveedores</h1>
-                </header>
-
-                {role === UserRole.PROVEEDOR ? (
-                    <p className="text-gray-700">
-                        Bienvenido proveedor. Aquí puedes consultar tus evaluaciones recientes, resultados y
-                        recomendaciones para mejorar tu desempeño.
-                    </p>
-                ) : (
-                    <>
-                        <p className="text-gray-700 mb-4">
-                            En esta sección puedes gestionar y revisar las evaluaciones realizadas a los
-                            proveedores,
-                            asegurando el cumplimiento de los estándares de calidad y desempeño.
-                        </p>
-
-                        {/* Tabla o lista de evaluaciones - ejemplo estático *
-                        <table className="w-full border-collapse border border-gray-200">
-                            <thead>
-                            <tr className="bg-gray-100">
-                                <th className="border border-gray-300 px-4 py-2 text-left">Proveedor</th>
-                                <th className="border border-gray-300 px-4 py-2 text-left">Fecha</th>
-                                <th className="border border-gray-300 px-4 py-2 text-left">Calificación</th>
-                                <th className="border border-gray-300 px-4 py-2 text-left">Comentarios</th>
-                            </tr>
-                            </thead>
-                            <tbody>
-                            <tr className="hover:bg-gray-50">
-                                <td className="border border-gray-300 px-4 py-2">Proveedor A</td>
-                                <td className="border border-gray-300 px-4 py-2">2025-06-01</td>
-                                <td className="border border-gray-300 px-4 py-2">85%</td>
-                                <td className="border border-gray-300 px-4 py-2">Cumple con los estándares de
-                                    calidad.
-                                </td>
-                            </tr>
-                            <tr className="hover:bg-gray-50">
-                                <td className="border border-gray-300 px-4 py-2">Proveedor B</td>
-                                <td className="border border-gray-300 px-4 py-2">2025-05-20</td>
-                                <td className="border border-gray-300 px-4 py-2">78%</td>
-                                <td className="border border-gray-300 px-4 py-2">Requiere mejorar tiempos de
-                                    entrega.
-                                </td>
-                            </tr>
-                            </tbody>
-                        </table>
-                    </>
-                )}
-            </div>
-        </Dashboard>
-);
-};
-
-export default SupplierEvaluations;*/
-
 import React, { useState, useEffect } from 'react';
 import {
     Table,
@@ -90,9 +20,7 @@ import {
     Input,
     Select,
     SelectItem,
-    Textarea,
     Progress,
-    Divider,
     Avatar,
     Dropdown,
     DropdownTrigger,
@@ -161,9 +89,9 @@ const Evaluaciones: React.FC<EvaluacionesProps> = ({ rol }) => {
     } = useDisclosure();
 
     const {
-        isOpen: isCreateOpen,
+        //isOpen: isCreateOpen,
         onOpen: onCreateOpen,
-        onClose: onCreateClose
+        //onClose: onCreateClose
     } = useDisclosure();
 
     // Datos de ejemplo
@@ -531,7 +459,7 @@ const Evaluaciones: React.FC<EvaluacionesProps> = ({ rol }) => {
                                         <Input
                                             placeholder="Buscar por nombre o RUC..."
                                             value={busqueda}
-                                            onChange={(e) => setBusqueda(e.target.value)}
+                                            onValueChange={(value) => setBusqueda(value)}
                                             startContent={<MagnifyingGlassIcon className="w-4 h-4 text-gray-400"/>}
                                             className="w-full md:w-80"
                                         />
@@ -543,11 +471,11 @@ const Evaluaciones: React.FC<EvaluacionesProps> = ({ rol }) => {
                                             className="w-full md:w-48"
                                             startContent={<FunnelIcon className="w-4 h-4 text-gray-400"/>}
                                         >
-                                            <SelectItem key="todos" value="todos">Todos los estados</SelectItem>
-                                            <SelectItem key="pendiente" value="pendiente">Pendiente</SelectItem>
-                                            <SelectItem key="en_proceso" value="en_proceso">En Proceso</SelectItem>
-                                            <SelectItem key="completada" value="completada">Completada</SelectItem>
-                                            <SelectItem key="revisada" value="revisada">Revisada</SelectItem>
+                                            <SelectItem key="todos">Todos los estados</SelectItem>
+                                            <SelectItem key="pendiente" >Pendiente</SelectItem>
+                                            <SelectItem key="en_proceso" >En Proceso</SelectItem>
+                                            <SelectItem key="completada" >Completada</SelectItem>
+                                            <SelectItem key="revisada">Revisada</SelectItem>
                                         </Select>
                                     </div>
 

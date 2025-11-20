@@ -1,4 +1,4 @@
-import React from 'react';
+import {useEffect} from 'react';
 import {
     Card,
     CardBody,
@@ -6,11 +6,9 @@ import {
     Button,
     Chip,
     Avatar,
-    Progress,
-    Divider
+    Progress
 } from "@heroui/react";
 import {
-    UserCircleIcon,
     DocumentTextIcon,
     ShoppingCartIcon,
     BanknotesIcon,
@@ -21,23 +19,44 @@ import {
     ArrowRightIcon,
     PencilIcon,
     DocumentIcon,
-    CurrencyDollarIcon,
-    CheckCircleIcon,
     ExclamationTriangleIcon
 } from "@heroicons/react/24/outline";
 import Dashboard from "@/layouts/Dashboard";
 import { useAuth } from '@/store/authStore';
 import { useSuppliers } from '@/store';
 import { useNavigate } from 'react-router-dom';
+import {fetchSupplierByCardCode} from "@/services/providers/providersApi.ts";
 
 const ProveedorHome = () => {
     const { currentUser } = useAuth();
-    const { suppliers } = useSuppliers();
+    const { selectedSupplier } = useSuppliers();
     const navigate = useNavigate();
 
 
+    useEffect(() => {
+        const loadSupplier = async () => {
+            try {
+                if(currentUser){
+                    const result = await fetchSupplierByCardCode(currentUser?.username);
+                    console.log( "Result",result);
+                    //setSelectedSupplier()
+                }
+            } catch (e) {
+                console.error("Error en la peticion de Dashborad Proveedor",e);
+            }
+        }
+
+
+        loadSupplier()
+
+
+    }, []);
+
+    console.log("Seleceted Sippler", selectedSupplier);
+    console.log("CurrentUser", currentUser);
     // Encontrar los datos del proveedor basado en el supplierId del usuario
-    const supplierData = suppliers.find(s => s.docEntry === currentUser?.supplierId);
+    //const supplierData = suppliers.find(s => s.docEntry === currentUser?.supplierId);
+    const supplierData = selectedSupplier
 
     // Datos de ejemplo para el proveedor (en una implementación real vendrían de APIs)
     const proveedorStats = {
@@ -93,13 +112,6 @@ const ProveedorHome = () => {
         }
     ];
 
-    const formatCurrency = (amount: number) => {
-        return new Intl.NumberFormat('es-PE', {
-            style: 'currency',
-            currency: 'PEN'
-        }).format(amount);
-    };
-
     const getStatusColor = (status: string) => {
         switch (status) {
             case 'completado': return 'success';
@@ -127,8 +139,8 @@ const ProveedorHome = () => {
                     <CardBody>
                         <div className="flex items-start gap-6">
                             <Avatar
-                                src={supplierData.avatar}
-                                name={supplierData.cardName}
+                                src={supplierData?.avatar}
+                                name={supplierData?.cardName || ''}
                                 className="w-20 h-20"
                             />
                             <div className="flex-1">
@@ -137,21 +149,21 @@ const ProveedorHome = () => {
                                         <h1 className="text-2xl font-bold text-gray-900">
                                             ¡Bienvenido, {currentUser?.firstName}!
                                         </h1>
-                                        <h2 className="text-lg text-gray-700">{supplierData.cardName}</h2>
-                                        <p className="text-gray-600 mb-2">{supplierData.businessType}</p>
+                                        <h2 className="text-lg text-gray-700">{supplierData?.cardName}</h2>
+                                        <p className="text-gray-600 mb-2">{supplierData?.businessType}</p>
                                         
                                         {/* Estado y calificación */}
                                         <div className="flex items-center gap-3">
                                             <Chip 
-                                                color={supplierData.status === 'A' ? 'success' : 'warning'} 
+                                                color={supplierData?.status === 'A' ? 'success' : 'warning'}
                                                 variant="flat"
                                                 size="sm"
                                             >
-                                                {supplierData.status === 'A' ? 'Activo' : 'Pendiente'}
+                                                {supplierData?.status === 'A' ? 'Activo' : 'Pendiente'}
                                             </Chip>
                                             <div className="flex items-center gap-1">
                                                 <StarIcon className="h-4 w-4 text-yellow-400 fill-yellow-400" />
-                                                <span className="text-sm font-medium">{supplierData.rating}</span>
+                                                <span className="text-sm font-medium">{supplierData?.rating || 0}</span>
                                                 <span className="text-xs text-gray-500">(Calificación)</span>
                                             </div>
                                         </div>
@@ -373,12 +385,12 @@ const ProveedorHome = () => {
                             <div>
                                 <div className="flex justify-between items-center mb-2">
                                     <span className="text-sm text-gray-600">Calificación General</span>
-                                    <span className="text-sm font-medium">{supplierData.rating}/5.0</span>
+                                    <span className="text-sm font-medium">{supplierData?.rating || 0}/5.0</span>
                                 </div>
                                 <Progress 
                                     size="sm" 
                                     color="warning" 
-                                    value={(supplierData.rating / 5) * 100} 
+                                    value={((supplierData?.rating || 0) / 5) * 100} 
                                 />
                             </div>
 

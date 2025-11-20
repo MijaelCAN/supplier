@@ -1,0 +1,71 @@
+// src/services/maestros/condicionesPagoApi.ts
+
+export interface CondicionPago {
+    GroupNum: string;
+    PymntGroup: string;
+}
+
+interface CondicionesPagoApiResponse {
+    statusCode: number;
+    message: string;
+    data: CondicionPago[];
+}
+
+const resolveEnv = (key: string): string | undefined => {
+    if (key in import.meta.env && typeof import.meta.env[key] === 'string') {
+        return import.meta.env[key] as string;
+    }
+
+    const viteKey = `VITE_${key}`;
+    if (viteKey in import.meta.env && typeof import.meta.env[viteKey] === 'string') {
+        return import.meta.env[viteKey] as string;
+    }
+
+    return undefined;
+};
+
+const BASE_URL = resolveEnv('API_BASE_URL') || 'http://192.168.254.27:8082';
+
+/**
+ * Obtiene todas las condiciones de pago desde el API
+ */
+export const fetchCondicionesPago = async (): Promise<CondicionPago[]> => {
+    try {
+        const response = await fetch(`${BASE_URL}/api/Maestros/CondicionPago`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        });
+
+        if (!response.ok) {
+            throw new Error(`Error al obtener condiciones de pago: ${response.status} ${response.statusText}`);
+        }
+
+        const result: CondicionesPagoApiResponse = await response.json();
+
+        if (result.statusCode !== 200) {
+            throw new Error(result.message || 'Error al obtener condiciones de pago');
+        }
+
+        return result.data || [];
+    } catch (error) {
+        console.error('Error al obtener condiciones de pago:', error);
+        throw error;
+    }
+};
+
+/**
+ * Obtiene la descripción de una condición de pago por su código
+ */
+export const getCondicionPagoDescripcion = async (codigo: string): Promise<string | null> => {
+    try {
+        const condiciones = await fetchCondicionesPago();
+        const condicion = condiciones.find(c => c.GroupNum === codigo);
+        return condicion?.PymntGroup || null;
+    } catch (error) {
+        console.error('Error al obtener descripción de condición de pago:', error);
+        return null;
+    }
+};
+

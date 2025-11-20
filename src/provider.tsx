@@ -1,7 +1,7 @@
 import type { NavigateOptions } from "react-router-dom";
 
 import { HeroUIProvider } from "@heroui/system";
-import { useHref, useNavigate } from "react-router-dom";
+import { useHref } from "react-router-dom";
 import {ReactNode} from "react";
 
 declare module "@react-types/shared" {
@@ -11,8 +11,6 @@ declare module "@react-types/shared" {
 }
 
 export function Provider({ children }: { children: ReactNode }) {
-  //const navigate = useNavigate();
-
   return (
     <HeroUIProvider  useHref={useHref}>
       {children}

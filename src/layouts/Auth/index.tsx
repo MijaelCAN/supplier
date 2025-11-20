@@ -19,8 +19,7 @@ import {
     ToastProvider,
     useDisclosure,
 } from "@heroui/react";
-import { EyeFilledIcon, EyeSlashFilledIcon, MailIcon } from "@/components/icons.tsx";
-import { Divider } from "@heroui/divider";
+import { EyeFilledIcon, EyeSlashFilledIcon } from "@/components/icons.tsx";
 import { RoleType, useAuthStore } from "@/store/authStore";
 
 
@@ -372,7 +371,7 @@ const Login = () => {
                                 <Input
                                     size="md"
                                     value={username}
-                                    onChange={(e) => setUsername(e.target.value)}
+                                    onValueChange={(value) => setUsername(value)}
                                     label="Usuario"
                                     placeholder="Ej. jefe_compras_01"
                                     labelPlacement="outside"
@@ -381,7 +380,7 @@ const Login = () => {
                                 />
                                 <Input
                                     value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
+                                    onValueChange={(value) => setPassword(value)}
                                     size="md"
                                     label="Contraseña"
                                     type={isVisible ? "text" : "password"}
@@ -480,7 +479,7 @@ const Login = () => {
                                                         codeInputRefs.current[index] = el;
                                                     }}
                                                     value={digit}
-                                                    onChange={(event) => handleCodeDigitChange(index, event.target.value)}
+                                                    onValueChange={(value) => handleCodeDigitChange(index, value)}
                                                     onKeyDown={(event) => handleCodeKeyDown(index, event)}
                                                     onPaste={handleCodePaste}
                                                     maxLength={1}

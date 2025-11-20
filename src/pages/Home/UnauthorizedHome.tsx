@@ -1,10 +1,7 @@
-// UnauthorizedHome.jsx
-import {Link, useNavigate} from 'react-router-dom';
-import Dashboard from "@/layouts/Dashboard";
+import {Link} from 'react-router-dom';
 import {Button, Card, CardBody, CardFooter, CardHeader} from "@heroui/react";
 
 const UnauthorizedHome = () => {
-    const navigate = useNavigate();
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900 p-4">

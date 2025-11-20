@@ -42,9 +42,9 @@ import {
 } from '@heroicons/react/24/outline';
 
 const PurchaseOrderPortal = () => {
-    const [userRole, setUserRole] = useState('admin'); // 'admin' o 'supplier'
-    const [selectedOrder, setSelectedOrder] = useState(null);
-    const [activeTab, setActiveTab] = useState('orders');
+    const [userRole, setUserRole] = useState<'admin' | 'supplier'>('admin'); // 'admin' o 'supplier'
+    const [selectedOrder, setSelectedOrder] = useState<any>(null);
+    const [activeTab, setActiveTab] = useState<string>('orders');
     const [orders, setOrders] = useState([
         {
             id: 'PO-2024-001',
@@ -111,8 +111,8 @@ const PurchaseOrderPortal = () => {
 
     const { isOpen, onOpen, onClose } = useDisclosure();
 
-    const getStatusColor = (status: string) => {
-        const colors = {
+    const getStatusColor = (status: string): 'default' | 'primary' | 'secondary' | 'success' | 'warning' | 'danger' => {
+        const colors: Record<string, 'default' | 'primary' | 'secondary' | 'success' | 'warning' | 'danger'> = {
             'pending_approval': 'warning',
             'approved': 'primary',
             'rejected': 'danger',
@@ -122,7 +122,7 @@ const PurchaseOrderPortal = () => {
         return colors[status] || 'default';
     };
 
-    const getStatusText = (status) => {
+    const getStatusText = (status: string): string => {
         const texts = {
             'pending_approval': 'Pendiente Aprobación',
             'approved': 'Aprobada',
@@ -133,8 +133,8 @@ const PurchaseOrderPortal = () => {
         return texts[status] || status;
     };
 
-    const getReceptionStatusColor = (status) => {
-        const colors = {
+    const getReceptionStatusColor = (status: string): 'default' | 'primary' | 'secondary' | 'success' | 'warning' | 'danger' => {
+        const colors: Record<string, 'default' | 'primary' | 'secondary' | 'success' | 'warning' | 'danger'> = {
             'not_received': 'default',
             'partial': 'warning',
             'received': 'success'
@@ -142,8 +142,8 @@ const PurchaseOrderPortal = () => {
         return colors[status] || 'default';
     };
 
-    const getInvoiceStatusColor = (status) => {
-        const colors = {
+    const getInvoiceStatusColor = (status: string): 'default' | 'primary' | 'secondary' | 'success' | 'warning' | 'danger' => {
+        const colors: Record<string, 'default' | 'primary' | 'secondary' | 'success' | 'warning' | 'danger'> = {
             'not_invoiced': 'default',
             'invoiced': 'success',
             'paid': 'primary'
@@ -151,7 +151,7 @@ const PurchaseOrderPortal = () => {
         return colors[status] || 'default';
     };
 
-    const handleApproveOrder = (orderId) => {
+    const handleApproveOrder = (orderId: string) => {
         setOrders(orders.map(order =>
             order.id === orderId
                 ? { ...order, status: 'approved' }
@@ -159,7 +159,7 @@ const PurchaseOrderPortal = () => {
         ));
     };
 
-    const handleRejectOrder = (orderId) => {
+    const handleRejectOrder = (orderId: string) => {
         setOrders(orders.map(order =>
             order.id === orderId
                 ? { ...order, status: 'rejected' }
@@ -167,7 +167,7 @@ const PurchaseOrderPortal = () => {
         ));
     };
 
-    const OrderDetailModal = ({ order, isOpen, onClose }) => {
+    const OrderDetailModal = ({ order, isOpen, onClose }: { order: any, isOpen: boolean, onClose: () => void }) => {
         if (!order) return null;
 
         return (
@@ -610,12 +610,12 @@ const PurchaseOrderPortal = () => {
                         <div className="flex items-center gap-3">
                             <Select
                                 label="Rol"
-                                value={userRole}
-                                onChange={(e) => setUserRole(e.target.value)}
+                                selectedKeys={[userRole]}
+                                onSelectionChange={(keys) => setUserRole(Array.from(keys)[0] as string)}
                                 className="w-48"
                             >
-                                <SelectItem key="admin" value="admin">Administrador</SelectItem>
-                                <SelectItem key="supplier" value="supplier">Proveedor</SelectItem>
+                                <SelectItem key="admin" >Administrador</SelectItem>
+                                <SelectItem key="supplier" >Proveedor</SelectItem>
                             </Select>
                             <Avatar name="Usuario" size="sm" />
                         </div>
