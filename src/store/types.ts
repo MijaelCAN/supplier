@@ -133,15 +133,17 @@ export interface PurchaseOrder {
 }
 
 export interface OrderItem {
-    id: string;
-    productCode: string;
-    productName: string;
-    description: string;
-    quantity: number;
-    unitPrice: number;
-    totalPrice: number;
+    id: string; // Docentry
+    productCode: string; // item code
+    productName: string; // description
+    description: string; // description
+    quantity: number;  // Quantity
+    unitPrice: number; // unitPrice
+    totalPrice: number; //LineTotal
     unit: string;
     category: string;
+    qtyPend: number; //QtyPend
+    state: string // EstadoLinea
 }
 
 export interface Invoice {
@@ -427,5 +429,11 @@ export interface DocumentFile {
     file?: File;
     uploadDate: string;
     uploadedBy: string;
+}
+
+export type statusConfig = {
+    key: string;
+    color: 'default' | 'primary' | 'secondary' | 'success' | 'warning' | 'danger';
+    label: string;
 }
 

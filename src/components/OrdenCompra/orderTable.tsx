@@ -1,6 +1,7 @@
 import {
     Card,
     CardBody,
+    Selection,
     Table,
     TableBody,
     TableCell,
@@ -10,7 +11,7 @@ import {
 } from "@heroui/react";
 import { Key, useMemo } from "react";
 import { TableProps } from "@/components/OrdenCompra/Types/tableTyps.ts";
-import { Selection } from "@react-types/shared";
+//import { Selection } from "@react-types/shared";
 
 const OrderTable = <T extends object>({
     headerColumns,
@@ -43,7 +44,7 @@ const OrderTable = <T extends object>({
                     classNames={{
                         wrapper: "max-h-[400px]",
                     }}
-                    selectedKeys={normalizedSelection}
+                    selectedKeys={normalizedSelection as Selection}
                     selectionMode="multiple"
                     sortDescriptor={sortDescriptor}
                     topContent={topContent}

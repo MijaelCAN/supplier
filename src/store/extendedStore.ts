@@ -29,6 +29,7 @@ export type {
     DashboardMetrics, 
     OrderItem 
 };
+export type StatusColor = 'default' | 'primary' | 'secondary' | 'success' | 'warning' | 'danger';
 
 interface ExtendedAppStore {
     // Estados
@@ -49,8 +50,8 @@ interface ExtendedAppStore {
     metrics: DashboardMetrics;
 
     // Datos de configuración
-    orderStatuses: { key: string; label: string; color: string }[];
-    invoiceStatuses: { key: string; label: string; color: string }[];
+    orderStatuses: { key: string; label: string; color: StatusColor }[];
+    invoiceStatuses: { key: string; label: string; color: StatusColor }[];
     paymentMethods: { key: string; label: string }[];
     currencies: { key: string; label: string }[];
     departments: { key: string; label: string }[];
@@ -140,13 +141,14 @@ const initialSuppliers: Supplier[] = [
         totalOrders: 156, //
         totalAmount: 2850000, //
         paymentTerms: "30",
-        certifications: ["ISO 9001", "ISO 27001"],
         registrationDate: "2023-01-15",
         lastOrderDate: "2024-06-15",
+        RUC: '',
+        approvalDate: '',
+        contactEmail: '',
+        contactPhone: '',
         avatar: "https://www.envase.com.pe/img/logo.jpg", //
-        referenciasComerciales: [],
-            Documentos:
-            {
+        Documentos: {
                 certificaciones: false,
                 referenciasBancarias: false,
                 vigenciaPoder: false,
@@ -174,9 +176,12 @@ const initialSuppliers: Supplier[] = [
         totalOrders: 89,
         totalAmount: 1250000,
         paymentTerms: "45",
-        certifications: ["ISO 9001"],
         registrationDate: "2023-03-10",
         lastOrderDate: "2024-06-10",
+        RUC: '',
+        approvalDate: '',
+        contactEmail: '',
+        contactPhone: '',
         avatar: "https://www.envase.com.pe/img/logo.jpg"
     },
     {
@@ -194,207 +199,16 @@ const initialSuppliers: Supplier[] = [
         totalOrders: 45,
         totalAmount: 890000,
         paymentTerms: "30",
-        certifications: ["ISO 9001", "OHSAS 18001"],
         registrationDate: "2023-05-20",
         lastOrderDate: "2024-05-28",
+        RUC: '',
+        approvalDate: '',
+        contactEmail: '',
+        contactPhone: '',
         avatar: "https://www.envase.com.pe/img/logo.jpg"
     }
 ];
 
-const initialPurchaseOrders: PurchaseOrder[] = [
-    {
-        id: "po-001", // OK
-        orderNumber: "OC-2024-001", // OK
-        supplierId: "1", // OK
-        supplierName: "TechCorp Solutions SAC", // OK
-        totalAmount: 45890, // OK
-        currency: "PEN", // OK
-        status: "Completada",
-        priority: "Alta",
-        createdDate: "01-06-2024", // OK
-        approvedDate: "2024-06-02", // ok
-        deliveryDate: "2024-06-15", // ok
-        paymentTerms: "30",
-        createdBy: "Juan Pérez", // quien creo la compra
-        approvedBy: "Maria García", // quien aprobo la compra
-        department: "TI", // departamento que solicito la compra
-        requestedBy: "Carlos López", // quien solicito la compra
-        notes: "Equipos urgentes para proyecto Q2", // comentario de requerimiento
-        items: [
-            {
-                id: "item-001", // DocEntry
-                productCode: "LAP-001", // COdigo de producto
-                productName: "Laptop Dell Inspiron 15",
-                description: "Laptop para desarrollo con 16GB RAM, SSD 512GB",
-                quantity: 10,
-                unitPrice: 3500,
-                totalPrice: 35000, // OK
-                unit: "UND",
-                category: "Equipos"
-            },
-            {
-                id: "item-002",
-                productCode: "MON-001",
-                productName: "Monitor 24 pulgadas",
-                description: "Monitor Full HD para workstation",
-                quantity: 10,
-                unitPrice: 890,
-                totalPrice: 8900,
-                unit: "UND",
-                category: "Equipos"
-            }
-        ]
-    },
-    {
-        id: "po-002",
-        orderNumber: "OC-2024-002",
-        supplierId: "2",
-        supplierName: "Industrial Supplies SAC",
-        totalAmount: 23450,
-        currency: "PEN",
-        status: "Aprobada",
-        priority: "Media",
-        createdDate: "2024-06-05",
-        approvedDate: "2024-06-06",
-        deliveryDate: "2024-06-20",
-        paymentTerms: "45",
-        createdBy: "Ana Torres",
-        approvedBy: "Maria García",
-        department: "Producción",
-        requestedBy: "Roberto Silva",
-        notes: "Material para mantenimiento preventivo",
-        items: [
-            {
-                id: "item-003",
-                productCode: "MAT-001",
-                productName: "Tornillos acero inoxidable",
-                description: "Tornillos M8x20 acero inoxidable",
-                quantity: 1000,
-                unitPrice: 2.5,
-                totalPrice: 2500,
-                unit: "UND",
-                category: "Materiales"
-            },
-            {
-                id: "item-004",
-                productCode: "MAT-002",
-                productName: "Tuercas hexagonales",
-                description: "Tuercas M8 hexagonales acero",
-                quantity: 1000,
-                unitPrice: 1.8,
-                totalPrice: 1800,
-                unit: "UND",
-                category: "Materiales"
-            },
-            {
-                id: "item-005",
-                productCode: "LUB-001",
-                productName: "Lubricante industrial",
-                description: "Aceite lubricante para maquinaria pesada",
-                quantity: 50,
-                unitPrice: 385,
-                totalPrice: 19250,
-                unit: "LTS",
-                category: "Lubricantes"
-            }
-        ]
-    },
-    {
-        id: "po-003",
-        orderNumber: "OC-2024-003",
-        supplierId: "3",
-        supplierName: "Construcciones del Norte EIRL",
-        totalAmount: 67200,
-        currency: "PEN",
-        status: "Pendiente",
-        priority: "Urgente",
-        createdDate: "2024-06-15",
-        deliveryDate: "2024-07-01",
-        paymentTerms: "30",
-        createdBy: "Roberto Silva",
-        department: "Obras",
-        requestedBy: "Miguel Herrera",
-        notes: "Materiales para obra emergente",
-        items: [
-            {
-                id: "item-006",
-                productCode: "CEM-001",
-                productName: "Cemento Portland Tipo I",
-                description: "Bolsas de cemento 42.5kg",
-                quantity: 200,
-                unitPrice: 28.5,
-                totalPrice: 5700,
-                unit: "BOL",
-                category: "Construcción"
-            },
-            {
-                id: "item-007",
-                productCode: "FIE-001",
-                productName: "Fierro corrugado 1/2",
-                description: "Varillas de fierro corrugado 12mm x 9m",
-                quantity: 500,
-                unitPrice: 32.8,
-                totalPrice: 16400,
-                unit: "VAR",
-                category: "Construcción"
-            },
-            {
-                id: "item-008",
-                productCode: "LAD-001",
-                productName: "Ladrillo King Kong 18 huecos",
-                description: "Ladrillos de arcilla para construcción",
-                quantity: 5000,
-                unitPrice: 0.9,
-                totalPrice: 4500,
-                unit: "UND",
-                category: "Construcción"
-            }
-        ]
-    },
-    {
-        id: "po-004",
-        orderNumber: "OC-2024-004",
-        supplierId: "1",
-        supplierName: "TechCorp Solutions SAC",
-        totalAmount: 89340,
-        currency: "PEN",
-        status: "En Proceso",
-        priority: "Alta",
-        createdDate: "2024-06-12",
-        approvedDate: "2024-06-13",
-        deliveryDate: "2024-06-28",
-        paymentTerms: "30",
-        createdBy: "Carlos López",
-        approvedBy: "Maria García",
-        department: "TI",
-        requestedBy: "Ana Torres",
-        notes: "Ampliación infraestructura TI",
-        items: [
-            {
-                id: "item-009",
-                productCode: "SER-001",
-                productName: "Servidor Dell PowerEdge R740",
-                description: "Servidor para datacenter con procesador Intel Xeon",
-                quantity: 2,
-                unitPrice: 35000,
-                totalPrice: 70000,
-                unit: "UND",
-                category: "Servidores"
-            },
-            {
-                id: "item-010",
-                productCode: "STO-001",
-                productName: "Disco SSD 2TB Enterprise",
-                description: "Unidad SSD para servidor de alta velocidad",
-                quantity: 8,
-                unitPrice: 1200,
-                totalPrice: 9600,
-                unit: "UND",
-                category: "Almacenamiento"
-            }
-        ]
-    }
-];
 
 const initialInvoices: Invoice[] = [
     {
@@ -412,6 +226,8 @@ const initialInvoices: Invoice[] = [
         paidDate: "2024-07-15",
         taxAmount: 7061.10,
         subtotal: 38828.90,
+        saldo: 0,
+        retention:0,
         reviewedBy: "Ana Torres",
         approvedBy: "Maria García",
         notes: "Factura conforme con orden de compra"
@@ -430,6 +246,8 @@ const initialInvoices: Invoice[] = [
         approvedDate: "2024-06-22",
         taxAmount: 3609,
         subtotal: 19841,
+        saldo: 0,
+        retention:0,
         reviewedBy: "Luis Mendoza",
         approvedBy: "Maria García",
         notes: "Materiales recibidos conforme"
@@ -447,6 +265,8 @@ const initialInvoices: Invoice[] = [
         dueDate: "2024-07-29",
         taxAmount: 13744.07,
         subtotal: 75595.93,
+        saldo: 0,
+        retention:0,
         reviewedBy: "Ana Torres",
         notes: "Pendiente verificación de especificaciones técnicas"
     }
@@ -749,7 +569,7 @@ export const useExtendedStore = create<ExtendedAppStore>()(
             }),
             addApiPurchaseOrder: (orderData) => set((state) => {
                 const orderExists = state.purchaseOrders.some(order =>
-                    order.id === orderData.id ||
+                    //order.id === orderData.id ||
                     order.orderNumber === orderData.orderNumber
                 );
 
@@ -757,11 +577,15 @@ export const useExtendedStore = create<ExtendedAppStore>()(
                     console.log(`Orden ${orderData.orderNumber} ya existe, omitiendo...`);
                     return state; // No hacer cambios si ya existe
                 }
+                const newOrder: PurchaseOrder = {
+                    ...orderData,
+                    id: crypto.randomUUID() // o cualquier otra forma de generar IDs
+                };
 
                 // Si no existe, agregar la nueva orden
                 console.log(`Agregando nueva orden: ${orderData.orderNumber}`);
                 return {
-                    purchaseOrders: [...state.purchaseOrders, orderData]
+                    purchaseOrders: [...state.purchaseOrders, newOrder]
                 };
             }),
 

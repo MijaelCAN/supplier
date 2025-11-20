@@ -676,7 +676,7 @@ const Agenda: React.FC = () => {
                                                 label="RUC del Proveedor"
                                                 placeholder="Ingrese el RUC"
                                                 value={rucSearch}
-                                                onChange={(e) => setRucSearch(e.target.value)}
+                                                onValueChange={(value) => setRucSearch(value)}
                                                 className="flex-1"
                                             />
                                             <Button
@@ -724,7 +724,7 @@ const Agenda: React.FC = () => {
                                                 label="Fecha de Entrega"
                                                 type="date"
                                                 value={scheduleForm.deliveryDate}
-                                                onChange={(e) => setScheduleForm(prev => ({ ...prev, deliveryDate: e.target.value }))}
+                                                onValueChange={(value) => setScheduleForm(prev => ({ ...prev, deliveryDate: value }))}
                                                 isRequired
                                             />
                                             <Select
@@ -793,7 +793,7 @@ const Agenda: React.FC = () => {
                                             label="Notas"
                                             placeholder="Notas adicionales sobre la entrega"
                                             value={scheduleForm.notes}
-                                            onChange={(e) => setScheduleForm(prev => ({ ...prev, notes: e.target.value }))}
+                                            onValueChange={(value) => setScheduleForm(prev => ({ ...prev, notes: value }))}
                                         />
                                     </div>
                                 </ModalBody>
@@ -1077,7 +1077,7 @@ const Agenda: React.FC = () => {
                                                 label="Fecha"
                                                 type="date"
                                                 value={packingListForm.date}
-                                                onChange={(e) => setPackingListForm(prev => ({ ...prev, date: e.target.value }))}
+                                                onValueChange={(value) => setPackingListForm(prev => ({ ...prev, date: value }))}
                                             />
                                             <Select
                                                 label="Almacén"
@@ -1141,8 +1141,8 @@ const Agenda: React.FC = () => {
                                                                             type="number"
                                                                             size="sm"
                                                                             value={packingItem.quantity.toString()}
-                                                                            onChange={(e) => {
-                                                                                const qty = parseInt(e.target.value) || 0;
+                                                                            onValueChange={(value) => {
+                                                                                const qty = parseInt(value) || 0;
                                                                                 setPackingListItems(prev => prev.map(pi =>
                                                                                     pi.id === item.id ? { ...pi, quantity: qty } : pi
                                                                                 ));
@@ -1164,13 +1164,13 @@ const Agenda: React.FC = () => {
                                             label="Comentario"
                                             placeholder="Comentario adicional"
                                             value={packingListForm.comment}
-                                            onChange={(e) => setPackingListForm(prev => ({ ...prev, comment: e.target.value }))}
+                                            onValueChange={(value) => setPackingListForm(prev => ({ ...prev, comment: value }))}
                                         />
                                         <Textarea
                                             label="Comentario WMS"
                                             placeholder="Comentario para WMS"
                                             value={packingListForm.commentWms}
-                                            onChange={(e) => setPackingListForm(prev => ({ ...prev, commentWms: e.target.value }))}
+                                            onValueChange={(value) => setPackingListForm(prev => ({ ...prev, commentWms: value }))}
                                         />
                                     </div>
                                 </ModalBody>
@@ -1203,54 +1203,54 @@ const Agenda: React.FC = () => {
                                             label="Empresa de Transporte (Opcional)"
                                             placeholder="Nombre de la empresa"
                                             value={transportForm.transportCompany}
-                                            onChange={(e) => setTransportForm(prev => ({ ...prev, transportCompany: e.target.value }))}
+                                            onValueChange={(value) => setTransportForm(prev => ({ ...prev, transportCompany: value }))}
                                         />
                                         <Input
                                             label="Nombre del Conductor"
                                             placeholder="Nombre completo"
                                             value={transportForm.driverName}
-                                            onChange={(e) => setTransportForm(prev => ({ ...prev, driverName: e.target.value }))}
+                                            onValueChange={(value) => setTransportForm(prev => ({ ...prev, driverName: value }))}
                                             isRequired
                                         />
                                         <Input
                                             label="Licencia de Conducir"
                                             placeholder="Número de licencia"
                                             value={transportForm.driverLicense}
-                                            onChange={(e) => setTransportForm(prev => ({ ...prev, driverLicense: e.target.value }))}
+                                            onValueChange={(value) => setTransportForm(prev => ({ ...prev, driverLicense: value }))}
                                         />
                                         <div className="grid grid-cols-2 gap-4">
                                             <Input
                                                 label="Placa del Vehículo"
                                                 placeholder="ABC-123"
                                                 value={transportForm.vehiclePlate}
-                                                onChange={(e) => setTransportForm(prev => ({ ...prev, vehiclePlate: e.target.value }))}
+                                                onValueChange={(value) => setTransportForm(prev => ({ ...prev, vehiclePlate: value }))}
                                                 isRequired
                                             />
                                             <Input
                                                 label="Tipo de Vehículo"
                                                 placeholder="Camión, Furgón, etc."
                                                 value={transportForm.vehicleType}
-                                                onChange={(e) => setTransportForm(prev => ({ ...prev, vehicleType: e.target.value }))}
+                                                onValueChange={(value) => setTransportForm(prev => ({ ...prev, vehicleType: value }))}
                                             />
                                         </div>
                                         <Input
                                             label="Teléfono de Contacto"
                                             placeholder="+51 999 999 999"
                                             value={transportForm.contactPhone}
-                                            onChange={(e) => setTransportForm(prev => ({ ...prev, contactPhone: e.target.value }))}
+                                            onValueChange={(value) => setTransportForm(prev => ({ ...prev, contactPhone: value }))}
                                             isRequired
                                         />
                                         <Input
                                             label="Hora Estimada de Llegada"
                                             type="time"
                                             value={transportForm.estimatedArrival}
-                                            onChange={(e) => setTransportForm(prev => ({ ...prev, estimatedArrival: e.target.value }))}
+                                            onValueChange={(value) => setTransportForm(prev => ({ ...prev, estimatedArrival: value }))}
                                         />
                                         <Textarea
                                             label="Notas"
                                             placeholder="Notas adicionales"
                                             value={transportForm.notes}
-                                            onChange={(e) => setTransportForm(prev => ({ ...prev, notes: e.target.value }))}
+                                            onValueChange={(value) => setTransportForm(prev => ({ ...prev, notes: value }))}
                                         />
                                     </div>
                                 </ModalBody>

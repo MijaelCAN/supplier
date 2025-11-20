@@ -10,8 +10,6 @@ import {
     Selection,
     Chip,
     Progress,
-    Accordion,
-    AccordionItem,
     Table,
     TableHeader,
     TableColumn,
@@ -48,7 +46,6 @@ import {
     StarIcon
 } from '@heroicons/react/24/outline';
 import { Link } from "@heroui/link";
-import { DeleteIcon } from "@/components/icons.tsx";
 import Dashboard from "@/layouts/Dashboard";
 import { useNavigate } from "react-router-dom";
 import { useSuppliers } from "@/store/extendedStore.ts";
@@ -56,6 +53,7 @@ import { useAuthStore } from '@/store/authStore';
 import { createDefaultDocuments, fetchSupplierByCardCode, updateSupplierProfile, type SupplierApiRecord, type Contacto, type Banco, type DocumentoEvaluacion} from '@/services/providers/providersApi';
 import { ProveedorValidator, TipoProveedorCodigo } from "@/pages/Proveedores/Profile/ProveedorValidator.ts";
 import {TicketIcon } from "@heroicons/react/16/solid";
+import { fetchCondicionesPago, type CondicionPago, getCondicionPagoDescripcion } from '@/services/maestros/condicionesPagoApi';
 
 type BankTheme = {
     cardClass: string;
@@ -500,6 +498,8 @@ const SupplierProfileCard = () => {
      const [formData, setFormData] = React.useState<SupplierApiRecord | null>(null);
      const [activeSection, setActiveSection] = React.useState<SectionKey | null>(null);
      const {isOpen, onOpen, onOpenChange} = useDisclosure();
+     const [condicionesPago, setCondicionesPago] = React.useState<CondicionPago[]>([]);
+     const [condicionPagoDescripcion, setCondicionPagoDescripcion] = React.useState<string | null>(null);
      const [isSaving, setIsSaving] = React.useState(false);
     const [apiError, setApiError] = React.useState<string | null>(null);
     const [isGlobalLoading, setIsGlobalLoading] = React.useState(false);
@@ -598,6 +598,34 @@ const SupplierProfileCard = () => {
         setCoverPreview(null);
         setAvatarPreview(null);
     }, [selectedSupplier?.cardCode, formData?.CodigoSN]);
+
+    // Cargar condiciones de pago cuando se carga el componente
+    useEffect(() => {
+        const loadCondicionesPago = async () => {
+            try {
+                const condiciones = await fetchCondicionesPago();
+                setCondicionesPago(condiciones);
+            } catch (error) {
+                console.error('Error al cargar condiciones de pago:', error);
+            }
+        };
+        loadCondicionesPago();
+    }, []);
+
+    // Obtener descripción cuando cambia el código de condición de pago
+    useEffect(() => {
+        if (formData?.CondicionPago && condicionesPago.length > 0) {
+            const condicion = condicionesPago.find(c => c.GroupNum === formData.CondicionPago);
+            setCondicionPagoDescripcion(condicion?.PymntGroup || formData.CondicionPago);
+        } else if (formData?.CondicionPago && condicionesPago.length === 0) {
+            // Si aún no se han cargado las condiciones, intentar obtener la descripción
+            getCondicionPagoDescripcion(formData.CondicionPago).then(descripcion => {
+                setCondicionPagoDescripcion(descripcion || formData.CondicionPago || null);
+            });
+        } else {
+            setCondicionPagoDescripcion(null);
+        }
+    }, [formData?.CondicionPago, condicionesPago]);
 
 
     const handleOpenSection = (section: SectionKey) => {
@@ -1151,7 +1179,13 @@ const SupplierProfileCard = () => {
                             <Input label="Teléfono Móvil" value={formData.TelefonoMovil} onValueChange={(value) => handleFieldChange('TelefonoMovil', value)}/>
                             <Input label="Correo" value={formData.Correo} onValueChange={(value) => handleFieldChange('Correo', value)}/>
                             <Input label="Sitio Web" value={formData.website ?? ''} onValueChange={(value) => handleFieldChange('website', value)}/>
-                            <Input label="Condición de Pago" value={formData.CondicionPago} onValueChange={(value) => handleFieldChange('CondicionPago', value)}/>
+                            <Input 
+                                label="Condición de Pago" 
+                                value={condicionPagoDescripcion || formData.CondicionPago || ''} 
+                                onValueChange={(value) => handleFieldChange('CondicionPago', value)}
+                                isReadOnly
+                                description={formData.CondicionPago ? `Código: ${formData.CondicionPago}` : undefined}
+                            />
                             <Input label="Resolución Agente Retención" value={formData.ResolucionAgenteRetencion} onValueChange={(value) => handleFieldChange('ResolucionAgenteRetencion', value)} isDisabled/>
                             <Input label="Resolución Agente Percepción" value={formData.ResolucionAgentePercepcion} onValueChange={(value) => handleFieldChange('ResolucionAgentePercepcion', value)} isDisabled/>
                         </div>
@@ -1592,9 +1626,9 @@ const SupplierProfileCard = () => {
         const referenciasFieldTotal = referenciasFuente.length * 3;
         const referenciasFilled = referenciasFuente.reduce<number>((acc, referencia) => (
             acc +
-            (isValueFilled(referencia.name) ? 1 : 0) +
-            (isValueFilled(referencia.contact) ? 1 : 0) +
-            (isValueFilled(referencia.phone) ? 1 : 0)
+            (isValueFilled(referencia.U_RazonSocial) ? 1 : 0) +
+            (isValueFilled(referencia.U_Contacto) ? 1 : 0) +
+            (isValueFilled(referencia.U_Telefonos) ? 1 : 0)
         ), 0);
 
         const serviciosFuente = formData?.ServiciosOfrecidos ?? [];
@@ -2010,7 +2044,7 @@ const SupplierProfileCard = () => {
                                              <TableCell>{ref.Name || '-'}</TableCell>
                                              <TableCell>{ref.Profesion || '-'}</TableCell>
                                              <TableCell>{ref.E_MailL || '-'}</TableCell>
-                                             <TableCell>{ref.E_Telefono || '-'}</TableCell>
+                                             <TableCell>{ref.Telefono || '-'}</TableCell>
                                          </TableRow>
                                      ))}
                                  </TableBody>
@@ -2295,3 +2329,4 @@ const SupplierProfileCard = () => {
     );
 };
 export default SupplierProfileCard;
+

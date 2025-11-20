@@ -28,7 +28,6 @@ import {
     CheckCircleIcon,
     ExclamationTriangleIcon,
     BuildingOfficeIcon,
-    PlusIcon,
 } from "@heroicons/react/24/outline";
 import Dashboard from "@/layouts/Dashboard";
 import {Supplier, useSuppliers} from "@/store/extendedStore";
@@ -63,7 +62,7 @@ const columns = [
     { name: "RATING", uid: "rating", sortable: true },
     { name: "ÓRDENES", uid: "totalOrders", sortable: true },
     { name: "ESTADO", uid: "status", sortable: true },
-    { name: "ACCIONES", uid: "actions" },
+    { name: "ACCIONES", uid: "actions", sortable: false },
 ];
 
 
@@ -72,12 +71,12 @@ const INITIAL_VISIBLE_COLUMNS = ["name", "contact", "businessType", "rating", "t
 
 export default function SupplierManagement() {
     const navigate = useNavigate()
-    const { suppliers, deleteSupplier, setSelectedSupplier, selectedSupplier, addSupplier, updateSupplier, setSuppliers} = useSuppliers()
+    const { suppliers, deleteSupplier, setSelectedSupplier, selectedSupplier, updateSupplier, setSuppliers} = useSuppliers()
     const supplierList = Array.isArray(suppliers) ? suppliers : [];
     const [filterValue, setFilterValue] = useState("");
     const [selectedKeys, setSelectedKeys] = useState<Selection>(new Set([]));
     const [visibleColumns, setVisibleColumns] = useState<Selection>(new Set(INITIAL_VISIBLE_COLUMNS));
-    const [statusFilter, setStatusFilter] = useState<Selection>("all");
+    const [statusFilter, setStatusFilter] = useState<Selection>(new Set(["all"]));
     const [rowsPerPage, setRowsPerPage] = useState(10);
     const [sortDescriptor, setSortDescriptor] = useState<SortDescriptor>({
         column: "name",
@@ -88,7 +87,7 @@ export default function SupplierManagement() {
     const [error, setError] = useState<string | null>(null);
 
     const { isOpen: isRegisterOpen, onOpen: onRegisterOpen, onClose: onRegisterClose } = useDisclosure();
-    const { isOpen: isViewOpen, onOpen: onViewOpen, onClose: onViewClose } = useDisclosure();
+    const { isOpen: isViewOpen, onClose: onViewClose } = useDisclosure();
     const { isOpen: isEditOpen, onOpen: onEditOpen, onClose: onEditClose } = useDisclosure();
     const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
 
@@ -105,7 +104,7 @@ export default function SupplierManagement() {
         if (!isValidRange) {
             throw new Error('La fecha inicial no puede ser mayor que la fecha final.');
         }
-        const formatDateForApi = (value: string) => value.replaceAll('-', '');
+        const formatDateForApi = (value: string) => value.replace(/-/g, '');
         return fetchSuppliersListFromApi({
             startDate: formatDateForApi(startDate),
             endDate: formatDateForApi(endDate),
@@ -182,7 +181,7 @@ export default function SupplierManagement() {
                 );
             });
         }
-        const selectedStatuses = statusFilter === "all" ? [] : Array.from(statusFilter) as string[];
+        const selectedStatuses = (statusFilter === "all" || (statusFilter instanceof Set && statusFilter.size === 0)) ? [] : Array.from(statusFilter as Set<string>) as string[];
         if (selectedStatuses.length > 0) {
             filteredSuppliers = filteredSuppliers.filter((supplier) =>
                 selectedStatuses.includes(supplier.status),
@@ -310,7 +309,15 @@ export default function SupplierManagement() {
                     </div>
                 );
             default:
-                return cellValue;
+                // Manejar valores primitivos y convertir el resto a string seguro
+                if (cellValue == null) {
+                    return '-';
+                }
+                if (typeof cellValue === 'string' || typeof cellValue === 'number' || typeof cellValue === 'boolean') {
+                    return String(cellValue);
+                }
+                // Para arrays u objetos complejos
+                return '-';
         }
     };
 
@@ -486,7 +493,7 @@ export default function SupplierManagement() {
                 </div>
             </div>
         );
-    }, [selectedKeys, items.length, page, pages, hasSearchFilter]);
+    }, [selectedKeys, filteredItems.length, page, pages]);
 
     const emptyMessage = isLoading ? 'Cargando proveedores...' : (error ?? 'No se encontraron proveedores');
 

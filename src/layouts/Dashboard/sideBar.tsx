@@ -62,7 +62,7 @@ const SideBar: FC<SideBarProps> = ({sidebarOpen,setSidebarOpen}) => {
                         <li key={index}>
                             {item.single ? (
                                 <Link
-                                    to={item.href}
+                                    to={item.href!}
                                     className="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white transition-all duration-200 group"
                                 >
                                     <span className="text-gray-500 group-hover:text-blue-600 transition-colors">
@@ -92,10 +92,10 @@ const SideBar: FC<SideBarProps> = ({sidebarOpen,setSidebarOpen}) => {
                                         }
                                     >
                                         <div className="space-y-1 ml-8">
-                                            {item.items.map((subItem, subIndex) => (
+                                            {item.items!.map((subItem, subIndex) => (
                                                 <Link
                                                     key={subIndex}
-                                                    to={subItem.href}
+                                                    to={subItem.href!}
                                                     className="flex items-center space-x-3 px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white transition-all duration-200 group"
                                                 >
                                                     <span
@@ -144,6 +144,7 @@ const SideBar: FC<SideBarProps> = ({sidebarOpen,setSidebarOpen}) => {
                 >
                     Cerrar Sesión
                 </Button>
+                <ThemeSwitch/>
             </div>
         </aside>
     );

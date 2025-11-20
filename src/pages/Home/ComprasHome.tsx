@@ -1,4 +1,3 @@
-import React from 'react';
 import {
     Card,
     CardBody,
@@ -15,7 +14,6 @@ import {
     EyeIcon,
     PlusIcon,
     ArrowRightIcon,
-    ClockIcon,
     ExclamationTriangleIcon
 } from "@heroicons/react/24/outline";
 import Dashboard from "@/layouts/Dashboard";

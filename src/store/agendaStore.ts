@@ -6,7 +6,6 @@ import {
     PackingList,
     TransportData,
     DeliveryDocuments,
-    PackingListItem,
     DocumentFile
 } from './types';
 

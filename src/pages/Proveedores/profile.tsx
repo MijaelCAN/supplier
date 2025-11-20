@@ -15,9 +15,6 @@ import {
     Tab, Progress
 } from '@heroui/react';
 import {
-    UserIcon,
-    MapPinIcon,
-    PhoneIcon,
     BanknotesIcon,
     BriefcaseIcon,
     DocumentTextIcon,
@@ -167,23 +164,23 @@ const ProveedorProfile = () => {
         { key: 'comercial', label: 'Contacto Comercial' }
     ];
 
-    const handleInputChange = (field: string, value) => {
+    const handleInputChange = (field: string, value: any) => {
         setFormData(prev => ({
             ...prev,
             [field]: value
         }));
     };
 
-    const handleArrayChange = (arrayName, index, field, value) => {
+    const handleArrayChange = (arrayName: string, index: number, field: string, value: any) => {
         setFormData(prev => ({
             ...prev,
-            [arrayName]: prev[arrayName].map((item, i) =>
+            [arrayName]: prev[arrayName].map((item: any, i: number) =>
                 i === index ? { ...item, [field]: value } : item
             )
         }));
     };
 
-    const handleDocumentChange = (docType, value) => {
+    const handleDocumentChange = (docType: string, value: any) => {
         setFormData(prev => ({
             ...prev,
             documentos: {

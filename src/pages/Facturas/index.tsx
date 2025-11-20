@@ -1,4 +1,6 @@
-import React, {useState, useMemo, useEffect, useCallback} from 'react';
+import {useState, useMemo, useEffect, useCallback} from 'react';
+import type { Selection } from '@react-types/shared';
+import type { statusConfig } from '@/store/types';
 import {
     Button,
     Input,
@@ -16,7 +18,6 @@ import {
     Pagination,
     Card,
     CardBody,
-    CardHeader,
     useDisclosure,
     Modal,
     ModalContent,
@@ -31,7 +32,7 @@ import {
     EyeIcon,
     CheckIcon,
     XMarkIcon,
-    ChevronDownIcon
+    ChevronDownIcon, DocumentTextIcon, ClockIcon, BanknotesIcon
 } from "@heroicons/react/24/outline";
 import Dashboard from "@/layouts/Dashboard";
 import {useInvoices, useExtendedStore} from '@/store/extendedStore';
@@ -48,15 +49,15 @@ const InvoicesList = () => {
         selectedInvoice,
         setSelectedInvoice
     } = useInvoices();
-    
+
     const invoiceStatuses = useExtendedStore(state => state.invoiceStatuses);
-    const currencies = useExtendedStore(state => state.currencies);
-    const todayString = useMemo(() => new Date().toISOString().slice(0, 10), []);
+    //const currencies = useExtendedStore(state => state.currencies);
+    const todayString = useMemo(() =>  new Date().toISOString().slice(0, 10), []);
     const [startDate, setStartDate] = useState<string>(todayString);
     const [endDate, setEndDate] = useState<string>(todayString);
 
     const [filterValue, setFilterValue] = useState("");
-    const [statusFilter, setStatusFilter] = useState("all");
+    const [statusFilter, setStatusFilter] = useState<Selection>(new Set(["all"]));
     const [page, setPage] = useState(1);
     const [rowsPerPage] = useState(10);
     const [isLoading, setIsLoading] = useState(true);
@@ -71,7 +72,7 @@ const InvoicesList = () => {
         if (!isValidRange) {
             throw new Error('La fecha inicial no puede ser mayor que la fecha final.');
         }
-        const formatDateForApi = (value: string) => value.replaceAll('-', '');
+        const formatDateForApi = (value: string) => value.replace(/-/g, '');
         return fetchInvoicesByCardCode(
             currentUser?.supplierId || '',
             "Todos",
@@ -120,8 +121,11 @@ const InvoicesList = () => {
             );
         }
 
-        if (statusFilter !== "all") {
-            filtered = filtered.filter(invoice => invoice.status === statusFilter);
+        const selectedStatus = statusFilter === "all" || (statusFilter instanceof Set && statusFilter.size === 0) 
+            ? "all" 
+            : Array.from(statusFilter as Set<string>)[0] as string;
+        if (selectedStatus !== "all") {
+            filtered = filtered.filter(invoice => invoice.status === selectedStatus);
         }
 
         return filtered;
@@ -134,9 +138,9 @@ const InvoicesList = () => {
         return filteredInvoices.slice(start, end);
     }, [page, filteredInvoices, rowsPerPage]);
 
-    const getStatusColor = (status: string) => {
+    const getStatusColor = (status: string): statusConfig => {
         const statusConfig = invoiceStatuses.find(s => s.key === status);
-        return statusConfig || { color: 'default', label: status };
+        return statusConfig ?? { key: status, label: status, color: 'default' };
     };
 
     const handleApprove = (invoiceId: string) => {
@@ -212,10 +216,15 @@ const InvoicesList = () => {
                             closeOnSelect={false}
                             selectedKeys={statusFilter}
                             selectionMode="single"
-                            onSelectionChange={(selection) => setStatusFilter(Array.from(selection)[0] as string)}
+                            onSelectionChange={(selection) => {
+                                const value = Array.from(selection)[0] as string;
+                                setStatusFilter(new Set([value]));
+                            }}
                         >
-                            <DropdownItem key="all">Todos</DropdownItem>
-                            {invoiceStatuses.map(status => (
+                            {[
+                                { key: "all", label: "Todos" },
+                                ...invoiceStatuses
+                            ].map(status => (
                                 <DropdownItem key={status.key}>{status.label}</DropdownItem>
                             ))}
                         </DropdownMenu>
@@ -231,6 +240,55 @@ const InvoicesList = () => {
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900">Facturas</h1>
                     <p className="text-gray-600">Gestiona las facturas de la empresa</p>
+                </div>
+
+                {/* Resumen de estadísticas */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <Card>
+                        <CardBody className="flex flex-row items-center gap-4">
+                            <DocumentTextIcon className="h-8 w-8 text-blue-500" />
+                            <div>
+                                <p className="text-sm text-gray-500">Total Facturas</p>
+                                <p className="text-xl font-bold">{invoices.length}</p>
+                            </div>
+                        </CardBody>
+                    </Card>
+                    <Card>
+                        <CardBody className="flex flex-row items-center gap-4">
+                            <ClockIcon className="h-8 w-8 text-orange-500" />
+                            <div>
+                                <p className="text-sm text-gray-500">En Revisión</p>
+                                <p className="text-xl font-bold">
+                                    {invoices.filter(i => i.status === 'En Revisión').length}
+                                </p>
+                            </div>
+                        </CardBody>
+                    </Card>
+                    <Card>
+                        <CardBody className="flex flex-row items-center gap-4">
+                            <CheckIcon className="h-8 w-8 text-green-500" />
+                            <div>
+                                <p className="text-sm text-gray-500">Aprobadas</p>
+                                <p className="text-xl font-bold">
+                                    {invoices.filter(i => i.status === 'Aprobada').length}
+                                </p>
+                            </div>
+                        </CardBody>
+                    </Card>
+                    <Card>
+                        <CardBody className="flex flex-row items-center gap-4">
+                            <BanknotesIcon className="h-8 w-8 text-purple-500" />
+                            <div>
+                                <p className="text-sm text-gray-500">Monto Total</p>
+                                <p className="text-xl font-bold">
+                                    {formatCurrency(
+                                        invoices.reduce((sum, i) => sum + i.amount, 0),
+                                        'PEN'
+                                    )}
+                                </p>
+                            </div>
+                        </CardBody>
+                    </Card>
                 </div>
 
                 <Card>
@@ -324,7 +382,7 @@ const InvoicesList = () => {
                                             <TableCell>
                                                 <Chip 
                                                     className="capitalize" 
-                                                    color={getStatusColor(invoice.status).color || 'default'}
+                                                    color={getStatusColor(invoice.status).color}
                                                     size="sm" 
                                                     variant="flat"
                                                 >
@@ -340,44 +398,44 @@ const InvoicesList = () => {
                                                             </Button>
                                                         </DropdownTrigger>
                                                         <DropdownMenu>
-                                                            <DropdownItem onPress={() => handleViewDetails(invoice)}>
+                                                            <DropdownItem key="details" onPress={() => handleViewDetails(invoice)}>
                                                                 <div className="flex items-center gap-2">
                                                                     <EyeIcon className="h-4 w-4" />
                                                                     Ver detalles
                                                                 </div>
                                                             </DropdownItem>
-                                                            {invoice.status !== 'Recibida' && (
+                                                            {invoice.status !== 'Recibida' ? (
                                                                 <>
-                                                                    <DropdownItem onPress={() => handleApprove(invoice.id)}>
+                                                                    <DropdownItem key="Aprobar" onPress={() => handleApprove(invoice.id)}>
                                                                         <div className="flex items-center gap-2">
                                                                             <CheckIcon className="h-4 w-4 text-green-500" />
                                                                             Aprobar
                                                                         </div>
                                                                     </DropdownItem>
-                                                                    <DropdownItem onPress={() => handleReject(invoice.id)}>
+                                                                    <DropdownItem key="rechazar" onPress={() => handleReject(invoice.id)}>
                                                                         <div className="flex items-center gap-2">
                                                                             <XMarkIcon className="h-4 w-4 text-red-500" />
                                                                             Rechazar
                                                                         </div>
                                                                     </DropdownItem>
                                                                 </>
-                                                            )}
-                                                            {invoice.status === 'En Revisión' && (
+                                                            ): null }
+                                                            {invoice.status === 'En Revisión' ? (
                                                                 <>
-                                                                    <DropdownItem onPress={() => handleApprove(invoice.id)}>
+                                                                    <DropdownItem key="dsd" onPress={() => handleApprove(invoice.id)}>
                                                                         <div className="flex items-center gap-2">
                                                                             <CheckIcon className="h-4 w-4 text-green-500" />
                                                                             Aprobar
                                                                         </div>
                                                                     </DropdownItem>
-                                                                    <DropdownItem onPress={() => handleReject(invoice.id)}>
+                                                                    <DropdownItem key="zxccz" onPress={() => handleReject(invoice.id)}>
                                                                         <div className="flex items-center gap-2">
                                                                             <XMarkIcon className="h-4 w-4 text-red-500" />
                                                                             Rechazar
                                                                         </div>
                                                                     </DropdownItem>
                                                                 </>
-                                                            )}
+                                                            ): null }
                                                         </DropdownMenu>
                                                     </Dropdown>
                                                 </div>
@@ -411,7 +469,7 @@ const InvoicesList = () => {
                                         </div>
                                         {selectedInvoice && (
                                             <Chip 
-                                                color={getStatusColor(selectedInvoice.status)?.color}
+                                                color={getStatusColor(selectedInvoice.status).color}
                                                 size="sm" 
                                                 variant="flat"
                                             >

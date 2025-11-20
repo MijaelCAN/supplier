@@ -130,8 +130,7 @@ const LoginPage = () => {
                                     const roleInfo = getRoleInfo(user.role);
                                     return (
                                         <SelectItem 
-                                            key={user.id} 
-                                            value={user.id}
+                                            key={user.id}
                                             startContent={
                                                 <Avatar 
                                                     src={user.avatar} 

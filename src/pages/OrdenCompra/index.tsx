@@ -1,51 +1,47 @@
-import React, {useState, useMemo, useEffect, useCallback} from 'react';
+import {useCallback, useEffect, useMemo, useState} from 'react';
 import {
     Button,
-    Input,
-    Table,
-    TableHeader,
-    TableColumn,
-    TableBody,
-    TableRow,
-    TableCell,
-    Chip,
-    Dropdown,
-    DropdownTrigger,
-    DropdownMenu,
-    DropdownItem,
-    Pagination,
     Card,
     CardBody,
     CardHeader,
-    useDisclosure,
+    Chip,
+    Dropdown,
+    DropdownItem,
+    DropdownMenu,
+    DropdownTrigger,
+    Input,
     Modal,
-    ModalContent,
-    ModalHeader,
     ModalBody,
+    ModalContent,
     ModalFooter,
+    ModalHeader,
+    Pagination,
     Select,
     SelectItem,
+    Spinner,
+    Table,
+    TableBody,
+    TableCell,
+    TableColumn,
+    TableHeader,
+    TableRow,
     Textarea,
-    Spinner
+    useDisclosure
 } from "@heroui/react";
 import {
-    PlusIcon,
-    MagnifyingGlassIcon,
+    CheckIcon,
+    ChevronDownIcon,
     EllipsisVerticalIcon,
     EyeIcon,
+    MagnifyingGlassIcon,
     PencilIcon,
-    CheckIcon,
-    XMarkIcon,
-    DocumentTextIcon,
-    ChevronDownIcon
+    XMarkIcon
 } from "@heroicons/react/24/outline";
 import Dashboard from "@/layouts/Dashboard";
-import {usePurchaseOrders, useSuppliers, useExtendedStore, Supplier} from '@/store/extendedStore';
-import { PurchaseOrder, OrderItem } from '@/store/types';
-import {fetchOrderResponse, fetchOrdersByCardCode} from "@/services/orders/ordersApi.ts";
+import {StatusColor, useExtendedStore, usePurchaseOrders, useSuppliers} from '@/store/extendedStore';
+import {OrderItem, PurchaseOrder, type statusConfig} from '@/store/types';
+import {fetchOrdersByCardCode} from "@/services/orders/ordersApi.ts";
 import {useAuth} from "@/store/authStore.ts";
-import {fetchSuppliersListFromApi} from "@/services/providers/providersApi.ts";
-
 
 
 const PurchaseOrdersList = () => {
@@ -54,7 +50,6 @@ const PurchaseOrdersList = () => {
         setPurchaseOrders,
         addPurchaseOrder,
         updatePurchaseOrder,
-        addApiPurchaseOrder,
         approvePurchaseOrder,
         selectedOrder,
         setSelectedOrder
@@ -87,7 +82,7 @@ const PurchaseOrdersList = () => {
             console.log('La fecha inicial no puede ser mayor que la fecha final.')
             throw new Error('La fecha inicial no puede ser mayor que la fecha final.');
         }
-        const formatDateForApi = (value: string) => value.replaceAll('-', '');
+        const formatDateForApi = (value: string) => value.replace(/-/g, '');
         return fetchOrdersByCardCode(
             currentUser?.supplierId,
             "Todos",
@@ -126,8 +121,8 @@ const PurchaseOrdersList = () => {
 
     // Modales
     const { isOpen: isDetailOpen, onOpen: onDetailOpen, onOpenChange: onDetailOpenChange } = useDisclosure();
-    const { isOpen: isCreateOpen, onOpen: onCreateOpen, onOpenChange: onCreateOpenChange } = useDisclosure();
-    const { isOpen: isEditOpen, onOpen: onEditOpen, onOpenChange: onEditOpenChange } = useDisclosure();
+    const { isOpen: isCreateOpen, onOpenChange: onCreateOpenChange } = useDisclosure();
+    //const { isOpen: isEditOpen, onOpen: onEditOpen, onOpenChange: onEditOpenChange } = useDisclosure();
 
     // Estado para formulario
     const [formData, setFormData] = useState({
@@ -169,25 +164,21 @@ const PurchaseOrdersList = () => {
     }, [page, filteredOrders, rowsPerPage]);
     console.log("PAGINA 1: ", items)
 
-    const getStatusColor = (status: string) => {
+
+    const getStatusColor = (status: string): statusConfig => {
         const statusConfig = orderStatuses.find(s => s.key === status);
-        return statusConfig;
+        return statusConfig ?? { key: status, label: status, color: 'default' };
     };
 
-    const getPriorityColor = (priority: string) => {
-        const priorityConfig = priorities.find(p => p.key === priority);
-        return priorityConfig?.color || 'default';
-    };
-
-    function obtenerColorPorAvance(porcentaje: number): { color: string; label: string } {
+    function obtenerColorPorAvance(porcentaje: number): { color: StatusColor; label: string } {
         if (porcentaje === 0) {
             return { color: 'default', label: 'Sin inicio' };
         }
         if (porcentaje > 0 && porcentaje <= 25) {
-            return { color: 'warning', label: 'Inicio' };
+            return { color: 'danger', label: 'Inicio' };
         }
         if (porcentaje > 25 && porcentaje <= 50) {
-            return { color: 'info', label: 'En progreso' };
+            return { color: 'warning', label: 'En progreso' };
         }
         if (porcentaje > 50 && porcentaje < 100) {
             return { color: 'primary', label: 'Avanzado' };
@@ -222,7 +213,8 @@ const PurchaseOrdersList = () => {
             requestedBy: formData.requestedBy,
             notes: formData.notes,
             createdBy: 'Usuario Actual',
-            items: formData.items
+            items: formData.items,
+            avance: 0
         };
 
         addPurchaseOrder(newOrder);
@@ -307,8 +299,10 @@ const PurchaseOrdersList = () => {
                             selectionMode="single"
                             onSelectionChange={(selection) => setStatusFilter(Array.from(selection)[0] as string)}
                         >
-                            <DropdownItem key="all">Todos</DropdownItem>
-                            {orderStatuses.map(status => (
+                            {[
+                                { key: "all", label: "Todos" },
+                                ...orderStatuses
+                            ].map(status => (
                                 <DropdownItem key={status.key}>{status.label}</DropdownItem>
                             ))}
                         </DropdownMenu>
@@ -392,7 +386,7 @@ const PurchaseOrdersList = () => {
                                                     <p className="text-bold text-sm">
                                                         {formatCurrency(order.totalAmount, order.currency)}
                                                     </p>
-                                                    <p className="text-xs text-gray-500">{order.paymentTerms} días</p>
+                                                    <p className="text-xs text-gray-500">{order.paymentTerms}</p>
                                                 </div>
                                             </TableCell>
                                             <TableCell>
@@ -430,36 +424,36 @@ const PurchaseOrdersList = () => {
                                                             </Button>
                                                         </DropdownTrigger>
                                                         <DropdownMenu>
-                                                            <DropdownItem onPress={() => handleViewDetails(order)}>
+                                                            <DropdownItem key="detail" onPress={() => handleViewDetails(order)}>
                                                                 <div className="flex items-center gap-2">
                                                                     <EyeIcon className="h-4 w-4" />
                                                                     Ver detalles
                                                                 </div>
                                                             </DropdownItem>
-                                                            {order.status === 'Pendiente' && (
+                                                            {order.status === 'Pendiente' ? (
                                                                 <>
-                                                                    <DropdownItem onPress={() => handleApprove(order.id)}>
+                                                                    <DropdownItem key="Aprobar" onPress={() => handleApprove(order.id)}>
                                                                         <div className="flex items-center gap-2">
                                                                             <CheckIcon className="h-4 w-4 text-green-500" />
                                                                             Aprobar
                                                                         </div>
                                                                     </DropdownItem>
-                                                                    <DropdownItem onPress={() => handleReject(order.id)}>
+                                                                    <DropdownItem key="rechazar" onPress={() => handleReject(order.id)}>
                                                                         <div className="flex items-center gap-2">
                                                                             <XMarkIcon className="h-4 w-4 text-red-500" />
                                                                             Rechazar
                                                                         </div>
                                                                     </DropdownItem>
                                                                 </>
-                                                            )}
-                                                            {order.status === 'Borrador' && (
-                                                                <DropdownItem>
+                                                            ): null}
+                                                            {order.status === 'Borrador' ? (
+                                                                <DropdownItem key="Editar">
                                                                     <div className="flex items-center gap-2">
                                                                         <PencilIcon className="h-4 w-4" />
                                                                         Editar
                                                                     </div>
                                                                 </DropdownItem>
-                                                            )}
+                                                            ): null }
                                                         </DropdownMenu>
                                                     </Dropdown>
                                                 </div>
@@ -589,16 +583,16 @@ const PurchaseOrdersList = () => {
                                                                             </TableCell>
                                                                             <TableCell>
                                                                                 <div className="text-right text-sm">
-                                                                                    {item.QtyPend}
+                                                                                    {item.qtyPend }
                                                                                 </div>
                                                                             </TableCell>
                                                                             <TableCell className="text-end">
                                                                                 <Chip
                                                                                     size="sm"
                                                                                     variant="flat"
-                                                                                    color={getStatusColor(item.EstadoLinea === "Cerrado" ? 'Completada':'En Proceso')?.color}
+                                                                                    color={getStatusColor(item.state === "Cerrado" ? 'Completada':'En Proceso')?.color}
                                                                                 >
-                                                                                    {getStatusColor(item.EstadoLinea === "Cerrado" ? 'Completada':'En Proceso')?.label}
+                                                                                    {getStatusColor(item.state === "Cerrado" ? 'Completada':'En Proceso')?.label}
                                                                                 </Chip>
                                                                             </TableCell>
                                                                             <TableCell>
@@ -671,7 +665,7 @@ const PurchaseOrdersList = () => {
                                             }}
                                         >
                                             {suppliers.map(supplier => (
-                                                <SelectItem key={supplier.docEntry} value={supplier.docEntry}>
+                                                <SelectItem key={supplier.docEntry}>
                                                     {supplier.cardName}
                                                 </SelectItem>
                                             ))}
@@ -689,7 +683,7 @@ const PurchaseOrdersList = () => {
                                             }
                                         >
                                             {departments.map(dept => (
-                                                <SelectItem key={dept.key} value={dept.key}>
+                                                <SelectItem key={dept.key}>
                                                     {dept.label}
                                                 </SelectItem>
                                             ))}
@@ -699,9 +693,9 @@ const PurchaseOrdersList = () => {
                                             label="Monto Total"
                                             type="number"
                                             value={formData.totalAmount.toString()}
-                                            onChange={(e) => setFormData({
+                                            onValueChange={(value) => setFormData({
                                                 ...formData,
-                                                totalAmount: parseFloat(e.target.value) || 0
+                                                totalAmount: parseFloat(value) || 0
                                             })}
                                         />
 
@@ -716,7 +710,7 @@ const PurchaseOrdersList = () => {
                                             }
                                         >
                                             {currencies.map(currency => (
-                                                <SelectItem key={currency.key} value={currency.key}>
+                                                <SelectItem key={currency.key} >
                                                     {currency.label}
                                                 </SelectItem>
                                             ))}
@@ -726,9 +720,9 @@ const PurchaseOrdersList = () => {
                                             label="Fecha de Entrega"
                                             type="date"
                                             value={formData.deliveryDate}
-                                            onChange={(e) => setFormData({
+                                            onValueChange={(value) => setFormData({
                                                 ...formData,
-                                                deliveryDate: e.target.value
+                                                deliveryDate: value
                                             })}
                                         />
 
@@ -743,7 +737,7 @@ const PurchaseOrdersList = () => {
                                             }
                                         >
                                             {priorities.map(priority => (
-                                                <SelectItem key={priority.key} value={priority.key}>
+                                                <SelectItem key={priority.key}>
                                                     {priority.label}
                                                 </SelectItem>
                                             ))}
@@ -752,9 +746,9 @@ const PurchaseOrdersList = () => {
                                         <Input
                                             label="Solicitado por"
                                             value={formData.requestedBy}
-                                            onChange={(e) => setFormData({
+                                            onValueChange={(value) => setFormData({
                                                 ...formData,
-                                                requestedBy: e.target.value
+                                                requestedBy: value
                                             })}
                                         />
 
@@ -762,9 +756,9 @@ const PurchaseOrdersList = () => {
                                             label="Términos de Pago (días)"
                                             type="number"
                                             value={formData.paymentTerms}
-                                            onChange={(e) => setFormData({
+                                            onValueChange={(value) => setFormData({
                                                 ...formData,
-                                                paymentTerms: e.target.value
+                                                paymentTerms: value
                                             })}
                                         />
                                     </div>
@@ -773,9 +767,9 @@ const PurchaseOrdersList = () => {
                                         label="Notas"
                                         placeholder="Notas adicionales sobre la orden"
                                         value={formData.notes}
-                                        onChange={(e) => setFormData({
+                                        onValueChange={(value) => setFormData({
                                             ...formData,
-                                            notes: e.target.value
+                                            notes: value
                                         })}
                                     />
                                 </ModalBody>

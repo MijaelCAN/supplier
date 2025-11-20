@@ -238,8 +238,10 @@ const PaymentsList = () => {
                             selectionMode="single"
                             onSelectionChange={(selection) => setStatusFilter(Array.from(selection)[0] as string)}
                         >
-                            <DropdownItem key="all">Todos</DropdownItem>
-                            {paymentStatuses.map(status => (
+                            {[
+                                { key: "all", label: "Todos" },
+                                ...paymentStatuses
+                            ].map(status => (
                                 <DropdownItem key={status.key}>{status.label}</DropdownItem>
                             ))}
                         </DropdownMenu>
@@ -401,28 +403,28 @@ const PaymentsList = () => {
                                                             </Button>
                                                         </DropdownTrigger>
                                                         <DropdownMenu>
-                                                            <DropdownItem onPress={() => handleViewDetails(payment)}>
+                                                            <DropdownItem key="detail" onPress={() => handleViewDetails(payment)}>
                                                                 <div className="flex items-center gap-2">
                                                                     <EyeIcon className="h-4 w-4" />
                                                                     Ver detalles
                                                                 </div>
                                                             </DropdownItem>
-                                                            {payment.status === 'Programado' && (
-                                                                <DropdownItem onPress={() => openProcessModal(payment)}>
+                                                            {payment.status === 'Programado' ? (
+                                                                <DropdownItem key="procesar" onPress={() => openProcessModal(payment)}>
                                                                     <div className="flex items-center gap-2">
                                                                         <PlayIcon className="h-4 w-4 text-blue-500" />
                                                                         Procesar
                                                                     </div>
                                                                 </DropdownItem>
-                                                            )}
-                                                            {payment.status === 'Procesado' && (
-                                                                <DropdownItem onPress={() => handleCompletePayment(payment.id)}>
+                                                            ): null }
+                                                            {payment.status === 'Procesado' ? (
+                                                                <DropdownItem key="completar" onPress={() => handleCompletePayment(payment.id)}>
                                                                     <div className="flex items-center gap-2">
                                                                         <CheckIcon className="h-4 w-4 text-green-500" />
                                                                         Completar
                                                                     </div>
                                                                 </DropdownItem>
-                                                            )}
+                                                            ): null }
                                                         </DropdownMenu>
                                                     </Dropdown>
                                                 </div>
@@ -569,9 +571,9 @@ const PaymentsList = () => {
                                             type="number"
                                             step="0.01"
                                             value={formData.amount.toString()}
-                                            onChange={(e) => setFormData({
+                                            onValueChange={(value) => setFormData({
                                                 ...formData,
-                                                amount: parseFloat(e.target.value) || 0
+                                                amount: parseFloat(value) || 0
                                             })}
                                         />
 
@@ -579,9 +581,9 @@ const PaymentsList = () => {
                                             label="Fecha Programada"
                                             type="date"
                                             value={formData.scheduledDate}
-                                            onChange={(e) => setFormData({
+                                            onValueChange={(value) => setFormData({
                                                 ...formData,
-                                                scheduledDate: e.target.value
+                                                scheduledDate: value
                                             })}
                                         />
 
@@ -606,9 +608,9 @@ const PaymentsList = () => {
                                             label="Cuenta Bancaria"
                                             placeholder="Cuenta de destino (opcional)"
                                             value={formData.bankAccount}
-                                            onChange={(e) => setFormData({
+                                            onValueChange={(value) => setFormData({
                                                 ...formData,
-                                                bankAccount: e.target.value
+                                                bankAccount: value
                                             })}
                                         />
 
@@ -616,9 +618,9 @@ const PaymentsList = () => {
                                             label="Referencia"
                                             placeholder="Referencia del pago (opcional)"
                                             value={formData.reference}
-                                            onChange={(e) => setFormData({
+                                            onValueChange={(value) => setFormData({
                                                 ...formData,
-                                                reference: e.target.value
+                                                reference: value
                                             })}
                                         />
                                     </div>
@@ -627,9 +629,9 @@ const PaymentsList = () => {
                                         label="Notas"
                                         placeholder="Notas adicionales sobre el pago"
                                         value={formData.notes}
-                                        onChange={(e) => setFormData({
+                                        onValueChange={(value) => setFormData({
                                             ...formData,
-                                            notes: e.target.value
+                                            notes: value
                                         })}
                                     />
                                 </ModalBody>

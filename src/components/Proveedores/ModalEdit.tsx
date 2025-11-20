@@ -9,7 +9,8 @@
     Select,
     SelectItem
 } from "@heroui/react";
-import {Supplier, useConfigData} from "@/store";
+import {useConfigData} from "@/store";
+import {Supplier} from "@/store/extendedStore";
 import {FC} from "react";
 
 interface ModalEditProps {

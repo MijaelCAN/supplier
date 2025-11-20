@@ -1,4 +1,3 @@
-import React from 'react';
 import {
     Card,
     CardHeader,
@@ -93,9 +92,6 @@ export default function AlmacenHome() {
                                     color={action.color as any}
                                     variant="flat"
                                     className="h-24 flex-col gap-2"
-                                    as={React.forwardRef((props, ref) => (
-                                        <div {...props} ref={ref} role="button"/>
-                                    ))}
                                 >
                                     <Icon icon={action.icon} className="text-2xl"/>
                                     <span>{action.label}</span>

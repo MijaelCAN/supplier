@@ -1,179 +1,4 @@
-/*import {
-    Button,
-    Divider,
-    Input, Modal,
-    ModalBody,
-    ModalContent,
-    ModalFooter,
-    ModalHeader,
-    Select,
-    SelectItem
-} from "@heroui/react";
-import {FC} from "react";
-import {useConfigData} from "@/store";
-
-interface ModalRegisterProps {
-    isRegisterOpen: boolean;
-    onRegisterClose: () => void;
-    addSupplier: () => void;
-}
-
-const ModalRegister: FC<ModalRegisterProps> = ({isRegisterOpen,onRegisterClose, addSupplier}) => {
-    const { terminosPago, estadosRegister, tipoPersona } = useConfigData()
-    return (
-        <Modal isOpen={isRegisterOpen} onClose={onRegisterClose} size="3xl">
-            <ModalContent>
-                {(onClose) => (
-                    <>
-                        <ModalHeader>
-                            <h3 className="text-xl font-bold">Registrar Nuevo Proveedor</h3>
-                        </ModalHeader>
-                        <ModalBody>
-                            <div className="space-y-4">
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <Input
-                                        label="RUC"
-                                        size="sm"
-                                        isRequired
-                                        className="flex-1"
-                                    />
-                                    <Button
-                                        color="danger"
-                                        size="lg"
-                                        className="bg-gris text-white dark:bg-azul"
-                                        onPress={() => {console.log('Consultando RUC en SUNAT...');}}
-                                    >
-                                        Consultar
-                                    </Button>
-                                </div>
-
-                                <Input
-                                    label="Razón Social"
-                                    placeholder="Se completará automáticamente"
-                                    size="sm"
-                                    //isDisabled
-                                />
-
-                                <Input
-                                    label="Domicilio fiscal"
-                                    placeholder="Se completará automáticamente"
-                                    size="sm"
-                                    //isDisabled
-                                />
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <Input
-                                        label="Email Proveedor"
-                                        type="email"
-                                        placeholder="email@empresa.com"
-                                        size="sm"
-                                        isRequired
-                                    />
-
-                                    <Select label="Tipo de persona" size="sm"
-                                            placeholder="Seleccione un estado">
-                                        {tipoPersona.map((estado) => (
-                                            <SelectItem key={estado.key}>{estado.label}</SelectItem>
-                                        ))}
-                                    </Select>
-                                </div>
-
-                                <Input
-                                    label="Gerente General"
-                                    placeholder="Se completará automáticamente"
-                                    size="sm"
-                                    isDisabled
-                                    className="hidden" // Mostrar solo si existe
-                                />
-
-                                <Input
-                                    label="Gerente Administrativo"
-                                    placeholder="Se completará automáticamente"
-                                    size="sm"
-                                    isDisabled
-                                    className="hidden" // Mostrar solo si existe
-                                />
-
-                                <Input
-                                    label="Gerente de Ventas"
-                                    placeholder="Se completará automáticamente"
-                                    size="sm"
-                                    isDisabled
-                                    className="hidden" // Mostrar solo si existe
-                                />
-
-                                <Divider/>
-
-
-                                <div>
-                                    <h4 className="font-semibold mb-4">Persona de Contacto</h4>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <Input
-                                            size="sm"
-                                            label="Nombre Completo"
-                                            placeholder="Nombre del contacto principal"
-                                            isRequired
-                                        />
-                                        <Input
-                                            size="sm"
-                                            label="Teléfono de Contacto"
-                                            placeholder="+51 999 999 999"
-                                        />
-                                    </div>
-                                </div>
-                                <Divider/>
-
-                                <div>
-                                    <h4 className="font-semibold mb-4">Otros</h4>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <Select label="Término de pago" size="sm"
-                                                placeholder="Seleccione un término">
-                                            {terminosPago.map((termino) => (
-                                                <SelectItem key={termino.key}>{termino.label}</SelectItem>
-                                            ))}
-                                        </Select>
-                                        <Select label="Estado inicial" size="sm"
-                                                placeholder="Seleccione un estado">
-                                            {estadosRegister.map((estado) => (
-                                                <SelectItem key={estado.key}>{estado.label}</SelectItem>
-                                            ))}
-                                        </Select>
-                                    </div>
-                                </div>
-
-
-                                <div className="bg-blue-50 p-3 rounded-lg">
-                                    <p className="text-xs text-blue-600">
-                                        <strong>Nota:</strong> Consulte el RUC para completar
-                                        automáticamente
-                                        la información de la empresa. Solo se habilitarán los campos si el
-                                        estado es ACTIVO y HABIDO.
-                                    </p>
-                                </div>
-                            </div>
-                        </ModalBody>
-
-                        <ModalFooter>
-                            <Button color="danger" variant="light" onPress={onClose}>
-                                Cancelar
-                            </Button>
-                            <Button color="primary" onPress={() => {
-                                addSupplier()
-                                onClose();
-                            }}>
-                                Registrar Proveedor
-                            </Button>
-                        </ModalFooter>
-                    </>
-                )}
-
-            </ModalContent>
-        </Modal>
-    )
-}
-export {ModalRegister}*/
-import { FC, useMemo, useState } from 'react'
+import { FC, useMemo, useState, useEffect } from 'react'
 import {useForm, Controller} from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -195,7 +20,8 @@ import { useSuppliers as useExtendedSuppliers } from '@/store/extendedStore'
 import { useAuthStore } from '@/store/authStore'
 import { UserRole } from '@/routes/menuTypes'
 import { createSupplierProfile, fetchSunatSupplierData, fetchSuppliersListFromApi, type SupplierApiRecord } from '@/services/providers/providersApi';
-import { sscoList, sscoLastUpdated } from '@/services/sunat/sscoList';
+import { getBlackListRecord, type BlackListRecord } from '@/services/providers/blackListApi';
+import { fetchCondicionesPago, type CondicionPago } from '@/services/maestros/condicionesPagoApi';
 
 // Schema de validación con Zod
 const supplierRegisterSchema = z.object({
@@ -207,7 +33,7 @@ const supplierRegisterSchema = z.object({
     cardName: z.string().min(1, "La razón social es requerida"),
     email: z.string().email("Email inválido").min(1, "El email es requerido").optional(),
     phone: z.string().min(1, "El teléfono es requerido"),
-    //website: z.string().url("La página web debe ser una URL válida").optional(),
+    website: z.string().optional(),
     address: z.string().min(1, "La dirección es requerida"),
     ubigeo: z.string().min(1, "El ubigeo es requerido"),
     city: z.string().min(1, "La ciudad es requerida"),
@@ -223,8 +49,8 @@ const supplierRegisterSchema = z.object({
     totalAmount: z.number().min(0, "El monto total debe ser 0 o mayor"),
     paymentTerms: z.string().min(1, "El término de pago es requerido"),
     certifications: z.array(z.string()).optional(),
-    registrationDate: z.string().min(1, "La fecha de registro es requerida"),
-    lastOrderDate: z.string().min(1, "La fecha de última orden es requerida"),
+    registrationDate: z.string().optional(),
+    lastOrderDate: z.string().optional(),
     avatar: z.string().url("La URL del avatar debe ser válida"),
     generalManager: z.string().min(1, "generalManager es requerido"),
     adminManager: z.string().optional(),
@@ -275,10 +101,33 @@ const ModalRegister: FC<ModalRegisterProps> = ({
     const [isConsultingRuc, setIsConsultingRuc] = useState(false)
     const [sunatData, setSunatData] = useState<SunatData | null>(null)
     const [isRucValid, setIsRucValid] = useState(false)
+    const [blackListRecord, setBlackListRecord] = useState<BlackListRecord | null>(null)
+    const [condicionesPago, setCondicionesPago] = useState<CondicionPago[]>([])
+    const [isLoadingCondicionesPago, setIsLoadingCondicionesPago] = useState(false)
+    const [, setIsCheckingBlackList] = useState(false)
+
+    // Cargar condiciones de pago cuando el modal se abre
+    useEffect(() => {
+        if (isRegisterOpen) {
+            const loadCondicionesPago = async () => {
+                setIsLoadingCondicionesPago(true)
+                try {
+                    const condiciones = await fetchCondicionesPago()
+                    setCondicionesPago(condiciones)
+                } catch (error) {
+                    console.error('Error al cargar condiciones de pago:', error)
+                    // Mantener las condiciones por defecto en caso de error
+                } finally {
+                    setIsLoadingCondicionesPago(false)
+                }
+            }
+            loadCondicionesPago()
+        }
+    }, [isRegisterOpen])
+    
     const isSSCO = useMemo(() => {
-        if (!sunatData?.ruc) return false
-        return sscoList.has(sunatData.ruc)
-    }, [sunatData])
+        return blackListRecord !== null
+    }, [blackListRecord])
     const [isSummaryOpen, setIsSummaryOpen] = useState(false);
     const [emailSummary, setEmailSummary] = useState<{
         email: string;
@@ -288,6 +137,7 @@ const ModalRegister: FC<ModalRegisterProps> = ({
         userFullName: string;
         supplierName: string;
     } | null>(null);
+    const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const portalLink = useMemo(() => (typeof window !== 'undefined' ? `${window.location.origin}/login` : '/login'), []);
 
     const {
@@ -330,6 +180,15 @@ const ModalRegister: FC<ModalRegisterProps> = ({
 
     const watchedRuc = watch('cardCode')
 
+    // Función helper para extraer solo "NO HABIDO" o "HABIDO" del texto completo
+    const getCondicionShort = (condicion?: string): string => {
+        if (!condicion) return ''
+        if (condicion.includes('NO HABIDO')) return 'NO HABIDO'
+        if (condicion.includes('HABIDO')) return 'HABIDO'
+        // Si no contiene ninguna de las dos, tomar solo la primera palabra
+        return condicion.split(' ')[0] || condicion
+    }
+
     // Función para consultar RUC en SUNAT
     const consultarRUC = async () => {
         if (!watchedRuc || watchedRuc.length !== 11) {
@@ -338,15 +197,24 @@ const ModalRegister: FC<ModalRegisterProps> = ({
         }
 
         setIsConsultingRuc(true)
+        setIsCheckingBlackList(true)
 
         try {
-            const response = await fetchSunatSupplierData(watchedRuc)
+            // Consultar SUNAT y BlackList en paralelo para mayor eficiencia
+            const [sunatResponse, blackListData] = await Promise.all([
+                fetchSunatSupplierData(watchedRuc),
+                getBlackListRecord(watchedRuc)
+            ])
 
-            if (!response.success || !response.datos) {
+            // Procesar respuesta de BlackList
+            setBlackListRecord(blackListData)
+
+            // Procesar respuesta de SUNAT
+            if (!sunatResponse.success || !sunatResponse.datos) {
                 throw new Error('La consulta a SUNAT no devolvió información válida.')
             }
 
-            const data = response.datos
+            const data = sunatResponse.datos
             setSunatData(data)
 
             const isValidStatus = data.estado === 'ACTIVO' && data.condicion === 'HABIDO'
@@ -365,6 +233,7 @@ const ModalRegister: FC<ModalRegisterProps> = ({
             alert(error instanceof Error ? error.message : 'Error al consultar RUC')
         } finally {
             setIsConsultingRuc(false)
+            setIsCheckingBlackList(false)
         }
     }
 
@@ -466,7 +335,10 @@ const ModalRegister: FC<ModalRegisterProps> = ({
                 ServiciosOfrecidos: [],
             }
 
+            // PASO 1: Crear proveedor en SAP primero
             const result = await createSupplierProfile(payload)
+            
+            // Si llegamos aquí, SAP fue exitoso. Ahora crear en Firestore
             const docEntryCode = result.record.DocEntry?.toString() ?? `USR-${Math.floor(Math.random() * 1_000_000)
                 .toString()
                 .padStart(6, '0')}`
@@ -475,21 +347,29 @@ const ModalRegister: FC<ModalRegisterProps> = ({
             const userFullName = (isNaturalPerson ? data.cardName : data.cardName || data.contactPerson).trim() || data.contactPerson
             const tempPassword = generateTempPassword()
 
-            await createSupplierUser({
-                username,
-                email: data.email,
-                userCode: docEntryCode,
-                userName: userFullName,
-                supplierId,
-                tempPassword,
-                companyName: data.cardName,
-                phone: data.phone,
-                avatar: result.supplier.avatar,
-                useSupplierPortal: true,
-                accountStatus: 'active',
-                role: UserRole.PROVEEDOR,
-            });
+            // PASO 2: Crear usuario en Firestore solo si SAP fue exitoso
+            try {
+                await createSupplierUser({
+                    username,
+                    email: data.email,
+                    userCode: docEntryCode,
+                    userName: userFullName,
+                    supplierId,
+                    tempPassword,
+                    companyName: data.cardName,
+                    phone: data.phone,
+                    avatar: result.supplier.avatar,
+                    useSupplierPortal: true,
+                    accountStatus: 'active',
+                    role: UserRole.PROVEEDOR,
+                });
+            } catch (firestoreError) {
+                // Si falla Firestore, informar pero el proveedor ya está en SAP
+                console.error('Error al crear usuario en Firestore:', firestoreError);
+                throw new Error(`El proveedor se creó en SAP pero hubo un error al crear el usuario: ${firestoreError instanceof Error ? firestoreError.message : 'Error desconocido'}`);
+            }
 
+            // Actualizar la lista de proveedores
             const withoutCurrent = supplierList.filter((supplier) => supplier.docEntry !== result.supplier.docEntry);
             setSuppliers([...withoutCurrent, result.supplier]);
 
@@ -516,7 +396,16 @@ const ModalRegister: FC<ModalRegisterProps> = ({
             handleClose()
         } catch (error) {
             console.error('Error al registrar el proveedor:', error)
-            alert(error instanceof Error ? error.message : 'Error al registrar el proveedor')
+            // Mostrar mensaje de error más descriptivo
+            const errorMsg = error instanceof Error 
+                ? error.message 
+                : 'Error al registrar el proveedor';
+            
+            // Establecer el mensaje de error para mostrarlo en la UI
+            setErrorMessage(errorMsg);
+            
+            // También mostrar alerta como respaldo
+            //alert(`❌ Error al registrar el proveedor\n\n${errorMsg}\n\nEl proveedor NO se ha creado en el sistema.`)
         }
     }
 
@@ -524,6 +413,8 @@ const ModalRegister: FC<ModalRegisterProps> = ({
         reset()
         setSunatData(null)
         setIsRucValid(false)
+        setBlackListRecord(null)
+        setErrorMessage(null)
         onRegisterClose()
     }
 
@@ -542,6 +433,13 @@ const ModalRegister: FC<ModalRegisterProps> = ({
                                 <h3 className="text-xl font-bold">Registrar Nuevo Proveedor</h3>
                             </ModalHeader>
                             <ModalBody>
+                                {errorMessage && (
+                                    <div className="mb-4 rounded-md border border-danger-300 bg-danger-50 p-3">
+                                        <p className="text-sm text-danger-800 font-semibold mb-1">❌ Error al registrar proveedor</p>
+                                        <p className="text-xs text-danger-700">{errorMessage}</p>
+                                        <p className="text-xs text-danger-600 mt-2">El proveedor NO se ha creado en el sistema.</p>
+                                    </div>
+                                )}
                                 <div className="space-y-4 max-h-[75vh] overflow-y-auto pr-1">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <Controller
@@ -604,6 +502,7 @@ const ModalRegister: FC<ModalRegisterProps> = ({
 
                                     {/* Sección de Información SUNAT (compacta y completa) */}
                                     {sunatData && (
+                                        <>
                                         <div className="rounded-md border border-primary-200 bg-primary-50/40 p-3 shadow-sm">
                                             <div className="flex items-center justify-between mb-2">
                                                 <h4 className="text-sm font-semibold text-primary-800">Información SUNAT</h4>
@@ -618,9 +517,9 @@ const ModalRegister: FC<ModalRegisterProps> = ({
                                                     <Chip
                                                         size="sm"
                                                         variant="flat"
-                                                        color={sunatData.condicion === 'HABIDO' ? 'success' : 'warning'}
+                                                        color={sunatData.condicion?.includes('HABIDO') && !sunatData.condicion?.includes('NO HABIDO') ? 'success' : 'warning'}
                                                     >
-                                                        Condición: {sunatData.condicion}
+                                                        Condición: {getCondicionShort(sunatData.condicion)}
                                                     </Chip>
                                                     <Chip
                                                         size="sm"
@@ -632,8 +531,31 @@ const ModalRegister: FC<ModalRegisterProps> = ({
                                                 </div>
                                             </div>
                                             <p className="text-[11px] text-gray-500 mb-2">
-                                                Fuente: SUNAT • <a href="https://www.sunat.gob.pe/padronesnotificaciones/sujeSinCapacidadOperativa.html" target="_blank" rel="noreferrer" className="underline">Sujetos sin Capacidad Operativa</a> • Actualizado: {sscoLastUpdated}
+                                                Fuente: SUNAT • <a href="https://www.sunat.gob.pe/padronesnotificaciones/sujeSinCapacidadOperativa.html" target="_blank" rel="noreferrer" className="underline">Sujetos sin Capacidad Operativa</a>
                                             </p>
+                                            {blackListRecord && (
+                                                <div className="mt-3 mb-4 rounded border border-red-200 bg-red-50/70 p-3">
+                                                    <p className="text-xs font-semibold text-red-800 mb-2">⚠️ Proveedor en Lista Negra (SSCO)</p>
+                                                    <div className="grid grid-cols-1 gap-1 text-xs">
+                                                        <div className="flex justify-between">
+                                                            <span className="text-gray-600">Resolución:</span>
+                                                            <span className="text-right font-medium">{blackListRecord.U_ResolucionAtribSSCO}</span>
+                                                        </div>
+                                                        <div className="flex justify-between">
+                                                            <span className="text-gray-600">Fecha Emisión:</span>
+                                                            <span className="text-right">{blackListRecord.U_FechaEmiResolAtrib}</span>
+                                                        </div>
+                                                        <div className="flex justify-between">
+                                                            <span className="text-gray-600">Fecha Publicación:</span>
+                                                            <span className="text-right">{blackListRecord.U_FechaPublicacion}</span>
+                                                        </div>
+                                                        <div className="flex justify-between">
+                                                            <span className="text-gray-600">Motivo:</span>
+                                                            <span className="text-right font-medium text-red-700">{blackListRecord.U_MotivoListaNegra}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
                                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-1 text-sm">
                                                 <div className="flex justify-between">
                                                     <span className="text-gray-500">RUC</span>
@@ -704,6 +626,15 @@ const ModalRegister: FC<ModalRegisterProps> = ({
                                                 </div>
                                             </div>
                                         </div>
+                                        {/* Mensaje adicional para NO HABIDO */}
+                                        {sunatData && sunatData.condicion?.includes('NO HABIDO') && (
+                                            <div className="mt-2 rounded-md border border-warning-300 bg-warning-50/70 p-3">
+                                                <p className="text-xs text-warning-800 leading-relaxed">
+                                                    <strong>⚠️ Condición NO HABIDO:</strong> {sunatData.condicion}
+                                                </p>
+                                            </div>
+                                        )}
+                                        </>
                                     )}
 
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -910,7 +841,7 @@ const ModalRegister: FC<ModalRegisterProps> = ({
                                                         {...field}
                                                         label="Término de pago"
                                                         size="sm"
-                                                        placeholder="Seleccione un término"
+                                                        placeholder={isLoadingCondicionesPago ? "Cargando..." : "Seleccione un término"}
                                                         selectedKeys={field.value ? [field.value] : []}
                                                         onSelectionChange={(keys) => {
                                                             const selectedKey = Array.from(keys)[0] as string
@@ -918,10 +849,18 @@ const ModalRegister: FC<ModalRegisterProps> = ({
                                                         }}
                                                         isInvalid={!!errors.paymentTerms}
                                                         errorMessage={errors.paymentTerms?.message}
+                                                        isDisabled={isLoadingCondicionesPago}
                                                     >
-                                                        {terminosPago.map((termino) => (
-                                                            <SelectItem key={termino.key}>{termino.label}</SelectItem>
-                                                        ))}
+                                                        {condicionesPago.length > 0 
+                                                            ? condicionesPago.map((condicion) => (
+                                                                <SelectItem key={condicion.GroupNum}>
+                                                                    {condicion.PymntGroup}
+                                                                </SelectItem>
+                                                            ))
+                                                            : terminosPago.map((termino) => (
+                                                                <SelectItem key={termino.key}>{termino.label}</SelectItem>
+                                                            ))
+                                                        }
                                                     </Select>
                                                 )}
                                             />

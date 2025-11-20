@@ -18,7 +18,7 @@ import UserManagement from "@/pages/Configuracion/usuarios.tsx";
 import PaymentsList from "@/pages/Finanzas/pagos.tsx";
 import {SolicitudCompra} from "@/pages/SolicitudCompra";
 import AgendaPage from "@/pages/Agenda";
-import DocsPage from "@/pages/blog.tsx";
+import ReceptionPage from "@/pages/Recepcion";
 
 const router = createBrowserRouter([
   {
@@ -65,7 +65,7 @@ const router = createBrowserRouter([
     path: "/proveedor/evaluacion",
     element: (
       <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.COMPRAS]}>
-        <EvaluationForm rol={"PROVEEDOR"} />
+        <EvaluationForm />
       </ProtectedRoute>
     ),
   },
@@ -160,13 +160,12 @@ const router = createBrowserRouter([
     path: "/configuracion/permisos",
     element: (
         <ProtectedRoute requiredRoles={[UserRole.ADMIN]}>
-          {/*<Dashboard>
+          <Dashboard>
             <div className="p-6">
               <h1 className="text-2xl font-bold mb-4">Configuración del Sistema</h1>
               <p className="text-gray-600">Página en construcción - Configuración general</p>
             </div>
-          </Dashboard>*/}
-          <DocsPage/>
+          </Dashboard>
         </ProtectedRoute>
     ),
   },
@@ -189,6 +188,14 @@ const router = createBrowserRouter([
       <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.ALMACEN]}>
         <AgendaPage />
       </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/recepcion",
+    element: (
+        <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.ALMACEN]}>
+          <ReceptionPage />
+        </ProtectedRoute>
     ),
   },
   {

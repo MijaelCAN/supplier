@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import {
     Button,
     Input,
@@ -37,7 +37,7 @@ import {
     ChevronDownIcon
 } from "@heroicons/react/24/outline";
 import Dashboard from "@/layouts/Dashboard";
-import { usePurchaseOrders, useExtendedStore } from '@/store/extendedStore';
+import { usePurchaseOrders } from '@/store/extendedStore';
 
 const ReceptionPage = () => {
     const { purchaseOrders, updatePurchaseOrder } = usePurchaseOrders();
@@ -229,7 +229,7 @@ const ReceptionPage = () => {
                 </div>
 
                 <Card>
-                    <CardBody className="p-0">
+                    <CardBody className="p-4">
                         <Table
                             aria-label="Tabla de recepción"
                             topContent={topContent}
@@ -316,20 +316,20 @@ const ReceptionPage = () => {
                                                             </Button>
                                                         </DropdownTrigger>
                                                         <DropdownMenu>
-                                                            <DropdownItem onPress={() => openDetailModal(order)}>
+                                                            <DropdownItem key="detail" onPress={() => openDetailModal(order)}>
                                                                 <div className="flex items-center gap-2">
                                                                     <EyeIcon className="h-4 w-4" />
                                                                     Ver detalles
                                                                 </div>
                                                             </DropdownItem>
-                                                            {order.status !== 'Completada' && (
-                                                                <DropdownItem onPress={() => openReceiveModal(order)}>
+                                                            {order.status !== 'Completada' ? (
+                                                                <DropdownItem key="recibir" onPress={() => openReceiveModal(order)}>
                                                                     <div className="flex items-center gap-2">
                                                                         <CheckIcon className="h-4 w-4 text-green-500" />
                                                                         Recibir Mercadería
                                                                     </div>
                                                                 </DropdownItem>
-                                                            )}
+                                                            ): null }
                                                         </DropdownMenu>
                                                     </Dropdown>
                                                 </div>
@@ -461,7 +461,7 @@ const ReceptionPage = () => {
                                                 }
                                             >
                                                 {receptionStatuses.map(status => (
-                                                    <SelectItem key={status.key} value={status.key}>
+                                                    <SelectItem key={status.key}>
                                                         {status.label}
                                                     </SelectItem>
                                                 ))}
@@ -471,7 +471,7 @@ const ReceptionPage = () => {
                                                 label="Observaciones de Recepción"
                                                 placeholder="Ingrese observaciones sobre la recepción de la mercadería..."
                                                 value={receptionNotes}
-                                                onChange={(e) => setReceptionNotes(e.target.value)}
+                                                onValueChange={(value) => setReceptionNotes(value)}
                                                 minRows={3}
                                             />
                                         </div>

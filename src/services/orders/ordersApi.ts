@@ -66,9 +66,9 @@ const mapRecordDetalleToPurchaseItems = (recordItems: ItemsApi[]): OrderItem[] =
         quantity: Number(item.Quantity),
         unitPrice: Number(item.PrecioUnitario),
         totalPrice: Number(item.LineTotal),
-        EstadoLinea: item.EstadoLinea,
+        state: item.EstadoLinea,
         unit: '',
-        QtyPend: Number(item.QtyPend),
+        qtyPend: Number(item.QtyPend),
         category: '',
     }))
 }
@@ -100,7 +100,7 @@ const mapRecordOrdersToPurchaseOrders = (record: Order): PurchaseOrder => {
 }
 
 export const fetchOrdersByCardCode = async (
-    cardCode: string,
+    cardCode?: string,
     state?: string,
     startDate?: string,
     endDate?: string,

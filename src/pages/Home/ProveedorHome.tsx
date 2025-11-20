@@ -1,4 +1,4 @@
-import React, {useEffect} from 'react';
+import {useEffect} from 'react';
 import {
     Card,
     CardBody,
@@ -6,11 +6,9 @@ import {
     Button,
     Chip,
     Avatar,
-    Progress,
-    Divider
+    Progress
 } from "@heroui/react";
 import {
-    UserCircleIcon,
     DocumentTextIcon,
     ShoppingCartIcon,
     BanknotesIcon,
@@ -21,8 +19,6 @@ import {
     ArrowRightIcon,
     PencilIcon,
     DocumentIcon,
-    CurrencyDollarIcon,
-    CheckCircleIcon,
     ExclamationTriangleIcon
 } from "@heroicons/react/24/outline";
 import Dashboard from "@/layouts/Dashboard";
@@ -33,7 +29,7 @@ import {fetchSupplierByCardCode} from "@/services/providers/providersApi.ts";
 
 const ProveedorHome = () => {
     const { currentUser } = useAuth();
-    const { selectedSupplier, setSelectedSupplier } = useSuppliers();
+    const { selectedSupplier } = useSuppliers();
     const navigate = useNavigate();
 
 
@@ -77,7 +73,7 @@ const ProveedorHome = () => {
 
     // Actividades recientes de ejemplo
     const actividadesRecientes = [
-        /*{
+        {
             id: 1,
             tipo: 'orden',
             descripcion: 'Nueva orden de compra OC-2024-001',
@@ -97,12 +93,12 @@ const ProveedorHome = () => {
             descripcion: 'Nueva evaluación de desempeño',
             fecha: '2024-06-16',
             estado: 'pendiente'
-        }*/
+        }
     ];
 
     // Próximas fechas importantes
     const proximasFechas = [
-        /*{
+        {
             id: 1,
             evento: 'Entrega OC-2024-001',
             fecha: '2024-06-25',
@@ -113,15 +109,8 @@ const ProveedorHome = () => {
             evento: 'Vencimiento Cotización COT-001',
             fecha: '2024-06-28',
             tipo: 'cotizacion'
-        }*/
+        }
     ];
-
-    const formatCurrency = (amount: number) => {
-        return new Intl.NumberFormat('es-PE', {
-            style: 'currency',
-            currency: 'PEN'
-        }).format(amount);
-    };
 
     const getStatusColor = (status: string) => {
         switch (status) {
@@ -150,8 +139,8 @@ const ProveedorHome = () => {
                     <CardBody>
                         <div className="flex items-start gap-6">
                             <Avatar
-                                src={supplierData.avatar}
-                                name={supplierData.fullName}
+                                src={supplierData?.avatar}
+                                name={supplierData?.cardName || ''}
                                 className="w-20 h-20"
                             />
                             <div className="flex-1">
@@ -160,21 +149,21 @@ const ProveedorHome = () => {
                                         <h1 className="text-2xl font-bold text-gray-900">
                                             ¡Bienvenido, {currentUser?.firstName}!
                                         </h1>
-                                        <h2 className="text-lg text-gray-700">{supplierData.cardName}</h2>
-                                        <p className="text-gray-600 mb-2">{supplierData.businessType}</p>
+                                        <h2 className="text-lg text-gray-700">{supplierData?.cardName}</h2>
+                                        <p className="text-gray-600 mb-2">{supplierData?.businessType}</p>
                                         
                                         {/* Estado y calificación */}
                                         <div className="flex items-center gap-3">
                                             <Chip 
-                                                color={supplierData.status === 'A' ? 'success' : 'warning'} 
+                                                color={supplierData?.status === 'A' ? 'success' : 'warning'}
                                                 variant="flat"
                                                 size="sm"
                                             >
-                                                {supplierData.status === 'A' ? 'Activo' : 'Pendiente'}
+                                                {supplierData?.status === 'A' ? 'Activo' : 'Pendiente'}
                                             </Chip>
                                             <div className="flex items-center gap-1">
                                                 <StarIcon className="h-4 w-4 text-yellow-400 fill-yellow-400" />
-                                                <span className="text-sm font-medium">{supplierData.rating}</span>
+                                                <span className="text-sm font-medium">{supplierData?.rating || 0}</span>
                                                 <span className="text-xs text-gray-500">(Calificación)</span>
                                             </div>
                                         </div>
@@ -396,12 +385,12 @@ const ProveedorHome = () => {
                             <div>
                                 <div className="flex justify-between items-center mb-2">
                                     <span className="text-sm text-gray-600">Calificación General</span>
-                                    <span className="text-sm font-medium">{supplierData.rating}/5.0</span>
+                                    <span className="text-sm font-medium">{supplierData?.rating || 0}/5.0</span>
                                 </div>
                                 <Progress 
                                     size="sm" 
                                     color="warning" 
-                                    value={(supplierData.rating / 5) * 100} 
+                                    value={((supplierData?.rating || 0) / 5) * 100} 
                                 />
                             </div>
 

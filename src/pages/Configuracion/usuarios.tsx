@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import type { Selection } from '@react-types/shared';
 import {
     addToast,
     Alert,
@@ -199,8 +200,8 @@ const UserManagement: React.FC = () => {
     const [fetchError, setFetchError] = useState<string | null>(null);
 
     const [filterValue, setFilterValue] = useState('');
-    const [roleFilter, setRoleFilter] = useState<'all' | UserRole>('all');
-    const [statusFilter, setStatusFilter] = useState<'all' | AccountStatus>('all');
+    const [roleFilter, setRoleFilter] = useState<Selection>(new Set(['all']));
+    const [statusFilter, setStatusFilter] = useState<Selection>(new Set(['all']));
     const [page, setPage] = useState(1);
     const rowsPerPage = 10;
 
@@ -262,9 +263,23 @@ const UserManagement: React.FC = () => {
         fetchUsers();
     }, [fetchUsers]);
 
+    const roleFilterValue = useMemo(() => {
+        if (roleFilter === 'all' || (roleFilter instanceof Set && roleFilter.size === 0)) {
+            return 'all';
+        }
+        return Array.from(roleFilter as Set<string>)[0] as string;
+    }, [roleFilter]);
+
+    const statusFilterValue = useMemo(() => {
+        if (statusFilter === 'all' || (statusFilter instanceof Set && statusFilter.size === 0)) {
+            return 'all';
+        }
+        return Array.from(statusFilter as Set<string>)[0] as string;
+    }, [statusFilter]);
+
     useEffect(() => {
         setPage(1);
-    }, [filterValue, roleFilter, statusFilter]);
+    }, [filterValue, roleFilterValue, statusFilterValue]);
 
     const filteredUsers = useMemo(() => {
         let data = users;
@@ -272,24 +287,22 @@ const UserManagement: React.FC = () => {
         if (filterValue.trim()) {
             const query = filterValue.trim().toLowerCase();
             data = data.filter((user) =>
-                user.fullName.toLowerCase().includes(query) ||
                 user.email.toLowerCase().includes(query) ||
-                user.username.toLowerCase().includes(query) ||
                 user.userCode.toLowerCase().includes(query) ||
                 (user.department ?? '').toLowerCase().includes(query),
             );
         }
 
-        if (roleFilter !== 'all') {
-            data = data.filter((user) => user.role === roleFilter);
+        if (roleFilterValue !== 'all') {
+            data = data.filter((user) => user.role === roleFilterValue);
         }
 
-        if (statusFilter !== 'all') {
-            data = data.filter((user) => user.accountStatus === statusFilter);
+        if (statusFilterValue !== 'all') {
+            data = data.filter((user) => user.accountStatus === statusFilterValue);
         }
 
         return data;
-    }, [users, filterValue, roleFilter, statusFilter]);
+    }, [users, filterValue, roleFilterValue, statusFilterValue]);
 
     const pages = filteredUsers.length === 0 ? 1 : Math.ceil(filteredUsers.length / rowsPerPage);
 
@@ -561,16 +574,21 @@ const UserManagement: React.FC = () => {
                         <DropdownMenu
                             disallowEmptySelection
                             aria-label="Filtro por rol"
-                            selectedKeys={[roleFilter]}
+                            selectedKeys={roleFilter}
                             selectionMode="single"
                             onSelectionChange={(selection) => {
-                                const value = Array.from(selection)[0] as 'all' | UserRole;
-                                setRoleFilter(value);
+                                const value = Array.from(selection)[0] as string;
+                                setRoleFilter(new Set([value]));
                             }}
                         >
-                            <DropdownItem key="all">Todos</DropdownItem>
-                            {Object.entries(ROLE_LABELS).map(([key, value]) => (
-                                <DropdownItem key={key}>{value.label}</DropdownItem>
+                            {[
+                                { key: "all", label: "Todos" },
+                                ...Object.entries(ROLE_LABELS).map(([key, value]) => ({
+                                    key,
+                                    label: value.label
+                                }))
+                            ].map(status => (
+                                <DropdownItem key={status.key}>{status.label}</DropdownItem>
                             ))}
                         </DropdownMenu>
                     </Dropdown>
@@ -583,11 +601,11 @@ const UserManagement: React.FC = () => {
                         <DropdownMenu
                             disallowEmptySelection
                             aria-label="Filtro por estado"
-                            selectedKeys={[statusFilter]}
+                            selectedKeys={statusFilter}
                             selectionMode="single"
                             onSelectionChange={(selection) => {
-                                const value = Array.from(selection)[0] as 'all' | AccountStatus;
-                                setStatusFilter(value);
+                                const value = Array.from(selection)[0] as string;
+                                setStatusFilter(new Set([value]));
                             }}
                         >
                             <DropdownItem key="all">Todos</DropdownItem>
@@ -781,7 +799,7 @@ const UserManagement: React.FC = () => {
                                                                     Editar
                                                                 </div>
                                                             </DropdownItem>
-                                                            {user.id !== currentUser?.id && (
+                                                            {user.id !== currentUser?.id ? (
                                                                 <DropdownItem
                                                                     key="delete"
                                                                     className="text-danger"
@@ -792,7 +810,7 @@ const UserManagement: React.FC = () => {
                                                                         Eliminar
                                                                     </div>
                                                                 </DropdownItem>
-                                                            )}
+                                                            ): null }
                                                         </DropdownMenu>
                                                     </Dropdown>
                                                 </div>
@@ -921,29 +939,29 @@ const UserManagement: React.FC = () => {
                                     label="Usuario"
                                     placeholder="jefe_compras_01"
                                     value={formData.username}
-                                    onChange={(event) => setFormData((prev) => ({ ...prev, username: event.target.value }))}
+                                    onValueChange={(value) => setFormData((prev) => ({ ...prev, username: value }))}
                                 />
                                 <Input
                                     label="Correo electrónico"
                                     type="email"
                                     placeholder="usuario@empresa.com"
                                     value={formData.email}
-                                    onChange={(event) => setFormData((prev) => ({ ...prev, email: event.target.value }))}
+                                    onValueChange={(value) => setFormData((prev) => ({ ...prev, email: value }))}
                                 />
                                 <Input
                                     label="Nombres"
                                     value={formData.firstName}
-                                    onChange={(event) => setFormData((prev) => ({ ...prev, firstName: event.target.value }))}
+                                    onValueChange={(value) => setFormData((prev) => ({ ...prev, firstName: value }))}
                                 />
                                 <Input
                                     label="Apellidos"
                                     value={formData.lastName}
-                                    onChange={(event) => setFormData((prev) => ({ ...prev, lastName: event.target.value }))}
+                                    onValueChange={(value) => setFormData((prev) => ({ ...prev, lastName: value }))}
                                 />
                                 <Input
                                     label="Código de usuario"
                                     value={formData.userCode}
-                                    onChange={(event) => setFormData((prev) => ({ ...prev, userCode: event.target.value }))}
+                                    onValueChange={(value) => setFormData((prev) => ({ ...prev, userCode: value }))}
                                 />
                                 <Select
                                     label="Rol"
@@ -954,7 +972,7 @@ const UserManagement: React.FC = () => {
                                     }}
                                 >
                                     {Object.entries(ROLE_LABELS).map(([key, value]) => (
-                                        <SelectItem key={key} value={key}>
+                                        <SelectItem key={key}>
                                             {value.label}
                                         </SelectItem>
                                     ))}
@@ -968,10 +986,10 @@ const UserManagement: React.FC = () => {
                                     }}
                                     isDisabled={formData.role === UserRole.PROVEEDOR}
                                 >
-                                    <SelectItem key="internal" value="internal">
+                                    <SelectItem key="internal">
                                         Interno
                                     </SelectItem>
-                                    <SelectItem key="provider" value="provider">
+                                    <SelectItem key="provider">
                                         Proveedor
                                     </SelectItem>
                                 </Select>
@@ -983,13 +1001,13 @@ const UserManagement: React.FC = () => {
                                         setFormData((prev) => ({ ...prev, accountStatus: status }));
                                     }}
                                 >
-                                    <SelectItem key="active" value="active">
+                                    <SelectItem key="active">
                                         Activo
                                     </SelectItem>
-                                    <SelectItem key="inactive" value="inactive">
+                                    <SelectItem key="inactive">
                                         Inactivo
                                     </SelectItem>
-                                    <SelectItem key="suspended" value="suspended">
+                                    <SelectItem key="suspended">
                                         Suspendido
                                     </SelectItem>
                                 </Select>
@@ -1003,7 +1021,7 @@ const UserManagement: React.FC = () => {
                                     }}
                                 >
                                     {departments.map((item) => (
-                                        <SelectItem key={item.key} value={item.key}>
+                                        <SelectItem key={item.key} >
                                             {item.label}
                                         </SelectItem>
                                     ))}
@@ -1012,26 +1030,26 @@ const UserManagement: React.FC = () => {
                                     label="Posición"
                                     placeholder="Cargo o función"
                                     value={formData.position}
-                                    onChange={(event) => setFormData((prev) => ({ ...prev, position: event.target.value }))}
+                                    onValueChange={(value) => setFormData((prev) => ({ ...prev, position: value }))}
                                 />
                                 <Input
                                     label="Teléfono"
                                     placeholder="+51 999 999 999"
                                     value={formData.phone}
-                                    onChange={(event) => setFormData((prev) => ({ ...prev, phone: event.target.value }))}
+                                    onValueChange={(value) => setFormData((prev) => ({ ...prev, phone: value }))}
                                 />
                                 <Input
                                     label="Avatar"
                                     placeholder="https://..."
                                     value={formData.avatar}
-                                    onChange={(event) => setFormData((prev) => ({ ...prev, avatar: event.target.value }))}
+                                    onValueChange={(value) => setFormData((prev) => ({ ...prev, avatar: value }))}
                                 />
                                 {formData.roleType === 'provider' && (
                                     <Input
                                         label="ID de proveedor"
                                         placeholder="PROV-001"
                                         value={formData.supplierId}
-                                        onChange={(event) => setFormData((prev) => ({ ...prev, supplierId: event.target.value }))}
+                                        onValueChange={(value) => setFormData((prev) => ({ ...prev, supplierId: value }))}
                                     />
                                 )}
                                 <div className="flex items-center gap-3">
@@ -1050,14 +1068,14 @@ const UserManagement: React.FC = () => {
                                     type="password"
                                     placeholder={isCreateMode ? 'Ingresa una contraseña temporal' : 'Mantener actual'}
                                     value={formData.tempPassword}
-                                    onChange={(event) => setFormData((prev) => ({ ...prev, tempPassword: event.target.value }))}
+                                    onValueChange={(value) => setFormData((prev) => ({ ...prev, tempPassword: value }))}
                                 />
                                 <Input
                                     label="Confirmar contraseña"
                                     type="password"
                                     placeholder={isCreateMode ? 'Repite la contraseña temporal' : 'Confirma si cambiaste la contraseña'}
                                     value={formData.confirmPassword}
-                                    onChange={(event) => setFormData((prev) => ({ ...prev, confirmPassword: event.target.value }))}
+                                    onValueChange={(value) => setFormData((prev) => ({ ...prev, confirmPassword: value }))}
                                 />
                             </div>
 

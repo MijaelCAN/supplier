@@ -24,8 +24,7 @@ import {
     GlobeAltIcon, UserIcon, TrashIcon, PhoneIcon, CloudArrowUpIcon, BriefcaseIcon, MapPinIcon
 } from "@heroicons/react/24/outline";
 import {useState} from "react";
-import {Input} from "@heroui/input";
-import {Divider} from "@heroui/divider";
+import {Input, Divider} from "@heroui/react";
 
 interface ContactPerson {
     id: string;
@@ -509,7 +508,7 @@ interface BankReference {
                                         isRequired
                                     >
                                         {supplierTypes.map((type) => (
-                                            <SelectItem key={type.key} value={type.key}>
+                                            <SelectItem key={type.key} >
                                                 {type.label}
                                             </SelectItem>
                                         ))}
@@ -526,8 +525,8 @@ interface BankReference {
                                         })}
                                         isRequired
                                     >
-                                        <SelectItem key="natural" value="natural">Persona Natural</SelectItem>
-                                        <SelectItem key="juridica" value="juridica">Persona Jurídica</SelectItem>
+                                        <SelectItem key="natural">Persona Natural</SelectItem>
+                                        <SelectItem key="juridica">Persona Jurídica</SelectItem>
                                     </Select>
 
                                     <Select
@@ -542,7 +541,7 @@ interface BankReference {
                                         isRequired
                                     >
                                         {documentTypes.map((doc) => (
-                                            <SelectItem key={doc.key} value={doc.key}>
+                                            <SelectItem key={doc.key} >
                                                 {doc.label}
                                             </SelectItem>
                                         ))}
@@ -658,7 +657,7 @@ interface BankReference {
                                                 isRequired
                                             >
                                                 {addressTypes.map((type) => (
-                                                    <SelectItem key={type.key} value={type.key}>
+                                                    <SelectItem key={type.key}>
                                                         {type.label}
                                                     </SelectItem>
                                                 ))}
@@ -772,7 +771,7 @@ interface BankReference {
                                                 isRequired
                                             >
                                                 {contactTypes.map((type) => (
-                                                    <SelectItem key={type.key} value={type.key}>
+                                                    <SelectItem key={type.key}>
                                                         {type.label}
                                                     </SelectItem>
                                                 ))}
@@ -887,7 +886,7 @@ interface BankReference {
                                                 isRequired
                                             >
                                                 {accountTypes.map((type) => (
-                                                    <SelectItem key={type.key} value={type.key}>
+                                                    <SelectItem key={type.key}>
                                                         {type.label}
                                                     </SelectItem>
                                                 ))}
@@ -901,7 +900,7 @@ interface BankReference {
                                                 isRequired
                                             >
                                                 {currencies.map((currency) => (
-                                                    <SelectItem key={currency.key} value={currency.key}>
+                                                    <SelectItem key={currency.key}>
                                                         {currency.label}
                                                     </SelectItem>
                                                 ))}
@@ -1197,7 +1196,7 @@ interface BankReference {
                                         isRequired
                                     >
                                         {relationTypes.map((relation) => (
-                                            <SelectItem key={relation.key} value={relation.key}>
+                                            <SelectItem key={relation.key}>
                                                 {relation.label}
                                             </SelectItem>
                                         ))}
