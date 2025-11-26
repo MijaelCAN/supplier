@@ -105,10 +105,9 @@ export const fetchOrdersByCardCode = async (
     startDate?: string,
     endDate?: string,
 ): Promise<PurchaseOrder[] | null> => {
-    if (!cardCode) return null;
 
+    //if (!cardCode) return null; funciona para ambos
     const json = await fetchOrderResponse(cardCode, state, startDate, endDate);
-    console.log("JSON CCONSUMIDO: ", json);
     const records = Array.isArray(json.data) ? json.data : [json.data];
     if (!records || records.length === 0) return null;
 

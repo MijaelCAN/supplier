@@ -21,6 +21,7 @@ import {
 } from "@heroui/react";
 import { EyeFilledIcon, EyeSlashFilledIcon } from "@/components/icons.tsx";
 import { RoleType, useAuthStore } from "@/store/authStore";
+import { sendPasswordRecoveryCode } from "@/services/email/emailApi";
 
 
 const Login = () => {
@@ -200,14 +201,59 @@ const Login = () => {
             });
             setVerificationDigits(Array(6).fill(''));
             setResetStep('code');
-            addToast({
-                title: 'Código enviado',
-                description: `Hemos enviado un código de verificación al correo ${userResult.data.email || 'registrado'}.`,
-                color: 'primary',
-                timeout: 4000,
-                shouldShowTimeoutProgress: true,
-            });
-            console.info('Código de recuperación generado:', code);
+
+            // Enviar correo con código de recuperación
+            if (userResult.data.email) {
+                try {
+                    const emailResult = await sendPasswordRecoveryCode({
+                        to: userResult.data.email,
+                        recoveryData: {
+                            code,
+                            userName: userResult.data.user_name || resetUsername.trim(),
+                            expiresIn: 15, // 15 minutos
+                        },
+                    });
+
+                    if (emailResult.success) {
+                        addToast({
+                            title: 'Código enviado',
+                            description: `Hemos enviado un código de verificación al correo ${userResult.data.email}.`,
+                            color: 'success',
+                            timeout: 4000,
+                            shouldShowTimeoutProgress: true,
+                        });
+                        console.info('✅ Código de recuperación enviado por correo:', code);
+                    } else {
+                        console.warn('⚠️ No se pudo enviar el correo:', emailResult.error);
+                        addToast({
+                            title: 'Código generado',
+                            description: `Código: ${code}. No se pudo enviar por correo, pero puedes usarlo para continuar.`,
+                            color: 'warning',
+                            timeout: 5000,
+                            shouldShowTimeoutProgress: true,
+                        });
+                    }
+                } catch (emailError) {
+                    console.error('Error al enviar correo de recuperación:', emailError);
+                    addToast({
+                        title: 'Código generado',
+                        description: `Código: ${code}. Error al enviar correo, pero puedes usarlo para continuar.`,
+                        color: 'warning',
+                        timeout: 5000,
+                        shouldShowTimeoutProgress: true,
+                    });
+                }
+            } else {
+                // Si no hay email, mostrar el código directamente
+                addToast({
+                    title: 'Código generado',
+                    description: `Código: ${code}. No hay correo registrado, usa este código para continuar.`,
+                    color: 'warning',
+                    timeout: 5000,
+                    shouldShowTimeoutProgress: true,
+                });
+                console.info('Código de recuperación generado (sin email):', code);
+            }
         } catch (error) {
             console.error('Error al enviar el código de recuperación', error);
             setResetError('No se pudo enviar el código de recuperación. Inténtalo nuevamente.');

@@ -19,6 +19,7 @@ interface Direccion {
 
 export interface Contacto {
     Active: string;
+    DocEntry: string;
     E_MailL: string;
     Name: string;
     Profesion: string;

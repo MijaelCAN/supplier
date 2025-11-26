@@ -31,7 +31,7 @@ const resolveEnv = (key: string): string | undefined => {
     return undefined;
 };
 
-const defaultFirebaseConfig: FirebaseRuntimeConfig & {
+/*const defaultFirebaseConfig: FirebaseRuntimeConfig & {
     storageBucket: string;
     messagingSenderId: string;
     measurementId: string;
@@ -43,6 +43,20 @@ const defaultFirebaseConfig: FirebaseRuntimeConfig & {
     messagingSenderId: '142746526401',
     appId: '1:142746526401:web:ba8f61bf5d505f6947ea40',
     measurementId: 'G-797C9B2YV7',
+};*/
+
+const defaultFirebaseConfig: FirebaseRuntimeConfig & {
+    storageBucket: string;
+    messagingSenderId: string;
+    measurementId: string;
+} = {
+    apiKey: "AIzaSyB17dBMXczPmFcvb3SMlvOb9B6FpwYWU4A",
+    authDomain: "supplier-portal-63f43.firebaseapp.com",
+    projectId: "supplier-portal-63f43",
+    storageBucket: "supplier-portal-63f43.firebasestorage.app",
+    messagingSenderId: "423560703858",
+    appId: "1:423560703858:web:ff4b7d24445eb96b4f77eb",
+    measurementId: "G-TL95VZV2EH"
 };
 
 const buildFirebaseConfig = (): FirebaseRuntimeConfig & {

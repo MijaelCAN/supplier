@@ -20,27 +20,39 @@ import Dashboard from "@/layouts/Dashboard";
 import { useAuth } from '@/store/authStore';
 import { useSuppliers } from '@/store';
 import { useNavigate } from 'react-router-dom';
+import {usePurchaseOrders} from "@/store/extendedStore.ts";
 
 const ComprasHome = () => {
     const { currentUser } = useAuth();
     const { suppliers } = useSuppliers();
     const navigate = useNavigate();
 
+    const { purchaseOrders } = usePurchaseOrders()
+
     // Estadísticas específicas para compras
     const comprasStats = {
-        ordenesPendientes: 8,
-        ordenesDelMes: 45,
+        ordenesPendientes: purchaseOrders.filter(p => p.status === 'En Proceso').length,
+        ordenesDelMes: purchaseOrders.length,
         proveedoresActivos: suppliers.filter(s => s.status === 'A').length,
         proveedoresPendientes: suppliers.filter(s => s.status === 'P').length,
         evaluacionesPendientes: 3,
         cotizacionesAbiertas: 5
     };
 
-    const ordenesRecientes = [
-        { id: 'OC-2024-001', proveedor: 'TechCorp Solutions', monto: 15000, estado: 'Pendiente' },
-        { id: 'OC-2024-002', proveedor: 'Industrial Supplies', monto: 8500, estado: 'Aprobada' },
-        { id: 'OC-2024-003', proveedor: 'Medical Equipment', monto: 22000, estado: 'En Proceso' }
-    ];
+    const getLastOrders = (orders: any[], count: number = 3) => {
+        // Convertimos la fecha 'TaxDate' a formato Date para poder comparar
+        return orders
+            .filter(o => o.createdDate && typeof o.createdDate === 'string')
+            .sort((a, b) => {
+                const [dayA, monthA, yearA] = a.createdDate.split('-').map(Number);
+                const [dayB, monthB, yearB] = b.createdDate.split('-').map(Number);
+                const dateA = new Date(yearA, monthA - 1, dayA);
+                const dateB = new Date(yearB, monthB - 1, dayB);
+                return dateB.getTime() - dateA.getTime(); // Orden descendente
+            })
+            .slice(0, count);
+    };
+    const ultimas3Ordenes = getLastOrders(purchaseOrders, 3);
 
     const proveedoresPendientes = suppliers.filter(s => s.status === 'P').slice(0, 3);
 
@@ -189,11 +201,11 @@ const ComprasHome = () => {
                                 onPress={() => navigate('/orden-compra')}
                             >
                                 <CardBody className="text-center p-6">
-                                    <div className="bg-blue-500 text-white p-3 rounded-lg inline-flex mb-3">
+                                    <div className="bg-red-800 text-white p-3 rounded-lg inline-flex mb-3">
                                         <PlusIcon className="h-6 w-6" />
                                     </div>
-                                    <h4 className="font-semibold mb-2">Nueva Orden de Compra</h4>
-                                    <p className="text-sm text-gray-600">Crear nueva solicitud de compra</p>
+                                    <h4 className="font-semibold mb-2">Lista de orden de Compra</h4>
+                                    <p className="text-sm text-gray-600">Ver todas las Ordenes de compra</p>
                                 </CardBody>
                             </Card>
 
@@ -203,10 +215,10 @@ const ComprasHome = () => {
                                 onPress={() => navigate('/proveedores')}
                             >
                                 <CardBody className="text-center p-6">
-                                    <div className="bg-green-500 text-white p-3 rounded-lg inline-flex mb-3">
+                                    <div className="bg-blue-950 text-white p-3 rounded-lg inline-flex mb-3">
                                         <BuildingOfficeIcon className="h-6 w-6" />
                                     </div>
-                                    <h4 className="font-semibold mb-2">Gestionar Proveedores</h4>
+                                    <h4 className="font-semibold mb-2">Listado de Proveedores</h4>
                                     <p className="text-sm text-gray-600">Ver y administrar proveedores</p>
                                 </CardBody>
                             </Card>
@@ -217,10 +229,10 @@ const ComprasHome = () => {
                                 onPress={() => navigate('/proveedores/evaluaciones')}
                             >
                                 <CardBody className="text-center p-6">
-                                    <div className="bg-purple-500 text-white p-3 rounded-lg inline-flex mb-3">
+                                    <div className="bg-gray-500 text-white p-3 rounded-lg inline-flex mb-3">
                                         <StarIcon className="h-6 w-6" />
                                     </div>
-                                    <h4 className="font-semibold mb-2">Evaluar Proveedores</h4>
+                                    <h4 className="font-semibold mb-2 items-center">Evaluar Proveedores</h4>
                                     <p className="text-sm text-gray-600">Calificar desempeño</p>
                                 </CardBody>
                             </Card>
@@ -244,20 +256,20 @@ const ComprasHome = () => {
                         </CardHeader>
                         <CardBody>
                             <div className="space-y-3">
-                                {ordenesRecientes.map((orden) => (
+                                {ultimas3Ordenes.map((orden) => (
                                     <div key={orden.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                                         <div>
-                                            <p className="font-medium text-sm">{orden.id}</p>
-                                            <p className="text-xs text-gray-500">{orden.proveedor}</p>
+                                            <p className="font-medium text-sm">{orden.orderNumber}</p>
+                                            <p className="text-xs text-gray-500">{orden.supplierName}</p>
                                         </div>
                                         <div className="text-right">
-                                            <p className="font-bold text-sm">{formatCurrency(orden.monto)}</p>
+                                            <p className="font-bold text-sm">{formatCurrency(orden.totalAmount)}</p>
                                             <Chip 
                                                 size="sm"
-                                                color={orden.estado === 'Aprobada' ? 'success' : orden.estado === 'Pendiente' ? 'warning' : 'primary'}
+                                                color={orden.status === 'En Proceso' ? 'primary' : orden.status === 'Completada' ? 'success' : 'warning'}
                                                 variant="flat"
                                             >
-                                                {orden.estado}
+                                                {orden.status === 'En Proceso' ? 'Abierto' :'Cerrado'}
                                             </Chip>
                                         </div>
                                     </div>

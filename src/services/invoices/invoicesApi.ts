@@ -105,7 +105,6 @@ export const fetchInvoicesByCardCode = async (
     startDate?: string,
     endDate?: string,
 ): Promise<Invoice[] | null> => {
-    if (!cardCode) return null;
 
     const json = await fetchInvoiceResponse(cardCode, state, startDate, endDate);
     console.log("JSON INVOICES CONSUMIDO: ", json);

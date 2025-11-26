@@ -60,8 +60,17 @@ const PurchaseOrdersList = () => {
     const priorities = useExtendedStore(state => state.priorities);
     const departments = useExtendedStore(state => state.departments);
     const currencies = useExtendedStore(state => state.currencies);
-    const todayString = useMemo(() => new Date().toISOString().slice(0, 10), []);
-    const [startDate, setStartDate] = useState<string>(todayString);
+
+    const getDateString = (date: Date) =>
+        date.toISOString().slice(0, 10);
+
+    const today = new Date();
+    const thirtyDaysAgo = new Date(today);
+    thirtyDaysAgo.setDate(today.getDate() - 30);
+    const todayString = useMemo(() => getDateString(today), []);
+    const thirtyDaysAgoString = useMemo(() => getDateString(thirtyDaysAgo), []);
+    //const todayString = useMemo(() => new Date().toISOString().slice(0, 10), []);
+    const [startDate, setStartDate] = useState<string>(thirtyDaysAgoString);
     const [endDate, setEndDate] = useState<string>(todayString);
 
     const [filterValue, setFilterValue] = useState("");
@@ -74,6 +83,7 @@ const PurchaseOrdersList = () => {
     const isValidRange = useMemo(() => startDate && endDate && startDate <= endDate, [startDate, endDate]);
 
     const fetchOrdersData = useCallback(async (): Promise<PurchaseOrder[] | null> => {
+        console.log("PRUEBA2 => ", "ENTRO A");
         if (!startDate || !endDate) {
             console.log("Selecciona un rango de fechas válido.")
             throw new Error('Selecciona un rango de fechas válido.');
@@ -95,8 +105,10 @@ const PurchaseOrdersList = () => {
     useEffect(() => {
         const loadFilteredOrders = async () => {
             try {
+                console.log("PRUEBA => ", "ENTRO A ORDENES DE COMPRA USE-COMPRAS")
                 setIsLoading(true);
                 const result = await fetchOrdersData();
+                console.log("RESULTADO => ", result)
                 if (result && result.length > 0) {
                     // Reemplazar todas las órdenes con las filtradas por fecha
                     setPurchaseOrders(result);
@@ -162,7 +174,6 @@ const PurchaseOrdersList = () => {
         const end = start + rowsPerPage;
         return filteredOrders.slice(start, end);
     }, [page, filteredOrders, rowsPerPage]);
-    console.log("PAGINA 1: ", items)
 
 
     const getStatusColor = (status: string): statusConfig => {

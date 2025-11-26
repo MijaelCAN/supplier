@@ -22,6 +22,7 @@ import { UserRole } from '@/routes/menuTypes'
 import { createSupplierProfile, fetchSunatSupplierData, fetchSuppliersListFromApi, type SupplierApiRecord } from '@/services/providers/providersApi';
 import { getBlackListRecord, type BlackListRecord } from '@/services/providers/blackListApi';
 import { fetchCondicionesPago, type CondicionPago } from '@/services/maestros/condicionesPagoApi';
+import { sendSupplierCredentials } from '@/services/email/emailApi';
 
 // Schema de validación con Zod
 const supplierRegisterSchema = z.object({
@@ -382,6 +383,30 @@ const ModalRegister: FC<ModalRegisterProps> = ({
                 } catch (refreshError) {
                     console.error('No se pudo refrescar la lista de proveedores después del registro.', refreshError);
                 }
+            }
+
+            // Enviar correo con credenciales
+            try {
+                const emailResult = await sendSupplierCredentials({
+                    to: data.email,
+                    credentials: {
+                        username,
+                        password: tempPassword,
+                        supplierName: data.cardName,
+                        userFullName,
+                        portalLink,
+                    },
+                });
+
+                if (emailResult.success) {
+                    console.log('✅ Correo con credenciales enviado exitosamente');
+                } else {
+                    console.warn('⚠️ No se pudo enviar el correo con credenciales:', emailResult.error);
+                    // No lanzamos error, solo registramos la advertencia
+                }
+            } catch (emailError) {
+                console.error('Error al enviar correo con credenciales:', emailError);
+                // No lanzamos error, solo registramos el error
             }
 
             setEmailSummary({

@@ -43,7 +43,9 @@ import {
     BuildingOffice2Icon,
     PlusIcon,
     IdentificationIcon,
-    StarIcon
+    StarIcon,
+    ArrowDownTrayIcon,
+    DocumentArrowDownIcon
 } from '@heroicons/react/24/outline';
 import { Link } from "@heroui/link";
 import Dashboard from "@/layouts/Dashboard";
@@ -54,6 +56,7 @@ import { createDefaultDocuments, fetchSupplierByCardCode, updateSupplierProfile,
 import { ProveedorValidator, TipoProveedorCodigo } from "@/pages/Proveedores/Profile/ProveedorValidator.ts";
 import {TicketIcon } from "@heroicons/react/16/solid";
 import { fetchCondicionesPago, type CondicionPago, getCondicionPagoDescripcion } from '@/services/maestros/condicionesPagoApi';
+import { generateSupplierPDF, openSupplierPDFInNewTab } from '@/utils/pdfGenerator';
 
 type BankTheme = {
     cardClass: string;
@@ -388,6 +391,7 @@ type BankDisplay = {
 
 const createEmptyContact = (): Contacto => ({
     Active: 'Y',
+    DocEntry: '0',
     E_MailL: '',
     Name: '',
     Profesion: '',
@@ -503,6 +507,7 @@ const SupplierProfileCard = () => {
      const [isSaving, setIsSaving] = React.useState(false);
     const [apiError, setApiError] = React.useState<string | null>(null);
     const [isGlobalLoading, setIsGlobalLoading] = React.useState(false);
+    const [isGeneratingPDF, setIsGeneratingPDF] = React.useState(false);
      const navigate = useNavigate()
     const [coverPreview, setCoverPreview] = React.useState<string | null>(null);
     const [avatarPreview, setAvatarPreview] = React.useState<string | null>(null);
@@ -974,6 +979,72 @@ const SupplierProfileCard = () => {
             servicios.splice(index, 1);
             return {...prev, ServiciosOfrecidos: servicios};
         });
+    };
+
+    const handleGeneratePDF = async () => {
+        if (!selectedSupplier) {
+            addToast({
+                title: 'Error',
+                description: 'No hay información del proveedor disponible.',
+                color: 'danger',
+                timeout: 3000,
+            });
+            return;
+        }
+
+        setIsGeneratingPDF(true);
+        setIsGlobalLoading(true);
+
+        try {
+            await generateSupplierPDF(selectedSupplier, completionPercentage);
+            addToast({
+                title: 'PDF generado',
+                description: 'El documento se ha descargado correctamente.',
+                color: 'success',
+                timeout: 3000,
+            });
+        } catch (error) {
+            console.error('Error al generar PDF:', error);
+            addToast({
+                title: 'Error al generar PDF',
+                description: error instanceof Error ? error.message : 'No se pudo generar el documento.',
+                color: 'danger',
+                timeout: 4000,
+            });
+        } finally {
+            setIsGeneratingPDF(false);
+            setIsGlobalLoading(false);
+        }
+    };
+
+    const handleViewPDF = async () => {
+        if (!selectedSupplier) {
+            addToast({
+                title: 'Error',
+                description: 'No hay información del proveedor disponible.',
+                color: 'danger',
+                timeout: 3000,
+            });
+            return;
+        }
+
+        setIsGeneratingPDF(true);
+        setIsGlobalLoading(true);
+
+        try {
+            await openSupplierPDFInNewTab(selectedSupplier, completionPercentage);
+        } catch (error) {
+            console.error('Error al visualizar PDF:', error);
+            addToast({
+                title: 'Error al visualizar PDF',
+                description: error instanceof Error ? error.message : 'No se pudo visualizar el documento.',
+                color: 'danger',
+                timeout: 4000,
+            });
+        } finally {
+            setIsGeneratingPDF(false);
+            setIsGlobalLoading(false);
+        }
     };
 
     const handleSaveSection = async (onClose: () => void) => {
@@ -1785,26 +1856,35 @@ const SupplierProfileCard = () => {
                             <Button
                                 size="sm"
                                 color="primary"
-                                startContent={<StarIcon className="w-4 h-4 bg:shadow-amber-400"/>}
+                                startContent={<StarIcon className="w-4 h-4"/>}
                                 className="bg-blue-600 hover:bg-blue-700"
                                 onPress={() => navigate("/proveedor/evaluacion")}
+                                isDisabled={isGlobalLoading}
                             >
                                 EVALUACIÓNES
                             </Button>
-                            {/*<Button
+                            <Button
                                 size="sm"
+                                color="secondary"
                                 variant="bordered"
-                                startContent={<ChatBubbleLeftIcon className="w-4 h-4"/>}
+                                startContent={<DocumentArrowDownIcon className="w-4 h-4"/>}
+                                onPress={handleViewPDF}
+                                isLoading={isGeneratingPDF}
+                                isDisabled={isGlobalLoading}
                             >
-                                Evaluación
+                                VER PDF
                             </Button>
                             <Button
                                 size="sm"
-                                isIconOnly
-                                variant="bordered"
+                                color="success"
+                                variant="flat"
+                                startContent={<ArrowDownTrayIcon className="w-4 h-4"/>}
+                                onPress={handleGeneratePDF}
+                                isLoading={isGeneratingPDF}
+                                isDisabled={isGlobalLoading}
                             >
-                                <EllipsisHorizontalIcon className="w-5 h-5"/>
-                            </Button>*/}
+                                DESCARGAR
+                            </Button>
                         </div>
                     </div>
 
