@@ -260,7 +260,7 @@ export const SupplierPDF = ({ supplier, completionPercentage }: SupplierPDFProps
                         <View style={styles.supplierInfo}>
                             <View style={{ flex: 1 }}>
                                 <Text style={styles.supplierName}>{supplier.cardName}</Text>
-                                <Text style={styles.supplierDetail}>RUC: {supplier.taxId || supplier.RUC || '—'}</Text>
+                                <Text style={styles.supplierDetail}>RUC: { supplier.RUC || '—'}</Text>
                             </View>
                             <View style={{ alignItems: 'flex-end' }}>
                                 <Text style={styles.supplierDetail}>Código: {supplier.cardCode}</Text>

@@ -312,6 +312,7 @@ const ModalRegister: FC<ModalRegisterProps> = ({
                 salesManager: data.salesManager ?? '',
                 Contactos: [
                     {
+                        DocEntry: '',
                         Active: 'Y',
                         Name: data.contactPerson,
                         Profesion: '',
