@@ -2,6 +2,8 @@
  * Servicio de API para notificaciones por correo electrónico
  */
 
+import {httpClient, buildSecureUrl} from "@/services/http/httpClient.ts";
+
 const nameBaseUrl = 'VITE_EMAIL_SERVER_URL';
 
 const normaliseString = (value?: string | null) => (value ?? '').trim();
@@ -15,7 +17,7 @@ const resolveEnv = (key: string): string | undefined => {
 
 const buildEndpointUrl = (endpoint: string): string => {
     const BASE_URL = normaliseString(resolveEnv(nameBaseUrl)) || 'http://localhost:3001';
-    return `${BASE_URL}${endpoint}`;
+    return buildSecureUrl(BASE_URL, endpoint);
 }
 
 const handleResponse = async (response: Response): Promise<any> => {
@@ -74,7 +76,7 @@ export interface EmailResponse {
  */
 export const verifyEmailConnection = async (): Promise<boolean> => {
     try {
-        const response = await fetch(buildEndpointUrl('/api/email/verify'));
+        const response = await httpClient(buildEndpointUrl('/api/email/verify'));
         const result = await handleResponse(response);
         return result.success === true;
     } catch (error) {
@@ -88,7 +90,7 @@ export const verifyEmailConnection = async (): Promise<boolean> => {
  */
 export const sendEmail = async (request: EmailSendRequest): Promise<EmailResponse> => {
     try {
-        const response = await fetch(buildEndpointUrl('/api/email/send'), {
+        const response = await httpClient(buildEndpointUrl('/api/email/send'), {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -112,7 +114,7 @@ export const sendOrderNotification = async (
     request: OrderNotificationRequest
 ): Promise<EmailResponse> => {
     try {
-        const response = await fetch(buildEndpointUrl('/api/email/order-notification'), {
+        const response = await httpClient(buildEndpointUrl('/api/email/order-notification'), {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -136,7 +138,7 @@ export const sendNotification = async (
     request: GenericNotificationRequest
 ): Promise<EmailResponse> => {
     try {
-        const response = await fetch(buildEndpointUrl('/api/email/notification'), {
+        const response = await httpClient(buildEndpointUrl('/api/email/notification'), {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -158,7 +160,7 @@ export const sendNotification = async (
  */
 export const checkServerHealth = async (): Promise<{ status: string; service: string; timestamp: string }> => {
     try {
-        const response = await fetch(buildEndpointUrl('/health'));
+        const response = await httpClient(buildEndpointUrl('/health'));
         return await handleResponse(response);
     } catch (error) {
         throw new Error('No se pudo conectar con el servidor de notificaciones');
@@ -192,7 +194,7 @@ export const sendSupplierCredentials = async (
     request: SupplierCredentialsRequest
 ): Promise<EmailResponse> => {
     try {
-        const response = await fetch(buildEndpointUrl('/api/email/supplier-credentials'), {
+        const response = await httpClient(buildEndpointUrl('/api/email/supplier-credentials'), {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -216,7 +218,7 @@ export const sendPasswordRecoveryCode = async (
     request: PasswordRecoveryRequest
 ): Promise<EmailResponse> => {
     try {
-        const response = await fetch(buildEndpointUrl('/api/email/password-recovery'), {
+        const response = await httpClient(buildEndpointUrl('/api/email/password-recovery'), {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

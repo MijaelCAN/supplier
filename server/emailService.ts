@@ -212,71 +212,144 @@ export class EmailService {
     ): Promise<{ success: boolean; messageId?: string; error?: string }> {
         const html = `
             <!DOCTYPE html>
-            <html>
+            <html lang="es">
             <head>
-                <meta charset="utf-8">
-                <style>
-                    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-                    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-                    .header { background-color: #4F46E5; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }
-                    .content { padding: 20px; background-color: #f9fafb; }
-                    .credentials-box { background-color: white; padding: 20px; margin: 20px 0; border-radius: 5px; border: 2px solid #e5e7eb; }
-                    .credential-item { margin: 15px 0; padding: 12px; background-color: #f3f4f6; border-radius: 5px; }
-                    .credential-label { font-weight: bold; color: #6b7280; font-size: 12px; text-transform: uppercase; margin-bottom: 5px; }
-                    .credential-value { font-size: 18px; color: #111827; font-family: 'Courier New', monospace; }
-                    .warning-box { background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0; border-radius: 5px; }
-                    .button { display: inline-block; padding: 12px 24px; background-color: #4F46E5; color: white; text-decoration: none; border-radius: 5px; margin: 15px 0; }
-                    .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
-                </style>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Bienvenido al Portal de Proveedores - Vistony</title>
             </head>
-            <body>
-                <div class="container">
-                    <div class="header">
-                        <h1>Bienvenido al Supplier Portal</h1>
-                    </div>
-                    <div class="content">
-                        <p>Estimado/a <strong>${credentials.userFullName}</strong>,</p>
-                        <p>Su empresa <strong>${credentials.supplierName}</strong> ha sido registrada exitosamente en el Portal de Proveedores de Vistony.</p>
+            <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
+                <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f4f4f4; padding: 20px 0;">
+                    <tr>
+                        <td align="center">
+                            <table width="65%" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                                <!-- Header con logo y líneas decorativas -->
+                                
+                                <tr>
+                                    <td style="padding: 0; margin: 0; position: relative;">
+                                        <img src="../public/subtract.png"
+                                             alt="Decoración Header"
+                                             style="display:block; width:100%; height:auto;">
+                                
+                                        <div style="position: absolute; top: 30px; left: 30px;">
+                                            <img src="https://vistony.pe/wp-content/uploads/2025/04/logo.svg"
+                                                 alt="Vistony Logo"
+                                                 style="height: 50px;">
+                                        </div>
+                                    </td>
+                                </tr>
+                                
+                                <!-- Contenido principal -->
+                                <tr>
+                                    <td style="padding: 40px 30px;">
+                                        <div style="text-align: center;">
+                                          <h1 style="color: #0051A5; font-size: 24px; margin: 30px 0 50px 0; font-weight: bold;">¡Bienvenido al Portal de Proveedores Vistony!</h1>
+                                        </div>
+                                        
+                                        <p style="color:#555; font-size:15px; line-height:1.6; margin-top:20px;">
+                                            Estimado proveedor, ${credentials.supplierName}
+                                        </p>
                         
-                        <div class="credentials-box">
-                            <h2 style="margin-top: 0; color: #4F46E5;">Sus Credenciales de Acceso</h2>
-                            
-                            <div class="credential-item">
-                                <div class="credential-label">Usuario</div>
-                                <div class="credential-value">${credentials.username}</div>
-                            </div>
-                            
-                            <div class="credential-item">
-                                <div class="credential-label">Contraseña Temporal</div>
-                                <div class="credential-value">${credentials.password}</div>
-                            </div>
-                        </div>
+                                        <p style="color:#555; font-size:15px; line-height:1.6;">
+                                            Es un gusto darte la bienvenida a nuestro 
+                                            <strong>Portal de Proveedores</strong>, una plataforma diseñada para mejorar la 
+                                            comunicación, agilizar procesos y fortalecer nuestra relación comercial.
+                                        </p>
                         
-                        <div class="warning-box">
-                            <strong>⚠️ Importante:</strong> Por seguridad, le recomendamos cambiar esta contraseña temporal al iniciar sesión por primera vez.
-                        </div>
+                                        <p style="color:#555; font-size:15px; line-height:1.6;">
+                                            A través del portal podrás gestionar documentos, consultar requerimientos, actualizar 
+                                            información y realizar un seguimiento más eficiente de tus operaciones.
+                                        </p>
+                                        
+                                        <table style="width: 100%; border-collapse: collapse; font-family: Arial, sans-serif; color: #222;">
+                                          <tr>
+                                            <td style="padding: 0px 0; display: flex; align-items: center; margin-left: 100px ">
+                                              <span style="color: #555; font-weight: 700; font-size: 18px; margin-right: 12px;">✓</span>
+                                              <span style="font-size: 15px; color: #555">Visualizar el estado de sus Ordenes de Compra</span>
+                                            </td>
+                                          </tr>
+                                          <tr>
+                                            <td style="padding: 0px 0; display: flex; align-items: center; margin-left: 100px ">
+                                              <span style="color: #555; font-weight: 700; font-size: 18px; margin-right: 12px;">✓</span>
+                                              <span style="font-size: 15px; color: #555">Visualizar el estado de sus facturas por fechas</span>
+                                            </td>
+                                          </tr>
+                                          <tr>
+                                            <td style="padding: 0px 0; display: flex; align-items: center; margin-left: 100px ">
+                                              <span style="color: #555; font-weight: 700; font-size: 18px; margin-right: 12px;">✓</span>
+                                              <span style="font-size: 15px; color: #555">Visualiar y actualizar su información comercial</span>
+                                            </td>
+                                          </tr>
+                                          <tr>
+                                            <td style="padding: 0px 0; display: flex; align-items: center; margin-left: 100px ">
+                                              <span style="color: #555; font-weight: 700; font-size: 18px; margin-right: 12px;">✓</span>
+                                              <span style="font-size: 15px; color: #555">Acceder a documentación importante</span>
+                                            </td>
+                                          </tr>
+                                        </table>
+            
+                                        
+                                        <!-- Credenciales -->
+                                        <div style="border-radius: 26px; margin-top:25px; padding:18px; background:#f1f7ff; border-left:4px solid #004b9b;">
+                                            <p style="color:#004b9b; font-size:16px; margin:0 0 10px; text-align: center">
+                                                <strong>Credenciales de Acceso</strong>
+                                            </p>
                         
-                        ${credentials.portalLink ? `
-                            <p style="text-align: center;">
-                                <a href="${credentials.portalLink}" class="button">Acceder al Portal</a>
-                            </p>
-                        ` : ''}
+                                            <p style="color:#444; font-size:14px; margin:5px 0;">
+                                                <strong>Usuario:</strong> ${credentials.username}
+                                            </p>
+                                            <p style="color:#444; font-size:14px; margin:5px 0;">
+                                                <strong>Contraseña:</strong> ${credentials.password}
+                                            </p>
                         
-                        <p>Con estas credenciales podrá:</p>
-                        <ul>
-                            <li>Acceder a su perfil de proveedor</li>
-                            <li>Ver y gestionar sus órdenes de compra</li>
-                            <li>Subir documentos y facturas</li>
-                            <li>Consultar el estado de sus pagos</li>
-                        </ul>
-                        
-                        <p>Si tiene alguna pregunta, no dude en contactarnos.</p>
-                    </div>
-                    <div class="footer">
-                        <p>Este es un correo automático, por favor no responder.</p>
-                        <p>Portal de proveedores - Sistema de Gestión Vistony</p>
-                    </div>
-                </div>
+                                            <p style="color:#777; font-size:12px; margin-top:10px; font-style:italic;">
+                                                *Por seguridad, te recomendamos cambiar tu contraseña en tu primer inicio de sesión.
+                                            </p>
+                                        </div>
+                                        
+                                        <!-- Botón -->
+                                        <p style="margin-top:30px; text-align: center">
+                                            <a href="${credentials.portalLink}" target="_blank"
+                                               style="background:#e60012; color:#ffffff; padding:12px 25px; 
+                                                      text-decoration:none; font-size:15px; border-radius:2px;">
+                                                Ingresar al Portal
+                                            </a>
+                                        </p>
+                                        
+                                    </td>
+                                </tr>
+                                
+                                <!-- Información de contacto -->
+                                <tr>
+                                    <td style="background-color: #f8f9fa; padding: 25px 30px; border-top: 3px solid #0051A5;">
+                                        <h3 style="color: #0051A5; font-size: 16px; margin: 0 0 15px 0;">Contacto Comercial</h3>
+                                        <table width="100%" cellpadding="0" cellspacing="0">
+                                            <tr>
+                                                <td style="color: #666666; font-size: 14px; line-height: 1.0;">
+                                                    <strong style="color: #0051A5;">Luis José M. Bravo Urtecho</strong><br>
+                                                    Jefe Comercial<br>
+                                                    954694196<br>
+                                                    <a href="mailto:luis.bravo@ndiasa.com.pe" style="color: #0051A5; text-decoration: none;">luis.bravo@ndiasa.com.pe</a><br>
+                                                    <a href="http://www.vistony.com" style="color: #0051A5; text-decoration: none;">www.vistony.com</a><br>
+                                                    <span style="color: #666666; font-size: 13px;">Mz N Lote 10-11 C.P El Milagro, Huanchaco - Trujillo</span>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                                
+                                <!-- Footer -->
+                                <tr>
+                                    <td style="background-color: #0051A5; padding: 20px; text-align: center;">
+                                        <p style="color: #ffffff; font-size: 12px; margin: 0;">
+                                            © 2025 VISTONY - Tecnología en Lubricación
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                </table>
             </body>
             </html>
         `;
