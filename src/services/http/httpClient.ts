@@ -131,7 +131,28 @@ export interface FetchOptions extends RequestInit {
      * Si es true, no se ofuscará la URL (útil para URLs externas)
      */
     skipObfuscation?: boolean;
+    /**
+     * Si es true, no se agregará el token de autenticación (útil para endpoints públicos)
+     */
+    skipAuth?: boolean;
 }
+
+/**
+ * Obtiene el token de autenticación del localStorage
+ */
+const getAuthToken = (): string | null => {
+    try {
+        const authStorage = localStorage.getItem('auth-storage');
+        if (!authStorage) {
+            return null;
+        }
+        const parsed = JSON.parse(authStorage);
+        return parsed?.state?.sessionToken || null;
+    } catch (error) {
+        console.warn('Error al obtener token de autenticación:', error);
+        return null;
+    }
+};
 
 /**
  * Cliente HTTP que intercepta y ofusca URLs en producción
@@ -150,18 +171,36 @@ export const httpClient = async (
 ): Promise<Response> => {
     const urlString = typeof url === 'string' ? url : url.toString();
     
+    // Preparar headers
+    const headers = new Headers(options.headers);
+    
+    // Agregar token de autenticación si no se especifica skipAuth
+    if (!options.skipAuth) {
+        const token = getAuthToken();
+        if (token) {
+            headers.set('Authorization', `Bearer ${token}`);
+        }
+    }
+    
     // Si skipObfuscation está activado, usar fetch normal
     if (options.skipObfuscation) {
-        const { skipObfuscation, ...fetchOptions } = options;
-        return fetch(urlString, fetchOptions);
+        const { skipObfuscation, skipAuth, ...fetchOptions } = options;
+        return fetch(urlString, {
+            ...fetchOptions,
+            headers,
+        });
     }
     
     // En producción, desofuscar la URL antes de hacer la petición
     // (porque en el código usamos endpoints genéricos)
     const realUrl = isProduction ? deobfuscateUrl(urlString) : urlString;
     
-    // Hacer la petición con la URL real
-    return fetch(realUrl, options);
+    // Hacer la petición con la URL real y headers actualizados
+    const { skipObfuscation, skipAuth, ...fetchOptions } = options;
+    return fetch(realUrl, {
+        ...fetchOptions,
+        headers,
+    });
 };
 
 /**

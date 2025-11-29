@@ -1,10 +1,15 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { EmailService } from './emailService.js';
 
 // Cargar variables de entorno
 dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -14,10 +19,14 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Servir imágenes estáticas para los correos
+app.use('/images', express.static(path.join(__dirname, '../public')));
+
 // Inicializar servicio de correo
 let emailService: EmailService | null = null;
 
 try {
+    const baseUrl = process.env.EMAIL_BASE_URL || process.env.BASE_URL || `http://localhost:${PORT}`;
     emailService = new EmailService({
         host: process.env.EMAIL_HOST || 'smtp.gmail.com',
         port: parseInt(process.env.EMAIL_PORT || '587'),
@@ -26,7 +35,7 @@ try {
             user: process.env.EMAIL_USER || '',
             password: process.env.EMAIL_PASSWORD || '',
         },
-    });
+    }, baseUrl);
 
     // Verificar conexión al iniciar
     emailService.verifyConnection().then((isConnected) => {
