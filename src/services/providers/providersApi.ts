@@ -6,6 +6,7 @@ import type {
     ServiciosOfrecidos,
     Supplier
 } from '@/store/types';
+import {httpClient, buildSecureUrl} from "@/services/http/httpClient.ts";
 
 interface Direccion {
     CodDireccion: string;
@@ -311,13 +312,12 @@ const buildEndpointUrl = (cardCode?: string) => {
     const baseUrl =
         normaliseString(resolveEnv('SUPPLIERS_API_BASE_URL')) || DEFAULT_SUPPLIERS_API_BASE_URL;
 
-    const url = new URL(`${baseUrl}${SUPPLIERS_ENDPOINT}`);
-
+    const params: Record<string, string> = {};
     if (cardCode && cardCode.trim() !== '') {
-        url.searchParams.set('CardCode', cardCode.trim());
+        params['CardCode'] = cardCode.trim();
     }
 
-    return url.toString();
+    return buildSecureUrl(baseUrl, SUPPLIERS_ENDPOINT, params);
 };
 
 
@@ -423,11 +423,13 @@ export const fetchSunatSupplierData = async (ruc: string): Promise<SunatApiRespo
 
     const url = `${SUNAT_RUC_ENDPOINT}/${sanitizedRuc}`;
 
-    const response = await fetch(url, {
+    // Usar skipObfuscation para URLs externas
+    const response = await httpClient(url, {
         headers: {
             'Authorization': `Bearer ${SUNAT_TOKEN}`,
             'Content-Type': 'application/json',
         },
+        skipObfuscation: true, // URLs externas no se ofuscan
     });
 
     if (!response.ok) {
@@ -443,7 +445,7 @@ const fetchSupplierResponse = async (
     cardCode?: string,
     init?: RequestInit,
 ): Promise<SuppliersApiResponse | SuppliersApiListResponse> => {
-    const response = await fetch(buildEndpointUrl(cardCode), {
+    const response = await httpClient(buildEndpointUrl(cardCode), {
         headers: {
             'Content-Type': 'application/json',
         },
@@ -474,7 +476,7 @@ export const fetchSuppliersListFromApi = async (
         url.searchParams.set('FechaFin', params.endDate);
     }
 
-    const response = await fetch(url.toString(), {
+    const response = await httpClient(url.toString(), {
         headers: {
             'Content-Type': 'application/json',
         },
@@ -536,7 +538,7 @@ export const updateSupplierProfile = async (
 export const createSupplierProfile = async (
     payload: SupplierApiRecord,
 ): Promise<{ supplier: Supplier; record: SupplierApiRecord }> => {
-    const response = await fetch(buildEndpointUrl(), {
+    const response = await httpClient(buildEndpointUrl(), {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',

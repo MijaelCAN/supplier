@@ -497,6 +497,8 @@ const SupplierProfileCard = () => {
  
      const {selectedSupplier, setSelectedSupplier} = useSuppliers();
      const currentUser = useAuthStore((state) => state.currentUser);
+     console.log("USUARIOOOO ACTUAL: ", currentUser)
+
      const supplierCode = currentUser?.supplierId ?? currentUser?.userCode ?? '';
      const [isLoading, setIsLoading] = React.useState(false);
      const [formData, setFormData] = React.useState<SupplierApiRecord | null>(null);
@@ -554,7 +556,7 @@ const SupplierProfileCard = () => {
          /*if (selectedSupplier || !supplierCode) {
              return;
          }*/
-        console.log("Prueba", "mensaje")
+        console.log("Prueba", "mensaje + " + supplierCode)
         let isMounted = true;
 
         const loadSupplier = async () => {

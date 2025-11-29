@@ -1,5 +1,6 @@
 import {Invoice as InvoiceApi, InvoiceApiResponse} from "@/services/invoices/types.ts";
 import {Invoice} from "@/store/types.ts";
+import {httpClient, buildSecureUrl} from "@/services/http/httpClient.ts";
 
 const nameBaseUrl = 'VITE_BASE_URL';
 
@@ -19,15 +20,15 @@ const buildEnpointUrlOrder = (
     endDate?: string,
 ): string => {
     const BASE_URL = normaliseString(resolveEnv(nameBaseUrl));
-    const ENDPOINT = resolveEnv('VITE_INVOICE_ENDPOINT');
-    const url = new URL(`${BASE_URL}${ENDPOINT}`);
+    const ENDPOINT = resolveEnv('VITE_INVOICE_ENDPOINT') || '/api/Documentos/Factura';
+    
+    const params: Record<string, string> = {};
+    if (state && state.trim() !== '') params['Estado'] = state.trim();
+    if (cardCode && cardCode.trim() !== '') params['CardCode'] = cardCode.trim();
+    if (startDate && startDate.trim() !== '') params['FechaInicio'] = startDate;
+    if (endDate && endDate.trim() !== '') params['FechaFin'] = endDate;
 
-    if (state && state.trim() !== '') url.searchParams.set('Estado', state.trim());
-    if (cardCode && cardCode.trim() !== '') url.searchParams.set('CardCode', cardCode.trim());
-    if (startDate && startDate.trim() !== '') url.searchParams.set('FechaInicio', startDate);
-    if (endDate && endDate.trim() !== '') url.searchParams.set('FechaFin', endDate);
-
-    return url.toString();
+    return buildSecureUrl(BASE_URL, ENDPOINT, params);
 }
 
 const handleResponse = async (response: Response): Promise<InvoiceApiResponse> => {
@@ -47,7 +48,7 @@ const fetchInvoiceResponse = async (
     endDate?: string,
     init?: ResponseInit,
 ): Promise<InvoiceApiResponse> => {
-    const response = await fetch(buildEnpointUrlOrder(cardCode, state, startDate, endDate), {
+    const response = await httpClient(buildEnpointUrlOrder(cardCode, state, startDate, endDate), {
         headers: {},
         ...init
     })

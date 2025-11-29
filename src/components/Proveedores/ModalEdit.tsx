@@ -309,6 +309,7 @@ const ModalEdit: FC<ModalEditProps> = ({
             const contactos = [...(apiRecord.Contactos ?? [])];
             if (contactos.length === 0) {
                 contactos.push({
+                    DocEntry: '',
                     Active: 'Y',
                     Name: data.contactPerson,
                     Profesion: '',

@@ -20,8 +20,9 @@ import {
     useDisclosure,
 } from "@heroui/react";
 import { EyeFilledIcon, EyeSlashFilledIcon } from "@/components/icons.tsx";
-import { RoleType, useAuthStore } from "@/store/authStore";
+import { useAuthStore } from "@/store/authStore";
 import { sendPasswordRecoveryCode } from "@/services/email/emailApi";
+import {RoleType} from "@/services/auth/apiAuth.ts";
 
 
 const Login = () => {
@@ -33,7 +34,8 @@ const Login = () => {
     const clearError = useAuthStore((state) => state.clearError);
     const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
     const currentUser = useAuthStore((state) => state.currentUser);
-    const findUserByUsername = useAuthStore((state) => state.findUserByUsername);
+    //const findUserByUsername = useAuthStore((state) => state.findUserByUsername);
+    const getProviderEmailByRuc = useAuthStore((state) => state.getProviderEmailByRuc);
     const updateUserPassword = useAuthStore((state) => state.updateUserPassword);
 
     const [username, setUsername] = useState("");
@@ -94,6 +96,22 @@ const Login = () => {
             return;
         }
 
+        // Validar si la contraseña es igual al usuario (primera vez)
+        if (password === username.trim()) {
+            setFormError("La contraseña no puede ser igual al usuario. Por favor, actualice su contraseña.");
+            addToast({
+                title: "Contraseña inválida",
+                description: "La contraseña no puede ser igual al usuario. Por favor, use la opción 'Recuperar Contraseña' para actualizarla.",
+                timeout: 5000,
+                color: "warning",
+                shouldShowTimeoutProgress: true,
+            });
+            // Abrir el drawer de recuperación de contraseña
+            handleBackdropChange("opaque");
+            setResetUsername(username.trim());
+            return;
+        }
+
         const selectedRole: RoleType = activeTab === "proveedor" ? "provider" : "internal";
         const result = await login(username.trim().toLowerCase(), password, selectedRole);
 
@@ -119,14 +137,29 @@ const Login = () => {
                     break;
             }
         } else {
-            setFormError(result.message);
-            addToast({
-                title: "Error de autenticación",
-                description: result.message,
-                timeout: 3000,
-                color: "danger",
-                shouldShowTimeoutProgress: true,
-            });
+            // Manejar error especial de contraseña igual a usuario
+            if (result.code === 'PASSWORD_EQUALS_USERNAME') {
+                setFormError(result.message);
+                addToast({
+                    title: "Actualización de contraseña requerida",
+                    description: result.message,
+                    timeout: 5000,
+                    color: "warning",
+                    shouldShowTimeoutProgress: true,
+                });
+                // Abrir el drawer de recuperación de contraseña
+                handleBackdropChange("opaque");
+                setResetUsername(username.trim());
+            } else {
+                setFormError(result.message);
+                addToast({
+                    title: "Error de autenticación",
+                    description: result.message,
+                    timeout: 3000,
+                    color: "danger",
+                    shouldShowTimeoutProgress: true,
+                });
+            }
         }
     };
 
@@ -186,8 +219,10 @@ const Login = () => {
 
         setIsResetLoading(true);
         try {
-            const userResult = await findUserByUsername(resetUsername.trim().toLowerCase());
-            if (!userResult) {
+            // Obtener correo del proveedor usando el API
+            const providerInfo = await getProviderEmailByRuc(resetUsername.trim());
+            
+            if (!providerInfo) {
                 setResetError('No se encuentra registrado como Proveedor para Vistony');
                 return;
             }
@@ -195,21 +230,21 @@ const Login = () => {
             const code = Math.floor(100000 + Math.random() * 900000).toString();
             setGeneratedCode(code);
             setResetUser({
-                id: userResult.id,
-                email: userResult.data.email,
-                fullName: userResult.data.user_name,
+                id: providerInfo.codUsuario,
+                email: providerInfo.email,
+                fullName: providerInfo.nombreCompleto,
             });
             setVerificationDigits(Array(6).fill(''));
             setResetStep('code');
 
             // Enviar correo con código de recuperación
-            if (userResult.data.email) {
+            if (providerInfo.email) {
                 try {
                     const emailResult = await sendPasswordRecoveryCode({
-                        to: userResult.data.email,
+                        to: providerInfo.email,
                         recoveryData: {
                             code,
-                            userName: userResult.data.user_name || resetUsername.trim(),
+                            userName: providerInfo.nombreCompleto || resetUsername.trim(),
                             expiresIn: 15, // 15 minutos
                         },
                     });
@@ -217,7 +252,7 @@ const Login = () => {
                     if (emailResult.success) {
                         addToast({
                             title: 'Código enviado',
-                            description: `Hemos enviado un código de verificación al correo ${userResult.data.email}.`,
+                            description: `Hemos enviado un código de verificación al correo ${providerInfo.email}.`,
                             color: 'success',
                             timeout: 4000,
                             shouldShowTimeoutProgress: true,
@@ -256,7 +291,15 @@ const Login = () => {
             }
         } catch (error) {
             console.error('Error al enviar el código de recuperación', error);
-            setResetError('No se pudo enviar el código de recuperación. Inténtalo nuevamente.');
+            const errorMessage = error instanceof Error ? error.message : 'No se pudo enviar el código de recuperación. Inténtalo nuevamente.';
+            setResetError(errorMessage);
+            addToast({
+                title: 'Error',
+                description: errorMessage,
+                color: 'danger',
+                timeout: 4000,
+                shouldShowTimeoutProgress: true,
+            });
         } finally {
             setIsResetLoading(false);
         }
@@ -330,14 +373,21 @@ const Login = () => {
             setResetError('Las contraseñas no coinciden.');
             return;
         }
-        if (!resetUser) {
+        if (!resetUsername.trim()) {
             setResetError('Ocurrió un problema al actualizar la contraseña. Inténtalo nuevamente.');
+            return;
+        }
+
+        // Validar que la contraseña no sea igual al usuario
+        if (newPasswordValue === resetUsername.trim()) {
+            setResetError('La contraseña no puede ser igual al usuario.');
             return;
         }
 
         setIsResetLoading(true);
         try {
-            await updateUserPassword(resetUser.id, newPasswordValue);
+            // Usar el username en lugar del userId para el API
+            await updateUserPassword(resetUsername.trim(), newPasswordValue);
             addToast({
                 title: 'Contraseña actualizada',
                 description: 'Ahora puedes iniciar sesión con tu nueva contraseña.',
@@ -349,7 +399,15 @@ const Login = () => {
             resetRecoveryFlow();
         } catch (error) {
             console.error('Error al actualizar la contraseña', error);
-            setResetError('No se pudo actualizar la contraseña. Inténtalo nuevamente.');
+            const errorMessage = error instanceof Error ? error.message : 'No se pudo actualizar la contraseña. Inténtalo nuevamente.';
+            setResetError(errorMessage);
+            addToast({
+                title: 'Error al actualizar contraseña',
+                description: errorMessage,
+                color: 'danger',
+                timeout: 4000,
+                shouldShowTimeoutProgress: true,
+            });
         } finally {
             setIsResetLoading(false);
         }

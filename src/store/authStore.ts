@@ -4,16 +4,22 @@ import { UserRole } from '@/routes/menuTypes';
 import {
     AuthError,
     AuthErrorCode,
+    LoginSuccess,
+    loginWithAPI,
+    PortalUser,
+    updatePasswordWithAPI,
+    RoleType,
+    getProviderEmailByRuc,
+    ProviderEmailInfo,
+} from '@/services/auth/apiAuth';
+// Mantener imports de Firestore para funciones que aún se usan
+import {
     createSupplierUserDocument,
     FirestoreUserDocument,
     findUserByUsername,
-    LoginSuccess,
-    loginWithFirestore,
-    PortalUser,
-    updateUserPassword,
 } from '@/services/auth/firestoreAuth';
 
-export type RoleType = 'internal' | 'provider';
+// RoleType ahora se importa de apiAuth
 
 export interface LoginResultSuccess {
     success: true;
@@ -41,7 +47,8 @@ interface AuthState {
     clearError: () => void;
     createSupplierUser: (supplierData: Parameters<typeof createSupplierUserDocument>[0]) => Promise<void>;
     findUserByUsername: (username: string) => Promise<{ id: string; data: FirestoreUserDocument } | null>;
-    updateUserPassword: (userId: string, newPassword: string) => Promise<void>;
+    getProviderEmailByRuc: (ruc: string) => Promise<ProviderEmailInfo>;
+    updateUserPassword: (username: string, newPassword: string) => Promise<void>;
 }
 
 const mapLoginSuccess = ({ token, user }: LoginSuccess): LoginResultSuccess => ({
@@ -80,7 +87,7 @@ export const useAuthStore = create<AuthState>()(
                 set({ isLoading: true, error: null });
 
                 try {
-                    const result = await loginWithFirestore({
+                    const result = await loginWithAPI({
                         username,
                         password,
                         roleType,
@@ -126,8 +133,13 @@ export const useAuthStore = create<AuthState>()(
                 await createSupplierUserDocument(supplierData);
             },
             findUserByUsername: async (username) => findUserByUsername(username),
-            updateUserPassword: async (userId, newPassword) =>
-                updateUserPassword(userId, newPassword),
+            getProviderEmailByRuc: async (ruc: string) => {
+                return await getProviderEmailByRuc(ruc);
+            },
+            updateUserPassword: async (username: string, newPassword: string) => {
+                // Actualizar contraseña usando el API
+                await updatePasswordWithAPI(username, newPassword);
+            },
         }),
         {
             name: 'auth-storage',

@@ -1,5 +1,7 @@
 // src/services/maestros/condicionesPagoApi.ts
 
+import {httpClient, buildSecureUrl} from "@/services/http/httpClient.ts";
+
 export interface CondicionPago {
     GroupNum: string;
     PymntGroup: string;
@@ -31,7 +33,8 @@ const BASE_URL = resolveEnv('API_BASE_URL') || 'http://192.168.254.27:8082';
  */
 export const fetchCondicionesPago = async (): Promise<CondicionPago[]> => {
     try {
-        const response = await fetch(`${BASE_URL}/api/Maestros/CondicionPago`, {
+        const url = buildSecureUrl(BASE_URL, '/api/Maestros/CondicionPago');
+        const response = await httpClient(url, {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json',

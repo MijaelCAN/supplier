@@ -211,3 +211,5 @@ server/
 └── dist/             # Código compilado (generado)
 ```
 
+
+

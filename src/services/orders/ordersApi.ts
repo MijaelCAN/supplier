@@ -1,5 +1,6 @@
 import {OrderItem, PurchaseOrder} from "@/store/types.ts";
 import {Order, OrderItem as ItemsApi, OrdersApiResponse} from "@/services/orders/types.ts";
+import {httpClient, buildSecureUrl} from "@/services/http/httpClient.ts";
 
 const nameBaseUrl = 'VITE_BASE_URL';
 const nameEnpoint = 'VITE_ORDER_ENDPOINT';
@@ -20,15 +21,15 @@ const buildEnpointUrlOrder = (
     endDate?: string,
 ): string => {
     const BASE_URL = normaliseString(resolveEnv(nameBaseUrl));
-    const ENDPOINT = resolveEnv(nameEnpoint);
-    const url = new URL(`${BASE_URL}${ENDPOINT}`);
+    const ENDPOINT = resolveEnv(nameEnpoint) || '/api/Documentos/OrdenCompra';
+    
+    const params: Record<string, string> = {};
+    if (state && state.trim() !== '') params['Estado'] = state.trim();
+    if (cardCode && cardCode.trim() !== '') params['CardCode'] = cardCode.trim();
+    if (startDate && startDate.trim() !== '') params['FechaInicio'] = startDate;
+    if (endDate && endDate.trim() !== '') params['FechaFin'] = endDate;
 
-    if (state && state.trim() !== '') url.searchParams.set('Estado', state.trim());
-    if (cardCode && cardCode.trim() !== '') url.searchParams.set('CardCode', cardCode.trim());
-    if (startDate && startDate.trim() !== '') url.searchParams.set('FechaInicio', startDate);
-    if (endDate && endDate.trim() !== '') url.searchParams.set('FechaFin', endDate);
-
-    return url.toString();
+    return buildSecureUrl(BASE_URL, ENDPOINT, params);
 }
 
 const handleResponse = async (response: Response): Promise<OrdersApiResponse> => {
@@ -48,7 +49,7 @@ const fetchOrderResponse = async (
     endDate?: string,
     init?: ResponseInit,
 ): Promise<OrdersApiResponse> => {
-    const response = await fetch(buildEnpointUrlOrder(cardCode, state, startDate, endDate), {
+    const response = await httpClient(buildEnpointUrlOrder(cardCode, state, startDate, endDate), {
         headers: {},
         ...init
     })

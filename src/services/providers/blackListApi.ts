@@ -1,4 +1,6 @@
 // Servicio para consultar la lista negra de proveedores (SSCO)
+import {httpClient, buildSecureUrl} from "@/services/http/httpClient.ts";
+
 const nameBaseUrl = 'VITE_BASE_URL';
 
 const normaliseString = (value?: string | null) => (value ?? '').trim();
@@ -31,13 +33,14 @@ interface BlackListApiResponse {
 
 const buildBlackListUrl = (ruc?: string): string => {
     const BASE_URL = normaliseString(resolveEnv(nameBaseUrl));
-    const url = new URL(`${BASE_URL}/api/Proveedores/BlackList`);
+    const ENDPOINT = '/api/Proveedores/BlackList';
     
+    const params: Record<string, string> = {};
     if (ruc && ruc.trim() !== '') {
-        url.searchParams.set('Ruc', ruc.trim());
+        params['Ruc'] = ruc.trim();
     }
     
-    return url.toString();
+    return buildSecureUrl(BASE_URL, ENDPOINT, params);
 }
 
 const handleResponse = async (response: Response): Promise<BlackListApiResponse> => {
@@ -59,7 +62,7 @@ const handleResponse = async (response: Response): Promise<BlackListApiResponse>
 export const fetchBlackList = async (ruc?: string): Promise<BlackListRecord[] | null> => {
     try {
         const url = buildBlackListUrl(ruc);
-        const response = await fetch(url, {
+        const response = await httpClient(url, {
             headers: {
                 'Content-Type': 'application/json',
             },
