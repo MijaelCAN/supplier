@@ -7,7 +7,6 @@ import {
     Button,
     Card,
     CardBody,
-    CardHeader,
     Drawer,
     DrawerBody,
     DrawerContent,
@@ -19,6 +18,7 @@ import {
     ToastProvider,
     useDisclosure,
 } from "@heroui/react";
+import { useTheme } from "@heroui/use-theme";
 import { EyeFilledIcon, EyeSlashFilledIcon } from "@/components/icons.tsx";
 import { useAuthStore } from "@/store/authStore";
 import { sendPasswordRecoveryCode } from "@/services/email/emailApi";
@@ -27,6 +27,8 @@ import {RoleType} from "@/services/auth/apiAuth.ts";
 
 const Login = () => {
     const navigate = useNavigate();
+    const { theme } = useTheme();
+    const isDark = theme === "dark";
 
     const login = useAuthStore((state) => state.login);
     const isLoading = useAuthStore((state) => state.isLoading);
@@ -429,151 +431,211 @@ const Login = () => {
     const isCodeComplete = verificationDigits.every((digit) => digit.length === 1);
 
     return (
-        <section className="px-8">
+        <section className="relative min-h-screen overflow-hidden px-4 md:px-8">
             <ToastProvider placement={toastPlacement} toastOffset={toastPlacement.includes("top") ? 60 : 0}/>
-            <div className="container mx-auto h-screen grid place-items-center">
-                <Card className="md:px-24 md:py-14 py-8 border border-gray-300">
-                    <div className="absolute top-0 left-0 w-16 h-16 bg-rojo clip-triangle"></div>
-                    <CardHeader className="text-center">
-                        <div className="flex flex-col items-center">
-                            <h1 className="mb-4 text-3xl lg:text-4xl text-azul dark:text-white font-semibold">
-                                Bienvenido al Portal de Proveedores
-                            </h1>
-                            <h4 className="text-gray-600 dark:text-gray-400 text-sm text-[18px] font-medium max-w-lg mx-auto">
-                                VISTONY cuenta con más de 30 años de trayectoria en el mercado
-                                de lubricación a nivel nacional e internacional.
-                            </h4>
+            
+            {/* Fondo con imagen TANQUES */}
+            <div className="absolute inset-0">
+                {/* Imagen de fondo - usando archivo local */}
+                <div 
+                    className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+                    style={{
+                        backgroundImage: 'url(/tanques.webp)'
+                    }}
+                ></div>
+                
+                {/* Overlay glassmorphism sutil - efecto espejo empañado */}
+                <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]"></div>
+                <div className="absolute inset-0 bg-gradient-to-br from-black/20 via-transparent to-black/20"></div>
+            </div>
+
+            {/* Contenido principal - Layout de dos columnas */}
+            <div className="relative z-10 min-h-screen flex items-center justify-center px-4 py-8 lg:py-12">
+                
+                <div className="w-full max-w-7xl mx-auto grid lg:grid-cols-2 gap-8 lg:gap-16 items-center">
+                    {/* Columna izquierda - Logo e información (va segundo en móvil, primero en desktop) */}
+                    <div className="flex flex-col items-center lg:items-start space-y-6 order-2 lg:order-1">
+                        {/* Logo destacado - más grande */}
+                        <div className="w-full flex justify-center lg:justify-start">
+                            <img 
+                                src="/logoVersiónPositivo.png"
+                                alt="VISTO LINK - Portal de Proveedores"
+                                className="w-full max-w-lg md:max-w-xl lg:max-w-2xl h-auto object-contain drop-shadow-2xl"
+                            />
                         </div>
-                    </CardHeader>
-                    <CardBody>
-                        <div className="flex w-full flex-col items-center">
-                            <Tabs
-                                aria-label="Dynamic tabs"
-                                items={tabs}
-                                selectedKey={activeTab}
-                                onSelectionChange={(key) =>
-                                    setActiveTab(key as "proveedor" | "corporativo")
-                                }
-                            >
-                                {(item) => (
-                                    <Tab key={item.id} title={item.label}></Tab>
-                                )}
-                            </Tabs>
+                        
+                        {/* Información de VISTONY */}
+                        <div className="w-full space-y-4 text-center lg:text-left">
+                            <p className="text-lg md:text-xl lg:text-2xl leading-relaxed font-light text-white">
+                                VISTONY cuenta con más de 30 años de trayectoria en el mercado de lubricación a nivel nacional e internacional.
+                            </p>
+                            <div className="w-20 h-1 bg-rojo mx-auto lg:mx-0 shadow-lg shadow-rojo/50"></div>
                         </div>
-                        <form
-                            onSubmit={handleLogin}
-                            className="flex flex-col gap-4 md:mt-1"
-                        >
-                            {formError && (
-                                <Alert
-                                    color="danger"
-                                    variant="flat"
-                                    description={formError}
-                                />
-                            )}
-                            <div className="flex w-full flex-wrap md:flex-nowrap gap-4">
-                                <Input
-                                    size="md"
-                                    value={username}
-                                    onValueChange={(value) => setUsername(value)}
-                                    label="Usuario"
-                                    placeholder="Ej. jefe_compras_01"
-                                    labelPlacement="outside"
-                                    type="text"
-                                    className="w-full placeholder:opacity-100 focus:border-t-primary border-t-blue-gray-200"
-                                />
-                                <Input
-                                    value={password}
-                                    onValueChange={(value) => setPassword(value)}
-                                    size="md"
-                                    label="Contraseña"
-                                    type={isVisible ? "text" : "password"}
-                                    name="password"
-                                    labelPlacement="outside"
-                                    endContent={
-                                        <button
-                                            type="button"
-                                            onClick={toggleVisibility}
-                                        >
-                                            {isVisible ? (
-                                                <EyeSlashFilledIcon
-                                                    className="text-2xl text-default-400 pointer-events-none"/>
-                                            ) : (
-                                                <EyeFilledIcon
-                                                    className="text-2xl text-default-400 pointer-events-none"/>
-                                            )}
-                                        </button>
-                                    }
-                                />
-                            </div>
-                            <Button
-                                isLoading={isLoading}
-                                type="submit"
-                                variant="solid"
-                                size="lg"
-                                className="bg-gris text-white dark:bg-azul"
-                                fullWidth
-                                isDisabled={isLoading}
-                            >
-                                INGRESAR
-                            </Button>
-                            <Button
-                                    isDisabled={isLoading}
-                                    onPress={() => handleBackdropChange("opaque")}
-                                variant="bordered"
-                                size="lg"
-                                className="flex h-12 border-blue-gray-200 items-center justify-center gap-2"
-                                fullWidth
-                            >
-                                Recuperar Contraseña
-                            </Button>
-                            <h6 className="text-center mx-auto max-w-[19rem] text-sm font-medium text-gray-600 dark:text-gray-400">
-                                Al iniciar sesión, usted acepta cumplir con nuestros{" "}
-                                <a href="#" className="text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-600 transition-colors">
-                                    Terminos de Servicio
-                                </a>{" "}
-                                &{" "}
-                                <a href="#" className="text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-600 transition-colors">
-                                    Politica de privacidad.
-                                </a>
-                            </h6>
-                        </form>
-                    </CardBody>
-                </Card>
+                    </div>
+
+                    {/* Columna derecha - Formulario de Login (va primero en móvil, segundo en desktop) */}
+                    <div className="w-full order-1 lg:order-2">
+                        <Card className="bg-white/10 backdrop-blur-xl border border-white/20 shadow-2xl rounded-2xl">
+                            <CardBody className="p-6 md:p-8">
+                                <h3 className="text-xl md:text-2xl font-bold mb-6 text-center">
+                                    Iniciar Sesión
+                                </h3>
+                                
+                                {/* Tabs centrados */}
+                                <div className="flex w-full flex-col items-center mb-6">
+                                    <Tabs
+                                        aria-label="Tipo de usuario"
+                                        items={tabs}
+                                        selectedKey={activeTab}
+                                        onSelectionChange={(key) =>
+                                            setActiveTab(key as "proveedor" | "corporativo")
+                                        }
+                                    >
+                                        {(item) => (
+                                            <Tab key={item.id} title={item.label}></Tab>
+                                        )}
+                                    </Tabs>
+                                </div>
+
+                                {/* Formulario */}
+                                <form
+                                    onSubmit={handleLogin}
+                                    className="flex flex-col gap-4"
+                                >
+                                    {formError && (
+                                        <Alert
+                                            color="danger"
+                                            variant="flat"
+                                            description={formError}
+                                            className="bg-red-500/20 border-2 border-red-500/50 text-white"
+                                        />
+                                    )}
+                                    
+                                    <div className="flex w-full flex-col gap-4">
+                                        <Input
+                                            size="md"
+                                            value={username}
+                                            onValueChange={(value) => setUsername(value)}
+                                            label="Usuario"
+                                            placeholder="Ingrese RUC"
+                                            labelPlacement="outside"
+                                            type="text"
+                                            className=" w-full placeholder:opacity-100 focus:border-t-primary border-t-blue-gray-200 "
+                                        />
+                                        <Input
+                                            value={password}
+                                            onValueChange={(value) => setPassword(value)}
+                                            size="md"
+                                            label="Contraseña"
+                                            type={isVisible ? "text" : "password"}
+                                            name="password"
+                                            labelPlacement="outside"
+                                            endContent={
+                                                <button
+                                                    type="button"
+                                                    onClick={toggleVisibility}
+                                                    className={isDark ? "text-white/70 hover:text-white transition-colors" : "text-gray-500 hover:text-gray-700 transition-colors"}
+                                                >
+                                                    {isVisible ? (
+                                                        <EyeSlashFilledIcon className="text-2xl pointer-events-none"/>
+                                                    ) : (
+                                                        <EyeFilledIcon className="text-2xl pointer-events-none"/>
+                                                    )}
+                                                </button>
+                                            }
+                                        />
+                                    </div>
+                                    
+                                    <Button
+                                        isLoading={isLoading}
+                                        type="submit"
+                                        variant="solid"
+                                        size="md"
+                                        className="bg-red-800 text-white font-semibold hover:bg-gris/90 transition-all duration-200"
+                                        fullWidth
+                                        isDisabled={isLoading}
+                                    >
+                                        {isLoading ? "Ingresando..." : "INGRESAR"}
+                                    </Button>
+                                    
+                                    <Button
+                                        isDisabled={isLoading}
+                                        onPress={() => handleBackdropChange("opaque")}
+                                        variant="bordered"
+                                        size="md"
+                                        className=" hover:bg-white/10 hover:border-white/30 transition-all duration-200 text-white"
+                                        fullWidth
+                                    >
+                                        Recuperar Contraseña
+                                    </Button>
+                                    
+                                    <p className="text-white text-center text-sm mt-6 leading-relaxed">
+                                        Al iniciar sesión, usted acepta cumplir con nuestros{" "}
+                                        <a href="#" className="hover:text-rojo transition-colors underline font-medium ">
+                                            Términos de Servicio
+                                        </a>
+                                        {" "}y{" "}
+                                        <a href="#" className="hover:text-rojo transition-colors underline font-medium ">
+                                            Política de Privacidad
+                                        </a>
+                                    </p>
+                                </form>
+                            </CardBody>
+                        </Card>
+                    </div>
+                </div>
+
             </div>
 
 
             <Drawer backdrop={backdrop} isOpen={isOpen} onOpenChange={onOpenChange} placement="right" size="md">
-                <DrawerContent>
+                <DrawerContent className="bg-white/50 backdrop-blur-2xl border-l border-white/20">
                     {(onClose) => (
                         <>
-                            <DrawerHeader className="flex flex-col gap-1">Recuperar Contraseña</DrawerHeader>
-                            <DrawerBody>
+                            <DrawerHeader className="flex flex-col gap-2 border-b border-white/20 px-6 py-5">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center border border-white/30">
+                                        <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <h2 className="text-2xl font-bold text-black">Recuperar Contraseña</h2>
+                                        <p className="text-sm text-black/70">Sigue los pasos para restablecer tu acceso</p>
+                                    </div>
+                                </div>
+                            </DrawerHeader>
+                            <DrawerBody className="px-6 py-5 bg-transparent">
                                 {resetStep === 'username' && (
-                                    <div className="space-y-12">
+                                    <div className="space-y-6 max-w-md mx-auto">
                                         <Alert
                                             color="primary"
-                                            variant="flat"
+                                            variant="solid"
                                             title="Recupera tu acceso"
                                             description="Ingresa tu usuario (RUC) y te enviaremos un código de verificación al correo registrado."
+                                            className="bg-blue-500/20 border-2 border-blue-500/50 text-white"
                                         />
-                                        <Input
-                                            label="Usuario (RUC)"
-                                            placeholder="20100000001"
-                                            labelPlacement="outside"
-                                            value={resetUsername}
-                                            onValueChange={setResetUsername}
-                                            variant="bordered"
-                                            isDisabled={isResetLoading}
-                                        />
+                                        <div className="space-y-4">
+                                            <Input
+                                                label="Usuario (RUC)"
+                                                placeholder="20100000001"
+                                                labelPlacement="inside"
+                                                value={resetUsername}
+                                                onValueChange={setResetUsername}
+                                                isDisabled={isResetLoading}
+                                                size="md"
+
+                                            />
+                                        </div>
                                     </div>
                                 )}
                                 {resetStep === 'code' && (
-                                    <div className="space-y-4">
+                                    <div className="space-y-6 max-w-md mx-auto">
                                         <Alert
                                             color="primary"
                                             variant="flat"
                                             description={`Ingresa el código de 6 dígitos enviado a ${resetUser?.email ?? 'tu correo registrado'}.`}
+                                            className="bg-blue-500/20 border-2 border-blue-500/50 text-white"
                                         />
                                         <div className="flex justify-center gap-2">
                                             {verificationDigits.map((digit, index) => (
@@ -587,119 +649,152 @@ const Login = () => {
                                                     onKeyDown={(event) => handleCodeKeyDown(index, event)}
                                                     onPaste={handleCodePaste}
                                                     maxLength={1}
-                                                    className="w-12 text-center"
+                                                    className="w-12 h-12 text-center text-xl font-bold"
                                                     variant="bordered"
-                                                    size="lg"
+                                                    size="md"
                                                     inputMode="numeric"
+                                                    classNames={{
+                                                        input: "bg-white/10 text-white text-center text-xl font-bold",
+                                                        inputWrapper: "bg-white/10 border-white/20 hover:border-white/40 focus-within:border-rojo",
+                                                    }}
                                                 />
                                             ))}
                                         </div>
                                     </div>
                                 )}
                                 {resetStep === 'password' && (
-                                    <div className="space-y-4">
+                                    <div className="space-y-6 max-w-md mx-auto">
                                         <Alert
                                             color="primary"
                                             variant="flat"
                                             description="Ingresa tu nueva contraseña y confírmala para completar la recuperación."
+                                            className="bg-blue-500/20 border-2 border-blue-500/50 text-white"
                                         />
-                                        <Input
-                                            label="Nueva contraseña"
-                                            type="password"
-                                            variant="bordered"
-                                            value={newPasswordValue}
-                                            onValueChange={setNewPasswordValue}
-                                            isDisabled={isResetLoading}
-                                        />
-                                        <Input
-                                            label="Confirmar contraseña"
-                                            type="password"
-                                            variant="bordered"
-                                            value={confirmPasswordValue}
-                                            onValueChange={setConfirmPasswordValue}
-                                            isDisabled={isResetLoading}
-                                        />
+                                        <div className="space-y-4">
+                                            <Input
+                                                label="Nueva contraseña"
+                                                type="password"
+                                                variant="bordered"
+                                                value={newPasswordValue}
+                                                onValueChange={setNewPasswordValue}
+                                                isDisabled={isResetLoading}
+                                                size="md"
+                                                classNames={{
+                                                    label: "text-white font-medium mb-2",
+                                                    input: "bg-white/10 text-white placeholder:text-white/50",
+                                                    inputWrapper: "bg-white/10 border-white/20 hover:border-white/40 focus-within:border-rojo",
+                                                }}
+                                            />
+                                            <Input
+                                                label="Confirmar contraseña"
+                                                type="password"
+                                                variant="bordered"
+                                                value={confirmPasswordValue}
+                                                onValueChange={setConfirmPasswordValue}
+                                                isDisabled={isResetLoading}
+                                                size="md"
+                                                classNames={{
+                                                    label: "text-white font-medium mb-2",
+                                                    input: "bg-white/10 text-white placeholder:text-white/50",
+                                                    inputWrapper: "bg-white/10 border-white/20 hover:border-white/40 focus-within:border-rojo",
+                                                }}
+                                            />
+                                        </div>
                                         {resetError && (
                                             <Alert
                                                 color="danger"
                                                 variant="flat"
-                                                className="mt-4"
                                                 description={resetError}
+                                                className="bg-red-500/20 border-2 border-red-500/50 text-white"
                                             />
                                         )}
                                     </div>
                                 )}
-                                {resetError && (
-                                    <div className="space-y-4">
+                                {resetError && resetStep !== 'password' && (
+                                    <div className="space-y-4 max-w-md mx-auto">
                                         <Alert
                                             color="danger"
                                             variant="flat"
-                                            className="mt-4"
                                             description={resetError}
+                                            className="bg-red-500/20 border-2 border-red-500/50 text-white"
                                         />
                                     </div>
                                 )}
 
                             </DrawerBody>
-                            <DrawerFooter>
-                                <Button
-                                    color="danger"
-                                    variant="flat"
-                                    onPress={() => {
-                                        onClose();
-                                        resetRecoveryFlow();
-                                    }}
-                                    isDisabled={isResetLoading}
-                                >
-                                    Cancelar
-                                </Button>
-                                {resetStep === 'username' && (
+                            <DrawerFooter className="px-6 py-5 border-t border-white/20 bg-transparent">
+                                <div className="flex gap-3 w-full max-w-md mx-auto">
                                     <Button
-                                        color="primary"
-                                        isLoading={isResetLoading}
-                                        onPress={handleSendRecoveryCode}
+                                        color="danger"
+                                        variant="flat"
+                                        onPress={() => {
+                                            onClose();
+                                            resetRecoveryFlow();
+                                        }}
+                                        isDisabled={isResetLoading}
+                                        size="md"
+                                        className="text-white border-white/20 hover:bg-red-500/20 hover:border-red-500/50"
                                     >
-                                        Enviar código
+                                        Cancelar
                                     </Button>
-                                )}
-                                {resetStep === 'code' && (
-                                    <div className="flex gap-2">
-                                        <Button
-                                            variant="flat"
-                                            onPress={handleResetBack}
-                                            isDisabled={isResetLoading}
-                                        >
-                                            Volver
-                                        </Button>
+                                    {resetStep === 'username' && (
                                         <Button
                                             color="primary"
-                                            isDisabled={!isCodeComplete || isResetLoading}
                                             isLoading={isResetLoading}
-                                            onPress={handleVerifyCode}
+                                            onPress={handleSendRecoveryCode}
+                                            size="md"
+                                            className="bg-red-800 text-white hover:bg-red-800/90 font-semibold"
                                         >
-                                            Validar código
+                                            Enviar código
                                         </Button>
-                                    </div>
-                                )}
-                                {resetStep === 'password' && (
-                                    <div className="flex gap-2">
-                                        <Button
-                                            variant="flat"
-                                            onPress={handleResetBack}
-                                            isDisabled={isResetLoading}
-                                        >
-                                            Volver
-                                        </Button>
-                                        <Button
-                                            color="primary"
-                                            isDisabled={isResetLoading}
-                                            isLoading={isResetLoading}
-                                            onPress={handleUpdatePassword}
-                                        >
-                                            Confirmar
-                                        </Button>
-                                    </div>
-                                )}
+                                    )}
+                                    {resetStep === 'code' && (
+                                        <div className="flex gap-2">
+                                            <Button
+                                                variant="flat"
+                                                onPress={handleResetBack}
+                                                isDisabled={isResetLoading}
+                                                size="md"
+                                                className="text-white border-white/20 hover:bg-white/10 hover:border-white/30"
+                                            >
+                                                Volver
+                                            </Button>
+                                            <Button
+                                                color="primary"
+                                                isDisabled={!isCodeComplete || isResetLoading}
+                                                isLoading={isResetLoading}
+                                                onPress={handleVerifyCode}
+                                                size="md"
+                                                className="bg-red-800 text-white hover:bg-red-800/90 font-semibold"
+                                            >
+                                                Validar código
+                                            </Button>
+                                        </div>
+                                    )}
+                                    {resetStep === 'password' && (
+                                        <div className="flex gap-2">
+                                            <Button
+                                                variant="flat"
+                                                onPress={handleResetBack}
+                                                isDisabled={isResetLoading}
+                                                size="md"
+                                                className="text-white border-white/20 hover:bg-white/10 hover:border-white/30"
+                                            >
+                                                Volver
+                                            </Button>
+                                            <Button
+                                                color="primary"
+                                                isDisabled={isResetLoading}
+                                                isLoading={isResetLoading}
+                                                onPress={handleUpdatePassword}
+                                                size="md"
+                                                className="bg-red-800 text-white hover:bg-red-800/90 font-semibold"
+                                            >
+                                                Confirmar
+                                            </Button>
+                                        </div>
+                                    )}
+                                </div>
                             </DrawerFooter>
                         </>
                     )}
