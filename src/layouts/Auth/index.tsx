@@ -131,11 +131,9 @@ const Login = () => {
                 case 'compras':
                 case 'finanzas':
                 case 'almacen':
+                case 'proveedor':
                 default:
                     navigate("/");
-                    break;
-                case 'proveedor':
-                    navigate("/proveedor/perfil");
                     break;
             }
         } else {
@@ -389,7 +387,8 @@ const Login = () => {
         setIsResetLoading(true);
         try {
             // Usar el username en lugar del userId para el API
-            await updateUserPassword(resetUsername.trim(), newPasswordValue);
+            const selectedRole: RoleType = activeTab === "proveedor" ? "provider" : "internal";
+            await updateUserPassword(resetUsername.trim(), newPasswordValue, selectedRole);
             addToast({
                 title: 'Contraseña actualizada',
                 description: 'Ahora puedes iniciar sesión con tu nueva contraseña.',
@@ -440,7 +439,7 @@ const Login = () => {
                 <div 
                     className="absolute inset-0 bg-cover bg-center bg-no-repeat"
                     style={{
-                        backgroundImage: 'url(/tanques.webp)'
+                        backgroundImage: 'url(/tanques.png)'
                     }}
                 ></div>
                 
@@ -458,7 +457,7 @@ const Login = () => {
                         {/* Logo destacado - más grande */}
                         <div className="w-full flex justify-center lg:justify-start">
                             <img 
-                                src="/logoVersiónPositivo.png"
+                                src="/logoVersionPositivo.png"
                                 alt="VISTO LINK - Portal de Proveedores"
                                 className="w-full max-w-lg md:max-w-xl lg:max-w-2xl h-auto object-contain drop-shadow-2xl"
                             />
@@ -566,7 +565,7 @@ const Login = () => {
                                         className=" hover:bg-white/10 hover:border-white/30 transition-all duration-200 text-white"
                                         fullWidth
                                     >
-                                        Recuperar Contraseña
+                                        Actualizar Contraseña
                                     </Button>
                                     
                                     <p className="text-white text-center text-sm mt-6 leading-relaxed">

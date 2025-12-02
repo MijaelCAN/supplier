@@ -76,7 +76,6 @@ const mapRecordDetalleToPurchaseItems = (recordItems: ItemsApi[]): OrderItem[] =
 
 
 const mapRecordOrdersToPurchaseOrders = (record: Order): PurchaseOrder => {
-    console.log("Validacion estadi: ", record.EstadoDocumento)
     return {
         id: record.DocEntry?.toString() || '',
         orderNumber:`OC-${record.DocNum}`,

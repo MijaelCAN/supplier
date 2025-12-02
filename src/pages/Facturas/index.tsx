@@ -74,7 +74,7 @@ const InvoicesList = () => {
         }
         const formatDateForApi = (value: string) => value.replace(/-/g, '');
         return fetchInvoicesByCardCode(
-            currentUser?.supplierId || '',
+            currentUser?.roleType !== 'internal' ? currentUser?.userCode : undefined,
             "Todos",
             formatDateForApi(startDate),
             formatDateForApi(endDate),
@@ -257,9 +257,9 @@ const InvoicesList = () => {
                         <CardBody className="flex flex-row items-center gap-4">
                             <ClockIcon className="h-8 w-8 text-orange-500" />
                             <div>
-                                <p className="text-sm text-gray-500">En Revisión</p>
+                                <p className="text-sm text-gray-500">Pendientes</p>
                                 <p className="text-xl font-bold">
-                                    {invoices.filter(i => i.status === 'En Revisión').length}
+                                    {invoices.filter(i => i.status === 'Recibida').length}
                                 </p>
                             </div>
                         </CardBody>
@@ -268,9 +268,9 @@ const InvoicesList = () => {
                         <CardBody className="flex flex-row items-center gap-4">
                             <CheckIcon className="h-8 w-8 text-green-500" />
                             <div>
-                                <p className="text-sm text-gray-500">Aprobadas</p>
+                                <p className="text-sm text-gray-500">Pagadas</p>
                                 <p className="text-xl font-bold">
-                                    {invoices.filter(i => i.status === 'Aprobada').length}
+                                    {invoices.filter(i => i.status === 'Pagada').length}
                                 </p>
                             </div>
                         </CardBody>
@@ -278,14 +278,26 @@ const InvoicesList = () => {
                     <Card>
                         <CardBody className="flex flex-row items-center gap-4">
                             <BanknotesIcon className="h-8 w-8 text-purple-500" />
-                            <div>
-                                <p className="text-sm text-gray-500">Monto Total</p>
-                                <p className="text-xl font-bold">
-                                    {formatCurrency(
-                                        invoices.reduce((sum, i) => sum + i.amount, 0),
-                                        'PEN'
-                                    )}
-                                </p>
+                            <div className="flex-1">
+                                <p className="text-sm text-gray-500 mb-1">Monto Total</p>
+                                <div className="flex flex-col gap-1">
+                                    <p className="text-lg font-bold">
+                                        {formatCurrency(
+                                            invoices
+                                                .filter(i => i.currency === 'PEN')
+                                                .reduce((sum, i) => sum + i.amount, 0),
+                                            'PEN'
+                                        )}
+                                    </p>
+                                    <p className="text-lg font-bold">
+                                        {formatCurrency(
+                                            invoices
+                                                .filter(i => i.currency === 'USD')
+                                                .reduce((sum, i) => sum + i.amount, 0),
+                                            'USD'
+                                        )}
+                                    </p>
+                                </div>
                             </div>
                         </CardBody>
                     </Card>
@@ -327,9 +339,9 @@ const InvoicesList = () => {
                                 <TableHeader>
                                     <TableColumn>N° FACTURA</TableColumn>
                                     <TableColumn>PROVEEDOR</TableColumn>
-                                    <TableColumn>MONTO</TableColumn>
-                                    <TableColumn>IMPUESTO</TableColumn>
-                                    <TableColumn>SALDO</TableColumn>
+                                    <TableColumn className="text-right">MONTO</TableColumn>
+                                    <TableColumn className="text-right">IMPUESTO</TableColumn>
+                                    <TableColumn className="text-right">SALDO</TableColumn>
                                     <TableColumn>COND. PAGO</TableColumn>
                                     <TableColumn>FECHA VENCIMIENTO</TableColumn>
                                     <TableColumn>ESTADO</TableColumn>
@@ -351,7 +363,7 @@ const InvoicesList = () => {
                                                 </div>
                                             </TableCell>
                                             <TableCell>
-                                                <div className="flex flex-col">
+                                                <div className="flex flex-col items-end">
                                                     <p className="text-bold text-sm">
                                                         {formatCurrency(invoice.amount, invoice.currency)}
                                                     </p>
@@ -361,7 +373,7 @@ const InvoicesList = () => {
                                                 </div>
                                             </TableCell>
                                             <TableCell>
-                                                <div className="flex flex-col">
+                                                <div className="flex flex-col items-end">
                                                     <p className="text-bold text-sm">
                                                         {formatCurrency(invoice.taxAmount, invoice.currency)}
                                                     </p>
@@ -371,7 +383,7 @@ const InvoicesList = () => {
                                                 </div>
                                             </TableCell>
                                             <TableCell>
-                                                <p className="text-sm">{invoice.saldo}</p>
+                                                <p className="text-sm text-right">{formatCurrency(invoice.saldo, invoice.currency)}</p>
                                             </TableCell>
                                             <TableCell>
                                                 <p className="text-sm">{invoice.paymentTerm}</p>
@@ -576,6 +588,52 @@ const InvoicesList = () => {
                                                         >
                                                             Ver documento
                                                         </a>
+                                                    </CardBody>
+                                                </Card>
+                                            )}
+
+                                            {/* Sección de Detalle */}
+                                            {selectedInvoice.detalle && selectedInvoice.detalle.length > 0 && (
+                                                <Card className="border-none bg-default-50">
+                                                    <CardBody className="py-3">
+                                                        <p className="text-xs text-gray-500 mb-3 font-semibold">Detalle de Factura</p>
+                                                        <div className="space-y-2">
+                                                            {selectedInvoice.detalle.map((item, index) => (
+                                                                <div key={index} className="flex justify-between items-start gap-4 pb-2 border-b border-default-200 last:border-b-0">
+                                                                    <p className="text-sm flex-1">{item.description}</p>
+                                                                    <p className="text-sm font-medium text-right whitespace-nowrap">
+                                                                        {formatCurrency(item.lineTotal, selectedInvoice.currency)}
+                                                                    </p>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </CardBody>
+                                                </Card>
+                                            )}
+
+                                            {/* Sección de Pagos */}
+                                            {selectedInvoice.pagos && selectedInvoice.pagos.length > 0 && (
+                                                <Card className="border-none bg-default-50">
+                                                    <CardBody className="py-3">
+                                                        <p className="text-xs text-gray-500 mb-3 font-semibold">Pagos</p>
+                                                        <div className="space-y-2">
+                                                            {selectedInvoice.pagos.map((pago, index) => (
+                                                                <div key={index} className="flex justify-between items-center gap-4 pb-2 border-b border-default-200 last:border-b-0">
+                                                                    <div className="flex-1">
+                                                                        <p className="text-sm font-medium">Pago #{index + 1}</p>
+                                                                        <p className="text-xs text-gray-500">
+                                                                            Fecha: {formatDate(pago.docDate)}
+                                                                        </p>
+                                                                        <p className="text-xs text-gray-500">
+                                                                            Doc. Entry: {pago.docEntry}
+                                                                        </p>
+                                                                    </div>
+                                                                    <p className="text-sm font-medium text-right whitespace-nowrap">
+                                                                        {formatCurrency(pago.sumApplied, selectedInvoice.currency)}
+                                                                    </p>
+                                                                </div>
+                                                            ))}
+                                                        </div>
                                                     </CardBody>
                                                 </Card>
                                             )}

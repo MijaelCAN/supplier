@@ -17,7 +17,9 @@ import {
     ShoppingCartIcon,
     StarIcon,
     UserCircleIcon,
-    UsersIcon
+    UsersIcon,
+    InformationCircleIcon,
+    VideoCameraIcon
 } from "@heroicons/react/24/outline";
 import {MenuItem, UserRole} from "@/routes/menuTypes.ts";
 import {CalculatorIcon} from "@heroicons/react/16/solid";
@@ -93,13 +95,13 @@ export const menuItems: MenuItem[] = [
                 title: "Evaluaciones",
                 icon: <StarIcon className="h-4 w-4" />,
                 href: "/proveedores/evaluaciones",
-                roles: [UserRole.ADMIN, UserRole.COMPRAS]
+                roles: [UserRole.ADMIN]
             },
             {
                 title: "Homologaciones",
                 icon: <DocumentTextIcon className="h-4 w-4" />,
                 href: "/proveedores/homologaciones",
-                roles: [UserRole.ADMIN, UserRole.COMPRAS]
+                roles: [UserRole.ADMIN]
             }
         ]
     },
@@ -109,7 +111,7 @@ export const menuItems: MenuItem[] = [
         roles: [UserRole.PROVEEDOR],
         items: [
             {
-                title: "Datos de la Empresa",
+                title: "Editar Perfil",
                 icon: <BuildingOfficeIcon className="h-4 w-4" />,
                 href: "/proveedor/perfil",
                 roles: [UserRole.PROVEEDOR]
@@ -124,7 +126,7 @@ export const menuItems: MenuItem[] = [
                 title: "Certificaciones",
                 icon: <StarIcon className="h-4 w-4" />,
                 href: "/proveedor/certificaciones",
-                roles: [UserRole.PROVEEDOR]
+                roles: [/*UserRole.PROVEEDOR*/]
             }
         ]
     },
@@ -137,7 +139,7 @@ export const menuItems: MenuItem[] = [
                 title: "Solicitud de compra",
                 icon: <ClipboardDocumentListIcon  className="h-4 w-4" />,
                 href: "/solicitud-compra",
-                roles: [UserRole.ADMIN, UserRole.SOLICITANTE, UserRole.COMPRAS]
+                roles: [UserRole.ADMIN,]
             },
             {
                 title: "Orden de compra",
@@ -149,13 +151,13 @@ export const menuItems: MenuItem[] = [
                 title: "Agenda - Citas",
                 icon: <BookOpenIcon className="h-4 w-4" />,
                 href: "/agenda",
-                roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.ALMACEN]
+                roles: [UserRole.ADMIN, UserRole.COMPRAS]
             },
             {
                 title: "Fecha de entrega",
                 icon: <CalendarDaysIcon className="h-4 w-4" />,
                 href: "/entrega",
-                roles: [UserRole.ADMIN, UserRole.COMPRAS]
+                roles: [UserRole.ADMIN,]
             },
             {
                 title: "Recepción",
@@ -167,25 +169,25 @@ export const menuItems: MenuItem[] = [
                 title: "Facturas",
                 icon: <DocumentTextIcon className="h-4 w-4" />,
                 href: "/factura",
-                roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.FINANZAS]
+                roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.FINANZAS, UserRole.COMPRAS]
             },
             {
                 title: "Cronograma de pago",
                 icon: <ClockIcon className="h-4 w-4" />,
                 href: "/cronograma",
-                roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.FINANZAS]
+                roles: [UserRole.ADMIN,]
             },
             {
                 title: "Pagos",
                 icon: <CreditCardIcon className="h-4 w-4" />,
                 href: "/pagos",
-                roles: [UserRole.ADMIN, UserRole.FINANZAS]
+                roles: [UserRole.ADMIN,]
             },
             {
                 title: "Licitación",
                 icon: <ScaleIcon className="h-4 w-4" />,
                 href: "/licitacion",
-                roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS]
+                roles: [UserRole.ADMIN]
             }
         ]
     },
@@ -217,7 +219,7 @@ export const menuItems: MenuItem[] = [
     {
         title: "Reportes",
         icon: <ChartBarIcon className="h-5 w-5" />,
-        roles: [UserRole.ADMIN, UserRole.COMPRAS, UserRole.FINANZAS],
+        roles: [UserRole.ADMIN ],
         items: [
             {
                 title: "Análisis de proveedores",
@@ -248,7 +250,7 @@ export const menuItems: MenuItem[] = [
     {
         title: "Configuración",
         icon: <Cog6ToothIcon className="h-5 w-5" />,
-        roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.FINANZAS],
+        roles: [UserRole.ADMIN ],
         items: [
             {
                 title: "Perfil",
@@ -273,6 +275,25 @@ export const menuItems: MenuItem[] = [
                 icon: <ShieldCheckIcon className="h-4 w-4" />,
                 href: "/configuracion/permisos",
                 roles: [UserRole.ADMIN]
+            }
+        ]
+    },
+    {
+        title: "Guia de Ayuda",
+        icon: <InformationCircleIcon className="h-5 w-5" />,
+        roles: [UserRole.ADMIN, UserRole.COMPRAS ],
+        items: [
+            {
+                title: "Manual de uso",
+                icon: <DocumentTextIcon className="h-4 w-4" />,
+                href: "/ayuda/manual",
+                roles: [UserRole.ADMIN, UserRole.COMPRAS]
+            },
+            {
+                title: "Video",
+                icon: <VideoCameraIcon className="h-4 w-4" />,
+                href: "/ayuda/video",
+                roles: [UserRole.ADMIN, UserRole.COMPRAS]
             }
         ]
     }

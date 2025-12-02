@@ -146,6 +146,35 @@ export interface OrderItem {
     state: string // EstadoLinea
 }
 
+export interface InvoiceDetail {
+    description: string;
+    lineTotal: number;
+}
+
+export interface InvoicePayment {
+    docDate: string;
+    docEntry: string;
+    sumApplied: number;
+}
+
+export interface ReceptionDetail {
+    description: string;
+    lineTotal: number;
+}
+
+export interface Reception {
+    id: string;
+    docEntry: string;
+    supplierId: string;
+    supplierName: string;
+    addressDestination: string;
+    addressBilling: string;
+    docDate: string;
+    currency: string;
+    total: number;
+    detalle?: ReceptionDetail[];
+}
+
 export interface Invoice {
     id: string;
     invoiceNumber: string;
@@ -168,7 +197,9 @@ export interface Invoice {
     notes?: string;
     reviewedBy?: string;
     approvedBy?: string;
-    retention: number
+    retention: number;
+    detalle?: InvoiceDetail[];
+    pagos?: InvoicePayment[] | null;
 }
 
 export interface Payment {

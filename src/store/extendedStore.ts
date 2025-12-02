@@ -6,6 +6,7 @@ import {
     PurchaseOrder,
     Invoice,
     Payment,
+    Reception,
     User,
     SupplierEvaluation,
     SupplierHomologation,
@@ -21,6 +22,7 @@ export type {
     PurchaseOrder, 
     Invoice, 
     Payment, 
+    Reception,
     User, 
     SupplierEvaluation, 
     SupplierHomologation, 
@@ -36,6 +38,7 @@ interface ExtendedAppStore {
     suppliers: Supplier[];
     purchaseOrders: PurchaseOrder[];
     invoices: Invoice[];
+    receptions: Reception[];
     payments: Payment[];
     users: User[];
     evaluations: SupplierEvaluation[];
@@ -45,6 +48,7 @@ interface ExtendedAppStore {
     selectedSupplier: Supplier | null;
     selectedOrder: PurchaseOrder | null;
     selectedInvoice: Invoice | null;
+    selectedReception: Reception | null;
     isLoading: boolean;
     config: ConfigData;
     metrics: DashboardMetrics;
@@ -85,6 +89,14 @@ interface ExtendedAppStore {
     setSelectedInvoice: (invoice: Invoice | null) => void;
     approveInvoice: (id: string, approvedBy: string) => void;
     rejectInvoice: (id: string, reason: string) => void;
+
+    // Acciones para Recepciones
+    setReceptions: (receptions: Reception[]) => void;
+    addReception: (reception: Omit<Reception, 'id'>) => void;
+    updateReception: (id: string, reception: Partial<Reception>) => void;
+    deleteReception: (id: string) => void;
+    getReceptionById: (id: string) => Reception | undefined;
+    setSelectedReception: (reception: Reception | null) => void;
 
     // Acciones para Pagos
     addPayment: (payment: Omit<Payment, 'id'>) => void;
@@ -208,8 +220,6 @@ const initialSuppliers: Supplier[] = [
         avatar: "https://www.envase.com.pe/img/logo.jpg"
     }
 ];
-
-
 const initialInvoices: Invoice[] = [
     {
         id: "inv-001",
@@ -271,7 +281,6 @@ const initialInvoices: Invoice[] = [
         notes: "Pendiente verificación de especificaciones técnicas"
     }
 ];
-
 const initialPayments: Payment[] = [
     {
         id: "pay-001",
@@ -324,7 +333,6 @@ const initialPayments: Payment[] = [
         notes: "Pago adelantado parcial por nuevo pedido"
     }
 ];
-
 const initialUsers: User[] = [
     {
         id: "user-001",
@@ -422,6 +430,7 @@ export const useExtendedStore = create<ExtendedAppStore>()(
             suppliers: initialSuppliers,
             purchaseOrders: [],
             invoices: initialInvoices,
+            receptions: [],
             payments: initialPayments,
             users: initialUsers,
             evaluations: [],
@@ -431,6 +440,7 @@ export const useExtendedStore = create<ExtendedAppStore>()(
             selectedSupplier: null,
             selectedOrder: null,
             selectedInvoice: null,
+            selectedReception: null,
             isLoading: false,
             
             config: {
@@ -666,6 +676,33 @@ export const useExtendedStore = create<ExtendedAppStore>()(
                 )
             })),
 
+            setReceptions: (receptions) => set({ receptions: receptions }),
+
+            addReception: (receptionData) => set((state) => {
+                const newReception = {
+                    ...receptionData,
+                    id: `rec-${String(state.receptions.length + 1).padStart(3, '0')}`
+                };
+                return { receptions: [...state.receptions, newReception] };
+            }),
+
+            updateReception: (id, receptionData) => set((state) => ({
+                receptions: state.receptions.map(reception =>
+                    reception.id === id ? { ...reception, ...receptionData } : reception
+                )
+            })),
+
+            deleteReception: (id) => set((state) => ({
+                receptions: state.receptions.filter(reception => reception.id !== id)
+            })),
+
+            getReceptionById: (id) => {
+                const state = get();
+                return state.receptions.find(reception => reception.id === id);
+            },
+
+            setSelectedReception: (reception) => set({ selectedReception: reception }),
+
             addPayment: (paymentData) => set((state) => {
                 const newPayment = {
                     ...paymentData,
@@ -893,6 +930,28 @@ export const useInvoices = () => {
         setSelectedInvoice,
         approveInvoice,
         rejectInvoice
+    };
+};
+
+export const useReceptions = () => {
+    const receptions = useExtendedStore(state => state.receptions);
+    const setReceptions = useExtendedStore(state => state.setReceptions);
+    const addReception = useExtendedStore(state => state.addReception);
+    const updateReception = useExtendedStore(state => state.updateReception);
+    const deleteReception = useExtendedStore(state => state.deleteReception);
+    const getReceptionById = useExtendedStore(state => state.getReceptionById);
+    const selectedReception = useExtendedStore(state => state.selectedReception);
+    const setSelectedReception = useExtendedStore(state => state.setSelectedReception);
+
+    return {
+        receptions,
+        setReceptions,
+        addReception,
+        updateReception,
+        deleteReception,
+        getReceptionById,
+        selectedReception,
+        setSelectedReception
     };
 };
 

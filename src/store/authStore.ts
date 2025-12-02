@@ -48,7 +48,7 @@ interface AuthState {
     createSupplierUser: (supplierData: Parameters<typeof createSupplierUserDocument>[0]) => Promise<void>;
     findUserByUsername: (username: string) => Promise<{ id: string; data: FirestoreUserDocument } | null>;
     getProviderEmailByRuc: (ruc: string) => Promise<ProviderEmailInfo>;
-    updateUserPassword: (username: string, newPassword: string) => Promise<void>;
+    updateUserPassword: (username: string, newPassword: string, roleType: RoleType) => Promise<void>;
 }
 
 const mapLoginSuccess = ({ token, user }: LoginSuccess): LoginResultSuccess => ({
@@ -136,9 +136,9 @@ export const useAuthStore = create<AuthState>()(
             getProviderEmailByRuc: async (ruc: string) => {
                 return await getProviderEmailByRuc(ruc);
             },
-            updateUserPassword: async (username: string, newPassword: string) => {
+            updateUserPassword: async (username: string, newPassword: string, roleType  ) => {
                 // Actualizar contraseña usando el API
-                await updatePasswordWithAPI(username, newPassword);
+                await updatePasswordWithAPI(username, newPassword, roleType);
             },
         }),
         {

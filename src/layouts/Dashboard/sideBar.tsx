@@ -45,7 +45,7 @@ const SideBar: FC<SideBarProps> = ({sidebarOpen,setSidebarOpen}) => {
                 {/* Logo grande */}
                 <div className="w-full flex justify-center mb-2">
                     <img 
-                        src="/logoVersiónOriginal.png"
+                        src="/logoVersionOriginal.png"
                         alt="VISTO LINK"
                         className="h-20 md:h-24 w-auto object-contain"
                     />

@@ -114,6 +114,7 @@ const ModalRegister: FC<ModalRegisterProps> = ({
                 setIsLoadingCondicionesPago(true)
                 try {
                     const condiciones = await fetchCondicionesPago()
+                    console.log("Condiciones de pago: ", condiciones)
                     setCondicionesPago(condiciones)
                 } catch (error) {
                     console.error('Error al cargar condiciones de pago:', error)

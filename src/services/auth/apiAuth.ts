@@ -88,6 +88,7 @@ interface ApiLoginResponse {
 interface ApiUpdatePasswordRequest {
     usuario: string;
     password: string;
+    role_type: 'internal' | 'provider';
 }
 
 interface ApiUpdatePasswordResponse {
@@ -291,6 +292,7 @@ export const loginWithAPI = async (
 export const updatePasswordWithAPI = async (
     username: string,
     newPassword: string,
+    roleType: RoleType
 ): Promise<void> => {
     if (!username || !newPassword) {
         throw new AuthError(
@@ -320,6 +322,7 @@ export const updatePasswordWithAPI = async (
     const requestBody: ApiUpdatePasswordRequest = {
         usuario: username.trim(),
         password: newPassword,
+        role_type: roleType
     };
 
     try {

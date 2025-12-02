@@ -6,8 +6,12 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "build:prod": "vite build --mode production",
+    "build:verify": "powershell -ExecutionPolicy Bypass -File ./scripts/verify-build.ps1",
+    "build:production": "powershell -ExecutionPolicy Bypass -File ./scripts/build-production.ps1",
     "lint": "eslint -c .eslintrc.json ./src/**/**/*.{ts,tsx} --fix",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "email:setup": "powershell -ExecutionPolicy Bypass -File ./scripts/setup-email-server.ps1"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",

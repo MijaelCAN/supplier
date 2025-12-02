@@ -18,7 +18,6 @@ import {
     Pagination,
     Select,
     SelectItem,
-    Spinner,
     Table,
     TableBody,
     TableCell,
@@ -35,13 +34,17 @@ import {
     EyeIcon,
     MagnifyingGlassIcon,
     PencilIcon,
-    XMarkIcon
+    XMarkIcon,
+    ClockIcon,
+    BanknotesIcon,
+    DocumentTextIcon
 } from "@heroicons/react/24/outline";
 import Dashboard from "@/layouts/Dashboard";
 import {StatusColor, useExtendedStore, usePurchaseOrders, useSuppliers} from '@/store/extendedStore';
 import {OrderItem, PurchaseOrder, type statusConfig} from '@/store/types';
 import {fetchOrdersByCardCode} from "@/services/orders/ordersApi.ts";
 import {useAuth} from "@/store/authStore.ts";
+import {LoadingSpinner} from "@/components/LoadingSpinner.tsx";
 
 
 const PurchaseOrdersList = () => {
@@ -78,12 +81,11 @@ const PurchaseOrdersList = () => {
     const [page, setPage] = useState(1);
     const [rowsPerPage] = useState(10);
     const [isLoading, setIsLoading] = useState(true);
-    const { currentUser } = useAuth();
+    const { currentUser, isProveedor, isCompras } = useAuth();
 
     const isValidRange = useMemo(() => startDate && endDate && startDate <= endDate, [startDate, endDate]);
 
     const fetchOrdersData = useCallback(async (): Promise<PurchaseOrder[] | null> => {
-        console.log("PRUEBA2 => ", "ENTRO A");
         if (!startDate || !endDate) {
             console.log("Selecciona un rango de fechas válido.")
             throw new Error('Selecciona un rango de fechas válido.');
@@ -94,7 +96,7 @@ const PurchaseOrdersList = () => {
         }
         const formatDateForApi = (value: string) => value.replace(/-/g, '');
         return fetchOrdersByCardCode(
-            currentUser?.supplierId,
+            currentUser?.roleType !== 'internal' ? currentUser?.userCode : undefined,
             "Todos",
             formatDateForApi(startDate),
             formatDateForApi(endDate),
@@ -105,10 +107,8 @@ const PurchaseOrdersList = () => {
     useEffect(() => {
         const loadFilteredOrders = async () => {
             try {
-                console.log("PRUEBA => ", "ENTRO A ORDENES DE COMPRA USE-COMPRAS")
                 setIsLoading(true);
                 const result = await fetchOrdersData();
-                console.log("RESULTADO => ", result)
                 if (result && result.length > 0) {
                     // Reemplazar todas las órdenes con las filtradas por fecha
                     setPurchaseOrders(result);
@@ -153,7 +153,6 @@ const PurchaseOrdersList = () => {
 
     const filteredOrders = useMemo(() => {
         let filtered = purchaseOrders;
-
         if (filterValue) {
             filtered = filtered.filter(order =>
                 order.orderNumber.toLowerCase().includes(filterValue.toLowerCase()) ||
@@ -265,13 +264,55 @@ const PurchaseOrdersList = () => {
         }).format(amount);
     };
 
+    // Calcular métricas
+    const metrics = useMemo(() => {
+        const total = purchaseOrders.length;
+        const abiertos = purchaseOrders.filter(o => 
+            o.status === 'Pendiente' || o.status === 'En Proceso' || o.status === 'Aprobada'
+        ).length;
+        const cerrados = purchaseOrders.filter(o => 
+            o.status === 'Completada' || o.status === 'Cancelada'
+        ).length;
+        const montoTotal = purchaseOrders.reduce((sum, order) => {
+            // Convertir a PEN si es necesario para sumar
+            const amount = order.currency === 'USD' ? order.totalAmount * 3.7 : order.totalAmount;
+            return sum + amount;
+        }, 0);
+
+        return { total, abiertos, cerrados, montoTotal };
+    }, [purchaseOrders]);
+
+    // Mensaje según el rol
+    const getWelcomeMessage = () => {
+        if (isProveedor) {
+            return {
+                title: "Mis Órdenes de Compra",
+                description: "Consulta y gestiona tus órdenes de compra asignadas"
+            };
+        } else if (isCompras) {
+            return {
+                title: "Órdenes de Compra",
+                description: "Gestiona y supervisa todas las órdenes de compra de la empresa"
+            };
+        } else {
+            return {
+                title: "Órdenes de Compra",
+                description: "Gestiona las órdenes de compra de la empresa"
+            };
+        }
+    };
+    const getSearchMessage = () => isProveedor ? "Buscar por número de orden" : "Buscar por número de orden o proveedor";
+
+    const welcomeMessage = getWelcomeMessage();
+    const searchMessage = getSearchMessage();
+
     const topContent = (
         <div className="flex flex-col gap-4">
             <div className="flex justify-between gap-3 items-end">
                 <Input
                     isClearable
                     className="w-full sm:max-w-[44%]"
-                    placeholder="Buscar por número de orden o proveedor..."
+                    placeholder={searchMessage}
                     startContent={<MagnifyingGlassIcon className="h-4 w-4"/>}
                     value={filterValue}
                     onClear={() => setFilterValue("")}
@@ -329,20 +370,79 @@ const PurchaseOrdersList = () => {
     return (
         <Dashboard>
             <div className="space-y-6">
+                {/* Header con mensaje según rol */}
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900">Órdenes de Compra</h1>
-                    <p className="text-gray-600">Gestiona las órdenes de compra de la empresa</p>
+                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{welcomeMessage.title}</h1>
+                    <p className="text-gray-600 dark:text-gray-400">{welcomeMessage.description}</p>
                 </div>
+
+                {/* Indicadores de métricas */}
+                {!isLoading && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <Card className="bg-white/70 dark:bg-gray-800/70 backdrop-blur-sm border border-gray-200/50 dark:border-gray-700/50">
+                            <CardBody className="p-4">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Total Órdenes</p>
+                                        <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{metrics.total}</p>
+                                    </div>
+                                    <div className="p-3 rounded-lg bg-azul/10">
+                                        <DocumentTextIcon className="h-6 w-6 text-azul" />
+                                    </div>
+                                </div>
+                            </CardBody>
+                        </Card>
+
+                        <Card className="bg-white/70 dark:bg-gray-800/70 backdrop-blur-sm border border-gray-200/50 dark:border-gray-700/50">
+                            <CardBody className="p-4">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Abiertas</p>
+                                        <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{metrics.abiertos}</p>
+                                    </div>
+                                    <div className="p-3 rounded-lg bg-yellow-500/10">
+                                        <ClockIcon className="h-6 w-6 text-yellow-600 dark:text-yellow-500" />
+                                    </div>
+                                </div>
+                            </CardBody>
+                        </Card>
+
+                        <Card className="bg-white/70 dark:bg-gray-800/70 backdrop-blur-sm border border-gray-200/50 dark:border-gray-700/50">
+                            <CardBody className="p-4">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Cerradas</p>
+                                        <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{metrics.cerrados}</p>
+                                    </div>
+                                    <div className="p-3 rounded-lg bg-green-500/10">
+                                        <CheckIcon className="h-6 w-6 text-green-600 dark:text-green-500" />
+                                    </div>
+                                </div>
+                            </CardBody>
+                        </Card>
+
+                        <Card className="bg-white/70 dark:bg-gray-800/70 backdrop-blur-sm border border-gray-200/50 dark:border-gray-700/50">
+                            <CardBody className="p-4">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Monto Total</p>
+                                        <p className="text-xl font-bold text-gray-900 dark:text-white mt-1">
+                                            {formatCurrency(metrics.montoTotal, 'PEN')}
+                                        </p>
+                                    </div>
+                                    <div className="p-3 rounded-lg bg-rojo/10">
+                                        <BanknotesIcon className="h-6 w-6 text-rojo" />
+                                    </div>
+                                </div>
+                            </CardBody>
+                        </Card>
+                    </div>
+                )}
 
                 <Card>
                     <CardBody className="p-4">
                         {isLoading ? (
-                            <div className="flex flex-col items-center justify-center py-16 gap-3">
-                                <Spinner color="primary" size="lg"/>
-                                <p className="text-sm text-gray-500">
-                                    Cargando órdenes de compra...
-                                </p>
-                            </div>
+                            <LoadingSpinner message="Cargando órdenes de compra..." />
                         ) : (
                             <Table
                                 aria-label="Tabla de órdenes de compra"

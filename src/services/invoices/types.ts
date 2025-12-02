@@ -1,8 +1,15 @@
 export interface InvoiceItem {
     Dscription: string;
-    ItemCode: string;
+    ItemCode?: string;
     LineTotal: string;
 }
+
+export interface InvoicePayment {
+    DocDate: string;
+    DocEntry: string;
+    SumApplied: string;
+}
+
 export interface Invoice {
     DocEntry: string;
     DocNum: string;
@@ -23,7 +30,7 @@ export interface Invoice {
     Saldo: string;
     Total: string;
     Detalle: InvoiceItem[];
-    Pagos: null;
+    Pagos: InvoicePayment[] | null;
 }
 export interface InvoiceApiResponse {
     statusCode: number;
