@@ -211,10 +211,9 @@ const styles = StyleSheet.create({
 
 interface SupplierPDFProps {
     supplier: Supplier;
-    completionPercentage: number;
 }
 
-export const SupplierPDF = ({ supplier, completionPercentage }: SupplierPDFProps) => {
+export const SupplierPDF = ({ supplier }: SupplierPDFProps) => {
     const formatDate = (date?: string) => {
         if (!date) return '—';
         return new Date(date).toLocaleDateString('es-PE', {
@@ -265,7 +264,6 @@ export const SupplierPDF = ({ supplier, completionPercentage }: SupplierPDFProps
                             <View style={{ alignItems: 'flex-end' }}>
                                 <Text style={styles.supplierDetail}>Código: {supplier.cardCode}</Text>
                                 <Text style={styles.supplierDetail}>Estado: {supplier.status}</Text>
-                                <Text style={styles.supplierDetail}>Completitud: {completionPercentage}%</Text>
                             </View>
                         </View>
                     </View>

@@ -48,7 +48,15 @@ const router = createBrowserRouter([
   {
     path: "/proveedor/perfil",
     element: (
-      <ProtectedRoute requiredRoles={[UserRole.PROVEEDOR, UserRole.ADMIN]}>
+      <ProtectedRoute requiredRoles={[UserRole.PROVEEDOR, UserRole.ADMIN, UserRole.COMPRAS, UserRole.FINANZAS, UserRole.ALMACEN]}>
+        <ProveedorProfile />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/proveedores/profile/:supplierCode",
+    element: (
+      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.COMPRAS, UserRole.FINANZAS, UserRole.ALMACEN]}>
         <ProveedorProfile />
       </ProtectedRoute>
     ),
@@ -110,7 +118,7 @@ const router = createBrowserRouter([
   {
     path: "/factura",
     element: (
-      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.FINANZAS, UserRole.PROVEEDOR]}>
+      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.FINANZAS, UserRole.PROVEEDOR, UserRole.COMPRAS]}>
         <InvoicesList />
       </ProtectedRoute>
     ),

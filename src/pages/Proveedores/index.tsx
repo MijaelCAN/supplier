@@ -40,6 +40,8 @@ import {ModalEdit} from "@/components/Proveedores/ModalEdit.tsx";
 import {useNavigate} from "react-router-dom";
 import { fetchSuppliersListFromApi } from '@/services/providers/providersApi';
 import {getPersonTypeEnumKey} from "@/pages/Proveedores/Profile/CardProfile.tsx";
+import { useAuthStore } from '@/store/authStore';
+import { UserRole } from '@/routes/menuTypes';
 
 const statusColorMap: Record<string, ChipProps["color"]> = {
     Activo: "success",
@@ -72,11 +74,12 @@ const INITIAL_VISIBLE_COLUMNS = ["name", "contact", "businessType", "rating", "t
 export default function SupplierManagement() {
     const navigate = useNavigate()
     const { suppliers, deleteSupplier, setSelectedSupplier, selectedSupplier, updateSupplier, setSuppliers} = useSuppliers()
+    const currentUser = useAuthStore((state) => state.currentUser);
     const supplierList = Array.isArray(suppliers) ? suppliers : [];
     const [filterValue, setFilterValue] = useState("");
     const [selectedKeys, setSelectedKeys] = useState<Selection>(new Set([]));
     const [visibleColumns, setVisibleColumns] = useState<Selection>(new Set(INITIAL_VISIBLE_COLUMNS));
-    const [statusFilter, setStatusFilter] = useState<Selection>(new Set(["all"]));
+    const [statusFilter, setStatusFilter] = useState<Selection>(new Set(["Pendiente"]));
     const [rowsPerPage, setRowsPerPage] = useState(10);
     const [sortDescriptor, setSortDescriptor] = useState<SortDescriptor>({
         column: "name",
@@ -92,7 +95,13 @@ export default function SupplierManagement() {
     const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
 
     const todayString = useMemo(() => new Date().toISOString().slice(0, 10), []);
-    const [startDate, setStartDate] = useState<string>(todayString);
+    function getDateBeforeDays(days: number): string {
+        const date = new Date();
+        date.setDate(date.getDate() - days);
+        return date.toISOString().slice(0, 10);
+    }
+
+    const [startDate, setStartDate] = useState<string>(getDateBeforeDays(15));
     const [endDate, setEndDate] = useState<string>(todayString);
 
     const isValidRange = useMemo(() => startDate && endDate && startDate <= endDate, [startDate, endDate]);
@@ -275,8 +284,13 @@ export default function SupplierManagement() {
                                     startContent={<EyeIcon className="h-4 w-4" />}
                                     onPress={() => {
                                         setSelectedSupplier(supplier);
-                                        //onViewOpen();
-                                        navigate("/proveedor/perfil")
+                                        // Si el usuario es proveedor, usar la ruta simple
+                                        // Si es otro rol, usar la ruta con el código del proveedor
+                                        if (currentUser?.role === UserRole.PROVEEDOR) {
+                                            navigate("/proveedor/perfil");
+                                        } else {
+                                            navigate(`/proveedores/profile/${supplier.cardCode}`);
+                                        }
                                     }}
                                 >
                                     Ver detalles
@@ -285,9 +299,13 @@ export default function SupplierManagement() {
                                     key="edit"
                                     startContent={<PencilIcon className="h-4 w-4" />}
                                     onPress={() => {
-                                        console.log(supplier)
                                         setSelectedSupplier(supplier);
-                                        onEditOpen();
+                                        // Navegar al perfil en modo edición
+                                        if (currentUser?.role === UserRole.PROVEEDOR) {
+                                            navigate("/proveedor/perfil");
+                                        } else {
+                                            navigate(`/proveedores/profile/${supplier.cardCode}`);
+                                        }
                                     }}
                                 >
                                     Editar

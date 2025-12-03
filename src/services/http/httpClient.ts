@@ -155,6 +155,49 @@ const getAuthToken = (): string | null => {
 };
 
 /**
+ * Maneja errores de autenticación (401, 403) limpiando la sesión y redirigiendo al login
+ */
+const handleAuthError = (status: number, statusText: string) => {
+    // Solo manejar errores de autenticación
+    if (status !== 401 && status !== 403) {
+        return;
+    }
+
+    // Limpiar el estado de autenticación del localStorage
+    try {
+        const authStorage = localStorage.getItem('auth-storage');
+        if (authStorage) {
+            const parsed = JSON.parse(authStorage);
+            // Actualizar el estado para limpiar la sesión
+            const updatedState = {
+                ...parsed,
+                state: {
+                    ...parsed.state,
+                    currentUser: null,
+                    isAuthenticated: false,
+                    sessionToken: null,
+                    error: 'Tu sesión ha expirado. Por favor, inicia sesión nuevamente.',
+                },
+            };
+            localStorage.setItem('auth-storage', JSON.stringify(updatedState));
+        }
+    } catch (error) {
+        console.error('Error al limpiar sesión:', error);
+    }
+
+    // Disparar evento personalizado para que los componentes React puedan reaccionar
+    // El componente AuthErrorHandler se encargará de mostrar el toast y redirigir
+    const authErrorEvent = new CustomEvent('auth-error', {
+        detail: {
+            status,
+            statusText,
+            message: 'Tu sesión ha expirado. Por favor, inicia sesión nuevamente.',
+        },
+    });
+    window.dispatchEvent(authErrorEvent);
+};
+
+/**
  * Cliente HTTP que intercepta y ofusca URLs en producción
  * 
  * IMPORTANTE: Esta solución ofusca los endpoints en el código fuente,
@@ -197,10 +240,18 @@ export const httpClient = async (
     
     // Hacer la petición con la URL real y headers actualizados
     const { skipObfuscation, skipAuth, ...fetchOptions } = options;
-    return fetch(realUrl, {
+    const response = await fetch(realUrl, {
         ...fetchOptions,
         headers,
     });
+    
+    // Interceptar errores de autenticación (401, 403)
+    // Solo si no es skipAuth (para evitar loops en el login)
+    if (!options.skipAuth && (response.status === 401 || response.status === 403)) {
+        handleAuthError(response.status, response.statusText);
+    }
+    
+    return response;
 };
 
 /**

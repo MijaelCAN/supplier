@@ -6,6 +6,7 @@ import type {
     ServiciosOfrecidos,
     Supplier
 } from '@/store/types';
+import type { Supplier as SupplierStore } from '@/store/index';
 import {httpClient, buildSecureUrl} from "@/services/http/httpClient.ts";
 
 interface Direccion {
@@ -423,17 +424,35 @@ export const fetchSunatSupplierData = async (ruc: string): Promise<SunatApiRespo
 
     const url = `${SUNAT_RUC_ENDPOINT}/${sanitizedRuc}`;
 
-    // Usar skipObfuscation para URLs externas
-    const response = await httpClient(url, {
+    // Usar fetch directamente para evitar que httpClient modifique headers o agregue tokens
+    // Las APIs externas pueden ser sensibles a headers adicionales o modificados
+    const response = await fetch(url, {
+        method: 'GET',
         headers: {
             'Authorization': `Bearer ${SUNAT_TOKEN}`,
             'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         },
-        skipObfuscation: true, // URLs externas no se ofuscan
+        // No incluir credentials para evitar problemas de CORS
+        credentials: 'omit',
     });
+    
+    console.log('SUNAT API Response status:', response.status);
+    console.log('SUNAT API Response headers:', Object.fromEntries(response.headers.entries()));
 
     if (!response.ok) {
-        throw new Error(`No se pudo consultar el RUC (HTTP ${response.status}).`);
+        let errorMessage = `No se pudo consultar el RUC (HTTP ${response.status}).`;
+        try {
+            const errorText = await response.text();
+            if (errorText) {
+                errorMessage += ` ${errorText}`;
+                console.error('Error response body:', errorText);
+            }
+        } catch (e) {
+            console.error('No se pudo leer el cuerpo de la respuesta de error');
+        }
+        throw new Error(errorMessage);
     }
 
     const json = (await response.json()) as SunatApiResponse;
@@ -581,5 +600,83 @@ export const createSupplierProfile = async (
         supplier: mapped,
         record: normalizedRecord,
     };
+};
+
+/**
+ * Convierte un Supplier de la API (tipo completo de @/store/types) 
+ * al tipo Supplier del store simple (de @/store/index)
+ * Maneja casos null/undefined y asegura compatibilidad de tipos
+ * @param apiSupplier - El Supplier que viene de la API (puede ser undefined)
+ * @returns Supplier del store simple o null si no hay supplier
+ */
+export const convertApiSupplierToStoreSupplier = (
+    apiSupplier: Supplier | undefined
+): SupplierStore | null => {
+    if (!apiSupplier) {
+        return null;
+    }
+    
+    // Obtener ciudad y país de las direcciones si existen
+    const firstAddress = apiSupplier.addresses && apiSupplier.addresses.length > 0 
+        ? apiSupplier.addresses[0] 
+        : null;
+    
+    // Obtener contactPerson como string (primer contacto si es array)
+    const contactPersonStr = Array.isArray(apiSupplier.contactPerson) && apiSupplier.contactPerson.length > 0
+        ? apiSupplier.contactPerson[0].name
+        : typeof apiSupplier.contactPerson === 'string'
+        ? apiSupplier.contactPerson
+        : '';
+    
+    // Convertir status del tipo completo al tipo simple
+    const statusMap: Record<Supplier['status'], SupplierStore['status']> = {
+        'Activo': 'A',
+        'Inactivo': 'I',
+        'Pendiente': 'P',
+        'Suspendido': 'S',
+        'Observado': 'P',
+        'Rechazado': 'I',
+        'EnProceso': 'P'
+    };
+    
+    // Convertir certificaciones a array de strings
+    const certifications: string[] = [];
+    if (apiSupplier.Documentos) {
+        if (apiSupplier.Documentos.certificaciones === true) {
+            certifications.push('ISO 9001');
+        }
+        // Puedes agregar más certificaciones según sea necesario
+    }
+    
+    const storeSupplier: SupplierStore = {
+        docEntry: apiSupplier.docEntry,
+        cardCode: apiSupplier.cardCode,
+        cardName: apiSupplier.cardName,
+        email: apiSupplier.email,
+        phone: apiSupplier.phone,
+        website: apiSupplier.website,
+        address: apiSupplier.address,
+        city: firstAddress?.city || firstAddress?.departament || 'Lima',
+        country: 'Perú', // Valor por defecto
+        contactPerson: contactPersonStr,
+        contactEmail: apiSupplier.contactEmail,
+        contactPhone: apiSupplier.contactPhone,
+        businessType: apiSupplier.businessType,
+        personType: apiSupplier.personType,
+        status: statusMap[apiSupplier.status] || 'P',
+        rating: apiSupplier.rating,
+        totalOrders: apiSupplier.totalOrders,
+        totalAmount: apiSupplier.totalAmount,
+        paymentTerms: apiSupplier.paymentTerms,
+        certifications: certifications,
+        registrationDate: apiSupplier.registrationDate || '',
+        lastOrderDate: apiSupplier.lastOrderDate || '',
+        avatar: apiSupplier.avatar,
+        generalManager: apiSupplier.generalManager,
+        adminManager: apiSupplier.adminManager,
+        salesManager: apiSupplier.salesManager,
+    };
+    
+    return storeSupplier;
 };
 

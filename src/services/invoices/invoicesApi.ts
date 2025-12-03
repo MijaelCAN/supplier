@@ -74,6 +74,19 @@ const mapRecordInvoicesToInvoice = (record: InvoiceApi): Invoice => {
     const retention = parseAmount(record.Retencion);
     const saldo = parseAmount(record.Saldo);
 
+    // Mapear detalle
+    const detalle = record.Detalle?.map(item => ({
+        description: item.Dscription || '',
+        lineTotal: parseAmount(item.LineTotal)
+    })) || [];
+
+    // Mapear pagos
+    const pagos = record.Pagos?.map(pago => ({
+        docDate: parseDate(pago.DocDate),
+        docEntry: pago.DocEntry?.toString() || '',
+        sumApplied: parseAmount(pago.SumApplied)
+    })) || null;
+
     return {
         id: record.DocEntry?.toString() || '',
         invoiceNumber: record.NumAtCard || `FAC-${record.DocNum}`,
@@ -97,11 +110,13 @@ const mapRecordInvoicesToInvoice = (record: InvoiceApi): Invoice => {
         notes: undefined,
         reviewedBy: undefined,
         approvedBy: undefined,
+        detalle: detalle.length > 0 ? detalle : undefined,
+        pagos: pagos
     }
 }
 
 export const fetchInvoicesByCardCode = async (
-    cardCode: string,
+    cardCode?: string,
     state?: string,
     startDate?: string,
     endDate?: string,

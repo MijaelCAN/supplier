@@ -1,9 +1,11 @@
 import { RouterProvider } from "react-router-dom";
 import router from "@/routes";
+import AuthErrorHandler from "@/components/AuthErrorHandler";
 
 function App() {
   return (
     <div className="min-h-screen text-gray-500">
+      <AuthErrorHandler />
       <RouterProvider router={router} />
     </div>
   );

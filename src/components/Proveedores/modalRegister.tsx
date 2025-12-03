@@ -23,6 +23,7 @@ import { createSupplierProfile, fetchSunatSupplierData, fetchSuppliersListFromAp
 import { getBlackListRecord, type BlackListRecord } from '@/services/providers/blackListApi';
 import { fetchCondicionesPago, type CondicionPago } from '@/services/maestros/condicionesPagoApi';
 import { sendSupplierCredentials } from '@/services/email/emailApi';
+import { UbigeoSelector } from '@/components/UbigeoSelector';
 
 // Schema de validación con Zod
 const supplierRegisterSchema = z.object({
@@ -114,6 +115,7 @@ const ModalRegister: FC<ModalRegisterProps> = ({
                 setIsLoadingCondicionesPago(true)
                 try {
                     const condiciones = await fetchCondicionesPago()
+                    console.log("Condiciones de pago: ", condiciones)
                     setCondicionesPago(condiciones)
                 } catch (error) {
                     console.error('Error al cargar condiciones de pago:', error)
@@ -701,14 +703,17 @@ const ModalRegister: FC<ModalRegisterProps> = ({
                                         name="ubigeo"
                                         control={control}
                                         render={({field}) => (
-                                            <Input
-                                                {...field}
-                                                label="Ubigeo"
-                                                placeholder="Ej: 150101"
-                                                size="sm"
-                                                isInvalid={!!errors.ubigeo}
-                                                errorMessage={errors.ubigeo?.message}
-                                            />
+                                            <div>
+                                                <UbigeoSelector
+                                                    value={field.value}
+                                                    onChange={(ubigeoCode) => {
+                                                        field.onChange(ubigeoCode);
+                                                    }}
+                                                    size="sm"
+                                                    isInvalid={!!errors.ubigeo}
+                                                    errorMessage={errors.ubigeo?.message}
+                                                />
+                                            </div>
                                         )}
                                     />
 

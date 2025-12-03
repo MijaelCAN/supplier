@@ -7,14 +7,13 @@ import {Supplier} from "@/store/types.ts";
  * Genera y descarga el PDF del proveedor
  */
 export const generateSupplierPDF = async (
-    supplier: Supplier,
-    completionPercentage: number
+    supplier: Supplier
 ): Promise<void> => {
     try {
 
         // Crear el documento PDF
         const blob = await pdf(
-            SupplierPDF({ supplier, completionPercentage }),
+            SupplierPDF({ supplier }),
         ).toBlob();
 
         // Generar nombre de archivo con timestamp
@@ -34,12 +33,11 @@ export const generateSupplierPDF = async (
  */
 export const openSupplierPDFInNewTab = async (
     supplier: Supplier,
-    completionPercentage: number
 ): Promise<void> => {
     try {
         // Crear el documento PDF
         const blob = await pdf(
-            SupplierPDF({ supplier, completionPercentage }),
+            SupplierPDF({ supplier }),
         ).toBlob();
 
         // Crear URL temporal
