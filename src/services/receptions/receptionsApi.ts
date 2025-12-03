@@ -95,3 +95,4 @@ export const fetchReceptionsByCardCode = async (
     return records.map(record => mapRecordReceptionToReception(record));
 }
 
+

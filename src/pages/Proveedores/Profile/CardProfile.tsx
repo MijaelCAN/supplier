@@ -26,6 +26,7 @@ import { useConfigData } from '@/store';
 import { fetchSupplierByCardCode, updateSupplierProfile, type SupplierApiRecord, type Contacto, type Banco, type DocumentoEvaluacion} from '@/services/providers/providersApi';
 import { fetchCondicionesPago, type CondicionPago } from '@/services/maestros/condicionesPagoApi';
 import { generateSupplierPDF, openSupplierPDFInNewTab } from '@/utils/pdfGenerator';
+import { UbigeoSelector } from '@/components/UbigeoSelector';
 
 export enum PersonaTypeCode {
     JURIDICA = 'TPJ',
@@ -1202,56 +1203,42 @@ const SupplierProfileCard = () => {
                                                                     });
                                                                 }}
                                                             />
-                                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                                <Input
-                                                                    label="Departamento"
-                                                                    value={direccion.Departamento || ''}
-                                                                    onValueChange={(value) => {
-                                                                        setFormData((prev) => {
-                                                                            if (!prev) return prev;
-                                                                            const updated = [...(prev.Direcciones ?? [])];
-                                                                            updated[index] = { ...updated[index], Departamento: value };
-                                                                            return { ...prev, Direcciones: updated };
-                                                                        });
-                                                                    }}
-                                                                />
-                                                                <Input
-                                                                    label="Provincia"
-                                                                    value={direccion.Provincia || ''}
-                                                                    onValueChange={(value) => {
-                                                                        setFormData((prev) => {
-                                                                            if (!prev) return prev;
-                                                                            const updated = [...(prev.Direcciones ?? [])];
-                                                                            updated[index] = { ...updated[index], Provincia: value };
-                                                                            return { ...prev, Direcciones: updated };
-                                                                        });
-                                                                    }}
-                                                                />
-                                                                <Input
-                                                                    label="Distrito"
-                                                                    value={direccion.Distrito || ''}
-                                                                    onValueChange={(value) => {
-                                                                        setFormData((prev) => {
-                                                                            if (!prev) return prev;
-                                                                            const updated = [...(prev.Direcciones ?? [])];
-                                                                            updated[index] = { ...updated[index], Distrito: value };
-                                                                            return { ...prev, Direcciones: updated };
-                                                                        });
-                                                                    }}
-                                                                />
-                                                                <Input
-                                                                    label="Ubigeo"
-                                                                    value={direccion.Ubigeo || ''}
-                                                                    onValueChange={(value) => {
-                                                                        setFormData((prev) => {
-                                                                            if (!prev) return prev;
-                                                                            const updated = [...(prev.Direcciones ?? [])];
-                                                                            updated[index] = { ...updated[index], Ubigeo: value };
-                                                                            return { ...prev, Direcciones: updated };
-                                                                        });
-                                                                    }}
-                                                                />
-                                                            </div>
+                                                            <UbigeoSelector
+                                                                value={direccion.Ubigeo || ''}
+                                                                onChange={(ubigeoCode) => {
+                                                                    setFormData((prev) => {
+                                                                        if (!prev) return prev;
+                                                                        const updated = [...(prev.Direcciones ?? [])];
+                                                                        updated[index] = { ...updated[index], Ubigeo: ubigeoCode };
+                                                                        return { ...prev, Direcciones: updated };
+                                                                    });
+                                                                }}
+                                                                onDepartmentChange={(department) => {
+                                                                    setFormData((prev) => {
+                                                                        if (!prev) return prev;
+                                                                        const updated = [...(prev.Direcciones ?? [])];
+                                                                        updated[index] = { ...updated[index], Departamento: department };
+                                                                        return { ...prev, Direcciones: updated };
+                                                                    });
+                                                                }}
+                                                                onProvinceChange={(province) => {
+                                                                    setFormData((prev) => {
+                                                                        if (!prev) return prev;
+                                                                        const updated = [...(prev.Direcciones ?? [])];
+                                                                        updated[index] = { ...updated[index], Provincia: province };
+                                                                        return { ...prev, Direcciones: updated };
+                                                                    });
+                                                                }}
+                                                                onDistrictChange={(district) => {
+                                                                    setFormData((prev) => {
+                                                                        if (!prev) return prev;
+                                                                        const updated = [...(prev.Direcciones ?? [])];
+                                                                        updated[index] = { ...updated[index], Distrito: district };
+                                                                        return { ...prev, Direcciones: updated };
+                                                                    });
+                                                                }}
+                                                                size="sm"
+                                                            />
                                                         </CardBody>
                                                     </Card>
                                                 ))}
