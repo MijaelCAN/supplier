@@ -33,6 +33,7 @@ import {
     BanknotesIcon
 } from "@heroicons/react/24/outline";
 import Dashboard from "@/layouts/Dashboard";
+import { DateInput } from "@/components/DateInput";
 import {useReceptions} from '@/store/extendedStore';
 import { Reception } from '@/store/types';
 import {fetchReceptionsByCardCode} from "@/services/receptions/receptionsApi.ts";
@@ -161,17 +162,15 @@ const ReceptionPage = () => {
                     onValueChange={setFilterValue}
                 />
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                    <Input
+                    <DateInput
                         label="Fecha inicio"
-                        type="date"
                         value={startDate}
                         size="sm"
                         onValueChange={setStartDate}
                         className="sm:w-40"
                     />
-                    <Input
+                    <DateInput
                         label="Fecha fin"
-                        type="date"
                         value={endDate}
                         size="sm"
                         onValueChange={setEndDate}

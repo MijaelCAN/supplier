@@ -690,6 +690,7 @@ const ModalRegister: FC<ModalRegisterProps> = ({
                                                     {...field}
                                                     label="Telefono Proveedor"
                                                     type="text"
+                                                    maxLength={9}
                                                     placeholder="958746932"
                                                     size="sm"
                                                     isInvalid={!!errors.phone}
@@ -753,12 +754,24 @@ const ModalRegister: FC<ModalRegisterProps> = ({
                                             <Controller
                                                 name="contactPhone"
                                                 control={control}
+                                                rules={{
+                                                    required: "El teléfono es requerido",
+                                                    pattern: {
+                                                        value: /^\d{9}$/,
+                                                        message: "Debe ser exactamente 9 dígitos numéricos"
+                                                    },
+                                                    maxLength: {
+                                                        value: 9,
+                                                        message: "Máximo 9 dígitos"
+                                                    }
+                                                }}
                                                 render={({field}) => (
                                                     <Input
                                                         {...field}
                                                         size="sm"
                                                         label="Teléfono de Contacto"
-                                                        placeholder="+51 999 999 999"
+                                                        maxLength={9}
+                                                        placeholder="999 999 999"
                                                         isInvalid={!!errors.contactPhone}
                                                         errorMessage={errors.contactPhone?.message}
                                                     />

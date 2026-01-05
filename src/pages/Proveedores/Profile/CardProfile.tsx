@@ -227,6 +227,16 @@ export const getDocumentTypeEnumKey = (code: string): string => {
     return entry ? entry[0] : 'UNKNOWN';
 };
 
+const getMonedaLabel = (moneda: string) => {
+    switch (moneda) {
+        case 'S/.': return 'Soles';
+        case '$': return 'Dólares';
+        case '##': return 'Multimoneda';
+        default: return moneda || '';
+    }
+};
+
+
 const SupplierProfileCard = () => {
  
      const {selectedSupplier, setSelectedSupplier} = useSuppliers();
@@ -1044,18 +1054,21 @@ const SupplierProfileCard = () => {
                                             <Input 
                                                 label="Razón Social" 
                                                 value={formData.NombreSN || ''} 
-                                                onValueChange={(value) => handleFieldChange('NombreSN', value)} 
+                                                onValueChange={(value) => handleFieldChange('NombreSN', value)}
+                                                isDisabled
                                             />
                                             <Input 
                                                 label="RUC" 
                                                 value={formData.RUC || ''} 
-                                                onValueChange={(value) => handleFieldChange('RUC', value)} 
+                                                onValueChange={(value) => handleFieldChange('RUC', value)}
+                                                isDisabled
                                             />
                                             <Input 
                                                 label="Tipo de Persona" 
                                                 value={getPersonTypeLabel(formData.TipoPersona || '')} 
                                                 onValueChange={(value) => handleFieldChange('TipoPersona', value)}
                                                 isReadOnly
+                                                isDisabled
                                                 description={formData.TipoPersona ? `Código: ${formData.TipoPersona}` : undefined}
                                             />
                                             <Input 
@@ -1063,11 +1076,13 @@ const SupplierProfileCard = () => {
                                                 value={getDocumentTypeLabel(formData.TipoDocumento || '')} 
                                                 onValueChange={(value) => handleFieldChange('TipoDocumento', value)}
                                                 isReadOnly
+                                                isDisabled
                                                 description={formData.TipoDocumento ? `Código: ${formData.TipoDocumento}` : undefined}
                                             />
                                             <Input 
-                                                label="Moneda" 
-                                                value={formData.Moneda || ''} 
+                                                label="Moneda"
+                                                isDisabled
+                                                value={getMonedaLabel(formData.Moneda || '')}
                                                 onValueChange={(value) => handleFieldChange('Moneda', value)} 
                                             />
                                             <Input 
@@ -1106,7 +1121,7 @@ const SupplierProfileCard = () => {
                                                         handleFieldChange('CondicionPago', selectedKey);
                                                     }
                                                 }}
-                                                isDisabled={isLoadingCondicionesPago}
+                                                isDisabled={true}
                                             >
                                                 {condicionesPago.length > 0 
                                                     ? condicionesPago.map((condicion) => (
@@ -1126,13 +1141,15 @@ const SupplierProfileCard = () => {
                                                 isSelected={formData.agenteRetencion === 'Y'} 
                                                 onValueChange={handleToggleField('agenteRetencion')} 
                                                 size="sm"
+                                                isDisabled={true}
                                             >
                                                 Agente de Retención
                                             </Switch>
                                             <Switch 
                                                 isSelected={formData.agentePercepcion === 'Y'} 
                                                 onValueChange={handleToggleField('agentePercepcion')} 
-                                                size="sm"
+                                                size="sm"isDisabled={true}
+
                                             >
                                                 Agente de Percepción
                                             </Switch>
@@ -1140,6 +1157,7 @@ const SupplierProfileCard = () => {
                                                 isSelected={formData.exoPercepcion === 'Y'} 
                                                 onValueChange={handleToggleField('exoPercepcion')} 
                                                 size="sm"
+                                                isDisabled={true}
                                             >
                                                 Exonerado Percepción
                                             </Switch>
@@ -1147,6 +1165,7 @@ const SupplierProfileCard = () => {
                                                 isSelected={formData.goodContributor === 'Y'} 
                                                 onValueChange={handleToggleField('goodContributor')} 
                                                 size="sm"
+                                                isDisabled={true}
                                             >
                                                 Buen Contribuyente
                                             </Switch>
@@ -1182,6 +1201,7 @@ const SupplierProfileCard = () => {
                                                             <Input
                                                                 label="Código Dirección"
                                                                 value={direccion.CodDireccion || ''}
+                                                                isDisabled={true}
                                                                 onValueChange={(value) => {
                                                                     setFormData((prev) => {
                                                                         if (!prev) return prev;
@@ -1194,6 +1214,7 @@ const SupplierProfileCard = () => {
                                                             <Input
                                                                 label="Dirección"
                                                                 value={direccion.Direccion || ''}
+                                                                isDisabled={true}
                                                                 onValueChange={(value) => {
                                                                     setFormData((prev) => {
                                                                         if (!prev) return prev;
@@ -1238,13 +1259,14 @@ const SupplierProfileCard = () => {
                                                                     });
                                                                 }}
                                                                 size="sm"
+                                                                isDisabled={true}
                                                             />
                                                         </CardBody>
                                                     </Card>
                                                 ))}
-                                                <Button variant="bordered" onPress={addAddress}>
+                                                {/*<Button variant="bordered" onPress={addAddress}>
                                                     Agregar Dirección
-                                                </Button>
+                                                </Button>*/}
                                             </>
                                         )}
                                     </div>
@@ -1428,17 +1450,20 @@ const SupplierProfileCard = () => {
                                                                     </Select>
                                                                     <Input 
                                                                         label="Nombre de Archivo" 
-                                                                        value={documento.U_NombDocu || ''} 
+                                                                        value={documento.U_NombDocu || ''}
+                                                                        isDisabled={true}
                                                                         onValueChange={(value) => handleDocumentChange(index, 'U_NombDocu', value)} 
                                                                     />
                                                                     <Input 
                                                                         label="Estado" 
-                                                                        value={documento.U_Status || ''} 
+                                                                        value={documento.U_Status || ''}
+                                                                        isDisabled={true}
                                                                         onValueChange={(value) => handleDocumentChange(index, 'U_Status', value)} 
                                                                     />
                                                                     <Input 
                                                                         label="Tipo de Archivo" 
-                                                                        value={documento.U_typeArchiv || ''} 
+                                                                        value={documento.U_typeArchiv || ''}
+                                                                        isDisabled={true}
                                                                         onValueChange={(value) => handleDocumentChange(index, 'U_typeArchiv', value)} 
                                                                     />
                                                                 </div>

@@ -48,3 +48,4 @@ export const fetchUbigeos = async (): Promise<UbigeoRecord[]> => {
     );
 };
 
+

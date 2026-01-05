@@ -42,6 +42,7 @@ import { fetchSuppliersListFromApi } from '@/services/providers/providersApi';
 import {getPersonTypeEnumKey} from "@/pages/Proveedores/Profile/CardProfile.tsx";
 import { useAuthStore } from '@/store/authStore';
 import { UserRole } from '@/routes/menuTypes';
+import { DateInput } from "@/components/DateInput";
 
 const statusColorMap: Record<string, ChipProps["color"]> = {
     Activo: "success",
@@ -384,17 +385,15 @@ export default function SupplierManagement() {
                         onValueChange={onSearchChange}
                     />
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                        <Input
+                        <DateInput
                             label="Fecha inicio"
-                            type="date"
                             value={startDate}
                             size="sm"
                             onValueChange={setStartDate}
                             className="sm:w-40"
                         />
-                        <Input
+                        <DateInput
                             label="Fecha fin"
-                            type="date"
                             value={endDate}
                             size="sm"
                             onValueChange={setEndDate}

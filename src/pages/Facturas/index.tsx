@@ -31,7 +31,6 @@ import {
     EllipsisVerticalIcon,
     EyeIcon,
     CheckIcon,
-    XMarkIcon,
     ChevronDownIcon, DocumentTextIcon, ClockIcon, BanknotesIcon
 } from "@heroicons/react/24/outline";
 import Dashboard from "@/layouts/Dashboard";
@@ -39,13 +38,12 @@ import {useInvoices, useExtendedStore} from '@/store/extendedStore';
 import { Invoice } from '@/store/types';
 import {fetchInvoicesByCardCode} from "@/services/invoices/invoicesApi.ts";
 import {useAuth} from "@/store/authStore.ts";
+import { DateInput } from "@/components/DateInput";
 
 const InvoicesList = () => {
     const {
         invoices,
         setInvoices,
-        approveInvoice,
-        rejectInvoice,
         selectedInvoice,
         setSelectedInvoice
     } = useInvoices();
@@ -143,13 +141,13 @@ const InvoicesList = () => {
         return statusConfig ?? { key: status, label: status, color: 'default' };
     };
 
-    const handleApprove = (invoiceId: string) => {
+    /*const handleApprove = (invoiceId: string) => {
         approveInvoice(invoiceId, 'Usuario Actual');
     };
 
     const handleReject = (invoiceId: string) => {
         rejectInvoice(invoiceId, 'Rechazada por el usuario');
-    };
+    };*/
 
     const handleViewDetails = (invoice: Invoice) => {
         setSelectedInvoice(invoice);
@@ -186,17 +184,15 @@ const InvoicesList = () => {
                     onValueChange={setFilterValue}
                 />
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                    <Input
+                    <DateInput
                         label="Fecha inicio"
-                        type="date"
                         value={startDate}
                         size="sm"
                         onValueChange={setStartDate}
                         className="sm:w-40"
                     />
-                    <Input
+                    <DateInput
                         label="Fecha fin"
-                        type="date"
                         value={endDate}
                         size="sm"
                         onValueChange={setEndDate}
@@ -416,38 +412,38 @@ const InvoicesList = () => {
                                                                     Ver detalles
                                                                 </div>
                                                             </DropdownItem>
-                                                            {invoice.status !== 'Recibida' ? (
+                                                            {/*invoice.status !== 'Recibida' ? (
                                                                 <>
                                                                     <DropdownItem key="Aprobar" onPress={() => handleApprove(invoice.id)}>
                                                                         <div className="flex items-center gap-2">
                                                                             <CheckIcon className="h-4 w-4 text-green-500" />
-                                                                            Aprobar
+                                                                            Aprobar 1
                                                                         </div>
                                                                     </DropdownItem>
                                                                     <DropdownItem key="rechazar" onPress={() => handleReject(invoice.id)}>
                                                                         <div className="flex items-center gap-2">
                                                                             <XMarkIcon className="h-4 w-4 text-red-500" />
-                                                                            Rechazar
+                                                                            Rechazar 1
                                                                         </div>
                                                                     </DropdownItem>
                                                                 </>
-                                                            ): null }
-                                                            {invoice.status === 'En Revisión' ? (
+                                                            ): null */}
+                                                            {/*invoice.status === 'En Revisión' ? (
                                                                 <>
                                                                     <DropdownItem key="dsd" onPress={() => handleApprove(invoice.id)}>
                                                                         <div className="flex items-center gap-2">
                                                                             <CheckIcon className="h-4 w-4 text-green-500" />
-                                                                            Aprobar
+                                                                            Aprobar 2
                                                                         </div>
                                                                     </DropdownItem>
                                                                     <DropdownItem key="zxccz" onPress={() => handleReject(invoice.id)}>
                                                                         <div className="flex items-center gap-2">
                                                                             <XMarkIcon className="h-4 w-4 text-red-500" />
-                                                                            Rechazar
+                                                                            Rechazar 2
                                                                         </div>
                                                                     </DropdownItem>
                                                                 </>
-                                                            ): null }
+                                                            ): null */}
                                                         </DropdownMenu>
                                                     </Dropdown>
                                                 </div>

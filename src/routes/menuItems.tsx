@@ -120,7 +120,7 @@ export const menuItems: MenuItem[] = [
                 title: "Documentos",
                 icon: <DocumentTextIcon className="h-4 w-4" />,
                 href: "/proveedor/documentos",
-                roles: [UserRole.PROVEEDOR]
+                roles: [/*UserRole.PROVEEDOR*/]
             },
             {
                 title: "Certificaciones",
@@ -151,7 +151,7 @@ export const menuItems: MenuItem[] = [
                 title: "Agenda - Citas",
                 icon: <BookOpenIcon className="h-4 w-4" />,
                 href: "/agenda",
-                roles: [UserRole.ADMIN, UserRole.COMPRAS]
+                roles: [UserRole.ADMIN ]
             },
             {
                 title: "Fecha de entrega",

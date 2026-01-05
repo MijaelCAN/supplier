@@ -574,7 +574,7 @@ const Login = () => {
                                             Términos de Servicio
                                         </a>
                                         {" "}y{" "}
-                                        <a href="#" className="hover:text-rojo transition-colors underline font-medium ">
+                                        <a href="https://vistony.pe/legales/politicas-de-privacidad/" className="hover:text-rojo transition-colors underline font-medium ">
                                             Política de Privacidad
                                         </a>
                                     </p>

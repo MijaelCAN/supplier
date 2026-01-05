@@ -45,6 +45,7 @@ import {OrderItem, PurchaseOrder, type statusConfig} from '@/store/types';
 import {fetchOrdersByCardCode} from "@/services/orders/ordersApi.ts";
 import {useAuth} from "@/store/authStore.ts";
 import {LoadingSpinner} from "@/components/LoadingSpinner.tsx";
+import { DateInput } from "@/components/DateInput";
 
 
 const PurchaseOrdersList = () => {
@@ -319,17 +320,15 @@ const PurchaseOrdersList = () => {
                     onValueChange={setFilterValue}
                 />
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                    <Input
+                    <DateInput
                         label="Fecha inicio"
-                        type="date"
                         value={startDate}
                         size="sm"
                         onValueChange={setStartDate}
                         className="sm:w-40"
                     />
-                    <Input
+                    <DateInput
                         label="Fecha fin"
-                        type="date"
                         value={endDate}
                         size="sm"
                         onValueChange={setEndDate}
@@ -582,7 +581,7 @@ const PurchaseOrdersList = () => {
                     isOpen={isDetailOpen} 
                     onOpenChange={onDetailOpenChange}
                     size="5xl"
-                >
+                    >
                     <ModalContent>
                         {(onClose) => (
                             <>
@@ -614,7 +613,8 @@ const PurchaseOrdersList = () => {
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1 text-sm">
                                                 <div className="flex items-center justify-between">
                                                     <span className="text-gray-500">Proveedor</span>
-                                                    <span className="font-medium text-right">{selectedOrder.supplierName}</span>
+                                                    <span
+                                                        className="font-medium text-right">{selectedOrder.supplierName}</span>
                                                 </div>
                                                 <div className="flex items-center justify-between">
                                                     <span className="text-gray-500">Monto Total</span>
@@ -622,10 +622,12 @@ const PurchaseOrdersList = () => {
                                                         {formatCurrency(selectedOrder.totalAmount, selectedOrder.currency)}
                                                     </span>
                                                 </div>
-                                                <div className="flex items-center justify-between">
-                                                    <span className="text-gray-500">Fecha de Entrega</span>
-                                                    <span className="text-right">{selectedOrder.deliveryDate}</span>
-                                                </div>
+                                                {selectedOrder.paymentTerms && (
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="text-gray-500">Términos de Pago</span>
+                                                        <span className="text-right">{selectedOrder.paymentTerms}</span>
+                                                    </div>
+                                                )}
                                                 <div className="flex items-center justify-between">
                                                     <span className="text-gray-500">Encargado compra</span>
                                                     <span className="text-right">{selectedOrder.requestedBy}</span>
@@ -636,12 +638,13 @@ const PurchaseOrdersList = () => {
                                                         <span className="text-right">{selectedOrder.department}</span>
                                                     </div>
                                                 )}
-                                                {selectedOrder.paymentTerms && (
+                                                {selectedOrder.deliveryDate && (
                                                     <div className="flex items-center justify-between">
-                                                        <span className="text-gray-500">Términos de Pago</span>
-                                                        <span className="text-right">{selectedOrder.paymentTerms}</span>
+                                                        <span className="text-gray-500">Fecha de Entrega</span>
+                                                        <span className="text-right">{selectedOrder.deliveryDate}</span>
                                                     </div>
                                                 )}
+
                                             </div>
 
                                             {/* Tabla de Items con cabecera fija y scroll */}
