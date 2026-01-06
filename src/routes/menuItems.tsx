@@ -151,7 +151,7 @@ export const menuItems: MenuItem[] = [
                 title: "Agenda - Citas",
                 icon: <BookOpenIcon className="h-4 w-4" />,
                 href: "/agenda",
-                roles: [UserRole.ADMIN ]
+                roles: [UserRole.ADMIN, UserRole.COMPRAS ]
             },
             {
                 title: "Fecha de entrega",
