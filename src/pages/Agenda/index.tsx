@@ -27,9 +27,6 @@ import {
 import {
     PlusIcon,
     MagnifyingGlassIcon,
-    ClockIcon,
-    CheckCircleIcon,
-    XCircleIcon,
     ArrowLeftIcon,
     ArrowRightIcon
 } from "@heroicons/react/24/outline";
@@ -47,7 +44,6 @@ const Agenda: React.FC = () => {
         selectedAppointment,
         isLoadingAppointments,
         appointmentsError,
-        addAppointment,
         updateAppointment,
         setSelectedAppointment,
         lookupSupplierByRUC,
@@ -159,11 +155,13 @@ const Agenda: React.FC = () => {
     useEffect(() => {
         const loadAppointments = async () => {
             // Obtener RUC del usuario si es proveedor
-            const ruc = currentUser?.role === UserRole.PROVEEDOR && currentUser.supplierId 
-                ? currentUser.supplierId 
+            // El RUC está en username cuando el usuario es proveedor
+            const ruc = currentUser?.role === UserRole.PROVEEDOR && currentUser.username 
+                ? currentUser.username 
                 : undefined;
             
             // Cargar citas para el rango de la semana actual
+            // Si es proveedor, solo se cargarán sus citas (filtrado por RUC en el API)
             await loadAppointmentsFromApi(ruc, weekStart, weekEnd);
         };
 
@@ -171,7 +169,7 @@ const Agenda: React.FC = () => {
         // Dependencias: solo valores primitivos que realmente cambian
         // weekStart y weekEnd están memoizados basados en currentWeek, así que currentWeek.getTime() es suficiente
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [currentWeek.getTime(), currentUser?.id, currentUser?.role, currentUser?.supplierId]);
+    }, [currentWeek.getTime(), currentUser?.id, currentUser?.role, currentUser?.username]);
 
     // Get days of the week
     const weekDays = useMemo(() => {
@@ -198,9 +196,10 @@ const Agenda: React.FC = () => {
     const filteredAppointments = useMemo(() => {
         let filtered = appointments;
 
-        // Filter by role
-        if (currentUser?.role === UserRole.PROVEEDOR && currentUser.supplierId) {
-            filtered = filtered.filter(apt => apt.supplierId === currentUser.supplierId);
+        // Nota: Para proveedores, el filtrado ya se hace en el API (por RUC)
+        // Este filtro adicional es solo una medida de seguridad en el frontend
+        if (currentUser?.role === UserRole.PROVEEDOR && currentUser.username) {
+            filtered = filtered.filter(apt => apt.supplierRUC === currentUser.username);
         }
 
         // Filter by status
@@ -244,7 +243,7 @@ const Agenda: React.FC = () => {
     };
 
     // Get appointments for a specific day and time slot
-    const getAppointmentsForSlot = (date: Date, time: string) => {
+    /*const getAppointmentsForSlot = (date: Date, time: string) => {
         return filteredAppointments.filter(apt => {
             const aptDate = new Date(apt.deliveryDate);
             const isSameDay = aptDate.toDateString() === date.toDateString();
@@ -267,7 +266,7 @@ const Agenda: React.FC = () => {
             // Check if slot time is within appointment range
             return slotMinutes >= aptStartMinutes && slotMinutes < aptEndMinutes;
         });
-    };
+    };*/
 
     // Check if a time slot is available (no conflicts)
     const isTimeSlotAvailable = (date: Date, startTime: string, endTime: string, excludeAppointmentId?: string): boolean => {
@@ -510,7 +509,7 @@ const Agenda: React.FC = () => {
     };
 
     // Get status color
-    const getStatusColor = (status: string) => {
+    /*const getStatusColor = (status: string) => {
         const colors: Record<string, 'default' | 'primary' | 'secondary' | 'success' | 'warning' | 'danger'> = {
             'Pendiente': 'warning',
             'PackingListCompletado': 'primary',
@@ -521,10 +520,10 @@ const Agenda: React.FC = () => {
             'Cancelada': 'danger'
         };
         return colors[status] || 'default';
-    };
+    };*/
 
     // Get status icon
-    const getStatusIcon = (status: string) => {
+    /*const getStatusIcon = (status: string) => {
         if (status === 'ListaParaEntrega' || status === 'Completada') {
             return <CheckCircleIcon className="w-4 h-4" />;
         }
@@ -532,7 +531,7 @@ const Agenda: React.FC = () => {
             return <XCircleIcon className="w-4 h-4" />;
         }
         return <ClockIcon className="w-4 h-4" />;
-    };
+    };*/
 
     // Check if user can create appointments
     const canCreateAppointment = currentUser?.role === UserRole.ADMIN || 
@@ -541,7 +540,7 @@ const Agenda: React.FC = () => {
 
     return (
         <Dashboard>
-            <div className="p-6 space-y-6">
+            <div className="relative min-h-screen pb-8">
                 {/* Header */}
                 <div className="flex justify-between items-center">
                     <div>
@@ -560,8 +559,14 @@ const Agenda: React.FC = () => {
                 </div>
 
                 {/* Weekly Calendar - Modern Design */}
-                <Card className="shadow-lg">
-                    <CardHeader className="border-b border-gray-200 bg-gray-50 py-2 px-4">
+                <Card
+                    className="shadow-lg border-r-0 rounded-none flex flex-col"
+                    style={{
+                        minHeight: 'calc(100vh - 100px)', // Ajusta '100px' si tu header/márgenes superiores ocupan más/menos
+                        height: 'calc(100vh - 100px)',   // Opcional, asegura altura mínima y fija
+                    }}
+                >
+                    <CardHeader className="border-b border-gray-200 bg-gray-50 py-2 px-4 rounded-none">
                         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 w-full">
                             {/* Left section: Navigation and Title */}
                             <div className="flex items-center gap-2 flex-shrink-0">
@@ -630,193 +635,204 @@ const Agenda: React.FC = () => {
                             </div>
                         </div>
                     </CardHeader>
-                    <CardBody className="p-0">
+                    <CardBody
+                        className="p-0 rounded-none flex-1 flex flex-col"
+                        style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            flex: 1,
+                            minHeight: 0,
+                            overflow: 'hidden',
+                        }}
+                    >
                         {appointmentsError && (
-                            <div className="p-4 bg-red-50 border-l-4 border-red-500 text-red-700">
+                            <div className="p-4 bg-red-50 border-l-4 border-red-500 text-red-700 rounded-none">
                                 <p className="font-semibold">Error al cargar citas</p>
                                 <p className="text-sm">{appointmentsError}</p>
                             </div>
                         )}
                         {isLoadingAppointments && !appointmentsError && (
-                            <div className="p-8 text-center">
+                            <div className="p-8 text-center rounded-none">
                                 <p className="text-gray-500">Cargando citas...</p>
                             </div>
                         )}
                         {!isLoadingAppointments && (
-                            <div className="overflow-x-auto">
-                            {/* Contenedor común para mantener el mismo ancho */}
-                            <div className="min-w-full w-full" style={{ position: 'relative' }}>
-                                {/* Header with days - Fijo en la parte superior */}
-                                <div 
-                                    className="grid border-b border-gray-200 bg-white sticky top-0 z-20"
-                                    style={{ 
-                                        gridTemplateColumns: '80px repeat(7, 1fr)',
-                                        boxSizing: 'border-box',
-                                        width: '100%',
-                                        paddingRight: `${scrollbarWidth}px` // Compensar el scrollbar del body
-                                    }}
-                                >
-                                    <div className="p-2 text-xs font-semibold text-gray-500 border-r border-gray-200">
-                                        Hora
-                                    </div>
-                                    {weekDays.map((day, index) => {
-                                        const isToday = day.toDateString() === new Date().toDateString();
-                                        const dayName = day.toLocaleDateString('es-PE', { weekday: 'short' }).toUpperCase();
-                                        const dayNumber = day.getDate();
-                                        return (
-                                            <div
-                                                key={index}
-                                                className={`p-2 text-center border-r border-gray-200 last:border-r-0 ${
-                                                    isToday ? 'bg-blue-50' : 'bg-white'
-                                                }`}
-                                            >
-                                                <div className={`text-sm font-semibold ${
-                                                    isToday 
-                                                        ? 'text-blue-600' 
-                                                        : 'text-gray-900'
-                                                }`}>
-                                                    {dayName} {dayNumber}
+                            <div className="overflow-x-auto rounded-none flex-1 flex flex-col min-h-0">
+                                {/* Contenedor común para mantener el mismo ancho */}
+                                <div className="min-w-full w-full flex-1 flex flex-col min-h-0" style={{ position: 'relative', minHeight: 0 }}>
+                                    {/* Header with days - Fijo en la parte superior */}
+                                    <div 
+                                        className="grid border-b border-gray-200 bg-white sticky top-0 z-20 rounded-none"
+                                        style={{ 
+                                            gridTemplateColumns: '80px repeat(7, 1fr)',
+                                            boxSizing: 'border-box',
+                                            width: '100%',
+                                            paddingRight: `${scrollbarWidth}px` // Compensar el scrollbar del body
+                                        }}
+                                    >
+                                        <div className="p-2 text-xs font-semibold text-gray-500 border-r border-gray-200">
+                                            Hora
+                                        </div>
+                                        {weekDays.map((day, index) => {
+                                            const isToday = day.toDateString() === new Date().toDateString();
+                                            const dayName = day.toLocaleDateString('es-PE', { weekday: 'short' }).toUpperCase();
+                                            const dayNumber = day.getDate();
+                                            return (
+                                                <div
+                                                    key={index}
+                                                    className={`p-2 text-center border-r border-gray-200 last:border-r-0 ${
+                                                        isToday ? 'bg-blue-50' : 'bg-white'
+                                                    }`}
+                                                >
+                                                    <div className={`text-sm font-semibold ${
+                                                        isToday 
+                                                            ? 'text-blue-600' 
+                                                            : 'text-gray-900'
+                                                    }`}>
+                                                        {dayName} {dayNumber}
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
+                                            );
+                                        })}
+                                    </div>
 
-                                {/* Time slots - Contenedor con scroll vertical */}
-                                <div 
-                                    className="relative overflow-y-auto overflow-x-hidden" 
-                                    style={{ 
-                                        maxHeight: 'calc(100vh - 300px)',
-                                        width: '100%'
-                                    }}
-                                >
-                                    {timeSlots.map((time, timeIndex) => (
-                                        <div 
-                                            key={time} 
-                                            className="grid border-b border-gray-100 hover:bg-gray-50 transition-colors"
-                                            style={{ 
-                                                gridTemplateColumns: '80px repeat(7, 1fr)',
-                                                boxSizing: 'border-box'
-                                            }}
-                                        >
+                                    {/* Time slots - Contenedor con scroll vertical */}
+                                    <div 
+                                        className="relative overflow-y-auto overflow-x-hidden flex-1 min-h-0"
+                                        style={{ 
+                                            // El CardBody/Flex asegura que esto siempre llene todo el espacio vertical disponible
+                                            height: '100%',
+                                            width: '100%',
+                                        }}
+                                    >
+                                        {timeSlots.map((time) => (
+                                            <div 
+                                                key={time} 
+                                                className="grid border-b border-gray-100 hover:bg-gray-50 transition-colors"
+                                                style={{ 
+                                                    gridTemplateColumns: '80px repeat(7, 1fr)',
+                                                    boxSizing: 'border-box'
+                                                }}
+                                            >
                                                 {/* Time label - Columna estrecha y sticky */}
                                                 <div className="p-2 text-xs font-medium text-gray-500 border-r border-gray-200 bg-gray-50 flex items-center justify-end pr-2 sticky left-0 z-10 shadow-sm">
                                                     {time}
                                                 </div>
 
-                                            {/* Columnas de días */}
-                                            {weekDays.map((day, dayIndex) => {
-                                                const isToday = day.toDateString() === new Date().toDateString();
-                                                
-                                                // Obtener citas para este día específico
-                                                const dayAppointments = filteredAppointments.filter(apt => {
-                                                    if (!apt.deliveryTime) return false;
+                                                {/* Columnas de días */}
+                                                {weekDays.map((day, dayIndex) => {
+                                                    const isToday = day.toDateString() === new Date().toDateString();
                                                     
-                                                    // Comparar fecha parseando directamente desde string YYYY-MM-DD
-                                                    const [aptYear, aptMonth, aptDay] = apt.deliveryDate.split('-').map(Number);
-                                                    const aptDate = new Date(aptYear, aptMonth - 1, aptDay);
-                                                    
-                                                    const dayDate = new Date(day.getFullYear(), day.getMonth(), day.getDate());
-                                                    
-                                                    return aptDate.getTime() === dayDate.getTime();
-                                                });
+                                                    // Obtener citas para este día específico
+                                                    const dayAppointments = filteredAppointments.filter(apt => {
+                                                        if (!apt.deliveryTime) return false;
+                                                        
+                                                        // Comparar fecha parseando directamente desde string YYYY-MM-DD
+                                                        const [aptYear, aptMonth, aptDay] = apt.deliveryDate.split('-').map(Number);
+                                                        const aptDate = new Date(aptYear, aptMonth - 1, aptDay);
+                                                        
+                                                        const dayDate = new Date(day.getFullYear(), day.getMonth(), day.getDate());
+                                                        
+                                                        return aptDate.getTime() === dayDate.getTime();
+                                                    });
 
-                                                return (
-                                                    <div
-                                                        key={dayIndex}
-                                                        className={`min-h-[60px] p-2 border-r border-gray-100 last:border-r-0 relative ${
-                                                            isToday ? 'bg-blue-50/40' : 'bg-white'
-                                                        } ${canCreateAppointment ? 'cursor-pointer hover:bg-gray-100' : ''}`}
-                                                        onClick={() => canCreateAppointment && handleSelectTimeSlot(day, time)}
-                                                    >
-                                                        {/* Mostrar citas que comienzan en este slot de tiempo */}
-                                                        {dayAppointments
-                                                            .filter(apt => {
-                                                                if (!apt.deliveryTime) return false;
-                                                                
-                                                                // Convertir hora de inicio de la cita a minutos
-                                                                const aptStartMinutes = timeToMinutes(apt.deliveryTime);
-                                                                // Convertir hora del slot actual a minutos
-                                                                const slotStartMinutes = timeToMinutes(time);
-                                                                const slotEndMinutes = slotStartMinutes + 60;
-                                                                
-                                                                // La cita se muestra en el slot donde comienza
-                                                                // Si la hora de inicio está dentro de este slot (entre inicio y fin del slot)
-                                                                return aptStartMinutes >= slotStartMinutes && aptStartMinutes < slotEndMinutes;
-                                                            })
-                                                            .map(apt => {
-                                                                // Calcular duración de la cita en minutos
-                                                                const startMinutes = timeToMinutes(apt.deliveryTime);
-                                                                const endMinutes = apt.deliveryTimeEnd 
-                                                                    ? timeToMinutes(apt.deliveryTimeEnd) 
-                                                                    : startMinutes + 60;
-                                                                const durationMinutes = endMinutes - startMinutes;
-                                                                
-                                                                // Calcular cuántos slots ocupa (cada slot es 60 minutos)
-                                                                const slotsToSpan = Math.ceil(durationMinutes / 60);
-                                                                
-                                                                // Calcular posición vertical dentro del slot
-                                                                // Si la cita empieza a las 10:47 y el slot es de 10:00, empieza 47 minutos después
-                                                                // Cada minuto = 1px (ya que cada slot de 60 minutos tiene 60px de altura)
-                                                                const slotStartMinutes = timeToMinutes(time);
-                                                                const offsetFromSlotStart = startMinutes - slotStartMinutes;
-                                                                const topOffset = offsetFromSlotStart; // 1px por minuto
-                                                                
-                                                                // Altura en píxeles: 1px por minuto de duración
-                                                                const heightPixels = durationMinutes;
-                                                                
-                                                                // Estilos según el estado de la cita
-                                                                const getStatusStyles = () => {
-                                                                    switch(apt.status) {
-                                                                        case 'ListaParaEntrega':
-                                                                            return 'bg-green-500 text-white border-green-600';
-                                                                        case 'Pendiente':
-                                                                            return 'bg-yellow-200 text-yellow-900 border-yellow-500';
-                                                                        case 'Completada':
-                                                                            return 'bg-gray-400 text-white border-gray-500';
-                                                                        case 'Cancelada':
-                                                                            return 'bg-red-400 text-white border-red-500';
-                                                                        default:
-                                                                            return 'bg-blue-300 text-white border-blue-500';
-                                                                    }
-                                                                };
+                                                    return (
+                                                        <div
+                                                            key={dayIndex}
+                                                            className={`min-h-[60px] p-2 border-r border-gray-100 last:border-r-0 relative ${
+                                                                isToday ? 'bg-blue-50/40' : 'bg-white'
+                                                            } ${canCreateAppointment ? 'cursor-pointer hover:bg-gray-100' : ''}`}
+                                                            onClick={() => canCreateAppointment && handleSelectTimeSlot(day, time)}
+                                                        >
+                                                            {/* Mostrar citas que comienzan en este slot de tiempo */}
+                                                            {dayAppointments
+                                                                .filter(apt => {
+                                                                    if (!apt.deliveryTime) return false;
+                                                                    
+                                                                    // Convertir hora de inicio de la cita a minutos
+                                                                    const aptStartMinutes = timeToMinutes(apt.deliveryTime);
+                                                                    // Convertir hora del slot actual a minutos
+                                                                    const slotStartMinutes = timeToMinutes(time);
+                                                                    const slotEndMinutes = slotStartMinutes + 60;
+                                                                    
+                                                                    // La cita se muestra en el slot donde comienza
+                                                                    // Si la hora de inicio está dentro de este slot (entre inicio y fin del slot)
+                                                                    return aptStartMinutes >= slotStartMinutes && aptStartMinutes < slotEndMinutes;
+                                                                })
+                                                                .map(apt => {
+                                                                    // Calcular duración de la cita en minutos
+                                                                    const startMinutes = timeToMinutes(apt.deliveryTime);
+                                                                    const endMinutes = apt.deliveryTimeEnd 
+                                                                        ? timeToMinutes(apt.deliveryTimeEnd) 
+                                                                        : startMinutes + 60;
+                                                                    const durationMinutes = endMinutes - startMinutes;
+                                                                    
+                                                                    // Calcular cuántos slots ocupa (cada slot es 60 minutos)
+                                                                    const slotsToSpan = Math.ceil(durationMinutes / 60);
+                                                                    
+                                                                    // Calcular posición vertical dentro del slot
+                                                                    // Si la cita empieza a las 10:47 y el slot es de 10:00, empieza 47 minutos después
+                                                                    // Cada minuto = 1px (ya que cada slot de 60 minutos tiene 60px de altura)
+                                                                    const slotStartMinutes = timeToMinutes(time);
+                                                                    const offsetFromSlotStart = startMinutes - slotStartMinutes;
+                                                                    const topOffset = offsetFromSlotStart; // 1px por minuto
+                                                                    
+                                                                    // Altura en píxeles: 1px por minuto de duración
+                                                                    const heightPixels = durationMinutes;
+                                                                    
+                                                                    // Estilos según el estado de la cita
+                                                                    const getStatusStyles = () => {
+                                                                        switch(apt.status) {
+                                                                            case 'ListaParaEntrega':
+                                                                                return 'bg-green-500 text-white border-green-600';
+                                                                            case 'Pendiente':
+                                                                                return 'bg-yellow-200 text-yellow-900 border-yellow-500';
+                                                                            case 'Completada':
+                                                                                return 'bg-gray-400 text-white border-gray-500';
+                                                                            case 'Cancelada':
+                                                                                return 'bg-red-400 text-white border-red-500';
+                                                                            default:
+                                                                                return 'bg-blue-300 text-white border-blue-500';
+                                                                        }
+                                                                    };
 
-                                                                return (
-                                                                    <div
-                                                                        key={apt.id}
-                                                                        className={`absolute left-1 right-1 rounded-md p-1.5 text-xs shadow-sm border-l-2 ${getStatusStyles()}`}
-                                                                        style={{
-                                                                            top: `${topOffset + 2}px`,
-                                                                            height: `${heightPixels - 4}px`,
-                                                                            zIndex: 10
-                                                                        }}
-                                                                        onClick={(e) => {
-                                                                            e.stopPropagation();
-                                                                            handleViewAppointment(apt);
-                                                                        }}
-                                                                    >
-                                                                        <div className="font-semibold truncate text-[10px] leading-tight">
-                                                                            {apt.supplierName}
-                                                                        </div>
-                                                                        <div className="text-[9px] opacity-90 mt-0.5">
-                                                                            {apt.deliveryTime} {apt.deliveryTimeEnd ? `- ${apt.deliveryTimeEnd}` : ''}
-                                                                        </div>
-                                                                        {slotsToSpan > 1 && (
-                                                                            <div className="text-[9px] opacity-75 mt-0.5 truncate">
-                                                                                {apt.appointmentNumber}
+                                                                    return (
+                                                                        <div
+                                                                            key={apt.id}
+                                                                            className={`absolute left-1 right-1 p-1.5 text-xs shadow-sm border-l-2 ${getStatusStyles()}`}
+                                                                            style={{
+                                                                                borderRadius: 0,
+                                                                                top: `${topOffset + 2}px`,
+                                                                                height: `${heightPixels - 4}px`,
+                                                                                zIndex: 10
+                                                                            }}
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                handleViewAppointment(apt);
+                                                                            }}
+                                                                        >
+                                                                            <div className="font-semibold truncate text-[10px] leading-tight">
+                                                                                {apt.supplierName}
                                                                             </div>
-                                                                        )}
-                                                                    </div>
-                                                                );
-                                                            })}
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    ))}
+                                                                            <div className="text-[9px] opacity-90 mt-0.5">
+                                                                                {apt.deliveryTime} {apt.deliveryTimeEnd ? `- ${apt.deliveryTimeEnd}` : ''}
+                                                                            </div>
+                                                                            {slotsToSpan > 1 && (
+                                                                                <div className="text-[9px] opacity-75 mt-0.5 truncate">
+                                                                                    {apt.appointmentNumber}
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
-                        </div>
                         )}
                     </CardBody>
                 </Card>
