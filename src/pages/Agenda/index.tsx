@@ -38,6 +38,7 @@ import { useAgendaStore } from "@/store/agendaStore";
 import { useAuth } from "@/store/authStore";
 import { UserRole } from "@/routes/menuTypes";
 import { DeliveryAppointment, PackingListItem } from "@/store/types";
+import AppointmentDetailModal from './AppointmentDetailModal';
 
 const Agenda: React.FC = () => {
     const { currentUser } = useAuth();
@@ -921,254 +922,26 @@ const Agenda: React.FC = () => {
                 </Modal>
 
                 {/* Appointment Detail Modal */}
-                <Modal isOpen={isDetailOpen} onOpenChange={onDetailOpenChange} size="4xl" scrollBehavior="inside">
-                    <ModalContent>
-                        {(onClose) => {
-                            const appointment = selectedAppointment;
-                            if (!appointment) return null;
+                
 
-                            return (
-                                <>
-                                    <ModalHeader>
-                                        <div className="flex items-center justify-between w-full">
-                                            <div>
-                                                <h3 className="text-xl font-semibold">Cita #{appointment.appointmentNumber}</h3>
-                                                <p className="text-sm text-gray-500">{appointment.supplierName}</p>
-                                            </div>
-                                            <Chip
-                                                color={getStatusColor(appointment.status)}
-                                                startContent={getStatusIcon(appointment.status)}
-                                            >
-                                                {appointment.status}
-                                            </Chip>
-                                        </div>
-                                    </ModalHeader>
-                                    <ModalBody>
-                                        <div className="space-y-6">
-                                            {/* Details Section */}
-                                            <div>
-                                                <h3 className="text-lg font-semibold mb-4">Detalles</h3>
-                                                <div className="grid grid-cols-2 gap-4">
-                                                    <div>
-                                                        <p className="text-sm text-gray-600">Proveedor</p>
-                                                        <p className="font-semibold">{appointment.supplierName}</p>
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-sm text-gray-600">RUC</p>
-                                                        <p className="font-semibold">{appointment.supplierRUC}</p>
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-sm text-gray-600">Fecha de Entrega</p>
-                                                        <p className="font-semibold">
-                                                            {new Date(appointment.deliveryDate).toLocaleDateString('es-PE')} 
-                                                            {' '} {appointment.deliveryTime} {appointment.deliveryTimeEnd ? `- ${appointment.deliveryTimeEnd}` : ''}
-                                                        </p>
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-sm text-gray-600">Almacén</p>
-                                                        <p className="font-semibold">{appointment.warehouse || 'N/A'}</p>
-                                                    </div>
-                                                    {appointment.notes && (
-                                                        <div className="col-span-2">
-                                                            <p className="text-sm text-gray-600">Notas</p>
-                                                            <p className="font-semibold">{appointment.notes}</p>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
-
-                                            {/* PackingList Section */}
-                                            <div>
-                                                <h3 className="text-lg font-semibold mb-4">PackingList</h3>
-                                                {appointment.packingList ? (
-                                                    <div className="space-y-4">
-                                                        <div className="flex justify-between items-center">
-                                                            <p className="text-sm text-gray-600">PackingList completado</p>
-                                                            <Chip color="success" size="sm">Completado</Chip>
-                                                        </div>
-                                                        <div className="space-y-2">
-                                                            <p className="font-semibold">Items:</p>
-                                                            <Table>
-                                                                <TableHeader>
-                                                                    <TableColumn>Código</TableColumn>
-                                                                    <TableColumn>Producto</TableColumn>
-                                                                    <TableColumn>Cantidad</TableColumn>
-                                                                    <TableColumn>Unidad</TableColumn>
-                                                                </TableHeader>
-                                                                <TableBody>
-                                                                    {appointment.packingList.items.map((item) => (
-                                                                        <TableRow key={item.id}>
-                                                                            <TableCell>{item.productCode}</TableCell>
-                                                                            <TableCell>{item.productName}</TableCell>
-                                                                            <TableCell>{item.quantity}</TableCell>
-                                                                            <TableCell>{item.unit}</TableCell>
-                                                                        </TableRow>
-                                                                    ))}
-                                                                </TableBody>
-                                                            </Table>
-                                                            {appointment.packingList.comment && (
-                                                                <div>
-                                                                    <p className="text-sm text-gray-600">Comentario:</p>
-                                                                    <p>{appointment.packingList.comment}</p>
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                ) : (
-                                                    <div className="text-center py-8">
-                                                        <p className="text-gray-500 mb-4">PackingList no completado</p>
-                                                        {(currentUser?.role === UserRole.ADMIN || 
-                                                          currentUser?.role === UserRole.COMPRAS || 
-                                                          currentUser?.role === UserRole.ALMACEN) && (
-                                                            <Button
-                                                                color="primary"
-                                                                onPress={() => {
-                                                                    onDetailOpenChange();
-                                                                    onPackingListOpen();
-                                                                }}
-                                                            >
-                                                                Crear PackingList
-                                                            </Button>
-                                                        )}
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            {/* Transport Section */}
-                                            <div>
-                                                <h3 className="text-lg font-semibold mb-4">Transporte</h3>
-                                                {appointment.transportData ? (
-                                                    <div className="space-y-4">
-                                                        <div className="grid grid-cols-2 gap-4">
-                                                            <div>
-                                                                <p className="text-sm text-gray-600">Transportista</p>
-                                                                <p className="font-semibold">{appointment.transportData.transportCompany || 'N/A'}</p>
-                                                            </div>
-                                                            <div>
-                                                                <p className="text-sm text-gray-600">Conductor</p>
-                                                                <p className="font-semibold">{appointment.transportData.driverName}</p>
-                                                            </div>
-                                                            <div>
-                                                                <p className="text-sm text-gray-600">Placa</p>
-                                                                <p className="font-semibold">{appointment.transportData.vehiclePlate}</p>
-                                                            </div>
-                                                            <div>
-                                                                <p className="text-sm text-gray-600">Teléfono</p>
-                                                                <p className="font-semibold">{appointment.transportData.contactPhone}</p>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                ) : (
-                                                    <div className="text-center py-8">
-                                                        <p className="text-gray-500 mb-4">Datos de transporte no completados</p>
-                                                        {currentUser?.role === UserRole.PROVEEDOR && (
-                                                            <Button
-                                                                color="primary"
-                                                                onPress={() => {
-                                                                    onDetailOpenChange();
-                                                                    onTransportOpen();
-                                                                }}
-                                                            >
-                                                                Completar Datos de Transporte
-                                                            </Button>
-                                                        )}
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            {/* Documents Section */}
-                                            <div>
-                                                <h3 className="text-lg font-semibold mb-4">Documentos</h3>
-                                                {appointment.documents ? (
-                                                    <div className="space-y-4">
-                                                        <div className="grid grid-cols-2 gap-4">
-                                                            <div>
-                                                                <p className="text-sm text-gray-600 mb-2">Factura</p>
-                                                                {appointment.documents.invoice ? (
-                                                                    <Chip color="success" size="sm">Cargado</Chip>
-                                                                ) : (
-                                                                    <Chip color="warning" size="sm">Pendiente</Chip>
-                                                                )}
-                                                            </div>
-                                                            <div>
-                                                                <p className="text-sm text-gray-600 mb-2">Orden de Compra</p>
-                                                                {appointment.documents.purchaseOrder ? (
-                                                                    <Chip color="success" size="sm">Cargado</Chip>
-                                                                ) : (
-                                                                    <Chip color="warning" size="sm">Pendiente</Chip>
-                                                                )}
-                                                            </div>
-                                                            <div>
-                                                                <p className="text-sm text-gray-600 mb-2">Guía de Remisión</p>
-                                                                {appointment.documents.deliveryGuide ? (
-                                                                    <Chip color="success" size="sm">Cargado</Chip>
-                                                                ) : (
-                                                                    <Chip color="warning" size="sm">Pendiente</Chip>
-                                                                )}
-                                                            </div>
-                                                            <div>
-                                                                <p className="text-sm text-gray-600 mb-2">CDR</p>
-                                                                {appointment.documents.cdr ? (
-                                                                    <Chip color="success" size="sm">Cargado</Chip>
-                                                                ) : (
-                                                                    <Chip color="warning" size="sm">Pendiente</Chip>
-                                                                )}
-                                                            </div>
-                                                            <div>
-                                                                <p className="text-sm text-gray-600 mb-2">XML</p>
-                                                                {appointment.documents.xml ? (
-                                                                    <Chip color="success" size="sm">Cargado</Chip>
-                                                                ) : (
-                                                                    <Chip color="warning" size="sm">Pendiente</Chip>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                        {appointment.documents.completed && (
-                                                            <Chip color="success" className="mt-4">
-                                                                Todos los documentos completados
-                                                            </Chip>
-                                                        )}
-                                                        {!appointment.documents.completed && currentUser?.role === UserRole.PROVEEDOR && (
-                                                            <Button
-                                                                color="primary"
-                                                                onPress={() => {
-                                                                    onDetailOpenChange();
-                                                                    onDocumentsOpen();
-                                                                }}
-                                                            >
-                                                                Cargar Documentos Faltantes
-                                                            </Button>
-                                                        )}
-                                                    </div>
-                                                ) : (
-                                                    <div className="text-center py-8">
-                                                        <p className="text-gray-500 mb-4">Documentos no cargados</p>
-                                                        {currentUser?.role === UserRole.PROVEEDOR && (
-                                                            <Button
-                                                                color="primary"
-                                                                onPress={() => {
-                                                                    onDetailOpenChange();
-                                                                    onDocumentsOpen();
-                                                                }}
-                                                            >
-                                                                Cargar Documentos
-                                                            </Button>
-                                                        )}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </ModalBody>
-                                    <ModalFooter>
-                                        <Button variant="light" onPress={onClose}>
-                                            Cerrar
-                                        </Button>
-                                    </ModalFooter>
-                                </>
-                            );
-                        }}
-                    </ModalContent>
-                </Modal>
+                <AppointmentDetailModal
+                    isOpen={isDetailOpen}
+                    onOpenChange={onDetailOpenChange}
+                    appointment={selectedAppointment}
+                    currentUserRole={currentUser?.role || UserRole.ADMIN}
+                    onOpenPackingList={() => {
+                        onDetailOpenChange();
+                        onPackingListOpen();
+                    }}
+                    onOpenTransport={() => {
+                        onDetailOpenChange();
+                        onTransportOpen();
+                    }}
+                    onOpenDocuments={() => {
+                        onDetailOpenChange();
+                        onDocumentsOpen();
+                    }}
+                />
 
                 {/* PackingList Modal */}
                 <Modal isOpen={isPackingListOpen} onOpenChange={onPackingListOpenChange} size="4xl" scrollBehavior="inside">
