@@ -68,6 +68,7 @@ const Agenda: React.FC = () => {
     const [supplierData, setSupplierData] = useState<any>(null);
     const [packingListItems, setPackingListItems] = useState<PackingListItem[]>([]);
     const [filterStatus, setFilterStatus] = useState<string>('all');
+    const [scrollbarWidth, setScrollbarWidth] = useState<number>(0);
 
     // Modals
     const { isOpen: isScheduleOpen, onOpen: onScheduleOpen, onOpenChange: onScheduleOpenChange } = useDisclosure();
@@ -126,6 +127,33 @@ const Agenda: React.FC = () => {
 
     // Memoize week dates to prevent infinite loops
     const { start: weekStart, end: weekEnd } = useMemo(() => getWeekDates(currentWeek), [currentWeek]);
+
+    // Calcular el ancho del scrollbar
+    useEffect(() => {
+        const calculateScrollbarWidth = () => {
+            // Crear un elemento temporal para medir el scrollbar
+            const outer = document.createElement('div');
+            outer.style.visibility = 'hidden';
+            outer.style.overflow = 'scroll';
+            outer.style.width = '100px';
+            outer.style.position = 'absolute';
+            outer.style.top = '-9999px';
+            document.body.appendChild(outer);
+
+            const inner = document.createElement('div');
+            inner.style.width = '100%';
+            outer.appendChild(inner);
+
+            const scrollbarWidth = outer.offsetWidth - inner.offsetWidth;
+            document.body.removeChild(outer);
+
+            setScrollbarWidth(scrollbarWidth);
+        };
+
+        calculateScrollbarWidth();
+        window.addEventListener('resize', calculateScrollbarWidth);
+        return () => window.removeEventListener('resize', calculateScrollbarWidth);
+    }, []);
 
     // Load appointments from API when component mounts or week changes
     useEffect(() => {
@@ -531,71 +559,75 @@ const Agenda: React.FC = () => {
                     )}
                 </div>
 
-                {/* Filters */}
-                <Card>
-                    <CardBody className="flex flex-row gap-4 items-center">
-                        <Select
-                            label="Filtrar por estado"
-                            selectedKeys={[filterStatus]}
-                            onSelectionChange={(keys) => setFilterStatus(Array.from(keys)[0] as string)}
-                            className="max-w-xs"
-                        >
-                            <SelectItem key="all" >Todos</SelectItem>
-                            <SelectItem key="Pendiente" >Pendiente</SelectItem>
-                            <SelectItem key="PackingListCompletado" >PackingList Completado</SelectItem>
-                            <SelectItem key="TransporteCompletado" >Transporte Completado</SelectItem>
-                            <SelectItem key="ListaParaEntrega" >Lista para Entrega</SelectItem>
-                            <SelectItem key="Completada" >Completada</SelectItem>
-                        </Select>
-                    </CardBody>
-                </Card>
-
                 {/* Weekly Calendar - Modern Design */}
                 <Card className="shadow-lg">
-                    <CardHeader className="flex justify-between items-center border-b border-gray-200 bg-gray-50">
-                        <div className="flex items-center gap-4">
-                            <Button
-                                isIconOnly
-                                variant="light"
-                                size="sm"
-                                onPress={goToPreviousWeek}
-                                className="hover:bg-gray-200"
-                                isDisabled={isLoadingAppointments}
-                            >
-                                <ArrowLeftIcon className="w-5 h-5" />
-                            </Button>
-                            <h2 className="text-xl font-bold text-gray-900">
-                                {weekStart.toLocaleDateString('es-PE', { month: 'long', year: 'numeric' })}
-                            </h2>
-                            <Button
-                                isIconOnly
-                                variant="light"
-                                size="sm"
-                                onPress={goToNextWeek}
-                                className="hover:bg-gray-200"
-                                isDisabled={isLoadingAppointments}
-                            >
-                                <ArrowRightIcon className="w-5 h-5" />
-                            </Button>
-                            <Button
-                                variant="light"
-                                size="sm"
-                                onPress={goToToday}
-                                className="ml-2"
-                                isDisabled={isLoadingAppointments}
-                            >
-                                Hoy
-                            </Button>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            {isLoadingAppointments && (
-                                <Chip color="primary" variant="flat" size="sm">
-                                    Cargando...
+                    <CardHeader className="border-b border-gray-200 bg-gray-50 py-2 px-4">
+                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 w-full">
+                            {/* Left section: Navigation and Title */}
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                                <Button
+                                    isIconOnly
+                                    variant="light"
+                                    size="sm"
+                                    onPress={goToPreviousWeek}
+                                    className="hover:bg-gray-200"
+                                    isDisabled={isLoadingAppointments}
+                                >
+                                    <ArrowLeftIcon className="w-5 h-5" />
+                                </Button>
+                                <span className="block min-w-[160px] px-2 text-center">
+                                    <h2 className="text-xl font-bold text-gray-900 whitespace-nowrap leading-none">
+                                        {weekStart.toLocaleDateString('es-PE', { month: 'long', year: 'numeric' })}
+                                    </h2>
+                                </span>
+                                <Button
+                                    isIconOnly
+                                    variant="light"
+                                    size="sm"
+                                    onPress={goToNextWeek}
+                                    className="hover:bg-gray-200"
+                                    isDisabled={isLoadingAppointments}
+                                >
+                                    <ArrowRightIcon className="w-5 h-5" />
+                                </Button>
+                                <Button
+                                    variant="light"
+                                    size="sm"
+                                    onPress={goToToday}
+                                    className="ml-2"
+                                    isDisabled={isLoadingAppointments}
+                                >
+                                    Hoy
+                                </Button>
+                            </div>
+                            {/* Center section: Status Filter */}
+                            <div className="flex items-center flex-1 min-w-[180px] justify-center">
+                                <Select
+                                    label="Estado"
+                                    selectedKeys={[filterStatus]}
+                                    onSelectionChange={(keys) => setFilterStatus(Array.from(keys)[0] as string)}
+                                    className="max-w-xs min-w-[170px]"
+                                    size="sm"
+                                >
+                                    <SelectItem key="all" >Todos</SelectItem>
+                                    <SelectItem key="Pendiente" >Pendiente</SelectItem>
+                                    <SelectItem key="PackingListCompletado" >PackingList Completado</SelectItem>
+                                    <SelectItem key="TransporteCompletado" >Transporte Completado</SelectItem>
+                                    <SelectItem key="ListaParaEntrega" >Lista para Entrega</SelectItem>
+                                    <SelectItem key="Completada" >Completada</SelectItem>
+                                </Select>
+                            </div>
+                            {/* Right section: Info */}
+                            <div className="flex items-center gap-2 flex-shrink-0 justify-end min-w-[150px]">
+                                {isLoadingAppointments && (
+                                    <Chip color="primary" variant="flat" size="sm">
+                                        Cargando...
+                                    </Chip>
+                                )}
+                                <Chip color="primary" variant="flat" size="lg">
+                                    {filteredAppointments.length} {filteredAppointments.length === 1 ? 'cita' : 'citas'} esta semana
                                 </Chip>
-                            )}
-                            <Chip color="primary" variant="flat" size="lg">
-                                {filteredAppointments.length} {filteredAppointments.length === 1 ? 'cita' : 'citas'} esta semana
-                            </Chip>
+                            </div>
                         </div>
                     </CardHeader>
                     <CardBody className="p-0">
@@ -612,44 +644,65 @@ const Agenda: React.FC = () => {
                         )}
                         {!isLoadingAppointments && (
                             <div className="overflow-x-auto">
-                            <div className="min-w-full">
-                                {/* Header with days */}
-                                <div className="grid grid-cols-8 border-b border-gray-200 bg-white sticky top-0 z-10">
-                                    <div className="p-3 text-sm font-semibold text-gray-500 border-r border-gray-200">
+                            {/* Contenedor común para mantener el mismo ancho */}
+                            <div className="min-w-full w-full" style={{ position: 'relative' }}>
+                                {/* Header with days - Fijo en la parte superior */}
+                                <div 
+                                    className="grid border-b border-gray-200 bg-white sticky top-0 z-20"
+                                    style={{ 
+                                        gridTemplateColumns: '80px repeat(7, 1fr)',
+                                        boxSizing: 'border-box',
+                                        width: '100%',
+                                        paddingRight: `${scrollbarWidth}px` // Compensar el scrollbar del body
+                                    }}
+                                >
+                                    <div className="p-2 text-xs font-semibold text-gray-500 border-r border-gray-200">
                                         Hora
                                     </div>
                                     {weekDays.map((day, index) => {
                                         const isToday = day.toDateString() === new Date().toDateString();
+                                        const dayName = day.toLocaleDateString('es-PE', { weekday: 'short' }).toUpperCase();
+                                        const dayNumber = day.getDate();
                                         return (
                                             <div
                                                 key={index}
-                                                className={`p-3 text-center border-r border-gray-200 last:border-r-0 ${
+                                                className={`p-2 text-center border-r border-gray-200 last:border-r-0 ${
                                                     isToday ? 'bg-blue-50' : 'bg-white'
                                                 }`}
                                             >
-                                                <div className="text-xs font-medium text-gray-500 uppercase">
-                                                    {day.toLocaleDateString('es-PE', { weekday: 'short' })}
-                                                </div>
-                                                <div className={`text-lg font-bold mt-1 ${
+                                                <div className={`text-sm font-semibold ${
                                                     isToday 
                                                         ? 'text-blue-600' 
                                                         : 'text-gray-900'
                                                 }`}>
-                                                    {day.getDate()}
+                                                    {dayName} {dayNumber}
                                                 </div>
                                             </div>
                                         );
                                     })}
                                 </div>
 
-                                {/* Time slots */}
-                                <div className="relative">
+                                {/* Time slots - Contenedor con scroll vertical */}
+                                <div 
+                                    className="relative overflow-y-auto overflow-x-hidden" 
+                                    style={{ 
+                                        maxHeight: 'calc(100vh - 300px)',
+                                        width: '100%'
+                                    }}
+                                >
                                     {timeSlots.map((time, timeIndex) => (
-                                        <div key={time} className="grid grid-cols-8 border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                                            {/* Time label */}
-                                            <div className="p-2 text-xs font-medium text-gray-500 border-r border-gray-200 bg-gray-50 flex items-center justify-end pr-3">
-                                                {time}
-                                            </div>
+                                        <div 
+                                            key={time} 
+                                            className="grid border-b border-gray-100 hover:bg-gray-50 transition-colors"
+                                            style={{ 
+                                                gridTemplateColumns: '80px repeat(7, 1fr)',
+                                                boxSizing: 'border-box'
+                                            }}
+                                        >
+                                                {/* Time label - Columna estrecha y sticky */}
+                                                <div className="p-2 text-xs font-medium text-gray-500 border-r border-gray-200 bg-gray-50 flex items-center justify-end pr-2 sticky left-0 z-10 shadow-sm">
+                                                    {time}
+                                                </div>
 
                                             {/* Columnas de días */}
                                             {weekDays.map((day, dayIndex) => {
@@ -671,7 +724,7 @@ const Agenda: React.FC = () => {
                                                 return (
                                                     <div
                                                         key={dayIndex}
-                                                        className={`min-h-[60px] p-1 border-r border-gray-100 last:border-r-0 relative ${
+                                                        className={`min-h-[60px] p-2 border-r border-gray-100 last:border-r-0 relative ${
                                                             isToday ? 'bg-blue-50/40' : 'bg-white'
                                                         } ${canCreateAppointment ? 'cursor-pointer hover:bg-gray-100' : ''}`}
                                                         onClick={() => canCreateAppointment && handleSelectTimeSlot(day, time)}
