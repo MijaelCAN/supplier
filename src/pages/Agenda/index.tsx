@@ -1,5 +1,5 @@
 // src/pages/Agenda/index.tsx
-import React, { useState, useMemo } from 'react';
+import React, {useState, useMemo, useEffect} from 'react';
 import {
     Button,
     Card,
@@ -44,13 +44,17 @@ const Agenda: React.FC = () => {
     const {
         appointments,
         selectedAppointment,
+        isLoadingAppointments,
+        appointmentsError,
         addAppointment,
         updateAppointment,
         setSelectedAppointment,
         lookupSupplierByRUC,
         addPackingList,
         addTransportData,
-        addDocument
+        addDocument,
+        loadAppointmentsFromApi,
+        createAppointmentFromApi
     } = useAgendaStore();
 
     // State
@@ -59,6 +63,7 @@ const Agenda: React.FC = () => {
     const [, setSelectedTimeSlot] = useState<string | null>(null);
     const [rucSearch, setRucSearch] = useState('');
     const [isLookingUp, setIsLookingUp] = useState(false);
+    const [isCreatingAppointment, setIsCreatingAppointment] = useState(false);
     const [supplierData, setSupplierData] = useState<any>(null);
     const [packingListItems, setPackingListItems] = useState<PackingListItem[]>([]);
     const [filterStatus, setFilterStatus] = useState<string>('all');
@@ -118,7 +123,26 @@ const Agenda: React.FC = () => {
         return { start, end };
     };
 
-    const { start: weekStart, end: weekEnd } = getWeekDates(currentWeek);
+    // Memoize week dates to prevent infinite loops
+    const { start: weekStart, end: weekEnd } = useMemo(() => getWeekDates(currentWeek), [currentWeek]);
+
+    // Load appointments from API when component mounts or week changes
+    useEffect(() => {
+        const loadAppointments = async () => {
+            // Obtener RUC del usuario si es proveedor
+            const ruc = currentUser?.role === UserRole.PROVEEDOR && currentUser.supplierId 
+                ? currentUser.supplierId 
+                : undefined;
+            
+            // Cargar citas para el rango de la semana actual
+            await loadAppointmentsFromApi(ruc, weekStart, weekEnd);
+        };
+
+        loadAppointments();
+        // Dependencias: solo valores primitivos que realmente cambian
+        // weekStart y weekEnd están memoizados basados en currentWeek, así que currentWeek.getTime() es suficiente
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [currentWeek.getTime(), currentUser?.id, currentUser?.role, currentUser?.supplierId]);
 
     // Get days of the week
     const weekDays = useMemo(() => {
@@ -132,13 +156,14 @@ const Agenda: React.FC = () => {
         return days;
     }, [weekStart]);
 
-    // Time slots
-    const timeSlots = [
-        '08:00', '09:00', '10:00', '11:00',
-        '12:00', '13:00', '14:00', '15:00',
-        '16:00', '17:00', '18:00', '19:00',
-        '20:00', '21:00', '22:00', '23:00',
-    ];
+    // Time slots - expandido para cubrir 24 horas
+    const timeSlots = useMemo(() => {
+        const slots = [];
+        for (let hour = 0; hour < 24; hour++) {
+            slots.push(`${String(hour).padStart(2, '0')}:00`);
+        }
+        return slots;
+    }, []);
 
     // Filter appointments based on user role
     const filteredAppointments = useMemo(() => {
@@ -154,11 +179,27 @@ const Agenda: React.FC = () => {
             filtered = filtered.filter(apt => apt.status === filterStatus);
         }
 
-        // Filter by week
+        // Filter by week - comparar solo fechas (sin hora) para evitar problemas de zona horaria
         filtered = filtered.filter(apt => {
             const aptDate = new Date(apt.deliveryDate);
-            return aptDate >= weekStart && aptDate <= weekEnd;
+            aptDate.setHours(0, 0, 0, 0);
+            const start = new Date(weekStart);
+            start.setHours(0, 0, 0, 0);
+            const end = new Date(weekEnd);
+            end.setHours(23, 59, 59, 999);
+            return aptDate >= start && aptDate <= end;
         });
+
+        // Debug: Log filtered appointments
+        if (filtered.length > 0) {
+            console.log('Citas filtradas:', filtered.map(apt => ({
+                id: apt.id,
+                fecha: apt.deliveryDate,
+                horaInicio: apt.deliveryTime,
+                horaFin: apt.deliveryTimeEnd,
+                proveedor: apt.supplierName
+            })));
+        }
 
         return filtered;
     }, [appointments, currentUser, filterStatus, weekStart, weekEnd]);
@@ -206,7 +247,7 @@ const Agenda: React.FC = () => {
         const conflictingAppointments = filteredAppointments.filter(apt => {
             // Skip the appointment being edited
             if (excludeAppointmentId && apt.id === excludeAppointmentId) return false;
-            
+
             const aptDate = new Date(apt.deliveryDate);
             const isSameDay = aptDate.toDateString() === date.toDateString();
             
@@ -224,11 +265,15 @@ const Agenda: React.FC = () => {
 
     // Navigate weeks
     const goToPreviousWeek = () => {
-        setCurrentWeek(new Date(currentWeek.setDate(currentWeek.getDate() - 7)));
+        const newDate = new Date(currentWeek);
+        newDate.setDate(newDate.getDate() - 7);
+        setCurrentWeek(newDate);
     };
 
     const goToNextWeek = () => {
-        setCurrentWeek(new Date(currentWeek.setDate(currentWeek.getDate() + 7)));
+        const newDate = new Date(currentWeek);
+        newDate.setDate(newDate.getDate() + 7);
+        setCurrentWeek(newDate);
     };
 
     const goToToday = () => {
@@ -241,7 +286,7 @@ const Agenda: React.FC = () => {
 
         setIsLookingUp(true);
         try {
-            const result = await lookupSupplierByRUC(rucSearch);
+            const result = await lookupSupplierByRUC(`P${rucSearch}`);
             if (result.success && result.data) {
                 setSupplierData(result.data);
                 setScheduleForm(prev => ({
@@ -263,7 +308,7 @@ const Agenda: React.FC = () => {
     };
 
     // Handle schedule appointment
-    const handleScheduleAppointment = () => {
+    const handleScheduleAppointment = async () => {
         if (!scheduleForm.deliveryDate || !scheduleForm.deliveryTime || !scheduleForm.deliveryTimeEnd || !scheduleForm.supplierId) {
             alert('Por favor complete todos los campos requeridos');
             return;
@@ -284,40 +329,46 @@ const Agenda: React.FC = () => {
             return;
         }
 
-        const newAppointment = addAppointment({
-            supplierId: scheduleForm.supplierId,
-            supplierRUC: scheduleForm.supplierRUC,
-            supplierName: scheduleForm.supplierName,
-            supplierEmail: scheduleForm.supplierEmail,
-            supplierPhone: scheduleForm.supplierPhone,
-            deliveryDate: scheduleForm.deliveryDate,
-            deliveryTime: scheduleForm.deliveryTime,
-            deliveryTimeEnd: scheduleForm.deliveryTimeEnd,
-            status: 'Pendiente',
-            warehouse: scheduleForm.warehouse,
-            notes: scheduleForm.notes,
-            createdBy: currentUser?.id || 'system'
-        });
+        setIsCreatingAppointment(true);
+        try {
+            // Crear la cita en el API
+            const newAppointment = await createAppointmentFromApi({
+                supplierRUC: scheduleForm.supplierRUC,
+                supplierName: scheduleForm.supplierName,
+                deliveryDate: scheduleForm.deliveryDate,
+                deliveryTime: scheduleForm.deliveryTime,
+                deliveryTimeEnd: scheduleForm.deliveryTimeEnd,
+                description: scheduleForm.notes,
+                warehouse: scheduleForm.warehouse,
+                active: 'Y'
+            });
 
-        // Simulate notification
-        alert(`Cita programada exitosamente. Número de cita: ${newAppointment.appointmentNumber}`);
-        
-        // Reset form
-        setScheduleForm({
-            supplierRUC: '',
-            supplierId: '',
-            supplierName: '',
-            supplierEmail: '',
-            supplierPhone: '',
-            deliveryDate: '',
-            deliveryTime: '',
-            deliveryTimeEnd: '',
-            warehouse: '',
-            notes: ''
-        });
-        setSupplierData(null);
-        setRucSearch('');
-        onScheduleOpenChange();
+            // Mostrar mensaje de éxito
+            alert(`Cita programada exitosamente. Número de cita: ${newAppointment.appointmentNumber}`);
+            
+            // Reset form
+            setScheduleForm({
+                supplierRUC: '',
+                supplierId: '',
+                supplierName: '',
+                supplierEmail: '',
+                supplierPhone: '',
+                deliveryDate: '',
+                deliveryTime: '',
+                deliveryTimeEnd: '',
+                warehouse: '',
+                notes: ''
+            });
+            setSupplierData(null);
+            setRucSearch('');
+            onScheduleOpenChange();
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Error al crear la cita';
+            alert(`Error al crear la cita: ${errorMessage}`);
+            console.error('Error al crear cita:', error);
+        } finally {
+            setIsCreatingAppointment(false);
+        }
     };
 
     // Handle select time slot - opens modal with pre-filled date and start time
@@ -505,6 +556,7 @@ const Agenda: React.FC = () => {
                                 size="sm"
                                 onPress={goToPreviousWeek}
                                 className="hover:bg-gray-200"
+                                isDisabled={isLoadingAppointments}
                             >
                                 <ArrowLeftIcon className="w-5 h-5" />
                             </Button>
@@ -517,6 +569,7 @@ const Agenda: React.FC = () => {
                                 size="sm"
                                 onPress={goToNextWeek}
                                 className="hover:bg-gray-200"
+                                isDisabled={isLoadingAppointments}
                             >
                                 <ArrowRightIcon className="w-5 h-5" />
                             </Button>
@@ -525,16 +578,36 @@ const Agenda: React.FC = () => {
                                 size="sm"
                                 onPress={goToToday}
                                 className="ml-2"
+                                isDisabled={isLoadingAppointments}
                             >
                                 Hoy
                             </Button>
                         </div>
-                        <Chip color="primary" variant="flat" size="lg">
-                            {filteredAppointments.length} {filteredAppointments.length === 1 ? 'cita' : 'citas'} esta semana
-                        </Chip>
+                        <div className="flex items-center gap-2">
+                            {isLoadingAppointments && (
+                                <Chip color="primary" variant="flat" size="sm">
+                                    Cargando...
+                                </Chip>
+                            )}
+                            <Chip color="primary" variant="flat" size="lg">
+                                {filteredAppointments.length} {filteredAppointments.length === 1 ? 'cita' : 'citas'} esta semana
+                            </Chip>
+                        </div>
                     </CardHeader>
                     <CardBody className="p-0">
-                        <div className="overflow-x-auto">
+                        {appointmentsError && (
+                            <div className="p-4 bg-red-50 border-l-4 border-red-500 text-red-700">
+                                <p className="font-semibold">Error al cargar citas</p>
+                                <p className="text-sm">{appointmentsError}</p>
+                            </div>
+                        )}
+                        {isLoadingAppointments && !appointmentsError && (
+                            <div className="p-8 text-center">
+                                <p className="text-gray-500">Cargando citas...</p>
+                            </div>
+                        )}
+                        {!isLoadingAppointments && (
+                            <div className="overflow-x-auto">
                             <div className="min-w-full">
                                 {/* Header with days */}
                                 <div className="grid grid-cols-8 border-b border-gray-200 bg-white sticky top-0 z-10">
@@ -571,18 +644,24 @@ const Agenda: React.FC = () => {
                                         <div key={time} className="grid grid-cols-8 border-b border-gray-100 hover:bg-gray-50 transition-colors">
                                             {/* Time label */}
                                             <div className="p-2 text-xs font-medium text-gray-500 border-r border-gray-200 bg-gray-50 flex items-center justify-end pr-3">
-                                                {time}{timeIndex}
+                                                {time}
                                             </div>
 
                                             {/* Day columns */}
                                             {weekDays.map((day, dayIndex) => {
-                                                const slotAppointments = getAppointmentsForSlot(day, time);
                                                 const isToday = day.toDateString() === new Date().toDateString();
-                                                console.log("SslotAppointments", slotAppointments)
                                                 // Get all appointments for this day to check if this slot is the start
                                                 const dayAppointments = filteredAppointments.filter(apt => {
+                                                    if (!apt.deliveryTime) return false;
+                                                    
+                                                    // Comparar solo la fecha (sin hora) para evitar problemas de zona horaria
+                                                    console.log("FECHA ENTREGA: ", apt.scheduledDateTime)
                                                     const aptDate = new Date(apt.deliveryDate);
-                                                    return aptDate.toDateString() === day.toDateString() && apt.deliveryTime;
+                                                    aptDate.setHours(0, 0, 0, 0);
+                                                    const dayDate = new Date(day);
+                                                    dayDate.setHours(0, 0, 0, 0);
+                                                    
+                                                    return aptDate.getTime() === dayDate.getTime();
                                                 });
 
                                                 return (
@@ -596,9 +675,22 @@ const Agenda: React.FC = () => {
                                                         {/* Render appointments that start at this time slot */}
                                                         {dayAppointments
                                                             .filter(apt => {
+                                                                if (!apt.deliveryTime) return false;
                                                                 const aptStartMinutes = timeToMinutes(apt.deliveryTime);
                                                                 const currentSlotMinutes = timeToMinutes(time);
-                                                                return aptStartMinutes === currentSlotMinutes;
+                                                                
+                                                                // Mostrar la cita si comienza exactamente en este slot
+                                                                // O si la hora de inicio está dentro de este slot (redondeando hacia abajo)
+                                                                const slotStartMinutes = currentSlotMinutes;
+                                                                const slotEndMinutes = currentSlotMinutes + 60;
+                                                                
+                                                                // La cita se muestra en el slot donde comienza
+                                                                // Si la hora de inicio está entre el inicio y fin de este slot, mostrarla aquí
+                                                                if (aptStartMinutes >= slotStartMinutes && aptStartMinutes < slotEndMinutes) {
+                                                                    return true;
+                                                                }
+                                                                
+                                                                return false;
                                                             })
                                                             .map(apt => {
                                                                 const startMinutes = timeToMinutes(apt.deliveryTime);
@@ -659,6 +751,7 @@ const Agenda: React.FC = () => {
                                 </div>
                             </div>
                         </div>
+                        )}
                     </CardBody>
                 </Card>
 
@@ -804,9 +897,10 @@ const Agenda: React.FC = () => {
                                     <Button
                                         color="primary"
                                         onPress={handleScheduleAppointment}
-                                        isDisabled={!supplierData || !scheduleForm.deliveryDate || !scheduleForm.deliveryTime || !scheduleForm.deliveryTimeEnd}
+                                        isLoading={isCreatingAppointment}
+                                        isDisabled={!supplierData || !scheduleForm.deliveryDate || !scheduleForm.deliveryTime || !scheduleForm.deliveryTimeEnd || isCreatingAppointment}
                                     >
-                                        Programar Entrega
+                                        {isCreatingAppointment ? 'Creando...' : 'Programar Entrega'}
                                     </Button>
                                 </ModalFooter>
                             </>

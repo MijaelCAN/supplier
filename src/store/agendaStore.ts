@@ -8,10 +8,14 @@ import {
     DeliveryDocuments,
     DocumentFile
 } from './types';
+import { fetchAppointmentsFromApi, formatDateForAPI, createAppointmentInApi } from '@/services/agenda/appointmentsApi';
+import { fetchSupplierByCardCode } from '@/services/providers/providersApi';
 
 interface AgendaState {
     appointments: DeliveryAppointment[];
     selectedAppointment: DeliveryAppointment | null;
+    isLoadingAppointments: boolean;
+    appointmentsError: string | null;
     
     // Actions
     addAppointment: (appointment: Omit<DeliveryAppointment, 'id' | 'appointmentNumber' | 'createdDate' | 'notificationSent' | 'scheduledDateTime' | 'scheduledDateTimeEnd'>) => DeliveryAppointment;
@@ -21,6 +25,20 @@ interface AgendaState {
     setSelectedAppointment: (appointment: DeliveryAppointment | null) => void;
     getAppointmentsBySupplier: (supplierId: string) => DeliveryAppointment[];
     getAppointmentsByDateRange: (startDate: string, endDate: string) => DeliveryAppointment[];
+    
+    // API Actions
+    loadAppointmentsFromApi: (ruc?: string, fechaInicio?: Date | string, fechaFin?: Date | string) => Promise<void>;
+    syncAppointmentsWithApi: (ruc?: string, fechaInicio?: Date | string, fechaFin?: Date | string) => Promise<void>;
+    createAppointmentFromApi: (appointmentData: {
+        supplierRUC: string;
+        supplierName: string;
+        deliveryDate: string;
+        deliveryTime: string;
+        deliveryTimeEnd: string;
+        description?: string;
+        warehouse?: string;
+        active?: 'Y' | 'N';
+    }) => Promise<DeliveryAppointment>;
     
     // PackingList actions
     addPackingList: (appointmentId: string, packingList: Omit<PackingList, 'id' | 'createdDate' | 'completed'>) => void;
@@ -64,6 +82,8 @@ export const useAgendaStore = create<AgendaState>()(
         (set, get) => ({
             appointments: [],
             selectedAppointment: null,
+            isLoadingAppointments: false,
+            appointmentsError: null,
 
             addAppointment: (appointmentData) => {
                 const appointments = get().appointments;
@@ -127,6 +147,138 @@ export const useAgendaStore = create<AgendaState>()(
                     const end = new Date(endDate);
                     return aptDate >= start && aptDate <= end;
                 });
+            },
+
+            loadAppointmentsFromApi: async (ruc, fechaInicio, fechaFin) => {
+                set({ isLoadingAppointments: true, appointmentsError: null });
+                
+                try {
+                    // Convertir fechas a formato YYYYMMDD si son Date o string
+                    const fechaInicioStr = fechaInicio 
+                        ? (fechaInicio instanceof Date ? formatDateForAPI(fechaInicio) : fechaInicio)
+                        : undefined;
+                    const fechaFinStr = fechaFin 
+                        ? (fechaFin instanceof Date ? formatDateForAPI(fechaFin) : fechaFin)
+                        : undefined;
+                    
+                    const apiAppointments = await fetchAppointmentsFromApi(ruc, fechaInicioStr, fechaFinStr);
+                    
+                    // Reemplazar todas las citas con las del API
+                    set({ 
+                        appointments: apiAppointments,
+                        isLoadingAppointments: false,
+                        appointmentsError: null
+                    });
+                } catch (error) {
+                    const errorMessage = error instanceof Error ? error.message : 'Error al cargar citas';
+                    set({ 
+                        isLoadingAppointments: false,
+                        appointmentsError: errorMessage
+                    });
+                    console.error('Error al cargar citas desde API:', error);
+                }
+            },
+
+            syncAppointmentsWithApi: async (ruc, fechaInicio, fechaFin) => {
+                set({ isLoadingAppointments: true, appointmentsError: null });
+                
+                try {
+                    // Convertir fechas a formato YYYYMMDD si son Date o string
+                    const fechaInicioStr = fechaInicio 
+                        ? (fechaInicio instanceof Date ? formatDateForAPI(fechaInicio) : fechaInicio)
+                        : undefined;
+                    const fechaFinStr = fechaFin 
+                        ? (fechaFin instanceof Date ? formatDateForAPI(fechaFin) : fechaFin)
+                        : undefined;
+                    
+                    const apiAppointments = await fetchAppointmentsFromApi(ruc, fechaInicioStr, fechaFinStr);
+                    const currentAppointments = get().appointments;
+                    
+                    // Combinar citas del API con citas locales (evitar duplicados)
+                    // Las citas del API tienen IDs que empiezan con "apt-api-"
+                    const localAppointments = currentAppointments.filter(apt => !apt.id.startsWith('apt-api-'));
+                    
+                    // Combinar sin duplicados (por RUC, fecha y hora)
+                    const combinedAppointments = [...localAppointments];
+                    
+                    apiAppointments.forEach(apiApt => {
+                        const exists = combinedAppointments.some(apt => 
+                            apt.supplierRUC === apiApt.supplierRUC &&
+                            apt.deliveryDate === apiApt.deliveryDate &&
+                            apt.deliveryTime === apiApt.deliveryTime
+                        );
+                        
+                        if (!exists) {
+                            combinedAppointments.push(apiApt);
+                        }
+                    });
+                    
+                    set({ 
+                        appointments: combinedAppointments,
+                        isLoadingAppointments: false,
+                        appointmentsError: null
+                    });
+                } catch (error) {
+                    const errorMessage = error instanceof Error ? error.message : 'Error al sincronizar citas';
+                    set({ 
+                        isLoadingAppointments: false,
+                        appointmentsError: errorMessage
+                    });
+                    console.error('Error al sincronizar citas con API:', error);
+                }
+            },
+
+            createAppointmentFromApi: async (appointmentData) => {
+                try {
+                    // Crear la cita en el API
+                    await createAppointmentInApi({
+                        u_Ruc: appointmentData.supplierRUC,
+                        u_RazonSocial: appointmentData.supplierName,
+                        u_Fecha: appointmentData.deliveryDate,
+                        u_HoraInicio: appointmentData.deliveryTime,
+                        u_HoraFin: appointmentData.deliveryTimeEnd,
+                        u_Descripcion: appointmentData.description || '',
+                        u_Almacen: appointmentData.warehouse || '',
+                        U_Active: appointmentData.active || 'Y'
+                    });
+
+                    // Después de crear, recargar las citas del API para obtener la versión actualizada
+                    // Calcular el rango de fechas (semana actual)
+                    const deliveryDate = new Date(appointmentData.deliveryDate);
+                    const weekStart = new Date(deliveryDate);
+                    const day = weekStart.getDay();
+                    const diff = weekStart.getDate() - day + (day === 0 ? -6 : 1);
+                    weekStart.setDate(diff);
+                    weekStart.setHours(0, 0, 0, 0);
+                    
+                    const weekEnd = new Date(weekStart);
+                    weekEnd.setDate(weekStart.getDate() + 6);
+                    weekEnd.setHours(23, 59, 59, 59);
+
+                    // Recargar citas del API para obtener la nueva cita creada
+                    await get().loadAppointmentsFromApi(
+                        appointmentData.supplierRUC,
+                        weekStart,
+                        weekEnd
+                    );
+
+                    // Buscar la cita recién creada en el store
+                    const newAppointment = get().appointments.find(apt => 
+                        apt.supplierRUC === appointmentData.supplierRUC &&
+                        apt.deliveryDate === appointmentData.deliveryDate &&
+                        apt.deliveryTime === appointmentData.deliveryTime
+                    );
+
+                    if (!newAppointment) {
+                        throw new Error('La cita se creó pero no se pudo encontrar en el store');
+                    }
+
+                    return newAppointment;
+                } catch (error) {
+                    const errorMessage = error instanceof Error ? error.message : 'Error al crear la cita';
+                    console.error('Error al crear cita en API:', error);
+                    throw new Error(errorMessage);
+                }
             },
 
             addPackingList: (appointmentId, packingListData) => {
@@ -275,20 +427,44 @@ export const useAgendaStore = create<AgendaState>()(
             },
 
             lookupSupplierByRUC: async (ruc) => {
-                // Simulate SAP API call delay
-                await new Promise(resolve => setTimeout(resolve, 1000));
+                try {
+                    // Validar que el RUC no esté vacío
+                    if (!ruc || !ruc.trim()) {
+                        return {
+                            success: false,
+                            message: 'El RUC no puede estar vacío'
+                        };
+                    }
 
-                // Import suppliers store to lookup
-                const { useExtendedStore } = await import('./extendedStore');
-                const suppliers = useExtendedStore.getState().suppliers;
-                
-                const supplier = suppliers.find(s => s.cardCode === ruc);
-                
-                if (supplier && supplier.status === 'Activo') {
+                    // Consultar el proveedor en el servidor usando el endpoint
+                    const result = await fetchSupplierByCardCode(ruc.trim());
+                    
+                    if (!result || !result.supplier) {
+                        return {
+                            success: false,
+                            message: 'Proveedor no encontrado en el sistema'
+                        };
+                    }
+
+                    const supplier = result.supplier;
+                    
+                    // Verificar que el proveedor esté activo
+                    /*if (supplier.status !== 'Activo') {
+                        return {
+                            success: false,
+                            message: `El proveedor existe pero está ${supplier.status.toLowerCase()}. Solo se pueden crear citas para proveedores activos.`
+                        };
+                    }*/
+
                     // Handle contactPerson which can be string or array
                     const contactPerson = Array.isArray(supplier.contactPerson) 
                         ? supplier.contactPerson[0]?.name || ''
-                        : supplier.contactPerson || '';
+                        : typeof supplier.contactPerson === 'string'
+                        ? supplier.contactPerson
+                        : '';
+
+                    // Obtener el RUC correcto (puede venir de RUC o cardCode)
+                    const supplierRUC = supplier.RUC || supplier.cardCode;
                     
                     return {
                         success: true,
@@ -296,18 +472,21 @@ export const useAgendaStore = create<AgendaState>()(
                             supplierId: supplier.docEntry,
                             supplierName: supplier.cardName,
                             supplierEmail: supplier.email,
-                            supplierPhone: supplier.phone,
-                            supplierRUC: supplier.cardCode,
+                            supplierPhone: supplier.phone || supplier.cellPhone || '',
+                            supplierRUC: supplierRUC,
                             address: supplier.address,
                             contactPerson: contactPerson
                         }
                     };
+                } catch (error) {
+                    const errorMessage = error instanceof Error ? error.message : 'Error al consultar el proveedor';
+                    console.error('Error al consultar proveedor por RUC:', error);
+                    
+                    return {
+                        success: false,
+                        message: errorMessage
+                    };
                 }
-
-                return {
-                    success: false,
-                    message: 'Proveedor no encontrado o inactivo en SAP'
-                };
             }
         }),
         {
