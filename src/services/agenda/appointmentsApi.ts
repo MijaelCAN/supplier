@@ -25,7 +25,7 @@ interface AppointmentsApiResponse {
 
 /**
  * Convierte minutos desde medianoche a formato HH:MM
- * Ejemplo: 147 -> "02:27", 1540 -> "25:40" -> "01:40" (ajustado)
+ * Ejemplo: 647 -> "10:47" (647 minutos = 10 horas y 47 minutos)
  */
 const minutesToTime = (time: string): string => {
     const s = time.padStart(4, '0'); // convierte 847 → "0847"
@@ -34,14 +34,19 @@ const minutesToTime = (time: string): string => {
 
 /**
  * Convierte fecha de formato "06-01-2026" a formato ISO "2026-01-06"
+ * Usa Date local para evitar problemas de zona horaria
  */
 const formatDateToISO = (dateStr: string): string => {
     try {
         // Formato esperado: "06-01-2026" (DD-MM-YYYY)
         const [day, month, year] = dateStr.split('-');
         if (day && month && year) {
-            console.log("CONVERSION DE FECHA: ", `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`)
-            return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+            // Crear fecha en zona horaria local para evitar desplazamientos
+            const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+            const yearStr = date.getFullYear();
+            const monthStr = String(date.getMonth() + 1).padStart(2, '0');
+            const dayStr = String(date.getDate()).padStart(2, '0');
+            return `${yearStr}-${monthStr}-${dayStr}`;
         }
     } catch (error) {
         console.error('Error al formatear fecha:', error);

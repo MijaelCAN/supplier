@@ -516,7 +516,7 @@ const Login = () => {
                                             value={username}
                                             onValueChange={(value) => setUsername(value)}
                                             label="Usuario"
-                                            placeholder="Ingrese RUC"
+                                            placeholder="Ingrese RUC: 42104139"
                                             labelPlacement="outside"
                                             type="text"
                                             className=" w-full placeholder:opacity-100 focus:border-t-primary border-t-blue-gray-200 "

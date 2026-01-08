@@ -179,15 +179,17 @@ const Agenda: React.FC = () => {
             filtered = filtered.filter(apt => apt.status === filterStatus);
         }
 
-        // Filter by week - comparar solo fechas (sin hora) para evitar problemas de zona horaria
+        // Filtrar por semana: comparar solo el día sin hora para evitar problemas de zona horaria
         filtered = filtered.filter(apt => {
-            const aptDate = new Date(apt.deliveryDate);
-            aptDate.setHours(0, 0, 0, 0);
-            const start = new Date(weekStart);
-            start.setHours(0, 0, 0, 0);
-            const end = new Date(weekEnd);
-            end.setHours(23, 59, 59, 999);
-            return aptDate >= start && aptDate <= end;
+            // Parsear fecha directamente desde string YYYY-MM-DD sin conversión de zona horaria
+            const [year, month, day] = apt.deliveryDate.split('-').map(Number);
+            const aptDate = new Date(year, month - 1, day);
+            
+            // Comparar solo fechas (sin horas)
+            const weekStartDate = new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate());
+            const weekEndDate = new Date(weekEnd.getFullYear(), weekEnd.getMonth(), weekEnd.getDate());
+            
+            return aptDate >= weekStartDate && aptDate <= weekEndDate;
         });
 
         // Debug: Log filtered appointments
@@ -204,7 +206,8 @@ const Agenda: React.FC = () => {
         return filtered;
     }, [appointments, currentUser, filterStatus, weekStart, weekEnd]);
 
-    // Helper function to convert time to minutes
+    // Convierte hora en formato HH:MM a minutos desde medianoche
+    // Ejemplo: "10:47" -> 647 minutos
     const timeToMinutes = (timeStr: string | undefined): number => {
         if (!timeStr) return 0;
         const [hours, minutes] = timeStr.split(':').map(Number);
@@ -647,19 +650,19 @@ const Agenda: React.FC = () => {
                                                 {time}
                                             </div>
 
-                                            {/* Day columns */}
+                                            {/* Columnas de días */}
                                             {weekDays.map((day, dayIndex) => {
                                                 const isToday = day.toDateString() === new Date().toDateString();
-                                                // Get all appointments for this day to check if this slot is the start
+                                                
+                                                // Obtener citas para este día específico
                                                 const dayAppointments = filteredAppointments.filter(apt => {
                                                     if (!apt.deliveryTime) return false;
                                                     
-                                                    // Comparar solo la fecha (sin hora) para evitar problemas de zona horaria
-                                                    console.log("FECHA ENTREGA: ", apt.scheduledDateTime)
-                                                    const aptDate = new Date(apt.deliveryDate);
-                                                    aptDate.setHours(0, 0, 0, 0);
-                                                    const dayDate = new Date(day);
-                                                    dayDate.setHours(0, 0, 0, 0);
+                                                    // Comparar fecha parseando directamente desde string YYYY-MM-DD
+                                                    const [aptYear, aptMonth, aptDay] = apt.deliveryDate.split('-').map(Number);
+                                                    const aptDate = new Date(aptYear, aptMonth - 1, aptDay);
+                                                    
+                                                    const dayDate = new Date(day.getFullYear(), day.getMonth(), day.getDate());
                                                     
                                                     return aptDate.getTime() === dayDate.getTime();
                                                 });
@@ -672,34 +675,43 @@ const Agenda: React.FC = () => {
                                                         } ${canCreateAppointment ? 'cursor-pointer hover:bg-gray-100' : ''}`}
                                                         onClick={() => canCreateAppointment && handleSelectTimeSlot(day, time)}
                                                     >
-                                                        {/* Render appointments that start at this time slot */}
+                                                        {/* Mostrar citas que comienzan en este slot de tiempo */}
                                                         {dayAppointments
                                                             .filter(apt => {
                                                                 if (!apt.deliveryTime) return false;
-                                                                const aptStartMinutes = timeToMinutes(apt.deliveryTime);
-                                                                const currentSlotMinutes = timeToMinutes(time);
                                                                 
-                                                                // Mostrar la cita si comienza exactamente en este slot
-                                                                // O si la hora de inicio está dentro de este slot (redondeando hacia abajo)
-                                                                const slotStartMinutes = currentSlotMinutes;
-                                                                const slotEndMinutes = currentSlotMinutes + 60;
+                                                                // Convertir hora de inicio de la cita a minutos
+                                                                const aptStartMinutes = timeToMinutes(apt.deliveryTime);
+                                                                // Convertir hora del slot actual a minutos
+                                                                const slotStartMinutes = timeToMinutes(time);
+                                                                const slotEndMinutes = slotStartMinutes + 60;
                                                                 
                                                                 // La cita se muestra en el slot donde comienza
-                                                                // Si la hora de inicio está entre el inicio y fin de este slot, mostrarla aquí
-                                                                if (aptStartMinutes >= slotStartMinutes && aptStartMinutes < slotEndMinutes) {
-                                                                    return true;
-                                                                }
-                                                                
-                                                                return false;
+                                                                // Si la hora de inicio está dentro de este slot (entre inicio y fin del slot)
+                                                                return aptStartMinutes >= slotStartMinutes && aptStartMinutes < slotEndMinutes;
                                                             })
                                                             .map(apt => {
+                                                                // Calcular duración de la cita en minutos
                                                                 const startMinutes = timeToMinutes(apt.deliveryTime);
                                                                 const endMinutes = apt.deliveryTimeEnd 
                                                                     ? timeToMinutes(apt.deliveryTimeEnd) 
                                                                     : startMinutes + 60;
-                                                                const duration = endMinutes - startMinutes;
-                                                                const slotsToSpan = Math.ceil(duration / 60);
+                                                                const durationMinutes = endMinutes - startMinutes;
                                                                 
+                                                                // Calcular cuántos slots ocupa (cada slot es 60 minutos)
+                                                                const slotsToSpan = Math.ceil(durationMinutes / 60);
+                                                                
+                                                                // Calcular posición vertical dentro del slot
+                                                                // Si la cita empieza a las 10:47 y el slot es de 10:00, empieza 47 minutos después
+                                                                // Cada minuto = 1px (ya que cada slot de 60 minutos tiene 60px de altura)
+                                                                const slotStartMinutes = timeToMinutes(time);
+                                                                const offsetFromSlotStart = startMinutes - slotStartMinutes;
+                                                                const topOffset = offsetFromSlotStart; // 1px por minuto
+                                                                
+                                                                // Altura en píxeles: 1px por minuto de duración
+                                                                const heightPixels = durationMinutes;
+                                                                
+                                                                // Estilos según el estado de la cita
                                                                 const getStatusStyles = () => {
                                                                     switch(apt.status) {
                                                                         case 'ListaParaEntrega':
@@ -720,8 +732,8 @@ const Agenda: React.FC = () => {
                                                                         key={apt.id}
                                                                         className={`absolute left-1 right-1 rounded-md p-1.5 text-xs shadow-sm border-l-2 ${getStatusStyles()}`}
                                                                         style={{
-                                                                            top: '2px',
-                                                                            height: `${slotsToSpan * 60 - 4}px`,
+                                                                            top: `${topOffset + 2}px`,
+                                                                            height: `${heightPixels - 4}px`,
                                                                             zIndex: 10
                                                                         }}
                                                                         onClick={(e) => {
