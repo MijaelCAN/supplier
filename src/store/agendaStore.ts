@@ -231,7 +231,7 @@ export const useAgendaStore = create<AgendaState>()(
             createAppointmentFromApi: async (appointmentData) => {
                 try {
                     // Crear la cita en el API
-                    await createAppointmentInApi({
+                    const appointmentId = await createAppointmentInApi({
                         u_Ruc: appointmentData.supplierRUC,
                         u_RazonSocial: appointmentData.supplierName,
                         u_Fecha: appointmentData.deliveryDate,
@@ -242,36 +242,32 @@ export const useAgendaStore = create<AgendaState>()(
                         U_Active: appointmentData.active || 'Y'
                     });
 
-                    // Después de crear, recargar las citas del API para obtener la versión actualizada
-                    // Calcular el rango de fechas (semana actual)
-                    const deliveryDate = new Date(appointmentData.deliveryDate);
-                    const weekStart = new Date(deliveryDate);
-                    const day = weekStart.getDay();
-                    const diff = weekStart.getDate() - day + (day === 0 ? -6 : 1);
-                    weekStart.setDate(diff);
-                    weekStart.setHours(0, 0, 0, 0);
+                    // Crear un objeto de cita temporal para retornar
+                    // La recarga de citas se hará desde el componente padre según el rol del usuario
+                    const deliveryDate = appointmentData.deliveryDate;
+                    const scheduledDateTime = new Date(`${deliveryDate}T${appointmentData.deliveryTime}`).toISOString();
+                    const scheduledDateTimeEnd = new Date(`${deliveryDate}T${appointmentData.deliveryTimeEnd}`).toISOString();
                     
-                    const weekEnd = new Date(weekStart);
-                    weekEnd.setDate(weekStart.getDate() + 6);
-                    weekEnd.setHours(23, 59, 59, 59);
-
-                    // Recargar citas del API para obtener la nueva cita creada
-                    await get().loadAppointmentsFromApi(
-                        appointmentData.supplierRUC,
-                        weekStart,
-                        weekEnd
-                    );
-
-                    // Buscar la cita recién creada en el store
-                    const newAppointment = get().appointments.find(apt => 
-                        apt.supplierRUC === appointmentData.supplierRUC &&
-                        apt.deliveryDate === appointmentData.deliveryDate &&
-                        apt.deliveryTime === appointmentData.deliveryTime
-                    );
-
-                    if (!newAppointment) {
-                        throw new Error('La cita se creó pero no se pudo encontrar en el store');
-                    }
+                    const newAppointment: DeliveryAppointment = {
+                        id: `apt-api-${appointmentData.supplierRUC}-${deliveryDate}-${Date.now()}`,
+                        appointmentNumber: `CITA-${appointmentData.supplierRUC.substring(0, 4)}-${deliveryDate.replace(/-/g, '')}`,
+                        supplierId: appointmentData.supplierRUC,
+                        supplierRUC: appointmentData.supplierRUC,
+                        supplierName: appointmentData.supplierName,
+                        supplierEmail: '',
+                        supplierPhone: '',
+                        deliveryDate,
+                        deliveryTime: appointmentData.deliveryTime,
+                        deliveryTimeEnd: appointmentData.deliveryTimeEnd,
+                        scheduledDateTime,
+                        scheduledDateTimeEnd,
+                        status: 'Pendiente',
+                        createdBy: 'system',
+                        createdDate: new Date().toISOString(),
+                        notes: appointmentData.description || '',
+                        warehouse: appointmentData.warehouse || '',
+                        notificationSent: false,
+                    };
 
                     return newAppointment;
                 } catch (error) {

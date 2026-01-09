@@ -26,7 +26,6 @@ import {
 } from "@heroui/react";
 import {
     PlusIcon,
-    MagnifyingGlassIcon,
     ArrowLeftIcon,
     ArrowRightIcon
 } from "@heroicons/react/24/outline";
@@ -36,6 +35,7 @@ import { useAuth } from "@/store/authStore";
 import { UserRole } from "@/routes/menuTypes";
 import { DeliveryAppointment, PackingListItem } from "@/store/types";
 import AppointmentDetailModal from './AppointmentDetailModal';
+import ScheduleAppointmentModal from './Scheduleappointmentmodal';
 
 const Agenda: React.FC = () => {
     const { currentUser } = useAuth();
@@ -68,6 +68,28 @@ const Agenda: React.FC = () => {
 
     // Modals
     const { isOpen: isScheduleOpen, onOpen: onScheduleOpen, onOpenChange: onScheduleOpenChange } = useDisclosure();
+    
+    // Handle modal close - limpiar todo el estado
+    const handleScheduleModalClose = () => {
+        // Limpiar todos los estados relacionados con el modal
+        setSupplierData(null);
+        setRucSearch('');
+        setScheduleForm({
+            supplierRUC: '',
+            supplierId: '',
+            supplierName: '',
+            supplierEmail: '',
+            supplierPhone: '',
+            deliveryDate: '',
+            deliveryTime: '',
+            deliveryTimeEnd: '',
+            warehouse: '',
+            notes: ''
+        });
+        setIsLookingUp(false);
+        setIsCreatingAppointment(false);
+        onScheduleOpenChange();
+    };
     const { isOpen: isDetailOpen, onOpen: onDetailOpen, onOpenChange: onDetailOpenChange } = useDisclosure();
     const { isOpen: isPackingListOpen, onOpen: onPackingListOpen, onOpenChange: onPackingListOpenChange } = useDisclosure();
     const { isOpen: isTransportOpen, onOpen: onTransportOpen, onOpenChange: onTransportOpenChange } = useDisclosure();
@@ -311,14 +333,21 @@ const Agenda: React.FC = () => {
         setCurrentWeek(new Date());
     };
 
-    // Handle RUC lookup
-    const handleRUCLookup = async () => {
-        if (!rucSearch.trim()) return;
+    // Handle RUC lookup - Retorna la respuesta para que el modal la maneje
+    const handleRUCLookup = async (ruc: string) => {
+        if (!ruc.trim()) {
+            return {
+                success: false,
+                message: 'El RUC no puede estar vacío'
+            };
+        }
 
         setIsLookingUp(true);
         try {
-            const result = await lookupSupplierByRUC(`P${rucSearch}`);
+            const result = await lookupSupplierByRUC(`P${ruc.trim()}`);
+            
             if (result.success && result.data) {
+                // Actualizar el estado del padre para que el modal reciba el supplierData
                 setSupplierData(result.data);
                 setScheduleForm(prev => ({
                     ...prev,
@@ -328,11 +357,16 @@ const Agenda: React.FC = () => {
                     supplierEmail: result.data!.supplierEmail,
                     supplierPhone: result.data!.supplierPhone
                 }));
-            } else {
-                alert(result.message || 'Error al consultar proveedor');
             }
+            
+            // Retornar el resultado para que el modal lo maneje
+            return result;
         } catch (error) {
-            alert('Error al consultar proveedor');
+            const errorMessage = error instanceof Error ? error.message : 'Error al consultar proveedor';
+            return {
+                success: false,
+                message: errorMessage
+            };
         } finally {
             setIsLookingUp(false);
         }
@@ -377,6 +411,14 @@ const Agenda: React.FC = () => {
             // Mostrar mensaje de éxito
             alert(`Cita programada exitosamente. Número de cita: ${newAppointment.appointmentNumber}`);
             
+            // Recargar citas del API según el rol del usuario
+            // Solo pasar RUC si el usuario es proveedor, de lo contrario cargar todas las citas
+            const ruc = currentUser?.role === UserRole.PROVEEDOR && currentUser.username 
+                ? currentUser.username 
+                : undefined;
+            
+            await loadAppointmentsFromApi(ruc, weekStart, weekEnd);
+            
             // Reset form
             setScheduleForm({
                 supplierRUC: '',
@@ -390,9 +432,8 @@ const Agenda: React.FC = () => {
                 warehouse: '',
                 notes: ''
             });
-            setSupplierData(null);
-            setRucSearch('');
-            onScheduleOpenChange();
+            // Cerrar modal y limpiar estado
+            handleScheduleModalClose();
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Error al crear la cita';
             alert(`Error al crear la cita: ${errorMessage}`);
@@ -838,161 +879,18 @@ const Agenda: React.FC = () => {
                 </Card>
 
                 {/* Schedule Appointment Modal */}
-                <Modal isOpen={isScheduleOpen} onOpenChange={onScheduleOpenChange} size="2xl" scrollBehavior="inside">
-                    <ModalContent>
-                        {(onClose) => (
-                            <>
-                                <ModalHeader>Programar Entrega</ModalHeader>
-                                <ModalBody>
-                                    <div className="space-y-4">
-                                        {/* RUC Lookup */}
-                                        <div className="flex gap-2">
-                                            <Input
-                                                label="RUC del Proveedor"
-                                                placeholder="Ingrese el RUC"
-                                                value={rucSearch}
-                                                onValueChange={(value) => setRucSearch(value)}
-                                                className="flex-1"
-                                            />
-                                            <Button
-                                                color="primary"
-                                                onPress={handleRUCLookup}
-                                                isLoading={isLookingUp}
-                                                startContent={<MagnifyingGlassIcon className="w-5 h-5" />}
-                                                className="mt-6"
-                                            >
-                                                Consultar
-                                            </Button>
-                                        </div>
-
-                                        {/* Supplier Data (auto-filled after lookup) */}
-                                        {supplierData && (
-                                            <Card className="bg-blue-50">
-                                                <CardBody>
-                                                    <div className="grid grid-cols-2 gap-4">
-                                                        <div>
-                                                            <p className="text-sm text-gray-600">Razón Social</p>
-                                                            <p className="font-semibold">{supplierData.supplierName}</p>
-                                                        </div>
-                                                        <div>
-                                                            <p className="text-sm text-gray-600">Email</p>
-                                                            <p className="font-semibold">{supplierData.supplierEmail}</p>
-                                                        </div>
-                                                        <div>
-                                                            <p className="text-sm text-gray-600">Teléfono</p>
-                                                            <p className="font-semibold">{supplierData.supplierPhone}</p>
-                                                        </div>
-                                                        {supplierData.address && (
-                                                            <div>
-                                                                <p className="text-sm text-gray-600">Dirección</p>
-                                                                <p className="font-semibold">{supplierData.address}</p>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </CardBody>
-                                            </Card>
-                                        )}
-
-                                        {/* Delivery Date and Time Range */}
-                                        <div className="grid grid-cols-3 gap-4">
-                                            <Input
-                                                label="Fecha de Entrega"
-                                                type="date"
-                                                value={scheduleForm.deliveryDate}
-                                                onValueChange={(value) => setScheduleForm(prev => ({ ...prev, deliveryDate: value }))}
-                                                isRequired
-                                            />
-                                            <Select
-                                                label="Hora de Inicio"
-                                                selectedKeys={scheduleForm.deliveryTime ? [scheduleForm.deliveryTime] : []}
-                                                onSelectionChange={(keys) => {
-                                                    const startTime = Array.from(keys)[0] as string;
-                                                    // Auto-set end time to 1 hour after start if not set
-                                                    if (startTime && !scheduleForm.deliveryTimeEnd) {
-                                                        const [hours, minutes] = startTime.split(':').map(Number);
-                                                        const endHours = hours + 1;
-                                                        const endTime = `${String(endHours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-                                                        setScheduleForm(prev => ({ ...prev, deliveryTime: startTime, deliveryTimeEnd: endTime }));
-                                                    } else {
-                                                        setScheduleForm(prev => ({ ...prev, deliveryTime: startTime }));
-                                                    }
-                                                }}
-                                                isRequired
-                                            >
-                                                {timeSlots.map((time) => (
-                                                    <SelectItem key={time}>
-                                                        {time}
-                                                    </SelectItem>
-                                                ))}
-                                            </Select>
-                                            <Select
-                                                label="Hora de Fin"
-                                                selectedKeys={scheduleForm.deliveryTimeEnd ? [scheduleForm.deliveryTimeEnd] : []}
-                                                onSelectionChange={(keys) => setScheduleForm(prev => ({ ...prev, deliveryTimeEnd: Array.from(keys)[0] as string }))}
-                                                isRequired
-                                            >
-                                                {timeSlots.filter((time) => {
-                                                    // Only show times after the start time
-                                                    if (scheduleForm.deliveryTime) {
-                                                        const timeToMinutes = (timeStr: string) => {
-                                                            const [hours, minutes] = timeStr.split(':').map(Number);
-                                                            return hours * 60 + minutes;
-                                                        };
-                                                        const startMinutes = timeToMinutes(scheduleForm.deliveryTime);
-                                                        const timeMinutes = timeToMinutes(time);
-                                                        return timeMinutes > startMinutes;
-                                                    }
-                                                    return true;
-                                                }).map((time) => (
-                                                    <SelectItem key={time}>
-                                                        {time}
-                                                    </SelectItem>
-                                                ))}
-                                            </Select>
-                                        </div>
-
-                                        {/* Warehouse */}
-                                        <Select
-                                            label="Almacén"
-                                            placeholder="Seleccione el almacén"
-                                            selectedKeys={scheduleForm.warehouse ? [scheduleForm.warehouse] : []}
-                                            onSelectionChange={(keys) => setScheduleForm(prev => ({ ...prev, warehouse: Array.from(keys)[0] as string }))}
-                                        >
-                                            <SelectItem key="ALM001" >Almacén Principal</SelectItem>
-                                            <SelectItem key="ALM002" >Almacén Secundario</SelectItem>
-                                            <SelectItem key="ALM003" >Almacén Lima Norte</SelectItem>
-                                        </Select>
-
-                                        {/* Notes */}
-                                        <Textarea
-                                            label="Notas"
-                                            placeholder="Notas adicionales sobre la entrega"
-                                            value={scheduleForm.notes}
-                                            onValueChange={(value) => setScheduleForm(prev => ({ ...prev, notes: value }))}
-                                        />
-                                    </div>
-                                </ModalBody>
-                                <ModalFooter>
-                                    <Button variant="light" onPress={onClose}>
-                                        Cancelar
-                                    </Button>
-                                    <Button
-                                        color="primary"
-                                        onPress={handleScheduleAppointment}
-                                        isLoading={isCreatingAppointment}
-                                        isDisabled={!supplierData || !scheduleForm.deliveryDate || !scheduleForm.deliveryTime || !scheduleForm.deliveryTimeEnd || isCreatingAppointment}
-                                    >
-                                        {isCreatingAppointment ? 'Creando...' : 'Programar Entrega'}
-                                    </Button>
-                                </ModalFooter>
-                            </>
-                        )}
-                    </ModalContent>
-                </Modal>
+                <ScheduleAppointmentModal
+                    isOpen={isScheduleOpen}
+                    supplierData={supplierData}
+                    onOpenChange={handleScheduleModalClose}
+                    onSchedule={handleScheduleAppointment}
+                    onLookupRUC={handleRUCLookup}
+                    timeSlots={timeSlots}
+                    isCreating={isCreatingAppointment}
+                    isLookingUp={isLookingUp}
+                />
 
                 {/* Appointment Detail Modal */}
-                
-
                 <AppointmentDetailModal
                     isOpen={isDetailOpen}
                     onOpenChange={onDetailOpenChange}
