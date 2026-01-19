@@ -8,7 +8,7 @@ import {
     DeliveryDocuments,
     DocumentFile
 } from './types';
-import { fetchAppointmentsFromApi, formatDateForAPI, createAppointmentInApi } from '@/services/agenda/appointmentsApi';
+import { fetchAppointmentsFromApi, formatDateForAPI, createAppointmentInApi, updateAppointmentInApi } from '@/services/agenda/appointmentsApi';
 import { fetchSupplierByCardCode } from '@/services/providers/providersApi';
 
 interface AgendaState {
@@ -39,6 +39,16 @@ interface AgendaState {
         warehouse?: string;
         active?: 'Y' | 'N';
     }) => Promise<DeliveryAppointment>;
+    updateAppointmentFromApi: (docEntry: string, appointmentData: {
+        supplierRUC: string;
+        supplierName: string;
+        deliveryDate: string;
+        deliveryTime: string;
+        deliveryTimeEnd: string;
+        description?: string;
+        warehouse?: string;
+        active?: 'Y' | 'N';
+    }) => Promise<void>;
     
     // PackingList actions
     addPackingList: (appointmentId: string, packingList: Omit<PackingList, 'id' | 'createdDate' | 'completed'>) => void;
@@ -231,10 +241,11 @@ export const useAgendaStore = create<AgendaState>()(
             createAppointmentFromApi: async (appointmentData) => {
                 try {
                     // Crear la cita en el API
+                    // Formatear la fecha a YYYYMMDD para evitar problemas de zona horaria
                     const appointmentId = await createAppointmentInApi({
                         u_Ruc: appointmentData.supplierRUC,
                         u_RazonSocial: appointmentData.supplierName,
-                        u_Fecha: appointmentData.deliveryDate,
+                        u_Fecha: formatDateForAPI(appointmentData.deliveryDate),
                         u_HoraInicio: appointmentData.deliveryTime,
                         u_HoraFin: appointmentData.deliveryTimeEnd,
                         u_Descripcion: appointmentData.description || '',
@@ -251,6 +262,7 @@ export const useAgendaStore = create<AgendaState>()(
                     const newAppointment: DeliveryAppointment = {
                         id: `apt-api-${appointmentData.supplierRUC}-${deliveryDate}-${Date.now()}`,
                         appointmentNumber: `CITA-${appointmentData.supplierRUC.substring(0, 4)}-${deliveryDate.replace(/-/g, '')}`,
+                        docEntry: appointmentId, // Guardar el DocEntry retornado por el API
                         supplierId: appointmentData.supplierRUC,
                         supplierRUC: appointmentData.supplierRUC,
                         supplierName: appointmentData.supplierName,
@@ -273,6 +285,56 @@ export const useAgendaStore = create<AgendaState>()(
                 } catch (error) {
                     const errorMessage = error instanceof Error ? error.message : 'Error al crear la cita';
                     console.error('Error al crear cita en API:', error);
+                    throw new Error(errorMessage);
+                }
+            },
+
+            updateAppointmentFromApi: async (docEntry, appointmentData) => {
+                try {
+                    // Actualizar la cita en el API
+                    await updateAppointmentInApi(docEntry, {
+                        u_Ruc: appointmentData.supplierRUC,
+                        u_RazonSocial: appointmentData.supplierName,
+                        u_Fecha: formatDateForAPI(appointmentData.deliveryDate),
+                        u_HoraInicio: appointmentData.deliveryTime,
+                        u_HoraFin: appointmentData.deliveryTimeEnd,
+                        u_Descripcion: appointmentData.description || '',
+                        u_Almacen: appointmentData.warehouse || '',
+                        u_Active: appointmentData.active || 'Y'
+                    });
+
+                    // Actualizar la cita en el store local
+                    const appointments = get().appointments;
+                    const appointmentToUpdate = appointments.find(apt => apt.docEntry === docEntry);
+                    
+                    if (appointmentToUpdate) {
+                        const deliveryDate = appointmentData.deliveryDate;
+                        const scheduledDateTime = new Date(`${deliveryDate}T${appointmentData.deliveryTime}`).toISOString();
+                        const scheduledDateTimeEnd = new Date(`${deliveryDate}T${appointmentData.deliveryTimeEnd}`).toISOString();
+                        
+                        set(state => ({
+                            appointments: state.appointments.map(apt => 
+                                apt.docEntry === docEntry 
+                                    ? {
+                                        ...apt,
+                                        supplierRUC: appointmentData.supplierRUC,
+                                        supplierName: appointmentData.supplierName,
+                                        deliveryDate,
+                                        deliveryTime: appointmentData.deliveryTime,
+                                        deliveryTimeEnd: appointmentData.deliveryTimeEnd,
+                                        scheduledDateTime,
+                                        scheduledDateTimeEnd,
+                                        notes: appointmentData.description || apt.notes,
+                                        warehouse: appointmentData.warehouse || apt.warehouse,
+                                        status: appointmentData.active === 'N' ? 'Cancelada' : apt.status
+                                    }
+                                    : apt
+                            )
+                        }));
+                    }
+                } catch (error) {
+                    const errorMessage = error instanceof Error ? error.message : 'Error al actualizar la cita';
+                    console.error('Error al actualizar cita:', error);
                     throw new Error(errorMessage);
                 }
             },

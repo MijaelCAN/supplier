@@ -1,5 +1,5 @@
 // src/components/AppointmentDetailModal.tsx
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Modal,
     ModalContent,
@@ -12,7 +12,13 @@ import {
     CardBody,
     Progress,
     Divider,
-    Avatar
+    Avatar,
+    Table,
+    TableHeader,
+    TableColumn,
+    TableBody,
+    TableRow,
+    TableCell
 } from "@heroui/react";
 import {
     CheckCircleIcon,
@@ -26,10 +32,14 @@ import {
     UserIcon,
     PhoneIcon,
     ClipboardDocumentListIcon,
-    ExclamationTriangleIcon
+    ExclamationTriangleIcon,
+    ChevronDownIcon,
+    ChevronRightIcon
 } from "@heroicons/react/24/outline";
 import { DeliveryAppointment } from "@/store/types";
 import { UserRole } from "@/routes/menuTypes";
+import { fetchPackingListFromApi, PackingListApiRecord } from "@/services/agenda/packingListApi";
+import { formatDateForAPI } from "@/services/agenda/appointmentsApi";
 
 interface AppointmentDetailModalProps {
     isOpen: boolean;
@@ -39,6 +49,7 @@ interface AppointmentDetailModalProps {
     onOpenPackingList: () => void;
     onOpenTransport: () => void;
     onOpenDocuments: () => void;
+    onEdit?: () => void; // Callback para abrir el modal de edición
 }
 
 const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
@@ -49,8 +60,49 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
     onOpenPackingList,
     onOpenTransport,
     onOpenDocuments,
+    onEdit,
 }) => {
     if (!appointment) return null;
+
+    console.log("APPOINTMENT: ", appointment);
+
+    // Estado para PackingList del API
+    const [packingListsFromApi, setPackingListsFromApi] = useState<PackingListApiRecord[]>([]);
+    const [isLoadingPackingLists, setIsLoadingPackingLists] = useState(false);
+    const [expandedPackingListId, setExpandedPackingListId] = useState<string | null>(null);
+
+    // Cargar PackingList cuando se abre el modal y hay un appointment con docEntry
+    useEffect(() => {
+        if (isOpen && appointment?.docEntry) {
+            const loadPackingLists = async () => {
+                setIsLoadingPackingLists(true);
+                try {
+                    // Obtener rango de fechas (últimos 30 días y próximos 30 días)
+                    const today = new Date();
+                    const startDate = new Date(today);
+                    startDate.setDate(startDate.getDate() - 30);
+                    const endDate = new Date(today);
+                    endDate.setDate(endDate.getDate() + 30);
+                    
+                    const fechaInicio = formatDateForAPI(startDate);
+                    const fechaFin = formatDateForAPI(endDate);
+                    
+                    // Cargar PackingList filtrados por CodCita
+                    const packingLists = await fetchPackingListFromApi(fechaInicio, fechaFin, appointment.docEntry);
+                    setPackingListsFromApi(packingLists);
+                } catch (error) {
+                    console.error('Error al cargar PackingList:', error);
+                    setPackingListsFromApi([]);
+                } finally {
+                    setIsLoadingPackingLists(false);
+                }
+            };
+            
+            loadPackingLists();
+        } else {
+            setPackingListsFromApi([]);
+        }
+    }, [isOpen, appointment?.docEntry]);
 
     // Calcular progreso del proceso (0-100%)
     const calculateProgress = (): number => {
@@ -153,7 +205,7 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
                         {/* Header Rediseñado */}
                         <ModalHeader className="flex-col gap-3 px-6">
                             {/* Título y Estado */}
-                            <div className="flex items-start justify-between w-full">
+                            <div className="flex items-start justify-between w-full pr-6">
                                 <div className="flex items-center gap-3">
                                     <Avatar
                                         icon={<BuildingOfficeIcon className="w-6 h-6" />}
@@ -398,95 +450,172 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
                                             )}
                                         </div>
 
-                                        {appointment.packingList ? (
-                                            <div className="space-y-4">
-                                                {/* Información del PackingList */}
-                                                <div className="bg-white rounded-lg p-4 border border-emerald-100">
-                                                    <div className="grid grid-cols-2 gap-4 mb-3">
-                                                        <div>
-                                                            <p className="text-xs text-gray-500">Fecha</p>
-                                                            <p className="text-sm font-semibold text-gray-900">
-                                                                {new Date(appointment.packingList.date).toLocaleDateString('es-PE')}
-                                                            </p>
+                                        {/* Listado de PackingList del API */}
+                                        {isLoadingPackingLists ? (
+                                            <div className="text-center py-8">
+                                                <p className="text-sm text-gray-500">Cargando PackingList...</p>
+                                            </div>
+                                        ) : packingListsFromApi.length > 0 ? (
+                                            <div className="mb-4 max-h-96 overflow-y-auto">
+                                                <Table aria-label="Tabla de PackingList existentes">
+                                                    <TableHeader>
+                                                        <TableColumn width={120}>NÚMERO</TableColumn>
+                                                        <TableColumn width={100}>ALMACÉN</TableColumn>
+                                                        <TableColumn width={120}>TICKET</TableColumn>
+                                                        <TableColumn width={120}>FECHA</TableColumn>
+                                                        <TableColumn width={100}>TIPO</TableColumn>
+                                                        <TableColumn width={80}>ITEMS</TableColumn>
+                                                        <TableColumn>COMENTARIO</TableColumn>
+                                                        <TableColumn>RESP. WMS</TableColumn>
+                                                    </TableHeader>
+                                                    <TableBody>
+                                                        {packingListsFromApi.map((pl) => {
+                                                            // Obtener el detalle (puede venir en cualquiera de los dos campos)
+                                                            const detalle = pl.DetallePackinList || pl._detallePackinList || [];
+                                                            const isExpanded = expandedPackingListId === pl.Id;
+                                                            
+                                                            return (
+                                                                <React.Fragment key={pl.Id}>
+                                                                    <TableRow 
+                                                                        className={`cursor-pointer hover:bg-gray-50 transition-colors ${isExpanded ? 'bg-blue-50' : ''}`}
+                                                                        onClick={() => {
+                                                                            setExpandedPackingListId(isExpanded ? null : pl.Id);
+                                                                        }}
+                                                                    >
+                                                                        <TableCell className="whitespace-nowrap font-medium">
+                                                                            <div className="flex items-center gap-2">
+                                                                                {detalle.length > 0 && (
+                                                                                    isExpanded ? (
+                                                                                        <ChevronDownIcon className="w-4 h-4 text-gray-500" />
+                                                                                    ) : (
+                                                                                        <ChevronRightIcon className="w-4 h-4 text-gray-500" />
+                                                                                    )
+                                                                                )}
+                                                                                {pl.Number}
+                                                                            </div>
+                                                                        </TableCell>
+                                                                        <TableCell className="whitespace-nowrap">{pl.WhsCode}</TableCell>
+                                                                        <TableCell className="whitespace-nowrap">{pl.Ticket || '-'}</TableCell>
+                                                                        <TableCell className="whitespace-nowrap">
+                                                                            {typeof pl.DateExpected === 'string' 
+                                                                                ? pl.DateExpected.split('T')[0].split(' ')[0] 
+                                                                                : pl.DateExpected
+                                                                            }
+                                                                        </TableCell>
+                                                                        <TableCell className="whitespace-nowrap">
+                                                                            {pl.InboundType ? (
+                                                                                <Chip size="sm" variant="flat" color={pl.InboundType === 'OCNAC' ? 'primary' : 'secondary'}>
+                                                                                    {pl.InboundType}
+                                                                                </Chip>
+                                                                            ) : (
+                                                                                '-'
+                                                                            )}
+                                                                        </TableCell>
+                                                                        <TableCell className="whitespace-nowrap text-center">
+                                                                            {detalle.length}
+                                                                        </TableCell>
+                                                                        <TableCell>
+                                                                            <div className="max-w-[200px] truncate" title={pl.Comments || ''}>
+                                                                                {pl.Comments || '-'}
+                                                                            </div>
+                                                                        </TableCell>
+                                                                        <TableCell>
+                                                                            {pl.WmsResponse ? (
+                                                                                <Chip 
+                                                                                    size="sm" 
+                                                                                    color={pl.WmsResponse.includes('Procesado') || pl.WmsResponse.includes('Transferido') ? 'success' : 'warning'}
+                                                                                    variant="flat"
+                                                                                >
+                                                                                    <div className="max-w-[150px] truncate" title={pl.WmsResponse}>
+                                                                                        {pl.WmsResponse}
+                                                                                    </div>
+                                                                                </Chip>
+                                                                            ) : (
+                                                                                '-'
+                                                                            )}
+                                                                        </TableCell>
+                                                                    </TableRow>
+                                                                </React.Fragment>
+                                                            );
+                                                        })}
+                                                    </TableBody>
+                                                </Table>
+                                                
+                                                {/* Detalle expandido fuera de la tabla */}
+                                                {packingListsFromApi.map((pl) => {
+                                                    const detalle = pl.DetallePackinList || pl._detallePackinList || [];
+                                                    const isExpanded = expandedPackingListId === pl.Id;
+                                                    
+                                                    if (!isExpanded || detalle.length === 0) return null;
+                                                    
+                                                    return (
+                                                        <div key={`detail-${pl.Id}`} className="mt-2 mb-4 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                                                            <h5 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                                                                <DocumentTextIcon className="w-4 h-4" />
+                                                                Detalle del PackingList {pl.Number} ({detalle.length} {detalle.length === 1 ? 'item' : 'items'})
+                                                            </h5>
+                                                            <div className="overflow-x-auto">
+                                                                <Table aria-label="Tabla de detalles" removeWrapper>
+                                                                    <TableHeader>
+                                                                        <TableColumn width={80}>LÍNEA</TableColumn>
+                                                                        <TableColumn width={120}>CÓDIGO</TableColumn>
+                                                                        <TableColumn>DESCRIPCIÓN</TableColumn>
+                                                                        <TableColumn width={100} className="text-right">CANTIDAD</TableColumn>
+                                                                    </TableHeader>
+                                                                    <TableBody>
+                                                                        {detalle.map((item, index) => {
+                                                                            const lineNumber = item.LineNumber || item.lineNumber || index + 1;
+                                                                            const itemCode = item.ItemCode || item.itemCode || '';
+                                                                            const itemName = item.ItemName || item.itemName || '';
+                                                                            const quantity = item.Quantity || item.quantity || 0;
+                                                                            
+                                                                            return (
+                                                                                <TableRow key={`${pl.Id}-${lineNumber}-${index}`}>
+                                                                                    <TableCell className="whitespace-nowrap font-medium">{lineNumber}</TableCell>
+                                                                                    <TableCell className="whitespace-nowrap font-mono text-sm">{itemCode}</TableCell>
+                                                                                    <TableCell>{itemName}</TableCell>
+                                                                                    <TableCell className="text-right font-semibold">
+                                                                                        {quantity > 0 ? (
+                                                                                            <Chip size="sm" color="primary" variant="flat">
+                                                                                                {quantity}
+                                                                                            </Chip>
+                                                                                        ) : (
+                                                                                            <span className="text-gray-400">0</span>
+                                                                                        )}
+                                                                                    </TableCell>
+                                                                                </TableRow>
+                                                                            );
+                                                                        })}
+                                                                    </TableBody>
+                                                                </Table>
+                                                            </div>
                                                         </div>
-                                                        <div>
-                                                            <p className="text-xs text-gray-500">Almacén</p>
-                                                            <p className="text-sm font-semibold text-gray-900">
-                                                                {appointment.packingList.warehouse}
-                                                            </p>
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Items */}
-                                                    <div className="space-y-2">
-                                                        <p className="text-sm font-semibold text-gray-900">
-                                                            Items ({appointment.packingList.items.length})
-                                                        </p>
-                                                        <div className="space-y-1.5">
-                                                            {appointment.packingList.items.map((item) => (
-                                                                <div 
-                                                                    key={item.id}
-                                                                    className="flex items-center justify-between p-2.5 bg-gray-50 rounded-lg border border-gray-100"
-                                                                >
-                                                                    <div className="flex-1">
-                                                                        <p className="text-sm font-medium text-gray-900">
-                                                                            {item.productName}
-                                                                        </p>
-                                                                        <p className="text-xs text-gray-500">
-                                                                            Código: {item.productCode}
-                                                                        </p>
-                                                                    </div>
-                                                                    <div className="text-right">
-                                                                        <p className="text-sm font-bold text-gray-900">
-                                                                            {item.quantity} {item.unit}
-                                                                        </p>
-                                                                    </div>
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Comentarios */}
-                                                    {(appointment.packingList.comment || appointment.packingList.commentWms) && (
-                                                        <div className="mt-3 pt-3 border-t border-gray-200">
-                                                            {appointment.packingList.comment && (
-                                                                <div className="mb-2">
-                                                                    <p className="text-xs text-gray-500">Comentario</p>
-                                                                    <p className="text-sm text-gray-700">{appointment.packingList.comment}</p>
-                                                                </div>
-                                                            )}
-                                                            {appointment.packingList.commentWms && (
-                                                                <div>
-                                                                    <p className="text-xs text-gray-500">Comentario WMS</p>
-                                                                    <p className="text-sm text-gray-700">{appointment.packingList.commentWms}</p>
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    )}
-                                                </div>
+                                                    );
+                                                })}
                                             </div>
                                         ) : (
-                                            <div className="text-center py-8">
-                                                <div className="w-16 h-16 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-3">
-                                                    <ClipboardDocumentListIcon className="w-8 h-8 text-amber-600" />
-                                                </div>
-                                                <p className="text-gray-600 mb-4">
-                                                    El PackingList aún no ha sido creado
+                                            <div className="text-center py-6 mb-4">
+                                                <p className="text-sm text-gray-500">
+                                                    No se encontraron PackingList para esta cita
                                                 </p>
-                                                {canManagePackingList && (
-                                                    <Button
-                                                        color="primary"
-                                                        size="lg"
-                                                        startContent={<ClipboardDocumentListIcon className="w-5 h-5" />}
-                                                        onPress={() => {
-                                                            onClose();
-                                                            onOpenPackingList();
-                                                        }}
-                                                        className="shadow-lg"
-                                                    >
-                                                        Crear PackingList
-                                                    </Button>
-                                                )}
+                                            </div>
+                                        )}
+
+                                        {/* Botón para crear PackingList - siempre visible si tiene permisos */}
+                                        {canManagePackingList && (
+                                            <div className="mt-4 pt-4 border-t border-gray-200">
+                                                <Button
+                                                    color="primary"
+                                                    size="lg"
+                                                    startContent={<ClipboardDocumentListIcon className="w-5 h-5" />}
+                                                    onPress={() => {
+                                                        onClose();
+                                                        onOpenPackingList();
+                                                    }}
+                                                    className="w-full shadow-lg"
+                                                >
+                                                    Crear PackingList
+                                                </Button>
                                             </div>
                                         )}
                                     </CardBody>
@@ -762,6 +891,20 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
                             >
                                 Cerrar
                             </Button>
+                            {onEdit && appointment?.docEntry && (
+                                <Button 
+                                    color="primary" 
+                                    onPress={() => {
+                                        onClose();
+                                        onEdit();
+                                    }}
+                                    size="lg"
+                                    className="font-medium"
+                                    startContent={<CalendarIcon className="w-5 h-5" />}
+                                >
+                                    Editar Cita
+                                </Button>
+                            )}
                         </ModalFooter>
                     </>
                 )}

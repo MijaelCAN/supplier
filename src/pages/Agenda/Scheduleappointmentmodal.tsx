@@ -60,6 +60,25 @@ interface ScheduleAppointmentModalProps {
     isLookingUp: boolean;
     prefilledDate?: string;
     prefilledTime?: string;
+    /** Función para verificar si un horario está disponible (sin conflictos) */
+    isTimeSlotAvailable?: (date: Date, startTime: string, endTime: string, excludeAppointmentId?: string, excludeSupplierRUC?: string) => boolean;
+    /** Función para obtener las citas conflictivas */
+    getConflictingAppointments?: (date: Date, startTime: string, endTime: string, excludeAppointmentId?: string, excludeSupplierRUC?: string) => Array<{
+        supplierName: string;
+        deliveryTime: string;
+        deliveryTimeEnd: string;
+    }>;
+    /** Modo edición: si está presente, el modal está en modo edición */
+    editingAppointment?: {
+        docEntry: string;
+        supplierRUC: string;
+        supplierName: string;
+        deliveryDate: string;
+        deliveryTime: string;
+        deliveryTimeEnd: string;
+        warehouse?: string;
+        notes?: string;
+    } | null;
 }
 
 const ScheduleAppointmentModal: React.FC<ScheduleAppointmentModalProps> = ({
@@ -72,7 +91,10 @@ const ScheduleAppointmentModal: React.FC<ScheduleAppointmentModalProps> = ({
     isCreating,
     isLookingUp,
     prefilledDate,
-    prefilledTime
+    prefilledTime,
+    isTimeSlotAvailable,
+    getConflictingAppointments,
+    editingAppointment
 }) => {
     // Form state
     const [step, setStep] = useState<1 | 2>(1);
@@ -92,16 +114,37 @@ const ScheduleAppointmentModal: React.FC<ScheduleAppointmentModalProps> = ({
     // Reset form when modal opens or closes
     useEffect(() => {
         if (isOpen) {
-            // Cuando se abre el modal, resetear todo al paso 1
-            setStep(1);
-            setRucSearch('');
-            setFormData({
-                deliveryDate: prefilledDate || '',
-                deliveryTime: prefilledTime || '',
-                deliveryTimeEnd: '',
-                warehouse: '',
-                notes: ''
-            });
+            if (editingAppointment) {
+                // Modo edición: prellenar con los datos de la cita
+                setStep(2); // Ir directamente al paso 2
+                setFormData({
+                    deliveryDate: editingAppointment.deliveryDate || '',
+                    deliveryTime: editingAppointment.deliveryTime || '',
+                    deliveryTimeEnd: editingAppointment.deliveryTimeEnd || '',
+                    warehouse: editingAppointment.warehouse || '',
+                    notes: editingAppointment.notes || ''
+                });
+            } else {
+                // Modo creación: resetear todo al paso 1
+                setStep(1);
+                setRucSearch('');
+                
+                // Calcular hora de fin automáticamente si hay hora de inicio prefilled
+                let deliveryTimeEnd = '';
+                if (prefilledTime) {
+                    const [hours, minutes] = prefilledTime.split(':').map(Number);
+                    const endHours = hours + 1;
+                    deliveryTimeEnd = `${String(endHours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+                }
+                
+                setFormData({
+                    deliveryDate: prefilledDate || '',
+                    deliveryTime: prefilledTime || '',
+                    deliveryTimeEnd: deliveryTimeEnd,
+                    warehouse: '',
+                    notes: ''
+                });
+            }
             setErrors({});
         } else {
             // Cuando se cierra el modal, también resetear todo
@@ -116,14 +159,14 @@ const ScheduleAppointmentModal: React.FC<ScheduleAppointmentModalProps> = ({
             });
             setErrors({});
         }
-    }, [isOpen, prefilledDate, prefilledTime]);
+    }, [isOpen, prefilledDate, prefilledTime, editingAppointment]);
     
-    // Avanzar al paso 2 cuando se encuentra el proveedor (solo si el modal está abierto)
+    // Avanzar al paso 2 cuando se encuentra el proveedor (solo si el modal está abierto y no está en modo edición)
     useEffect(() => {
-        if (isOpen && supplierData && step === 1) {
+        if (isOpen && supplierData && step === 1 && !editingAppointment) {
             setStep(2);
         }
-    }, [supplierData, step, isOpen]);
+    }, [supplierData, step, isOpen, editingAppointment]);
 
     // Auto-set end time when start time changes
     useEffect(() => {
@@ -134,6 +177,64 @@ const ScheduleAppointmentModal: React.FC<ScheduleAppointmentModalProps> = ({
             setFormData(prev => ({ ...prev, deliveryTimeEnd: endTime }));
         }
     }, [formData.deliveryTime]);
+
+    // State to store conflicting appointments
+    const [conflictingAppointments, setConflictingAppointments] = useState<Array<{
+        supplierName: string;
+        deliveryTime: string;
+        deliveryTimeEnd: string;
+    }>>([]);
+
+    // Validate time slot availability when date/time changes
+    useEffect(() => {
+        if (formData.deliveryDate && formData.deliveryTime && formData.deliveryTimeEnd && isTimeSlotAvailable) {
+            const appointmentDate = new Date(formData.deliveryDate);
+            // En modo edición, excluir citas del mismo RUC
+            const excludeSupplierRUC = editingAppointment ? (supplierData?.supplierRUC || editingAppointment.supplierRUC) : undefined;
+            const isAvailable = isTimeSlotAvailable(
+                appointmentDate,
+                formData.deliveryTime,
+                formData.deliveryTimeEnd,
+                undefined, // excludeAppointmentId se maneja en el padre
+                excludeSupplierRUC
+            );
+            
+            // Get conflicting appointments if function is provided
+            if (getConflictingAppointments) {
+                const conflicts = getConflictingAppointments(
+                    appointmentDate,
+                    formData.deliveryTime,
+                    formData.deliveryTimeEnd,
+                    undefined, // excludeAppointmentId se maneja en el padre
+                    excludeSupplierRUC
+                );
+                setConflictingAppointments(conflicts);
+            }
+            
+            if (!isAvailable) {
+                setErrors(prev => ({
+                    ...prev,
+                    deliveryTime: 'Este horario está ocupado. Por favor, seleccione otro horario.',
+                    deliveryTimeEnd: 'Este horario está ocupado. Por favor, seleccione otro horario.'
+                }));
+            } else {
+                // Clear errors if slot is available
+                setErrors(prev => {
+                    const newErrors = { ...prev };
+                    if (newErrors.deliveryTime === 'Este horario está ocupado. Por favor, seleccione otro horario.') {
+                        delete newErrors.deliveryTime;
+                    }
+                    if (newErrors.deliveryTimeEnd === 'Este horario está ocupado. Por favor, seleccione otro horario.') {
+                        delete newErrors.deliveryTimeEnd;
+                    }
+                    return newErrors;
+                });
+                setConflictingAppointments([]);
+            }
+        } else {
+            setConflictingAppointments([]);
+        }
+    }, [formData.deliveryDate, formData.deliveryTime, formData.deliveryTimeEnd, isTimeSlotAvailable, getConflictingAppointments, editingAppointment, supplierData]);
 
     // Handle RUC lookup
     const handleRUCLookup = async () => {
@@ -180,6 +281,25 @@ const ScheduleAppointmentModal: React.FC<ScheduleAppointmentModalProps> = ({
             
             if (endMinutes <= startMinutes) {
                 newErrors.deliveryTimeEnd = 'La hora de fin debe ser posterior a la hora de inicio';
+            }
+        }
+
+        // Validate time slot availability (check for conflicts with existing appointments)
+        if (formData.deliveryDate && formData.deliveryTime && formData.deliveryTimeEnd && isTimeSlotAvailable) {
+            const appointmentDate = new Date(formData.deliveryDate);
+            // En modo edición, excluir citas del mismo RUC
+            const excludeSupplierRUC = editingAppointment ? (supplierData?.supplierRUC || editingAppointment.supplierRUC) : undefined;
+            const isAvailable = isTimeSlotAvailable(
+                appointmentDate,
+                formData.deliveryTime,
+                formData.deliveryTimeEnd,
+                undefined, // excludeAppointmentId se maneja en el padre
+                excludeSupplierRUC
+            );
+            
+            if (!isAvailable) {
+                newErrors.deliveryTime = 'El horario seleccionado está ocupado. Por favor, seleccione otro horario.';
+                newErrors.deliveryTimeEnd = 'El horario seleccionado está ocupado. Por favor, seleccione otro horario.';
             }
         }
 
@@ -232,7 +352,7 @@ const ScheduleAppointmentModal: React.FC<ScheduleAppointmentModalProps> = ({
                                     </div>
                                     <div>
                                         <h3 className="text-xl font-bold text-gray-900">
-                                            Programar Nueva Entrega
+                                            {editingAppointment ? 'Editar Cita' : 'Programar Nueva Entrega'}
                                         </h3>
                                         <p className="text-sm text-gray-500 mt-0.5">
                                             {step === 1 ? 'Paso 1: Buscar Proveedor' : 'Paso 2: Detalles de Entrega'}
@@ -309,6 +429,7 @@ const ScheduleAppointmentModal: React.FC<ScheduleAppointmentModalProps> = ({
                                                 label="RUC del Proveedor"
                                                 placeholder="20123456789"
                                                 value={rucSearch}
+                                                size='sm'
                                                 onValueChange={(value) => {
                                                     setRucSearch(value);
                                                     setErrors(prev => ({ ...prev, ruc: '' }));
@@ -316,10 +437,7 @@ const ScheduleAppointmentModal: React.FC<ScheduleAppointmentModalProps> = ({
                                                 isInvalid={!!errors.ruc}
                                                 errorMessage={errors.ruc}
                                                 startContent={<BuildingOfficeIcon className="w-5 h-5 text-gray-400" />}
-                                                classNames={{
-                                                    input: "text-lg",
-                                                    inputWrapper: "h-14"
-                                                }}
+                                                
                                                 className="flex-1"
                                                 onKeyDown={(e) => {
                                                     if (e.key === 'Enter' && !isLookingUp) {
@@ -506,73 +624,79 @@ const ScheduleAppointmentModal: React.FC<ScheduleAppointmentModalProps> = ({
                                                 }}
                                             />
                                             
-                                            <Select
+                                            <Input
                                                 label="Hora de Inicio"
+                                                type="time"
                                                 size='sm'
-                                                placeholder="Seleccione"
-                                                selectedKeys={formData.deliveryTime ? [formData.deliveryTime] : []}
-                                                onSelectionChange={(keys) => {
-                                                    const startTime = Array.from(keys)[0] as string;
-                                                    setFormData(prev => ({ ...prev, deliveryTime: startTime }));
+                                                value={formData.deliveryTime}
+                                                onValueChange={(value) => {
+                                                    setFormData(prev => ({ ...prev, deliveryTime: value }));
                                                     setErrors(prev => ({ ...prev, deliveryTime: '' }));
                                                 }}
                                                 isRequired
                                                 isInvalid={!!errors.deliveryTime}
                                                 errorMessage={errors.deliveryTime}
                                                 startContent={<ClockIcon className="w-4 h-4 text-gray-400" />}
-                                            >
-                                                {timeSlots.map((time) => (
-                                                    <SelectItem key={time}>
-                                                        {time}
-                                                    </SelectItem>
-                                                ))}
-                                            </Select>
+                                                classNames={{
+                                                    inputWrapper: "h-12"
+                                                }}
+                                                placeholder="09:47"
+                                            />
                                             
-                                            <Select
+                                            <Input
                                                 label="Hora de Fin"
+                                                type="time"
                                                 size='sm'
-                                                placeholder="Seleccione"
-                                                selectedKeys={formData.deliveryTimeEnd ? [formData.deliveryTimeEnd] : []}
-                                                onSelectionChange={(keys) => {
-                                                    setFormData(prev => ({ ...prev, deliveryTimeEnd: Array.from(keys)[0] as string }));
+                                                value={formData.deliveryTimeEnd}
+                                                onValueChange={(value) => {
+                                                    setFormData(prev => ({ ...prev, deliveryTimeEnd: value }));
                                                     setErrors(prev => ({ ...prev, deliveryTimeEnd: '' }));
                                                 }}
                                                 isRequired
                                                 isInvalid={!!errors.deliveryTimeEnd}
                                                 errorMessage={errors.deliveryTimeEnd}
                                                 startContent={<ClockIcon className="w-4 h-4 text-gray-400" />}
-                                            >
-                                                {timeSlots.filter((time) => {
-                                                    if (formData.deliveryTime) {
-                                                        const timeToMinutes = (timeStr: string) => {
-                                                            const [hours, minutes] = timeStr.split(':').map(Number);
-                                                            return hours * 60 + minutes;
-                                                        };
-                                                        const startMinutes = timeToMinutes(formData.deliveryTime);
-                                                        const timeMinutes = timeToMinutes(time);
-                                                        return timeMinutes > startMinutes;
-                                                    }
-                                                    return true;
-                                                }).map((time) => (
-                                                    <SelectItem key={time}>
-                                                        {time}
-                                                    </SelectItem>
-                                                ))}
-                                            </Select>
+                                                classNames={{
+                                                    inputWrapper: "h-12"
+                                                }}
+                                                placeholder="10:34"
+                                            />
                                         </div>
 
                                         {/* Time Range Preview */}
                                         {formData.deliveryTime && formData.deliveryTimeEnd && (
-                                            <Card className="bg-blue-50 border border-blue-100">
-                                                <CardBody className="flex-row items-center gap-3 py-2">
-                                                    <ClockIcon className="w-4 h-4 text-blue-600" />
-                                                    <p className="text-sm text-blue-900">
-                                                        Ventana de entrega: <span className="font-bold">
-                                                            {formData.deliveryTime} - {formData.deliveryTimeEnd}
-                                                        </span>
-                                                    </p>
-                                                </CardBody>
-                                            </Card>
+                                            <>
+                                                {conflictingAppointments.length > 0 ? (
+                                                    <Card className="bg-red-50 border border-red-200">
+                                                        <CardBody className="py-3 space-y-2">
+                                                            <div className="flex items-start gap-3">
+                                                                <ExclamationTriangleIcon className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                                                                <div className="flex-1">
+                                                                    <p className="text-sm font-bold text-red-900 mb-2">
+                                                                        Horario ocupado
+                                                                    </p>
+                                                                    {conflictingAppointments.map((conflict, index) => (
+                                                                        <p key={index} className="text-sm text-red-800">
+                                                                            <span className="font-semibold">{conflict.supplierName}</span> - {conflict.deliveryTime} a {conflict.deliveryTimeEnd}
+                                                                        </p>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        </CardBody>
+                                                    </Card>
+                                                ) : (
+                                                    <Card className="bg-blue-50 border border-blue-100">
+                                                        <CardBody className="flex-row items-center gap-3 py-2">
+                                                            <ClockIcon className="w-4 h-4 text-blue-600" />
+                                                            <p className="text-sm text-blue-900">
+                                                                Ventana de entrega: <span className="font-bold">
+                                                                    {formData.deliveryTime} - {formData.deliveryTimeEnd}
+                                                                </span>
+                                                            </p>
+                                                        </CardBody>
+                                                    </Card>
+                                                )}
+                                            </>
                                         )}
                                     </div>
 
@@ -591,9 +715,8 @@ const ScheduleAppointmentModal: React.FC<ScheduleAppointmentModalProps> = ({
                                             onSelectionChange={(keys) => setFormData(prev => ({ ...prev, warehouse: Array.from(keys)[0] as string }))}
                                             startContent={<MapPinIcon className="w-4 h-4 text-gray-400" />}
                                         >
-                                            <SelectItem key="ALM001">Almacén Principal</SelectItem>
-                                            <SelectItem key="ALM002">Almacén Secundario</SelectItem>
-                                            <SelectItem key="ALM003">Almacén Lima Norte</SelectItem>
+                                            <SelectItem key="ALM001">Sede Ancon</SelectItem>
+                                            <SelectItem key="ALM002">Sede Villas</SelectItem>
                                         </Select>
                                     </div>
 
@@ -658,16 +781,27 @@ const ScheduleAppointmentModal: React.FC<ScheduleAppointmentModalProps> = ({
                                             onPress={handleSubmit}
                                             isLoading={isCreating}
                                             isDisabled={
-                                                !supplierData || 
+                                                (!supplierData ) || 
                                                 !formData.deliveryDate || 
                                                 !formData.deliveryTime || 
                                                 !formData.deliveryTimeEnd || 
-                                                isCreating
+                                                isCreating ||
+                                                // Solo deshabilitar si hay errores de validación reales (excluir errores de conflicto si es el mismo proveedor en edición)
+                                                (() => {
+                                                    // Filtrar errores: si está en modo edición y el error es de "ocupado", no contar ese error
+                                                    const relevantErrors = Object.entries(errors).filter(([key, value]) => {
+                                                        if (editingAppointment && (key === 'deliveryTime' || key === 'deliveryTimeEnd') && value.includes('ocupado')) {
+                                                            return false; // No contar errores de conflicto si es el mismo proveedor
+                                                        }
+                                                        return true; // Contar todos los demás errores
+                                                    });
+                                                    return relevantErrors.length > 0;
+                                                })()
                                             }
                                             className="px-8 font-semibold shadow-lg"
                                             startContent={!isCreating && <CheckCircleIcon className="w-5 h-5" />}
                                         >
-                                            {isCreating ? 'Programando...' : 'Programar Entrega'}
+                                            {isCreating ? (editingAppointment ? 'Actualizando...' : 'Programando...') : (editingAppointment ? 'Actualizar Cita' : 'Programar Entrega')}
                                         </Button>
                                     )}
                                 </div>

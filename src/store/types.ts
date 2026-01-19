@@ -379,6 +379,7 @@ interface File{
 export interface DeliveryAppointment {
     id: string;
     appointmentNumber: string;
+    docEntry?: string; // DocEntry del sistema (ID de la cita en SAP)
     supplierId: string;
     supplierRUC: string;
     supplierName: string;
@@ -422,6 +423,8 @@ export interface PackingListItem {
     pendingQuantity: number;
     unit: string;
     category?: string;
+    marca?: boolean; // Campo Marca del API para el checkbox
+    cantidadOC?: number; // Cantidad total de la Orden de Compra
 }
 
 export interface TransportData {

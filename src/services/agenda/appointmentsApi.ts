@@ -6,6 +6,7 @@ const APPOINTMENTS_ENDPOINT = '/api/Proveedores/CitasProveedor';
 const CREATE_APPOINTMENT_ENDPOINT = '/api/Proveedores/Cita';
 
 export interface AppointmentApiRecord {
+    DocEntry?: string; // ID de la cita en el sistema
     U_Ruc: string;
     U_RazonSocial: string;
     U_Fecha: string; // Formato: "06-01-2026"
@@ -81,6 +82,7 @@ const mapApiRecordToAppointment = (record: AppointmentApiRecord, index: number):
     return {
         id,
         appointmentNumber,
+        docEntry: record.DocEntry || id, // Usar DocEntry del API (viene del listado)
         supplierId: record.U_Ruc, // Usar RUC como supplierId temporalmente
         supplierRUC: record.U_Ruc,
         supplierName: record.U_RazonSocial,
@@ -127,13 +129,32 @@ const buildAppointmentsUrl = (
 /**
  * Formatea fecha a formato YYYYMMDD para el API
  * Ejemplo: "2026-01-06" -> "20260106"
+ * IMPORTANTE: Parsea la fecha sin usar zona horaria para evitar cambios de día
  */
 export const formatDateForAPI = (date: Date | string): string => {
-    const d = typeof date === 'string' ? new Date(date) : date;
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${year}${month}${day}`;
+    if (typeof date === 'string') {
+        // Si es string, parsear directamente sin usar new Date() para evitar problemas de zona horaria
+        // Formato esperado: "YYYY-MM-DD"
+        const parts = date.split('-');
+        if (parts.length === 3) {
+            const year = parts[0];
+            const month = parts[1];
+            const day = parts[2];
+            return `${year}${month}${day}`;
+        }
+        // Si no tiene el formato esperado, intentar con Date pero usando métodos locales
+        const d = new Date(date);
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}${month}${day}`;
+    } else {
+        // Si es Date, usar métodos locales (no UTC) para evitar cambios de día
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}${month}${day}`;
+    }
 };
 
 /**
@@ -182,7 +203,7 @@ export const fetchAppointmentsFromApi = async (
 export interface CreateAppointmentRequest {
     u_Ruc: string;
     u_RazonSocial: string;
-    u_Fecha: string; // Formato: "2026-01-08" (ISO)
+    u_Fecha: string; // Formato: "20260108" (YYYYMMDD)
     u_HoraInicio: string; // Formato: "10:47:41" (HH:MM:SS)
     u_HoraFin: string; // Formato: "12:40:41" (HH:MM:SS)
     u_Descripcion: string;
@@ -254,5 +275,81 @@ export const createAppointmentInApi = async (
     
     // Retornar el ID de la cita creada
     return json.data || '';
+};
+
+/**
+ * Interfaz para actualizar una cita existente
+ */
+export interface UpdateAppointmentRequest {
+    u_Ruc: string;
+    u_RazonSocial: string;
+    u_Fecha: string; // Formato: "20260108" (YYYYMMDD)
+    u_HoraInicio: string; // Formato: "10:00:00" (HH:MM:SS)
+    u_HoraFin: string; // Formato: "13:00:00" (HH:MM:SS)
+    u_Descripcion: string;
+    u_Almacen: string;
+    u_Active: string; // "Y" o "N"
+}
+
+/**
+ * Respuesta al actualizar una cita
+ */
+interface UpdateAppointmentResponse {
+    statusCode: number;
+    success: boolean;
+    message: string;
+    data: string; // DocEntry de la cita actualizada
+}
+
+/**
+ * Actualiza una cita existente en el API
+ * @param docEntry - DocEntry de la cita a actualizar
+ * @param appointmentData - Datos de la cita a actualizar
+ * @returns DocEntry de la cita actualizada
+ */
+export const updateAppointmentInApi = async (
+    docEntry: string,
+    appointmentData: UpdateAppointmentRequest
+): Promise<string> => {
+    const url = `${DEFAULT_APPOINTMENTS_API_BASE_URL}/api/Proveedores/ActualizarCita?DocEntry=${docEntry}`;
+    
+    // Preparar el request body con el formato correcto
+    const requestBody: UpdateAppointmentRequest = {
+        u_Ruc: appointmentData.u_Ruc,
+        u_RazonSocial: appointmentData.u_RazonSocial,
+        u_Fecha: appointmentData.u_Fecha,
+        u_HoraInicio: formatTimeToSeconds(appointmentData.u_HoraInicio),
+        u_HoraFin: formatTimeToSeconds(appointmentData.u_HoraFin),
+        u_Descripcion: appointmentData.u_Descripcion || '',
+        u_Almacen: appointmentData.u_Almacen || '',
+        u_Active: appointmentData.u_Active || 'Y'
+    };
+    
+    const response = await httpClient(url, {
+        method: 'PATCH',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+    });
+    
+    if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Error desconocido');
+        throw new Error(`Error al actualizar cita (${response.status}): ${errorText}`);
+    }
+    
+    // El API retorna 204 (No Content) en caso de éxito, pero también puede retornar JSON
+    if (response.status === 204) {
+        return docEntry;
+    }
+    
+    const json = (await response.json()) as UpdateAppointmentResponse;
+    
+    if (!json || (json.statusCode !== 204 && json.statusCode !== 200)) {
+        throw new Error(json.message || 'Error al actualizar la cita');
+    }
+    
+    // Retornar el DocEntry de la cita actualizada
+    return json.data || docEntry;
 };
 
