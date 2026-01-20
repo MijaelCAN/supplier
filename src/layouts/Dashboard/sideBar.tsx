@@ -100,6 +100,8 @@ const SideBar: FC<SideBarProps> = ({sidebarOpen,setSidebarOpen}) => {
                                     }}
                                 >
                                     <AccordionItem
+                                        key={item.title}
+                                        textValue={item.title}
                                         title={
                                             <div className="flex items-center space-x-3">
                                                 <span className="text-gray-500 dark:text-gray-400">

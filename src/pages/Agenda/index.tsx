@@ -1,5 +1,5 @@
 // src/pages/Agenda/index.tsx
-import React, {useState, useMemo, useEffect} from 'react';
+import React, {useState, useMemo, useEffect, useRef} from 'react';
 import {
     Button,
     Card,
@@ -22,11 +22,11 @@ import {
     TableBody,
     TableRow,
     TableCell,
-    Checkbox
+    Checkbox,
+    Divider
 } from "@heroui/react";
 import {
     PlusIcon,
-    MagnifyingGlassIcon,
     ArrowLeftIcon,
     ArrowRightIcon
 } from "@heroicons/react/24/outline";
@@ -35,9 +35,16 @@ import { useAgendaStore } from "@/store/agendaStore";
 import { useAuth } from "@/store/authStore";
 import { UserRole } from "@/routes/menuTypes";
 import { DeliveryAppointment, PackingListItem } from "@/store/types";
-import AppointmentDetailModal from './AppointmentDetailModal';
+import { useNavigate, useLocation } from 'react-router-dom';
+import ScheduleAppointmentModal from './Scheduleappointmentmodal';
+import { fetchPackingListFromApi, createPackingListInApi, PackingListApiRecord, fetchWarehousesFromApi, WarehouseApiRecord, fetchDocumentsFromApi, DocumentApiRecord, fetchDocumentDetailFromApi, uploadFileToPackingList } from "@/services/agenda/packingListApi";
+import { formatDateForAPI } from "@/services/agenda/appointmentsApi";
+import { createChoferInApi } from "@/services/agenda/choferesApi";
+import DocumentsModal from './DocumentsModal';
 
 const Agenda: React.FC = () => {
+    const navigate = useNavigate();
+    const location = useLocation();
     const { currentUser } = useAuth();
     const {
         appointments,
@@ -51,14 +58,16 @@ const Agenda: React.FC = () => {
         addTransportData,
         addDocument,
         loadAppointmentsFromApi,
-        createAppointmentFromApi
+        createAppointmentFromApi,
+        updateAppointmentFromApi
     } = useAgendaStore();
+
+    console.log("SELECTED APPOINTMENT INDEX: ", selectedAppointment);
 
     // State
     const [currentWeek, setCurrentWeek] = useState(new Date());
     const [, setSelectedDate] = useState<string | null>(null);
     const [, setSelectedTimeSlot] = useState<string | null>(null);
-    const [rucSearch, setRucSearch] = useState('');
     const [isLookingUp, setIsLookingUp] = useState(false);
     const [isCreatingAppointment, setIsCreatingAppointment] = useState(false);
     const [supplierData, setSupplierData] = useState<any>(null);
@@ -68,7 +77,27 @@ const Agenda: React.FC = () => {
 
     // Modals
     const { isOpen: isScheduleOpen, onOpen: onScheduleOpen, onOpenChange: onScheduleOpenChange } = useDisclosure();
-    const { isOpen: isDetailOpen, onOpen: onDetailOpen, onOpenChange: onDetailOpenChange } = useDisclosure();
+    
+    // Handle modal close - limpiar todo el estado
+    const handleScheduleModalClose = () => {
+        // Limpiar todos los estados relacionados con el modal
+        setSupplierData(null);
+        setScheduleForm({
+            supplierRUC: '',
+            supplierId: '',
+            supplierName: '',
+            supplierEmail: '',
+            supplierPhone: '',
+            deliveryDate: '',
+            deliveryTime: '',
+            deliveryTimeEnd: '',
+            warehouse: '',
+            notes: ''
+        });
+        setIsLookingUp(false);
+        setIsCreatingAppointment(false);
+        onScheduleOpenChange();
+    };
     const { isOpen: isPackingListOpen, onOpen: onPackingListOpen, onOpenChange: onPackingListOpenChange } = useDisclosure();
     const { isOpen: isTransportOpen, onOpen: onTransportOpen, onOpenChange: onTransportOpenChange } = useDisclosure();
     const { isOpen: isDocumentsOpen, onOpen: onDocumentsOpen, onOpenChange: onDocumentsOpenChange } = useDisclosure();
@@ -92,8 +121,76 @@ const Agenda: React.FC = () => {
         warehouse: '',
         comment: '',
         commentWms: '',
+        number: '', // Número de PackingList (debe venir de orden de compra)
+        inboundType: 'OCNAC', // Tipo de entrada
+        ticket: '', // Ticket WMS
         items: [] as PackingListItem[]
     });
+    const [packingListsFromApi, setPackingListsFromApi] = useState<PackingListApiRecord[]>([]);
+    const [isLoadingPackingLists, setIsLoadingPackingLists] = useState(false);
+    const [warehouses, setWarehouses] = useState<WarehouseApiRecord[]>([]);
+    const [isLoadingWarehouses, setIsLoadingWarehouses] = useState(false);
+    const [documents, setDocuments] = useState<DocumentApiRecord[]>([]);
+    const [isLoadingDocuments, setIsLoadingDocuments] = useState(false);
+    const [selectedInboundType, setSelectedInboundType] = useState<'OCNAC' | 'OCINT' | ''>('');
+    const [documentSearchFilter, setDocumentSearchFilter] = useState<string>('');
+    const [isLoadingDocumentDetail, setIsLoadingDocumentDetail] = useState(false);
+    const documentSearchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    
+    // Filtros por columna
+    const [docNumFilter, setDocNumFilter] = useState<string>('');
+    const [cardCodeFilter, setCardCodeFilter] = useState<string>('');
+    const [cardNameFilter, setCardNameFilter] = useState<string>('');
+    const [taxDateFilter, setTaxDateFilter] = useState<string>('');
+    const { isOpen: isDocumentsSelectOpen, onOpen: onDocumentsSelectOpen, onOpenChange: onDocumentsSelectOpenChange } = useDisclosure();
+
+    // Función para convertir fecha de formato DD-MM-YYYY a Date para ordenamiento
+    const parseDate = (dateStr: string): Date => {
+        const parts = dateStr.split('-');
+        if (parts.length === 3) {
+            const day = parseInt(parts[0], 10);
+            const month = parseInt(parts[1], 10) - 1; // Mes es 0-indexed
+            const year = parseInt(parts[2], 10);
+            return new Date(year, month, day);
+        }
+        return new Date(0);
+    };
+
+    // Ordenar y filtrar documentos
+    const sortedAndFilteredDocuments = useMemo(() => {
+        let filtered = [...documents];
+        
+        // Aplicar filtros
+        if (docNumFilter.trim()) {
+            filtered = filtered.filter(doc => 
+                doc.DocNum.toLowerCase().includes(docNumFilter.toLowerCase())
+            );
+        }
+        if (cardCodeFilter.trim()) {
+            filtered = filtered.filter(doc => 
+                doc.CardCode.toLowerCase().includes(cardCodeFilter.toLowerCase())
+            );
+        }
+        if (cardNameFilter.trim()) {
+            filtered = filtered.filter(doc => 
+                doc.CardName.toLowerCase().includes(cardNameFilter.toLowerCase())
+            );
+        }
+        if (taxDateFilter.trim()) {
+            filtered = filtered.filter(doc => 
+                doc.TaxDate.toLowerCase().includes(taxDateFilter.toLowerCase())
+            );
+        }
+        
+        // Ordenar por fecha (TaxDate) descendente (más reciente primero)
+        filtered.sort((a, b) => {
+            const dateA = parseDate(a.TaxDate);
+            const dateB = parseDate(b.TaxDate);
+            return dateB.getTime() - dateA.getTime();
+        });
+        
+        return filtered;
+    }, [documents, docNumFilter, cardCodeFilter, cardNameFilter, taxDateFilter]);
 
     const [transportForm, setTransportForm] = useState({
         transportCompany: '',
@@ -269,7 +366,7 @@ const Agenda: React.FC = () => {
     };*/
 
     // Check if a time slot is available (no conflicts)
-    const isTimeSlotAvailable = (date: Date, startTime: string, endTime: string, excludeAppointmentId?: string): boolean => {
+    const isTimeSlotAvailable = (date: Date, startTime: string, endTime: string, excludeAppointmentId?: string, excludeSupplierRUC?: string): boolean => {
         const startMinutes = timeToMinutes(startTime);
         const endMinutes = timeToMinutes(endTime);
         
@@ -278,6 +375,9 @@ const Agenda: React.FC = () => {
         const conflictingAppointments = filteredAppointments.filter(apt => {
             // Skip the appointment being edited
             if (excludeAppointmentId && apt.id === excludeAppointmentId) return false;
+            
+            // Skip appointments from the same supplier (RUC) when editing
+            if (excludeSupplierRUC && apt.supplierRUC === excludeSupplierRUC) return false;
 
             const aptDate = new Date(apt.deliveryDate);
             const isSameDay = aptDate.toDateString() === date.toDateString();
@@ -292,6 +392,52 @@ const Agenda: React.FC = () => {
         });
 
         return conflictingAppointments.length === 0;
+    };
+
+    // Get conflicting appointments for a time slot
+    const getConflictingAppointments = (date: Date, startTime: string, endTime: string, excludeAppointmentId?: string, excludeSupplierRUC?: string): Array<{
+        supplierName: string;
+        deliveryTime: string;
+        deliveryTimeEnd: string;
+    }> => {
+        const startMinutes = timeToMinutes(startTime);
+        const endMinutes = timeToMinutes(endTime);
+        
+        if (endMinutes <= startMinutes) return [];
+
+        const conflicts = filteredAppointments.filter(apt => {
+            // Skip the appointment being edited
+            if (excludeAppointmentId && apt.id === excludeAppointmentId) return false;
+            
+            // Skip appointments from the same supplier (RUC) when editing
+            if (excludeSupplierRUC && apt.supplierRUC === excludeSupplierRUC) return false;
+
+            const aptDate = new Date(apt.deliveryDate);
+            const isSameDay = aptDate.toDateString() === date.toDateString();
+            
+            if (!isSameDay || !apt.deliveryTime) return false;
+            
+            const aptStartMinutes = timeToMinutes(apt.deliveryTime);
+            const aptEndMinutes = apt.deliveryTimeEnd ? timeToMinutes(apt.deliveryTimeEnd) : aptStartMinutes + 60;
+            
+            // Check for overlap: new appointment overlaps if it starts before existing ends and ends after existing starts
+            return (startMinutes < aptEndMinutes && endMinutes > aptStartMinutes);
+        });
+
+        // Map to return only the needed fields
+        return conflicts.map(apt => {
+            let deliveryTimeEnd = apt.deliveryTimeEnd;
+            if (!deliveryTimeEnd && apt.deliveryTime) {
+                const [hours, minutes] = apt.deliveryTime.split(':').map(Number);
+                const endHours = hours + 1;
+                deliveryTimeEnd = `${String(endHours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+            }
+            return {
+                supplierName: apt.supplierName,
+                deliveryTime: apt.deliveryTime,
+                deliveryTimeEnd: deliveryTimeEnd || ''
+            };
+        });
     };
 
     // Navigate weeks
@@ -311,14 +457,21 @@ const Agenda: React.FC = () => {
         setCurrentWeek(new Date());
     };
 
-    // Handle RUC lookup
-    const handleRUCLookup = async () => {
-        if (!rucSearch.trim()) return;
+    // Handle RUC lookup - Retorna la respuesta para que el modal la maneje
+    const handleRUCLookup = async (ruc: string) => {
+        if (!ruc.trim()) {
+            return {
+                success: false,
+                message: 'El RUC no puede estar vacío'
+            };
+        }
 
         setIsLookingUp(true);
         try {
-            const result = await lookupSupplierByRUC(`P${rucSearch}`);
+            const result = await lookupSupplierByRUC(`P${ruc.trim()}`);
+            
             if (result.success && result.data) {
+                // Actualizar el estado del padre para que el modal reciba el supplierData
                 setSupplierData(result.data);
                 setScheduleForm(prev => ({
                     ...prev,
@@ -328,56 +481,99 @@ const Agenda: React.FC = () => {
                     supplierEmail: result.data!.supplierEmail,
                     supplierPhone: result.data!.supplierPhone
                 }));
-            } else {
-                alert(result.message || 'Error al consultar proveedor');
             }
+            
+            // Retornar el resultado para que el modal lo maneje
+            return result;
         } catch (error) {
-            alert('Error al consultar proveedor');
+            const errorMessage = error instanceof Error ? error.message : 'Error al consultar proveedor';
+            return {
+                success: false,
+                message: errorMessage
+            };
         } finally {
             setIsLookingUp(false);
         }
     };
 
-    // Handle schedule appointment
-    const handleScheduleAppointment = async () => {
-        if (!scheduleForm.deliveryDate || !scheduleForm.deliveryTime || !scheduleForm.deliveryTimeEnd || !scheduleForm.supplierId) {
+    // State para modo edición
+    const [editingAppointment, setEditingAppointment] = useState<{
+        docEntry: string;
+        supplierRUC: string;
+        supplierName: string;
+        deliveryDate: string;
+        deliveryTime: string;
+        deliveryTimeEnd: string;
+        warehouse?: string;
+        notes?: string;
+    } | null>(null);
+
+    // Handle schedule appointment (crear o actualizar)
+    const handleScheduleAppointment = async (formData?: any) => {
+        // Si no se pasa formData, usar scheduleForm (compatibilidad con código anterior)
+        const data = formData || scheduleForm;
+        if (!data.deliveryDate || !data.deliveryTime || !data.deliveryTimeEnd || (!data.supplierId && !editingAppointment)) {
             alert('Por favor complete todos los campos requeridos');
             return;
         }
 
-        const startMinutes = timeToMinutes(scheduleForm.deliveryTime);
-        const endMinutes = timeToMinutes(scheduleForm.deliveryTimeEnd);
+        const startMinutes = timeToMinutes(data.deliveryTime);
+        const endMinutes = timeToMinutes(data.deliveryTimeEnd);
         
         if (endMinutes <= startMinutes) {
             alert('La hora de fin debe ser posterior a la hora de inicio');
             return;
         }
 
-        // Check for time slot conflicts
-        const deliveryDate = new Date(scheduleForm.deliveryDate);
-        if (!isTimeSlotAvailable(deliveryDate, scheduleForm.deliveryTime, scheduleForm.deliveryTimeEnd)) {
+        // Check for time slot conflicts (excluir la cita actual si está en modo edición)
+        const deliveryDate = new Date(data.deliveryDate);
+        const excludeAppointmentId = editingAppointment ? selectedAppointment?.id : undefined;
+        if (!isTimeSlotAvailable(deliveryDate, data.deliveryTime, data.deliveryTimeEnd, excludeAppointmentId)) {
             alert('El horario seleccionado ya está ocupado. Por favor seleccione otro horario.');
             return;
         }
 
         setIsCreatingAppointment(true);
         try {
-            // Crear la cita en el API
-            const newAppointment = await createAppointmentFromApi({
-                supplierRUC: scheduleForm.supplierRUC,
-                supplierName: scheduleForm.supplierName,
-                deliveryDate: scheduleForm.deliveryDate,
-                deliveryTime: scheduleForm.deliveryTime,
-                deliveryTimeEnd: scheduleForm.deliveryTimeEnd,
-                description: scheduleForm.notes,
-                warehouse: scheduleForm.warehouse,
-                active: 'Y'
-            });
+            if (editingAppointment) {
+                // Modo edición: actualizar la cita
+                await updateAppointmentFromApi(editingAppointment.docEntry, {
+                    supplierRUC: data.supplierRUC,
+                    supplierName: data.supplierName,
+                    deliveryDate: data.deliveryDate,
+                    deliveryTime: data.deliveryTime,
+                    deliveryTimeEnd: data.deliveryTimeEnd,
+                    description: data.notes,
+                    warehouse: data.warehouse,
+                    active: 'Y'
+                });
 
-            // Mostrar mensaje de éxito
-            alert(`Cita programada exitosamente. Número de cita: ${newAppointment.appointmentNumber}`);
+                alert('Cita actualizada exitosamente');
+            } else {
+                // Modo creación: crear nueva cita
+                const newAppointment = await createAppointmentFromApi({
+                    supplierRUC: data.supplierRUC,
+                    supplierName: data.supplierName,
+                    deliveryDate: data.deliveryDate,
+                    deliveryTime: data.deliveryTime,
+                    deliveryTimeEnd: data.deliveryTimeEnd,
+                    description: data.notes,
+                    warehouse: data.warehouse,
+                    active: 'Y'
+                });
+
+                alert(`Cita programada exitosamente. Número de cita: ${newAppointment.appointmentNumber}`);
+            }
             
-            // Reset form
+            // Recargar citas del API según el rol del usuario
+            const ruc = currentUser?.role === UserRole.PROVEEDOR && currentUser.username 
+                ? currentUser.username 
+                : undefined;
+            
+            await loadAppointmentsFromApi(ruc, weekStart, weekEnd);
+            
+            // Reset form y cerrar modal
+            setEditingAppointment(null);
             setScheduleForm({
                 supplierRUC: '',
                 supplierId: '',
@@ -390,16 +586,46 @@ const Agenda: React.FC = () => {
                 warehouse: '',
                 notes: ''
             });
-            setSupplierData(null);
-            setRucSearch('');
-            onScheduleOpenChange();
+            handleScheduleModalClose();
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Error al crear la cita';
-            alert(`Error al crear la cita: ${errorMessage}`);
-            console.error('Error al crear cita:', error);
+            const errorMessage = error instanceof Error ? error.message : (editingAppointment ? 'Error al actualizar la cita' : 'Error al crear la cita');
+            alert(errorMessage);
+            console.error('Error:', error);
         } finally {
             setIsCreatingAppointment(false);
         }
+    };
+
+    // Handle edit appointment
+    const handleEditAppointment = () => {
+        if (!selectedAppointment || !selectedAppointment.docEntry) {
+            alert('No se puede editar esta cita. Falta el DocEntry.');
+            return;
+        }
+
+        // Configurar modo edición
+        setEditingAppointment({
+            docEntry: selectedAppointment.docEntry,
+            supplierRUC: selectedAppointment.supplierRUC,
+            supplierName: selectedAppointment.supplierName,
+            deliveryDate: selectedAppointment.deliveryDate,
+            deliveryTime: selectedAppointment.deliveryTime,
+            deliveryTimeEnd: selectedAppointment.deliveryTimeEnd,
+            warehouse: selectedAppointment.warehouse,
+            notes: selectedAppointment.notes
+        });
+
+        // Configurar supplierData para el modal
+        setSupplierData({
+            supplierId: selectedAppointment.supplierId,
+            supplierName: selectedAppointment.supplierName,
+            supplierEmail: selectedAppointment.supplierEmail,
+            supplierPhone: selectedAppointment.supplierPhone,
+            supplierRUC: selectedAppointment.supplierRUC
+        });
+
+        // Abrir modal de programación
+        onScheduleOpen();
     };
 
     // Handle select time slot - opens modal with pre-filled date and start time
@@ -422,90 +648,292 @@ const Agenda: React.FC = () => {
         onScheduleOpen();
     };
 
-    // Handle view appointment
+    // Handle view appointment - navegar a la página de detalle
     const handleViewAppointment = (appointment: DeliveryAppointment) => {
         setSelectedAppointment(appointment);
-        onDetailOpen();
+        // Navegar a la página de detalle usando docEntry o appointmentNumber
+        const appointmentId = appointment.docEntry || appointment.appointmentNumber;
+        navigate(`/agenda/detail/${appointmentId}`);
     };
 
+    // Detectar navegación desde la página de detalle para abrir modales
+    useEffect(() => {
+        const state = location.state as { openPackingList?: boolean; openTransport?: boolean; openDocuments?: boolean; openEdit?: boolean } | null;
+        if (state) {
+            if (state.openPackingList && selectedAppointment) {
+                onPackingListOpen();
+            } else if (state.openTransport && selectedAppointment) {
+                onTransportOpen();
+            } else if (state.openDocuments && selectedAppointment) {
+                onDocumentsOpen();
+            } else if (state.openEdit && selectedAppointment) {
+                handleEditAppointment();
+            }
+            // Limpiar el estado después de procesarlo
+            window.history.replaceState({}, document.title);
+        }
+    }, [location.state, selectedAppointment]);
+
+    // Load PackingList from API when modal opens
+    useEffect(() => {
+        if (isPackingListOpen && selectedAppointment) {
+            const loadPackingLists = async () => {
+                setIsLoadingPackingLists(true);
+                try {
+                    // Usar las fechas de la semana actual o la fecha de la cita
+                    const fechaInicio = formatDateForAPI(weekStart);
+                    const fechaFin = formatDateForAPI(weekEnd);
+                    
+                    // Si hay docEntry, filtrar por CodCita
+                    const codCita = selectedAppointment.docEntry;
+                    const packingLists = await fetchPackingListFromApi(fechaInicio, fechaFin, codCita);
+                    
+                    setPackingListsFromApi(packingLists);
+                } catch (error) {
+                    console.error('Error al cargar PackingList:', error);
+                    alert('Error al cargar PackingList del API');
+                } finally {
+                    setIsLoadingPackingLists(false);
+                }
+            };
+            
+            loadPackingLists();
+        } else {
+            setPackingListsFromApi([]);
+        }
+    }, [isPackingListOpen, selectedAppointment, weekStart, weekEnd]);
+
+    // Load warehouses from API when modal opens
+    useEffect(() => {
+        if (isPackingListOpen) {
+            const loadWarehouses = async () => {
+                setIsLoadingWarehouses(true);
+                try {
+                    const warehousesData = await fetchWarehousesFromApi();
+                    setWarehouses(warehousesData);
+                } catch (error) {
+                    console.error('Error al cargar almacenes:', error);
+                    alert('Error al cargar almacenes del API');
+                } finally {
+                    setIsLoadingWarehouses(false);
+                }
+            };
+            
+            loadWarehouses();
+        }
+    }, [isPackingListOpen]);
+
+    // Pre-llenar campos del formulario cuando se abre el modal desde un appointment
+    useEffect(() => {
+        if (isPackingListOpen && selectedAppointment) {
+            // Pre-llenar fecha con la fecha de la cita si está disponible
+            if (selectedAppointment.deliveryDate && !packingListForm.date) {
+                setPackingListForm(prev => ({
+                    ...prev,
+                    date: selectedAppointment.deliveryDate // Usar la fecha de la cita, no la de hoy
+                }));
+            }
+        } else if (!isPackingListOpen) {
+            // Resetear estados cuando se cierra el modal
+            setSelectedInboundType('');
+            setDocuments([]);
+            setDocumentSearchFilter('');
+        }
+    }, [isPackingListOpen, selectedAppointment?.deliveryDate]);
+
+
     // Handle create packing list
-    const handleCreatePackingList = () => {
-        if (!selectedAppointment || !packingListForm.warehouse || packingListItems.length === 0) {
-            alert('Por favor complete todos los campos requeridos');
+    const handleCreatePackingList = async () => {
+        if (!selectedAppointment || !selectedAppointment.docEntry || !packingListForm.warehouse || packingListItems.length === 0) {
+            alert('Por favor complete todos los campos requeridos. Asegúrese de que la cita tenga DocEntry.');
             return;
         }
 
-        addPackingList(selectedAppointment.id, {
-            appointmentId: selectedAppointment.id,
-            supplierId: selectedAppointment.supplierId,
-            date: packingListForm.date || new Date().toISOString().split('T')[0],
-            warehouse: packingListForm.warehouse,
-            items: packingListItems,
-            comment: packingListForm.comment,
-            commentWms: packingListForm.commentWms,
-            createdBy: currentUser?.id || 'system'
-        });
-
-        // Update appointment status
-        updateAppointment(selectedAppointment.id, { status: 'PackingListCompletado' });
+        // Validar que haya número de PackingList (debe venir de orden de compra)
+        if (!packingListForm.number || !packingListForm.number.trim()) {
+            alert('El número de PackingList es requerido. Debe venir de una orden de compra.');
+            return;
+        }
         
-        // Simulate notification
-        alert('PackingList completado. El proveedor ha sido notificado.');
+        // Obtener VendorId (cardCode del proveedor)
+        // El VendorId puede venir en formato: P + RUC, PE + RUC, o solo cardCode
+        // Por ahora, intentar usar el supplierId directamente o agregar prefijo P si es RUC
+        let vendorId = selectedAppointment.supplierId || selectedAppointment.supplierRUC;
+        // Si el supplierId no tiene prefijo P, agregarlo (formato común: P + RUC)
+        if (vendorId && !vendorId.startsWith('P')) {
+            vendorId = `P${vendorId}`;
+        }
+        
+        try {
+            const data = {
+                vendorId: vendorId,
+                whsCode: packingListForm.warehouse,
+                number: packingListForm.number.trim(),
+                inboundType: packingListForm.inboundType || 'OCNAC',
+                comments: packingListForm.comment || '',
+                dateExpected: packingListForm.date || new Date().toISOString().split('T')[0], // Formato YYYY-MM-DD
+                ticket: "0", // Ticket WMS
+                wmsResponse: packingListForm.commentWms || '',
+                codCita: selectedAppointment.docEntry,
+                _detallePackinList: packingListItems.map((item, index) => ({
+                    document: (item as any).document || 0, // Número de documento de orden de compra (debe venir del item)
+                    lineNumber: index + 1,
+                    itemCode: item.productCode,
+                    itemName: item.productName,
+                    quantity: item.quantity
+                }))};
 
-        // Reset and close
-        setPackingListForm({
-            date: '',
-            warehouse: '',
-            comment: '',
-            commentWms: '',
-            items: []
-        });
-        setPackingListItems([]);
-        onPackingListOpenChange();
-        onDetailOpenChange();
+                console.log("DATA: ", data);
+            // Crear PackingList en el API
+            await createPackingListInApi({
+                vendorId: vendorId,
+                whsCode: packingListForm.warehouse,
+                number: packingListForm.number.trim(),
+                inboundType: packingListForm.inboundType || 'OCNAC',
+                comments: packingListForm.comment || '',
+                dateExpected: packingListForm.date || new Date().toISOString().split('T')[0], // Formato YYYY-MM-DD
+                ticket: packingListForm.ticket || '', // Ticket WMS
+                wmsResponse: packingListForm.commentWms || '',
+                codCita: selectedAppointment.docEntry,
+                _detallePackinList: packingListItems.map((item, index) => ({
+                    document: (item as any).document || 0, // Número de documento de orden de compra (debe venir del item)
+                    lineNumber: index + 1,
+                    itemCode: item.productCode,
+                    itemName: item.productName,
+                    quantity: item.quantity
+                }))
+            });
+
+            // Actualizar estado local
+            addPackingList(selectedAppointment.id, {
+                appointmentId: selectedAppointment.id,
+                supplierId: selectedAppointment.supplierId,
+                date: packingListForm.date || new Date().toISOString().split('T')[0],
+                warehouse: packingListForm.warehouse,
+                items: packingListItems,
+                comment: packingListForm.comment,
+                commentWms: packingListForm.commentWms,
+                createdBy: currentUser?.id || 'system'
+            });
+
+            // Update appointment status
+            updateAppointment(selectedAppointment.id, { status: 'PackingListCompletado' });
+            
+            alert('PackingList creado exitosamente en el sistema.');
+
+            // Recargar PackingList del API
+            const fechaInicio = formatDateForAPI(weekStart);
+            const fechaFin = formatDateForAPI(weekEnd);
+            const codCita = selectedAppointment.docEntry;
+            const packingLists = await fetchPackingListFromApi(fechaInicio, fechaFin, codCita);
+            setPackingListsFromApi(packingLists);
+
+            // Reset and close
+            setPackingListForm({
+                date: '',
+                warehouse: '',
+                comment: '',
+                commentWms: '',
+                number: '',
+                inboundType: 'OCNAC',
+                ticket: '',
+                items: [] as PackingListItem[]
+            });
+            setPackingListItems([]);
+            onPackingListOpenChange();
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Error al crear PackingList';
+            alert(`Error al crear PackingList: ${errorMessage}`);
+            console.error('Error al crear PackingList:', error);
+        }
     };
 
     // Handle save transport data
-    const handleSaveTransportData = () => {
+    const handleSaveTransportData = async () => {
         if (!selectedAppointment || !transportForm.driverName || !transportForm.vehiclePlate) {
             alert('Por favor complete los campos requeridos');
             return;
         }
 
-        addTransportData(selectedAppointment.id, {
-            appointmentId: selectedAppointment.id,
-            ...transportForm
-        });
+        if (!selectedAppointment.docEntry) {
+            alert('La cita no tiene código (DocEntry). No se puede guardar el chofer.');
+            return;
+        }
 
-        alert('Datos de transporte guardados exitosamente');
-        setTransportForm({
-            transportCompany: '',
-            driverName: '',
-            driverLicense: '',
-            vehiclePlate: '',
-            vehicleType: '',
-            contactPhone: '',
-            estimatedArrival: '',
-            notes: ''
-        });
-        onTransportOpenChange();
+        try {
+            // Preparar los datos para el API
+            const choferData = {
+                u_EmpresaTranspote: transportForm.transportCompany || '',
+                u_NombreConductor: transportForm.driverName || '',
+                u_LicenciaConducir: transportForm.driverLicense || '',
+                u_PlacaVehiculo: transportForm.vehiclePlate || '',
+                u_TipoVehiculo: transportForm.vehicleType || '',
+                u_TelefonoContacto: transportForm.contactPhone || '',
+                u_HoraLlegada: transportForm.estimatedArrival || '',
+                u_Notas: transportForm.notes || '',
+                u_CodCita: selectedAppointment.docEntry
+            };
+
+            // Llamar al API para crear el chofer
+            await createChoferInApi(choferData);
+
+            // Guardar también en el store local
+            addTransportData(selectedAppointment.id, {
+                appointmentId: selectedAppointment.id,
+                ...transportForm
+            });
+
+            alert('Datos de transporte guardados exitosamente');
+            setTransportForm({
+                transportCompany: '',
+                driverName: '',
+                driverLicense: '',
+                vehiclePlate: '',
+                vehicleType: '',
+                contactPhone: '',
+                estimatedArrival: '',
+                notes: ''
+            });
+            onTransportOpenChange();
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Error al guardar datos de transporte';
+            alert(`Error al guardar datos de transporte: ${errorMessage}`);
+            console.error('Error al guardar datos de transporte:', error);
+        }
     };
 
     // Handle upload document
-    const handleUploadDocument = (type: 'invoice' | 'purchaseOrder' | 'deliveryGuide' | 'cdr' | 'xml', file: File) => {
-        if (!selectedAppointment) return;
+    const handleUploadDocument = async (type: string, file: File): Promise<void> => {
+        if (!selectedAppointment) {
+            throw new Error('No hay cita seleccionada');
+        }
 
-        const document: any = {
-            id: `doc-${Date.now()}`,
-            name: file.name,
-            type: file.type,
-            file: file,
-            uploadDate: new Date().toISOString(),
-            uploadedBy: currentUser?.id || 'system'
-        };
+        if (!selectedAppointment.docEntry) {
+            throw new Error('La cita no tiene código (DocEntry). No se puede subir el archivo.');
+        }
 
-        addDocument(selectedAppointment.id, type, document);
-        alert(`Documento ${type} cargado exitosamente`);
+        const documentType = type as 'invoice' | 'purchaseOrder' | 'deliveryGuide' | 'cdr' | 'xml';
+        
+        try {
+            // Subir archivo al API
+            const uploadResult = await uploadFileToPackingList(file, type, selectedAppointment.docEntry);
+            
+            // Guardar en el estado local también
+            const document: any = {
+                id: `doc-${Date.now()}`,
+                name: uploadResult.nameFile,
+                originalName: file.name,
+                type: file.type,
+                url: uploadResult.urlArchivo,
+                uploadDate: new Date().toISOString(),
+                uploadedBy: currentUser?.id || 'system'
+            };
+
+            addDocument(selectedAppointment.id, documentType, document);
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Error desconocido al subir archivo';
+            throw new Error(errorMessage);
+        }
     };
 
     // Get status color
@@ -838,257 +1266,243 @@ const Agenda: React.FC = () => {
                 </Card>
 
                 {/* Schedule Appointment Modal */}
-                <Modal isOpen={isScheduleOpen} onOpenChange={onScheduleOpenChange} size="2xl" scrollBehavior="inside">
-                    <ModalContent>
-                        {(onClose) => (
-                            <>
-                                <ModalHeader>Programar Entrega</ModalHeader>
-                                <ModalBody>
-                                    <div className="space-y-4">
-                                        {/* RUC Lookup */}
-                                        <div className="flex gap-2">
-                                            <Input
-                                                label="RUC del Proveedor"
-                                                placeholder="Ingrese el RUC"
-                                                value={rucSearch}
-                                                onValueChange={(value) => setRucSearch(value)}
-                                                className="flex-1"
-                                            />
-                                            <Button
-                                                color="primary"
-                                                onPress={handleRUCLookup}
-                                                isLoading={isLookingUp}
-                                                startContent={<MagnifyingGlassIcon className="w-5 h-5" />}
-                                                className="mt-6"
-                                            >
-                                                Consultar
-                                            </Button>
-                                        </div>
-
-                                        {/* Supplier Data (auto-filled after lookup) */}
-                                        {supplierData && (
-                                            <Card className="bg-blue-50">
-                                                <CardBody>
-                                                    <div className="grid grid-cols-2 gap-4">
-                                                        <div>
-                                                            <p className="text-sm text-gray-600">Razón Social</p>
-                                                            <p className="font-semibold">{supplierData.supplierName}</p>
-                                                        </div>
-                                                        <div>
-                                                            <p className="text-sm text-gray-600">Email</p>
-                                                            <p className="font-semibold">{supplierData.supplierEmail}</p>
-                                                        </div>
-                                                        <div>
-                                                            <p className="text-sm text-gray-600">Teléfono</p>
-                                                            <p className="font-semibold">{supplierData.supplierPhone}</p>
-                                                        </div>
-                                                        {supplierData.address && (
-                                                            <div>
-                                                                <p className="text-sm text-gray-600">Dirección</p>
-                                                                <p className="font-semibold">{supplierData.address}</p>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </CardBody>
-                                            </Card>
-                                        )}
-
-                                        {/* Delivery Date and Time Range */}
-                                        <div className="grid grid-cols-3 gap-4">
-                                            <Input
-                                                label="Fecha de Entrega"
-                                                type="date"
-                                                value={scheduleForm.deliveryDate}
-                                                onValueChange={(value) => setScheduleForm(prev => ({ ...prev, deliveryDate: value }))}
-                                                isRequired
-                                            />
-                                            <Select
-                                                label="Hora de Inicio"
-                                                selectedKeys={scheduleForm.deliveryTime ? [scheduleForm.deliveryTime] : []}
-                                                onSelectionChange={(keys) => {
-                                                    const startTime = Array.from(keys)[0] as string;
-                                                    // Auto-set end time to 1 hour after start if not set
-                                                    if (startTime && !scheduleForm.deliveryTimeEnd) {
-                                                        const [hours, minutes] = startTime.split(':').map(Number);
-                                                        const endHours = hours + 1;
-                                                        const endTime = `${String(endHours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-                                                        setScheduleForm(prev => ({ ...prev, deliveryTime: startTime, deliveryTimeEnd: endTime }));
-                                                    } else {
-                                                        setScheduleForm(prev => ({ ...prev, deliveryTime: startTime }));
-                                                    }
-                                                }}
-                                                isRequired
-                                            >
-                                                {timeSlots.map((time) => (
-                                                    <SelectItem key={time}>
-                                                        {time}
-                                                    </SelectItem>
-                                                ))}
-                                            </Select>
-                                            <Select
-                                                label="Hora de Fin"
-                                                selectedKeys={scheduleForm.deliveryTimeEnd ? [scheduleForm.deliveryTimeEnd] : []}
-                                                onSelectionChange={(keys) => setScheduleForm(prev => ({ ...prev, deliveryTimeEnd: Array.from(keys)[0] as string }))}
-                                                isRequired
-                                            >
-                                                {timeSlots.filter((time) => {
-                                                    // Only show times after the start time
-                                                    if (scheduleForm.deliveryTime) {
-                                                        const timeToMinutes = (timeStr: string) => {
-                                                            const [hours, minutes] = timeStr.split(':').map(Number);
-                                                            return hours * 60 + minutes;
-                                                        };
-                                                        const startMinutes = timeToMinutes(scheduleForm.deliveryTime);
-                                                        const timeMinutes = timeToMinutes(time);
-                                                        return timeMinutes > startMinutes;
-                                                    }
-                                                    return true;
-                                                }).map((time) => (
-                                                    <SelectItem key={time}>
-                                                        {time}
-                                                    </SelectItem>
-                                                ))}
-                                            </Select>
-                                        </div>
-
-                                        {/* Warehouse */}
-                                        <Select
-                                            label="Almacén"
-                                            placeholder="Seleccione el almacén"
-                                            selectedKeys={scheduleForm.warehouse ? [scheduleForm.warehouse] : []}
-                                            onSelectionChange={(keys) => setScheduleForm(prev => ({ ...prev, warehouse: Array.from(keys)[0] as string }))}
-                                        >
-                                            <SelectItem key="ALM001" >Almacén Principal</SelectItem>
-                                            <SelectItem key="ALM002" >Almacén Secundario</SelectItem>
-                                            <SelectItem key="ALM003" >Almacén Lima Norte</SelectItem>
-                                        </Select>
-
-                                        {/* Notes */}
-                                        <Textarea
-                                            label="Notas"
-                                            placeholder="Notas adicionales sobre la entrega"
-                                            value={scheduleForm.notes}
-                                            onValueChange={(value) => setScheduleForm(prev => ({ ...prev, notes: value }))}
-                                        />
-                                    </div>
-                                </ModalBody>
-                                <ModalFooter>
-                                    <Button variant="light" onPress={onClose}>
-                                        Cancelar
-                                    </Button>
-                                    <Button
-                                        color="primary"
-                                        onPress={handleScheduleAppointment}
-                                        isLoading={isCreatingAppointment}
-                                        isDisabled={!supplierData || !scheduleForm.deliveryDate || !scheduleForm.deliveryTime || !scheduleForm.deliveryTimeEnd || isCreatingAppointment}
-                                    >
-                                        {isCreatingAppointment ? 'Creando...' : 'Programar Entrega'}
-                                    </Button>
-                                </ModalFooter>
-                            </>
-                        )}
-                    </ModalContent>
-                </Modal>
-
-                {/* Appointment Detail Modal */}
-                
-
-                <AppointmentDetailModal
-                    isOpen={isDetailOpen}
-                    onOpenChange={onDetailOpenChange}
-                    appointment={selectedAppointment}
-                    currentUserRole={currentUser?.role || UserRole.ADMIN}
-                    onOpenPackingList={() => {
-                        onDetailOpenChange();
-                        onPackingListOpen();
+                <ScheduleAppointmentModal
+                    isOpen={isScheduleOpen}
+                    supplierData={supplierData}
+                    onOpenChange={() => {
+                        setEditingAppointment(null);
+                        handleScheduleModalClose();
                     }}
-                    onOpenTransport={() => {
-                        onDetailOpenChange();
-                        onTransportOpen();
-                    }}
-                    onOpenDocuments={() => {
-                        onDetailOpenChange();
-                        onDocumentsOpen();
-                    }}
+                    onSchedule={handleScheduleAppointment}
+                    onLookupRUC={handleRUCLookup}
+                    timeSlots={timeSlots}
+                    isCreating={isCreatingAppointment}
+                    isLookingUp={isLookingUp}
+                    isTimeSlotAvailable={isTimeSlotAvailable}
+                    getConflictingAppointments={getConflictingAppointments}
+                    prefilledDate={scheduleForm.deliveryDate}
+                    prefilledTime={scheduleForm.deliveryTime}
+                    editingAppointment={editingAppointment}
                 />
+
 
                 {/* PackingList Modal */}
                 <Modal isOpen={isPackingListOpen} onOpenChange={onPackingListOpenChange} size="4xl" scrollBehavior="inside">
                     <ModalContent>
                         {(onClose) => (
                             <>
-                                <ModalHeader>Crear PackingList</ModalHeader>
-                                <ModalBody>
-                                    <div className="space-y-4">
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <Input
-                                                label="Fecha"
-                                                type="date"
-                                                value={packingListForm.date}
-                                                onValueChange={(value) => setPackingListForm(prev => ({ ...prev, date: value }))}
-                                            />
+                                <ModalHeader>
+                                    <div className="flex items-center justify-between w-full">
+                                        <span>PackingList</span>
+                                        <div className="flex gap-2 px-6 items-center">
                                             <Select
-                                                label="Almacén"
-                                                placeholder="Seleccione el almacén"
-                                                selectedKeys={packingListForm.warehouse ? [packingListForm.warehouse] : []}
-                                                onSelectionChange={(keys) => setPackingListForm(prev => ({ ...prev, warehouse: Array.from(keys)[0] as string }))}
+                                                label="Tipo de Entrada"
+                                                size='sm'
+                                                variant="flat"
+                                                placeholder="Seleccione el tipo"
+                                                selectedKeys={selectedInboundType ? [selectedInboundType] : []}
+                                                onSelectionChange={(keys) => {
+                                                    const selected = Array.from(keys)[0] as 'OCNAC' | 'OCINT' | '';
+                                                    setSelectedInboundType(selected);
+                                                    setPackingListForm(prev => ({ ...prev, inboundType: selected || 'OCNAC' }));
+                                                    // Limpiar datos del documento cuando cambia el tipo
+                                                    setPackingListForm(prev => ({ ...prev, number: '' }));
+                                                    setDocuments([]);
+                                                }}
+                                                className="min-w-[200px]"
                                             >
-                                                <SelectItem key="ALM001" >Almacén Principal</SelectItem>
-                                                <SelectItem key="ALM002" >Almacén Secundario</SelectItem>
-                                                <SelectItem key="ALM003" >Almacén Lima Norte</SelectItem>
+                                                <SelectItem key="OCNAC">Compras Nacionales</SelectItem>
+                                                <SelectItem key="OCINT">Importaciones</SelectItem>
                                             </Select>
+                                            {selectedInboundType && (
+                                                <Button
+                                                    size="sm"
+                                                    color="primary"
+                                                    variant="flat"
+                                                    className="px-6"
+                                                    onPress={async () => {
+                                                        if (!selectedInboundType) {
+                                                            alert('Por favor seleccione un tipo de entrada primero');
+                                                            return;
+                                                        }
+                                                        
+                                                        // Si ya hay documentos cargados para este tipo, solo abrir el modal
+                                                        if (documents.length > 0 && packingListForm.inboundType === selectedInboundType) {
+                                                            onDocumentsSelectOpen();
+                                                            return;
+                                                        }
+                                                        
+                                                        setIsLoadingDocuments(true);
+                                                        try {
+                                                            const docs = await fetchDocumentsFromApi(selectedInboundType, undefined, selectedAppointment?.supplierRUC);
+                                                            setDocuments(docs);
+                                                            if (docs.length === 0) {
+                                                                alert('No se encontraron documentos para el tipo seleccionado');
+                                                            } else {
+                                                                onDocumentsSelectOpen();
+                                                            }
+                                                        } catch (error) {
+                                                            console.error('Error al cargar documentos:', error);
+                                                            alert('Error al cargar documentos del API');
+                                                        } finally {
+                                                            setIsLoadingDocuments(false);
+                                                        }
+                                                    }}
+                                                    isLoading={isLoadingDocuments}
+                                                >
+                                                    {documents.length > 0 && packingListForm.inboundType === selectedInboundType 
+                                                        ? 'Ver Documentos' 
+                                                        : 'Buscar Documentos'}
+                                                </Button>
+                                            )}
                                         </div>
+                                    </div>
+                                </ModalHeader>
+                                <ModalBody>
+                                    <div className="space-y-6">
+                                        {/* Listado de PackingList existentes - Se muestra en el Modal de Detalle de Cita */}
 
-                                        {/* Mock items - In real app, these would come from purchase orders */}
-                                        <div>
-                                            <p className="text-sm font-semibold mb-2">Items del Proveedor (Filtrar por fecha)</p>
-                                            <Table>
-                                                <TableHeader>
-                                                    <TableColumn>Seleccionar</TableColumn>
-                                                    <TableColumn>Código</TableColumn>
-                                                    <TableColumn>Producto</TableColumn>
-                                                    <TableColumn>Pendiente</TableColumn>
-                                                    <TableColumn>Cantidad</TableColumn>
-                                                    <TableColumn>Unidad</TableColumn>
-                                                </TableHeader>
-                                                <TableBody>
-                                                    {/* Mock data - replace with real data from purchase orders */}
-                                                    {[
-                                                        { id: '1', productCode: 'PROD001', productName: 'Producto 1', pendingQuantity: 100, unit: 'UN' },
-                                                        { id: '2', productCode: 'PROD002', productName: 'Producto 2', pendingQuantity: 50, unit: 'KG' },
-                                                        { id: '3', productCode: 'PROD003', productName: 'Producto 3', pendingQuantity: 200, unit: 'UN' }
-                                                    ].map((item) => {
-                                                        const packingItem = packingListItems.find(pi => pi.id === item.id);
-                                                        return (
-                                                            <TableRow key={item.id}>
-                                                                <TableCell>
-                                                                    <Checkbox
-                                                                        isSelected={!!packingItem}
-                                                                        onValueChange={(checked) => {
-                                                                            if (checked) {
-                                                                                setPackingListItems(prev => [...prev, {
-                                                                                    id: item.id,
-                                                                                    productCode: item.productCode,
-                                                                                    productName: item.productName,
-                                                                                    quantity: 0,
-                                                                                    pendingQuantity: item.pendingQuantity,
-                                                                                    unit: item.unit
-                                                                                }]);
-                                                                            } else {
-                                                                                setPackingListItems(prev => prev.filter(pi => pi.id !== item.id));
-                                                                            }
-                                                                        }}
-                                                                    />
-                                                                </TableCell>
-                                                                <TableCell>{item.productCode}</TableCell>
-                                                                <TableCell>{item.productName}</TableCell>
-                                                                <TableCell>{item.pendingQuantity}</TableCell>
-                                                                <TableCell>
-                                                                    {packingItem && (
+                                        {isLoadingPackingLists && (
+                                            <div className="text-center py-4">
+                                                <p className="text-sm text-gray-500">Cargando PackingList...</p>
+                                            </div>
+                                        )}
+
+                                        {!isLoadingPackingLists && packingListsFromApi.length === 0 && (
+                                            <div className="text-center py-4">
+                                                <p className="text-sm text-gray-500">No se encontraron PackingList para el rango de fechas seleccionado.</p>
+                                            </div>
+                                        )}
+
+                                        <Divider />
+
+                                        {/* Formulario para crear nuevo PackingList */}
+                                        <div className='py-2 flex flex-col gap-4'>
+                                            <h4 className="text-md font-semibold mb-3">Crear Nuevo PackingList</h4>
+                                            {selectedAppointment?.docEntry && (
+                                                <div className="mb-3 p-2 bg-blue-50 border border-blue-200 rounded text-sm text-blue-700">
+                                                    <strong>Código de Cita:</strong> {selectedAppointment.docEntry} (se usará automáticamente)
+                                                </div>
+                                            )}
+                                            
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <Input
+                                                    label="N° Orden de Compra"
+                                                    size='sm'
+                                                    value={packingListForm.number}
+                                                    onValueChange={(value) => setPackingListForm(prev => ({ ...prev, date: value }))}
+                                                    isRequired
+                                                    isReadOnly
+                                                />
+                                                <Input
+                                                    label="Número de PackingList"
+                                                    placeholder="Ej: 251047379_1"
+                                                    size='sm'
+                                                    value={packingListForm.number}
+                                                    onValueChange={(value) => setPackingListForm(prev => ({ ...prev, number: value }))}
+                                                    isRequired
+                                                    description="Número de PackingList (se completa al seleccionar un documento)"
+                                                    isReadOnly
+                                                    endContent={
+                                                        <Button
+                                                            size="sm"
+                                                            variant="light"
+                                                            onPress={() => {
+                                                                if (!selectedInboundType) {
+                                                                    alert('Por favor seleccione un tipo de entrada primero');
+                                                                    return;
+                                                                }
+                                                                onDocumentsSelectOpen();
+                                                            }}
+                                                        >
+                                                            Seleccionar
+                                                        </Button>
+                                                    }
+                                                />
+                                                <Input
+                                                    label="Fecha Entrega"
+                                                    type="date"
+                                                    size='sm'
+                                                    value={packingListForm.date}
+                                                    onValueChange={(value) => setPackingListForm(prev => ({ ...prev, date: value }))}
+                                                    isRequired
+                                                />
+                                                <Select
+                                                    label="Almacén"
+                                                    size="sm"
+                                                    variant="flat"
+                                                    placeholder={isLoadingWarehouses ? "Cargando almacenes..." : "Seleccione el almacén"}
+                                                    selectedKeys={packingListForm.warehouse ? new Set([packingListForm.warehouse]) : new Set()}
+                                                    onSelectionChange={(keys) => {
+                                                        // keys viene como Set en HeroUI
+                                                        const keysArray = Array.from(keys);
+                                                        const value = keysArray.length > 0 ? keysArray[0] : '';
+                                                        console.log("ALMACEN SELECCIONADO: ", value);
+                                                        setPackingListForm(prev => ({ ...prev, warehouse: value as string }));
+                                                    }}
+                                                    className="min-w-[200px]"
+                                                    isRequired
+                                                    isDisabled={isLoadingWarehouses}
+                                                    selectionMode="single"
+                                                >
+                                                    {warehouses.map((warehouse) => (
+                                                        <SelectItem key={warehouse.Codigo} textValue={`${warehouse.Almacen} (${warehouse.Codigo})`}>
+                                                            {warehouse.Almacen} ({warehouse.Codigo})
+                                                        </SelectItem>
+                                                    ))}
+                                                </Select>
+                                                {/*<Input
+                                                    label="Ticket WMS (Opcional)"
+                                                    placeholder="Ej: 1082989"
+                                                    size='sm'
+                                                    value={packingListForm.ticket}
+                                                    onValueChange={(value) => setPackingListForm(prev => ({ ...prev, ticket: value }))}
+                                                />*/}
+                                            </div>
+
+                                        {/* Items del documento seleccionado */}
+                                        {packingListItems.length > 0 ? (
+                                            <div>
+                                                <p className="text-sm font-semibold mb-2">Items del Documento</p>
+                                                <Table>
+                                                    <TableHeader>
+                                                        <TableColumn width={50}>Sel</TableColumn>
+                                                        <TableColumn>Código</TableColumn>
+                                                        <TableColumn>Producto</TableColumn>
+                                                        <TableColumn>Cantidad OC</TableColumn>
+                                                        <TableColumn>Pendiente</TableColumn>
+                                                        <TableColumn>Cantidad</TableColumn>
+                                                        
+                                                    </TableHeader>
+                                                    <TableBody>
+                                                        {packingListItems.map((item) => {
+                                                            return (
+                                                                <TableRow key={item.id}>
+                                                                    <TableCell>
+                                                                        <Checkbox
+                                                                            isSelected={item.marca ?? false}
+                                                                            onValueChange={(checked) => {
+                                                                                setPackingListItems(prev => prev.map(pi =>
+                                                                                    pi.id === item.id ? { ...pi, marca: checked } : pi
+                                                                                ));
+                                                                                if (!checked) {
+                                                                                    setPackingListItems(prev => prev.map(pi =>
+                                                                                        pi.id === item.id ? { ...pi, quantity: 0 } : pi
+                                                                                    ));
+                                                                                }
+                                                                            }}
+                                                                        />
+                                                                    </TableCell>
+                                                                    <TableCell>{item.productCode}</TableCell>
+                                                                    <TableCell>{item.productName}</TableCell>
+                                                                    <TableCell>{item.cantidadOC ?? 0}</TableCell>
+                                                                    <TableCell>{item.pendingQuantity}</TableCell>
+                                                                    <TableCell>
                                                                         <Input
                                                                             type="number"
                                                                             size="sm"
-                                                                            value={packingItem.quantity.toString()}
+                                                                            value={item.quantity.toString()}
+                                                                            disabled ={!item.marca}
                                                                             onValueChange={(value) => {
                                                                                 const qty = parseInt(value) || 0;
                                                                                 setPackingListItems(prev => prev.map(pi =>
@@ -1098,15 +1512,32 @@ const Agenda: React.FC = () => {
                                                                             min={0}
                                                                             max={item.pendingQuantity}
                                                                         />
-                                                                    )}
-                                                                </TableCell>
-                                                                <TableCell>{item.unit}</TableCell>
-                                                            </TableRow>
-                                                        );
-                                                    })}
-                                                </TableBody>
-                                            </Table>
-                                        </div>
+                                                                    </TableCell>
+                                                                </TableRow>
+                                                            );
+                                                        })}
+                                                    </TableBody>
+                                                </Table>
+                                            </div>
+                                        ) : packingListForm.number ? (
+                                            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                                                <div className="flex items-start">
+                                                    <div className="flex-shrink-0">
+                                                        <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                                                            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                                        </svg>
+                                                    </div>
+                                                    <div className="ml-3">
+                                                        <h3 className="text-sm font-medium text-yellow-800">
+                                                            No hay detalles disponibles
+                                                        </h3>
+                                                        <div className="mt-2 text-sm text-yellow-700">
+                                                            <p>El documento seleccionado no tiene items. No se puede crear el PackingList sin detalles.</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ) : null}
 
                                         <Textarea
                                             label="Comentario"
@@ -1120,6 +1551,7 @@ const Agenda: React.FC = () => {
                                             value={packingListForm.commentWms}
                                             onValueChange={(value) => setPackingListForm(prev => ({ ...prev, commentWms: value }))}
                                         />
+                                        </div>
                                     </div>
                                 </ModalBody>
                                 <ModalFooter>
@@ -1129,13 +1561,194 @@ const Agenda: React.FC = () => {
                                     <Button
                                         color="primary"
                                         onPress={handleCreatePackingList}
-                                        isDisabled={!packingListForm.warehouse || packingListItems.length === 0}
+                                        isDisabled={
+                                            !packingListForm.warehouse || 
+                                            !packingListForm.number || 
+                                            !packingListForm.date ||
+                                            //packingListItems.some(item => item.quantity < item.pendingQuantity) ||
+                                            packingListItems.length === 0
+                                        }
                                     >
                                         Crear PackingList
                                     </Button>
                                 </ModalFooter>
                             </>
                         )}
+                    </ModalContent>
+                </Modal>
+
+                {/* Document Selection Modal */}
+                <Modal isOpen={isDocumentsSelectOpen} onOpenChange={onDocumentsSelectOpenChange} size="5xl" scrollBehavior="inside">
+                    <ModalContent>
+                        {(onClose) => {
+                            // Función para buscar documentos con debounce
+                            const handleSearchChange = (value: string) => {
+                                setDocumentSearchFilter(value);
+                                // Limpiar timeout anterior
+                                if (documentSearchTimeoutRef.current) {
+                                    clearTimeout(documentSearchTimeoutRef.current);
+                                }
+                                
+                                // Si no hay tipo seleccionado, no buscar
+                                if (!selectedInboundType) {
+                                    return;
+                                }
+                                
+                                // Crear nuevo timeout para debounce (500ms)
+                                documentSearchTimeoutRef.current = setTimeout(async () => {
+                                    setIsLoadingDocuments(true);
+                                    try {
+                                        const docs = await fetchDocumentsFromApi(
+                                            selectedInboundType, 
+                                            value ? value.trim() : undefined,
+                                            selectedAppointment?.supplierRUC
+                                        );
+                                        setDocuments(docs);
+                                    } catch (error) {
+                                        console.error('Error al buscar documentos:', error);
+                                        alert('Error al buscar documentos');
+                                    } finally {
+                                        setIsLoadingDocuments(false);
+                                    }
+                                }, 500);
+                            };
+
+                            return (
+                                <>
+                                    <ModalHeader>
+                                        <div className="flex flex-col gap-2 w-full">
+                                            <span>Seleccionar Documento - {selectedInboundType === 'OCNAC' ? 'Compras Nacionales' : 'Importaciones'}</span>
+                                            <Input
+                                                size="sm"
+                                                placeholder="Buscar por número de orden..."
+                                                value={documentSearchFilter}
+                                                onValueChange={handleSearchChange}
+                                                classNames={{
+                                                    input: "text-sm"
+                                                }}
+                                            />
+                                        </div>
+                                    </ModalHeader>
+                                    <ModalBody>
+                                        {isLoadingDocuments ? (
+                                            <div className="text-center py-8">
+                                                <p className="text-sm text-gray-500">Cargando documentos...</p>
+                                            </div>
+                                        ) : documents.length === 0 ? (
+                                            <div className="text-center py-8">
+                                                <p className="text-sm text-gray-500">No se encontraron documentos. Ingrese un número de documento para buscar.</p>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-2">
+                                                <Table aria-label="Tabla de documentos">
+                                                    <TableHeader>
+                                                        <TableColumn width={150}>
+                                                            <div className="flex flex-col gap-1">
+                                                                <span>N° Orden</span>
+                                                            </div>
+                                                        </TableColumn>
+                                                        <TableColumn width={150}>
+                                                            <div className="flex flex-col gap-1">
+                                                                <span>CÓDIGO</span>
+                                                            </div>
+                                                        </TableColumn>
+                                                        <TableColumn>
+                                                            <div className="flex flex-col gap-1">
+                                                                <span>PROVEEDOR</span>
+                                                            </div>
+                                                        </TableColumn>
+                                                        <TableColumn width={120}>
+                                                            <div className="flex flex-col gap-1">
+                                                                <span>FECHA</span>
+                                                            </div>
+                                                        </TableColumn>
+                                                    </TableHeader>
+                                                    <TableBody>
+                                                        {sortedAndFilteredDocuments.map((doc) => (
+                                                            <TableRow 
+                                                                key={doc.DocEntry}
+                                                                className="cursor-pointer hover:bg-gray-100 transition-colors"
+                                                                onClick={async () => {
+                                                                    if (!selectedInboundType) {
+                                                                        alert('Tipo de entrada no seleccionado');
+                                                                        return;
+                                                                    }
+                                                                    
+                                                                    setIsLoadingDocumentDetail(true);
+                                                                    try {
+                                                                        // Obtener el detalle del documento
+                                                                        const detailItems = await fetchDocumentDetailFromApi(doc.DocNum, selectedInboundType);
+                                                                        
+                                                                        // Validar si el detalle está vacío
+                                                                        if (!detailItems || detailItems.length === 0) {
+                                                                            alert('El documento seleccionado no tiene detalles. No se puede crear el PackingList sin items.');
+                                                                            setIsLoadingDocumentDetail(false);
+                                                                            return;
+                                                                        }
+                                                                        
+                                                                        // Completar el formulario con los datos del documento
+                                                                        setPackingListForm(prev => ({
+                                                                            ...prev,
+                                                                            number: doc.DocNum,
+                                                                            inboundType: selectedInboundType || 'OCNAC'
+                                                                        }));
+                                                                        
+                                                                        // Llenar la tabla de items
+                                                                        const items: PackingListItem[] = detailItems.map((item, index: number) => {
+                                                                            // Convertir Marca de string a boolean (puede ser "True", "False", "true", "false", etc.)
+                                                                            const marca = item.Marca?.toLowerCase() === 'true' || item.Marca === '1';
+                                                                            
+                                                                            // Parsear Cantidad OC (puede venir como "Cantidad OC" o "CantidadOC")
+                                                                            const cantidadOC = parseFloat(item["Cantidad OC"] || item.CantidadOC || "0");
+                                                                            
+                                                                            // Parsear Pendiente
+                                                                            const pendiente = parseFloat(item.Pendiente || "0");
+                                                                            
+                                                                            return {
+                                                                                id: `${doc.DocNum}-${item.Artículo}-${index}`,
+                                                                                productCode: item.Artículo,
+                                                                                productName: item.Descripción,
+                                                                                quantity: 0,
+                                                                                pendingQuantity: pendiente,
+                                                                                cantidadOC: cantidadOC,
+                                                                                marca: marca,
+                                                                                unit: 'UN'
+                                                                            };
+                                                                        });
+                                                                        setPackingListItems(items);
+                                                                        
+                                                                        onClose();
+                                                                    } catch (error) {
+                                                                        console.error('Error al obtener detalle del documento:', error);
+                                                                        alert('Error al obtener detalle del documento');
+                                                                    } finally {
+                                                                        setIsLoadingDocumentDetail(false);
+                                                                    }
+                                                                }}
+                                                            >
+                                                                <TableCell className="whitespace-nowrap">{doc.DocNum}</TableCell>
+                                                                <TableCell className="whitespace-nowrap">{doc.CardCode}</TableCell>
+                                                                <TableCell>
+                                                                    <div className="max-w-[400px] truncate" title={doc.CardName}>
+                                                                        {doc.CardName}
+                                                                    </div>
+                                                                </TableCell>
+                                                                <TableCell className="whitespace-nowrap">{doc.TaxDate}</TableCell>
+                                                            </TableRow>
+                                                        ))}
+                                                    </TableBody>
+                                                </Table>
+                                            </div>
+                                        )}
+                                    </ModalBody>
+                                    <ModalFooter>
+                                        <Button variant="light" onPress={onClose}>
+                                            Cerrar
+                                        </Button>
+                                    </ModalFooter>
+                                </>
+                            );
+                        }}
                     </ModalContent>
                 </Modal>
 
@@ -1220,94 +1833,12 @@ const Agenda: React.FC = () => {
                 </Modal>
 
                 {/* Documents Modal */}
-                <Modal isOpen={isDocumentsOpen} onOpenChange={onDocumentsOpenChange} size="2xl" scrollBehavior="inside">
-                    <ModalContent>
-                        {(onClose) => (
-                            <>
-                                <ModalHeader>Cargar Documentos</ModalHeader>
-                                <ModalBody>
-                                    <div className="space-y-4">
-                                        <div>
-                                            <p className="text-sm font-semibold mb-2">Factura</p>
-                                            <input
-                                                type="file"
-                                                accept=".pdf,.jpg,.jpeg,.png"
-                                                onChange={(e) => {
-                                                    const file = e.target.files?.[0];
-                                                    if (file && selectedAppointment) {
-                                                        handleUploadDocument('invoice', file);
-                                                    }
-                                                }}
-                                                className="w-full"
-                                            />
-                                        </div>
-                                        <div>
-                                            <p className="text-sm font-semibold mb-2">Orden de Compra</p>
-                                            <input
-                                                type="file"
-                                                accept=".pdf,.jpg,.jpeg,.png"
-                                                onChange={(e) => {
-                                                    const file = e.target.files?.[0];
-                                                    if (file && selectedAppointment) {
-                                                        handleUploadDocument('purchaseOrder', file);
-                                                    }
-                                                }}
-                                                className="w-full"
-                                            />
-                                        </div>
-                                        <div>
-                                            <p className="text-sm font-semibold mb-2">Guía de Remisión</p>
-                                            <input
-                                                type="file"
-                                                accept=".pdf,.jpg,.jpeg,.png"
-                                                onChange={(e) => {
-                                                    const file = e.target.files?.[0];
-                                                    if (file && selectedAppointment) {
-                                                        handleUploadDocument('deliveryGuide', file);
-                                                    }
-                                                }}
-                                                className="w-full"
-                                            />
-                                        </div>
-                                        <div>
-                                            <p className="text-sm font-semibold mb-2">CDR</p>
-                                            <input
-                                                type="file"
-                                                accept=".pdf,.xml"
-                                                onChange={(e) => {
-                                                    const file = e.target.files?.[0];
-                                                    if (file && selectedAppointment) {
-                                                        handleUploadDocument('cdr', file);
-                                                    }
-                                                }}
-                                                className="w-full"
-                                            />
-                                        </div>
-                                        <div>
-                                            <p className="text-sm font-semibold mb-2">XML</p>
-                                            <input
-                                                type="file"
-                                                accept=".xml"
-                                                onChange={(e) => {
-                                                    const file = e.target.files?.[0];
-                                                    if (file && selectedAppointment) {
-                                                        handleUploadDocument('xml', file);
-                                                    }
-                                                }}
-                                                className="w-full"
-                                            />
-                                        </div>
-                                    </div>
-                                </ModalBody>
-                                <ModalFooter>
-                                    <Button variant="light" onPress={onClose}>
-                                        Cerrar
-                                    </Button>
-                                </ModalFooter>
-                            </>
-                        )}
-                    </ModalContent>
-                </Modal>
+                <DocumentsModal
+                    isOpen={isDocumentsOpen}
+                    onOpenChange={onDocumentsOpenChange}
+                    selectedAppointment={selectedAppointment}
+                    handleUploadDocument={handleUploadDocument}
+                />
             </div>
         </Dashboard>
     );
