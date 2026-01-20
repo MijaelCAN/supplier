@@ -18,7 +18,10 @@ import UserManagement from "@/pages/Configuracion/usuarios.tsx";
 import PaymentsList from "@/pages/Finanzas/pagos.tsx";
 import {SolicitudCompra} from "@/pages/SolicitudCompra";
 import AgendaPage from "@/pages/Agenda";
+import AppointmentDetailPage from "@/pages/Agenda/AppointmentDetail";
 import ReceptionPage from "@/pages/Recepcion";
+import PaymentCalendar from "@/pages/Pagos/Paymentcalendar ";
+import ScheduleInvoices from "@/pages/Pagos/ScheduleInvoices";
 
 const router = createBrowserRouter([
   {
@@ -199,6 +202,14 @@ const router = createBrowserRouter([
     ),
   },
   {
+    path: "/agenda/detail/:appointmentId",
+    element: (
+      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.ALMACEN]}>
+        <AppointmentDetailPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
     path: "/recepcion",
     element: (
         <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.ALMACEN]}>
@@ -207,9 +218,29 @@ const router = createBrowserRouter([
     ),
   },
   {
+    path: "/cronograma",
+    element: (
+      <ProtectedRoute requiredRoles={[UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.ADMIN]}>
+        <Dashboard>
+          <PaymentCalendar />
+        </Dashboard>
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/cronograma/programar-facturas",
+    element: (
+      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.COMPRAS, UserRole.FINANZAS]}>
+        <Dashboard>
+          <ScheduleInvoices />
+        </Dashboard>
+      </ProtectedRoute>
+    ),
+  },
+  {
     path: "/pagos",
     element: (
-      <ProtectedRoute requiredRoles={[UserRole.PROVEEDOR]}>
+      <ProtectedRoute requiredRoles={[UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.ADMIN]}>
         <Dashboard>
           <div className="p-6">
             <h1 className="text-2xl font-bold mb-4">Mis Pagos</h1>

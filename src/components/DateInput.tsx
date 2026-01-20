@@ -238,6 +238,19 @@ export const DateInput: FC<DateInputProps> = ({
         changeCountRef.current = 0; // Resetear contador de cambios
     };
 
+    // Manejar el clear
+    const handleClear = () => {
+        setTempValue('');
+        onValueChange('');
+        previousValueRef.current = '';
+        confirmedValueRef.current = '';
+        changeCountRef.current = 0;
+        if (debounceTimerRef.current) {
+            clearTimeout(debounceTimerRef.current);
+            debounceTimerRef.current = null;
+        }
+    };
+
     return (
         <Input
             {...props}
@@ -247,6 +260,8 @@ export const DateInput: FC<DateInputProps> = ({
             onValueChange={handleChange}
             onBlur={handleBlur}
             onFocus={handleFocus}
+            isClearable={props.isClearable !== false && tempValue !== ''}
+            onClear={handleClear}
         />
     );
 };

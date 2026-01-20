@@ -35,13 +35,16 @@ import { useAgendaStore } from "@/store/agendaStore";
 import { useAuth } from "@/store/authStore";
 import { UserRole } from "@/routes/menuTypes";
 import { DeliveryAppointment, PackingListItem } from "@/store/types";
-import AppointmentDetailModal from './AppointmentDetailModal';
+import { useNavigate, useLocation } from 'react-router-dom';
 import ScheduleAppointmentModal from './Scheduleappointmentmodal';
 import { fetchPackingListFromApi, createPackingListInApi, PackingListApiRecord, fetchWarehousesFromApi, WarehouseApiRecord, fetchDocumentsFromApi, DocumentApiRecord, fetchDocumentDetailFromApi, uploadFileToPackingList } from "@/services/agenda/packingListApi";
 import { formatDateForAPI } from "@/services/agenda/appointmentsApi";
+import { createChoferInApi } from "@/services/agenda/choferesApi";
 import DocumentsModal from './DocumentsModal';
 
 const Agenda: React.FC = () => {
+    const navigate = useNavigate();
+    const location = useLocation();
     const { currentUser } = useAuth();
     const {
         appointments,
@@ -95,7 +98,6 @@ const Agenda: React.FC = () => {
         setIsCreatingAppointment(false);
         onScheduleOpenChange();
     };
-    const { isOpen: isDetailOpen, onOpen: onDetailOpen, onOpenChange: onDetailOpenChange } = useDisclosure();
     const { isOpen: isPackingListOpen, onOpen: onPackingListOpen, onOpenChange: onPackingListOpenChange } = useDisclosure();
     const { isOpen: isTransportOpen, onOpen: onTransportOpen, onOpenChange: onTransportOpenChange } = useDisclosure();
     const { isOpen: isDocumentsOpen, onOpen: onDocumentsOpen, onOpenChange: onDocumentsOpenChange } = useDisclosure();
@@ -646,11 +648,31 @@ const Agenda: React.FC = () => {
         onScheduleOpen();
     };
 
-    // Handle view appointment
+    // Handle view appointment - navegar a la página de detalle
     const handleViewAppointment = (appointment: DeliveryAppointment) => {
         setSelectedAppointment(appointment);
-        onDetailOpen();
+        // Navegar a la página de detalle usando docEntry o appointmentNumber
+        const appointmentId = appointment.docEntry || appointment.appointmentNumber;
+        navigate(`/agenda/detail/${appointmentId}`);
     };
+
+    // Detectar navegación desde la página de detalle para abrir modales
+    useEffect(() => {
+        const state = location.state as { openPackingList?: boolean; openTransport?: boolean; openDocuments?: boolean; openEdit?: boolean } | null;
+        if (state) {
+            if (state.openPackingList && selectedAppointment) {
+                onPackingListOpen();
+            } else if (state.openTransport && selectedAppointment) {
+                onTransportOpen();
+            } else if (state.openDocuments && selectedAppointment) {
+                onDocumentsOpen();
+            } else if (state.openEdit && selectedAppointment) {
+                handleEditAppointment();
+            }
+            // Limpiar el estado después de procesarlo
+            window.history.replaceState({}, document.title);
+        }
+    }, [location.state, selectedAppointment]);
 
     // Load PackingList from API when modal opens
     useEffect(() => {
@@ -819,7 +841,6 @@ const Agenda: React.FC = () => {
             });
             setPackingListItems([]);
             onPackingListOpenChange();
-            onDetailOpenChange();
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Error al crear PackingList';
             alert(`Error al crear PackingList: ${errorMessage}`);
@@ -828,29 +849,57 @@ const Agenda: React.FC = () => {
     };
 
     // Handle save transport data
-    const handleSaveTransportData = () => {
+    const handleSaveTransportData = async () => {
         if (!selectedAppointment || !transportForm.driverName || !transportForm.vehiclePlate) {
             alert('Por favor complete los campos requeridos');
             return;
         }
 
-        addTransportData(selectedAppointment.id, {
-            appointmentId: selectedAppointment.id,
-            ...transportForm
-        });
+        if (!selectedAppointment.docEntry) {
+            alert('La cita no tiene código (DocEntry). No se puede guardar el chofer.');
+            return;
+        }
 
-        alert('Datos de transporte guardados exitosamente');
-        setTransportForm({
-            transportCompany: '',
-            driverName: '',
-            driverLicense: '',
-            vehiclePlate: '',
-            vehicleType: '',
-            contactPhone: '',
-            estimatedArrival: '',
-            notes: ''
-        });
-        onTransportOpenChange();
+        try {
+            // Preparar los datos para el API
+            const choferData = {
+                u_EmpresaTranspote: transportForm.transportCompany || '',
+                u_NombreConductor: transportForm.driverName || '',
+                u_LicenciaConducir: transportForm.driverLicense || '',
+                u_PlacaVehiculo: transportForm.vehiclePlate || '',
+                u_TipoVehiculo: transportForm.vehicleType || '',
+                u_TelefonoContacto: transportForm.contactPhone || '',
+                u_HoraLlegada: transportForm.estimatedArrival || '',
+                u_Notas: transportForm.notes || '',
+                u_CodCita: selectedAppointment.docEntry
+            };
+
+            // Llamar al API para crear el chofer
+            await createChoferInApi(choferData);
+
+            // Guardar también en el store local
+            addTransportData(selectedAppointment.id, {
+                appointmentId: selectedAppointment.id,
+                ...transportForm
+            });
+
+            alert('Datos de transporte guardados exitosamente');
+            setTransportForm({
+                transportCompany: '',
+                driverName: '',
+                driverLicense: '',
+                vehiclePlate: '',
+                vehicleType: '',
+                contactPhone: '',
+                estimatedArrival: '',
+                notes: ''
+            });
+            onTransportOpenChange();
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Error al guardar datos de transporte';
+            alert(`Error al guardar datos de transporte: ${errorMessage}`);
+            console.error('Error al guardar datos de transporte:', error);
+        }
     };
 
     // Handle upload document
@@ -1236,26 +1285,6 @@ const Agenda: React.FC = () => {
                     editingAppointment={editingAppointment}
                 />
 
-                {/* Appointment Detail Modal */}
-                <AppointmentDetailModal
-                    isOpen={isDetailOpen}
-                    onOpenChange={onDetailOpenChange}
-                    appointment={selectedAppointment}
-                    currentUserRole={currentUser?.role || UserRole.ADMIN}
-                    onOpenPackingList={() => {
-                        onDetailOpenChange();
-                        onPackingListOpen();
-                    }}
-                    onOpenTransport={() => {
-                        onDetailOpenChange();
-                        onTransportOpen();
-                    }}
-                    onOpenDocuments={() => {
-                        onDetailOpenChange();
-                        onDocumentsOpen();
-                    }}
-                    onEdit={handleEditAppointment}
-                />
 
                 {/* PackingList Modal */}
                 <Modal isOpen={isPackingListOpen} onOpenChange={onPackingListOpenChange} size="4xl" scrollBehavior="inside">
@@ -1591,7 +1620,7 @@ const Agenda: React.FC = () => {
                                             <span>Seleccionar Documento - {selectedInboundType === 'OCNAC' ? 'Compras Nacionales' : 'Importaciones'}</span>
                                             <Input
                                                 size="sm"
-                                                placeholder="Buscar por número de documento (DocNum)..."
+                                                placeholder="Buscar por número de orden..."
                                                 value={documentSearchFilter}
                                                 onValueChange={handleSearchChange}
                                                 classNames={{
@@ -1615,67 +1644,22 @@ const Agenda: React.FC = () => {
                                                     <TableHeader>
                                                         <TableColumn width={150}>
                                                             <div className="flex flex-col gap-1">
-                                                                <span>DOCNUM</span>
-                                                                <Input
-                                                                    size="sm"
-                                                                    label="DOCNUM"
-                                                                    placeholder="Filtrar..."
-                                                                    value={docNumFilter}
-                                                                    onValueChange={setDocNumFilter}
-                                                                    classNames={{
-                                                                        input: "h-8 text-xs"
-                                                                    }}
-                                                                    onClear={() => setDocNumFilter('')}
-                                                                    isClearable
-                                                                />
+                                                                <span>N° Orden</span>
                                                             </div>
                                                         </TableColumn>
                                                         <TableColumn width={150}>
                                                             <div className="flex flex-col gap-1">
-                                                                <span>CARDCODE</span>
-                                                                <Input
-                                                                    size="sm"
-                                                                    placeholder="Filtrar..."
-                                                                    value={cardCodeFilter}
-                                                                    onValueChange={setCardCodeFilter}
-                                                                    classNames={{
-                                                                        input: "h-8 text-xs"
-                                                                    }}
-                                                                    onClear={() => setCardCodeFilter('')}
-                                                                    isClearable
-                                                                />
+                                                                <span>CÓDIGO</span>
                                                             </div>
                                                         </TableColumn>
                                                         <TableColumn>
                                                             <div className="flex flex-col gap-1">
-                                                                <span>CARDNAME</span>
-                                                                <Input
-                                                                    size="sm"
-                                                                    placeholder="Filtrar..."
-                                                                    value={cardNameFilter}
-                                                                    onValueChange={setCardNameFilter}
-                                                                    classNames={{
-                                                                        input: "h-8 text-xs"
-                                                                    }}
-                                                                    onClear={() => setCardNameFilter('')}
-                                                                    isClearable
-                                                                />
+                                                                <span>PROVEEDOR</span>
                                                             </div>
                                                         </TableColumn>
                                                         <TableColumn width={120}>
                                                             <div className="flex flex-col gap-1">
-                                                                <span>TAXDATE</span>
-                                                                <Input
-                                                                    size="sm"
-                                                                    placeholder="Filtrar..."
-                                                                    value={taxDateFilter}
-                                                                    onValueChange={setTaxDateFilter}
-                                                                    classNames={{
-                                                                        input: "h-8 text-xs"
-                                                                    }}
-                                                                    onClear={() => setTaxDateFilter('')}
-                                                                    isClearable
-                                                                />
+                                                                <span>FECHA</span>
                                                             </div>
                                                         </TableColumn>
                                                     </TableHeader>

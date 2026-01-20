@@ -30,6 +30,7 @@
     "@heroui/use-theme": "2.1.5",
     "@hookform/resolvers": "^5.1.1",
     "@iconify/react": "^6.0.0",
+    "@internationalized/date": "^3.10.1",
     "@react-aria/visually-hidden": "3.8.19",
     "@react-pdf/renderer": "^4.2.0",
     "@react-types/shared": "3.27.0",
