@@ -6,15 +6,18 @@ import {
     Chip,
     Card,
     CardBody,
-    Progress,
-    Divider,
     Avatar,
     Table,
     TableHeader,
     TableColumn,
     TableBody,
     TableRow,
-    TableCell
+    TableCell,
+    Modal,
+    ModalContent,
+    ModalHeader,
+    ModalBody,
+    useDisclosure
 } from "@heroui/react";
 import {
     CheckCircleIcon,
@@ -24,13 +27,8 @@ import {
     DocumentTextIcon,
     BuildingOfficeIcon,
     CalendarIcon,
-    MapPinIcon,
-    UserIcon,
-    PhoneIcon,
     ClipboardDocumentListIcon,
     ExclamationTriangleIcon,
-    ChevronDownIcon,
-    ChevronRightIcon,
     ArrowLeftIcon
 } from "@heroicons/react/24/outline";
 import Dashboard from "@/layouts/Dashboard";
@@ -38,23 +36,153 @@ import { useAgendaStore } from "@/store/agendaStore";
 import { useAuth } from "@/store/authStore";
 import { UserRole } from "@/routes/menuTypes";
 import { fetchPackingListFromApi, PackingListApiRecord } from "@/services/agenda/packingListApi";
-import { formatDateForAPI } from "@/services/agenda/appointmentsApi";
+import { formatDateForAPI, fetchAppointmentsFromApi, AppointmentDocument } from "@/services/agenda/appointmentsApi";
+import { DeliveryAppointment } from "@/store/types";
 
 const AppointmentDetail: React.FC = () => {
     const { appointmentId } = useParams<{ appointmentId: string }>();
     const navigate = useNavigate();
     const { currentUser } = useAuth();
-    const { appointments, setSelectedAppointment } = useAgendaStore();
+    const isProvider = currentUser?.role === UserRole.PROVEEDOR;
+    const { setSelectedAppointment } = useAgendaStore(); // Solo usamos setSelectedAppointment, no el store local de appointments
+    const [appointment, setAppointment] = useState<DeliveryAppointment | null>(null);
+    const [isLoadingAppointment, setIsLoadingAppointment] = useState(true);
+    const [appointmentDocuments, setAppointmentDocuments] = useState<AppointmentDocument[]>([]);
 
-    // Buscar el appointment por docEntry o appointmentNumber
-    const appointment = appointments.find(
-        (apt) => apt.docEntry === appointmentId || apt.appointmentNumber === appointmentId
-    );
+    // Cargar appointment SIEMPRE desde el API (no usar localStorage/store)
+    useEffect(() => {
+        const loadAppointmentFromApi = async () => {
+            setIsLoadingAppointment(true);
+            try {
+                // Cargar appointments del API directamente (sin filtros para buscar por docEntry)
+                const apiAppointments = await fetchAppointmentsFromApi();
+                const foundApiAppointment = apiAppointments.find(
+                    (apt) => apt.docEntry === appointmentId || apt.appointmentNumber === appointmentId
+                );
+
+                if (foundApiAppointment) {
+                    setAppointment(foundApiAppointment);
+                } else {
+                    setAppointment(null);
+                }
+            } catch (error) {
+                console.error('Error al cargar appointment desde API:', error);
+                setAppointment(null);
+            } finally {
+                setIsLoadingAppointment(false);
+            }
+        };
+
+        if (appointmentId) {
+            loadAppointmentFromApi();
+        }
+    }, [appointmentId]);
+    
+    // Cargar documentos directamente del API (sin usar store)
+    useEffect(() => {
+        if (appointment?.docEntry) {
+            const loadDocumentsFromApi = async () => {
+                try {
+                    const apiAppointments = await fetchAppointmentsFromApi();
+                    const foundApiAppointment = apiAppointments.find(
+                        (apt) => apt.docEntry === appointment.docEntry
+                    );
+                    if (foundApiAppointment && (foundApiAppointment as any).Documents) {
+                        setAppointmentDocuments((foundApiAppointment as any).Documents || []);
+                    } else {
+                        // Si no se encuentra en el API, limpiar documentos
+                        setAppointmentDocuments([]);
+                    }
+                } catch (error) {
+                    console.error('Error al cargar documentos desde API:', error);
+                    setAppointmentDocuments([]);
+                }
+            };
+            loadDocumentsFromApi();
+        } else {
+            // Si no hay appointment, limpiar documentos
+            setAppointmentDocuments([]);
+        }
+    }, [appointment?.docEntry]);
 
     // Estado para PackingList del API
     const [packingListsFromApi, setPackingListsFromApi] = useState<PackingListApiRecord[]>([]);
     const [isLoadingPackingLists, setIsLoadingPackingLists] = useState(false);
-    const [expandedPackingListId, setExpandedPackingListId] = useState<string | null>(null);
+    const [selectedPackingList, setSelectedPackingList] = useState<PackingListApiRecord | null>(null);
+    const { isOpen: isPackingListDetailOpen, onOpen: onPackingListDetailOpen, onClose: onPackingListDetailClose } = useDisclosure();
+    
+    // Estado para visualizar documentos
+    const [selectedDocument, setSelectedDocument] = useState<{ name: string; url: string; type: string } | null>(null);
+    const { isOpen: isDocumentViewerOpen, onOpen: onDocumentViewerOpen, onClose: onDocumentViewerClose } = useDisclosure();
+    
+    // Obtener todos los documentos disponibles (priorizar documentos del API, luego los mapeados)
+    const getAllDocuments = (): Array<{ name: string; url: string; type: string }> => {
+        // Si hay documentos del API, usarlos directamente
+        if (appointmentDocuments.length > 0) {
+            return appointmentDocuments.map(doc => ({
+                name: doc.U_nameFile,
+                url: doc.U_LinkDocumento,
+                type: doc.U_nameFile.split('.').pop()?.toLowerCase() || 'unknown'
+            }));
+        }
+        
+        // Si no, usar los documentos mapeados
+        if (!appointment?.documents) return [];
+        const docs: Array<{ name: string; url: string; type: string }> = [];
+        
+        if (appointment.documents.invoice?.url) {
+            docs.push({
+                name: appointment.documents.invoice.name,
+                url: appointment.documents.invoice.url,
+                type: appointment.documents.invoice.type
+            });
+        }
+        if (appointment.documents.purchaseOrder?.url) {
+            docs.push({
+                name: appointment.documents.purchaseOrder.name,
+                url: appointment.documents.purchaseOrder.url,
+                type: appointment.documents.purchaseOrder.type
+            });
+        }
+        if (appointment.documents.deliveryGuide?.url) {
+            docs.push({
+                name: appointment.documents.deliveryGuide.name,
+                url: appointment.documents.deliveryGuide.url,
+                type: appointment.documents.deliveryGuide.type
+            });
+        }
+        if (appointment.documents.cdr?.url) {
+            docs.push({
+                name: appointment.documents.cdr.name,
+                url: appointment.documents.cdr.url,
+                type: appointment.documents.cdr.type
+            });
+        }
+        if (appointment.documents.xml?.url) {
+            docs.push({
+                name: appointment.documents.xml.name,
+                url: appointment.documents.xml.url,
+                type: appointment.documents.xml.type
+            });
+        }
+        if (appointment.documents.otherDocuments) {
+            appointment.documents.otherDocuments.forEach(doc => {
+                if (doc.url) {
+                    docs.push({
+                        name: doc.name,
+                        url: doc.url,
+                        type: doc.type
+                    });
+                }
+            });
+        }
+        return docs;
+    };
+    
+    const handleDocumentClick = (doc: { name: string; url: string; type: string }) => {
+        setSelectedDocument(doc);
+        onDocumentViewerOpen();
+    };
 
     // Cargar PackingList cuando se monta el componente
     useEffect(() => {
@@ -89,60 +217,49 @@ const AppointmentDetail: React.FC = () => {
         }
     }, [appointment?.docEntry]);
 
-    // Redirigir si no se encuentra el appointment
+    // Redirigir si no se encuentra el appointment después de cargar
     useEffect(() => {
-        if (!appointment && appointments.length > 0) {
-            // Esperar un momento por si los appointments aún se están cargando
+        if (!isLoadingAppointment && !appointment) {
             const timer = setTimeout(() => {
-                if (!appointment) {
-                    navigate('/agenda');
-                }
-            }, 1000);
+                navigate('/agenda');
+            }, 2000);
             return () => clearTimeout(timer);
         }
-    }, [appointment, appointments, navigate]);
+    }, [appointment, isLoadingAppointment, navigate]);
 
-    if (!appointment) {
+    if (isLoadingAppointment || !appointment) {
         return (
             <Dashboard>
                 <div className="p-6">
                     <div className="text-center py-12">
-                        <p className="text-gray-500">Cargando información de la cita...</p>
+                        <p className="text-gray-500">
+                            {isLoadingAppointment ? 'Cargando información de la cita...' : 'No se encontró la cita solicitada'}
+                        </p>
                     </div>
                 </div>
             </Dashboard>
         );
     }
 
-    // Calcular progreso del proceso (0-100%)
-    const calculateProgress = (): number => {
-        let progress = 0;
-        if (appointment.status === 'Pendiente') progress = 0;
-        if (appointment.packingList) progress = 33;
-        if (appointment.transportData) progress = 66;
-        if (appointment.documents?.completed) progress = 100;
-        return progress;
-    };
-
-    // Estados del proceso
+    // Estados del proceso - basados en datos reales del API
     const processSteps = [
         {
             label: 'PackingList',
             icon: ClipboardDocumentListIcon,
-            completed: !!appointment.packingList,
-            active: !appointment.packingList && appointment.status === 'Pendiente',
+            completed: packingListsFromApi.length > 0,
+            active: packingListsFromApi.length === 0 && appointment.status === 'Pendiente',
         },
         {
             label: 'Transporte',
             icon: TruckIcon,
-            completed: !!appointment.transportData,
-            active: !!appointment.packingList && !appointment.transportData,
+            completed: !!appointment.transportData, // Viene del API directamente
+            active: packingListsFromApi.length > 0 && !appointment.transportData,
         },
         {
             label: 'Documentos',
             icon: DocumentTextIcon,
-            completed: !!appointment.documents?.completed,
-            active: !!appointment.transportData && !appointment.documents?.completed,
+            completed: appointmentDocuments.length > 0 || appointment.documents?.completed, // Usar datos del API
+            active: !!appointment.transportData && appointmentDocuments.length === 0 && !appointment.documents?.completed,
         },
     ];
 
@@ -189,7 +306,6 @@ const AppointmentDetail: React.FC = () => {
     };
 
     const statusConfig = getStatusConfig(appointment.status);
-    const progress = calculateProgress();
 
     // Verificar permisos según rol
     const canManagePackingList = [UserRole.ADMIN, UserRole.COMPRAS, UserRole.ALMACEN].includes(currentUser?.role || UserRole.ADMIN);
@@ -232,70 +348,187 @@ const AppointmentDetail: React.FC = () => {
 
                     {/* Header Rediseñado */}
                     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-                        {/* Título y Estado */}
-                        <div className="flex items-start justify-between w-full mb-6">
-                            <div className="flex items-center gap-3">
-                                <Avatar
-                                    icon={<BuildingOfficeIcon className="w-6 h-6" />}
-                                    classNames={{
-                                        base: "bg-blue-100",
-                                        icon: "text-blue-600"
-                                    }}
-                                    size="lg"
-                                />
-                                <div>
-                                    <h3 className="text-2xl font-bold text-gray-900">
-                                        Cita #{appointment.appointmentNumber}
-                                    </h3>
-                                    <p className="text-sm text-gray-500 mt-1">
-                                        {appointment.supplierName}
-                                    </p>
+                        {/* Título y Estado con información compacta */}
+                        <div className="flex items-start justify-between w-full gap-6">
+                            {/* Columna Izquierda: Título e Información de Entrega */}
+                            <div className="flex-1">
+                                <div className="flex items-center gap-3 mb-3">
+                                    <Avatar
+                                        icon={<BuildingOfficeIcon className="w-6 h-6" />}
+                                        classNames={{
+                                            base: "bg-blue-100",
+                                            icon: "text-blue-600"
+                                        }}
+                                        size="lg"
+                                    />
+                                    <div>
+                                        <h3 className="text-2xl font-bold text-gray-900">
+                                            {appointment.docEntry ? `Cita #${appointment.docEntry}` : `Cita #${appointment.appointmentNumber}`}
+                                        </h3>
+                                        <p className="text-sm text-gray-500 mt-1">
+                                            {appointment.supplierName}
+                                        </p>
+                                        {appointment.appointmentNumber && appointment.docEntry && (
+                                            <p className="text-xs text-gray-400 my-1">
+                                                Referencia: {appointment.appointmentNumber}
+                                            </p>
+                                        )}
+                                        {/* Información de Entrega Compacta */}
+                                        <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+                                            <div>
+                                                <span className="text-xs text-gray-500">Fecha: </span>
+                                                <span className="font-medium text-gray-900">
+                                                    {new Date(appointment.deliveryDate).toLocaleDateString('es-PE', {
+                                                        day: '2-digit',
+                                                        month: '2-digit',
+                                                        year: 'numeric'
+                                                    })}
+                                                </span>
+                                            </div>
+                                            <div>
+                                                <span className="text-xs text-gray-500">Hora: </span>
+                                                <span className="font-medium text-gray-900">
+                                                    {appointment.deliveryTime}
+                                                    {appointment.deliveryTimeEnd && ` - ${appointment.deliveryTimeEnd}`}
+                                                </span>
+                                            </div>
+                                            <div>
+                                                <span className="text-xs text-gray-500">Almacén: </span>
+                                                <span className="font-medium text-gray-900">
+                                                    {appointment.warehouse || 'No especificado'}
+                                                </span>
+                                            </div>
+                                            <div>
+                                                <span className="text-xs text-gray-500">RUC: </span>
+                                                <span className="font-medium text-gray-900">{appointment.supplierRUC}</span>
+                                            </div>
+                                            {appointment.supplierEmail && (
+                                                <div className="col-span-2">
+                                                    <span className="text-xs text-gray-500">Contacto: </span>
+                                                    <span className="font-medium text-gray-900">{appointment.supplierEmail}</span>
+                                                    {appointment.supplierPhone && (
+                                                        <span className="text-gray-600 ml-2">| {appointment.supplierPhone}</span>
+                                                    )}
+                                                </div>
+                                            )}
+                                            {appointment.notes && (
+                                                <div className="col-span-2 pt-2 border-t border-gray-100">
+                                                    <span className="text-xs text-gray-500">Notas: </span>
+                                                    <span className="text-sm text-gray-700">{appointment.notes}</span>
+                                                </div>
+                                            )}
+                                        </div> 
+                                    </div>
                                 </div>
+                                
+                                
                             </div>
-                            <Chip
-                                color={statusConfig.color}
-                                variant="flat"
-                                size="lg"
-                                startContent={
-                                    appointment.status === 'Completada' ? (
-                                        <CheckCircleIcon className="w-4 h-4" />
-                                    ) : appointment.status === 'Cancelada' ? (
-                                        <XCircleIcon className="w-4 h-4" />
-                                    ) : (
-                                        <ClockIcon className="w-4 h-4" />
-                                    )
-                                }
-                                classNames={{
-                                    base: "px-4 py-2",
-                                    content: "font-semibold"
-                                }}
-                            >
-                                {appointment.status}
-                            </Chip>
-                        </div>
 
-                        {/* Barra de Progreso */}
-                        <div className="w-full mb-6">
-                            <div className="flex items-center justify-between mb-2">
-                                <span className="text-sm font-medium text-gray-700">
-                                    Progreso de la Entrega
-                                </span>
-                                <span className="text-sm font-bold text-gray-900">
-                                    {progress}%
-                                </span>
+                            {/* Columna Derecha: Estado y Datos del Transportista */}
+                            <div className="flex-1">
+                                <div className="flex justify-end mb-3">
+                                    <Chip
+                                        color={statusConfig.color}
+                                        variant="flat"
+                                        size="lg"
+                                        startContent={
+                                            appointment.status === 'Completada' ? (
+                                                <CheckCircleIcon className="w-4 h-4" />
+                                            ) : appointment.status === 'Cancelada' ? (
+                                                <XCircleIcon className="w-4 h-4" />
+                                            ) : (
+                                                <ClockIcon className="w-4 h-4" />
+                                            )
+                                        }
+                                        classNames={{
+                                            base: "px-4 py-2",
+                                            content: "font-semibold"
+                                        }}
+                                    >
+                                        {appointment.status}
+                                    </Chip>
+                                </div>
+
+                                {/* Datos del Transportista Compactos */}
+                                {(() => {
+                                    // Usar datos de transporte directamente del appointment (vienen del API de citas)
+                                    const transporte = appointment.transportData;
+
+                                    // Convertir hora de llegada de formato "1000" o "1240" a "10:00" o "12:40"
+                                    const formatHoraLlegada = (hora: string | undefined): string => {
+                                        if (!hora) return '-';
+                                        const horaStr = hora.padStart(4, '0');
+                                        return `${horaStr.slice(0, 2)}:${horaStr.slice(2)}`;
+                                    };
+
+                                    if (!transporte) {
+                                        return (
+                                            <div className="text-center py-4">
+                                                <p className="text-xs text-gray-500 mb-2">Sin datos de transporte</p>
+                                                {canManageTransport && (
+                                                    <Button
+                                                        color="primary"
+                                                        size="sm"
+                                                        variant="flat"
+                                                        startContent={<TruckIcon className="w-4 h-4" />}
+                                                        onPress={handleOpenTransport}
+                                                    >
+                                                        Completar
+                                                    </Button>
+                                                )}
+                                            </div>
+                                        );
+                                    }
+
+                                    return (
+                                        <div className="space-y-1.5 text-sm">
+                                            <div>
+                                                <span className="text-xs text-gray-500">Transportista: </span>
+                                                <span className="font-medium text-gray-900">
+                                                    {transporte.transportCompany || 'No especificado'}
+                                                </span>
+                                            </div>
+                                            <div>
+                                                <span className="text-xs text-gray-500">Conductor: </span>
+                                                <span className="font-medium text-gray-900">
+                                                    {transporte.driverName || 'No especificado'}
+                                                </span>
+                                                {transporte.driverLicense && (
+                                                    <span className="text-gray-600 ml-2">(Lic: {transporte.driverLicense})</span>
+                                                )}
+                                            </div>
+                                            <div>
+                                                <span className="text-xs text-gray-500">Vehículo: </span>
+                                                <span className="font-medium text-gray-900">
+                                                    {transporte.vehiclePlate || 'No especificado'}
+                                                </span>
+                                                {transporte.vehicleType && (
+                                                    <span className="text-gray-600 ml-2">({transporte.vehicleType})</span>
+                                                )}
+                                            </div>
+                                            <div>
+                                                <span className="text-xs text-gray-500">Contacto: </span>
+                                                <span className="font-medium text-gray-900">
+                                                    {transporte.contactPhone || 'No especificado'}
+                                                </span>
+                                                {transporte.estimatedArrival && (
+                                                    <span className="text-gray-600 ml-2">| Llegada: {formatHoraLlegada(transporte.estimatedArrival)}</span>
+                                                )}
+                                            </div>
+                                            {transporte.notes && (
+                                                <div className="pt-2 border-t border-gray-100">
+                                                    <span className="text-xs text-gray-500">Notas: </span>
+                                                    <span className="text-sm text-gray-700">{transporte.notes}</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })()}
                             </div>
-                            <Progress
-                                value={progress}
-                                color={progress === 100 ? "success" : "primary"}
-                                size="md"
-                                classNames={{
-                                    indicator: "bg-gradient-to-r from-blue-500 to-blue-600"
-                                }}
-                            />
                         </div>
 
                         {/* Stepper Horizontal */}
-                        <div className="flex items-center justify-between w-full">
+                        <div className="flex items-center justify-between w-full mt-6 pt-6 border-t border-gray-200">
                             {processSteps.map((step, index) => {
                                 const Icon = step.icon;
                                 return (
@@ -343,119 +576,10 @@ const AppointmentDetail: React.FC = () => {
                 </div>
 
                 <div className="space-y-6">
-                    {/* Información General - Card con Grid */}
-                    <Card className="border border-gray-200 shadow-sm">
-                        <CardBody className="p-6">
-                            <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                                <CalendarIcon className="w-5 h-5 text-blue-600" />
-                                Información de la Entrega
-                            </h4>
-                            <div className="grid grid-cols-2 gap-6">
-                                {/* Fecha y Hora */}
-                                <div className="flex items-start gap-3">
-                                    <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
-                                        <CalendarIcon className="w-5 h-5 text-blue-600" />
-                                    </div>
-                                    <div>
-                                        <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                                            Fecha y Hora
-                                        </p>
-                                        <p className="text-sm font-bold text-gray-900 mt-1">
-                                            {new Date(appointment.deliveryDate).toLocaleDateString('es-PE', {
-                                                weekday: 'long',
-                                                year: 'numeric',
-                                                month: 'long',
-                                                day: 'numeric'
-                                            })}
-                                        </p>
-                                        <p className="text-sm text-gray-600 mt-0.5">
-                                            {appointment.deliveryTime} 
-                                            {appointment.deliveryTimeEnd && ` - ${appointment.deliveryTimeEnd}`}
-                                        </p>
-                                    </div>
-                                </div>
-
-                                {/* Almacén */}
-                                <div className="flex items-start gap-3">
-                                    <div className="w-10 h-10 rounded-lg bg-purple-50 flex items-center justify-center flex-shrink-0">
-                                        <MapPinIcon className="w-5 h-5 text-purple-600" />
-                                    </div>
-                                    <div>
-                                        <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                                            Almacén
-                                        </p>
-                                        <p className="text-sm font-bold text-gray-900 mt-1">
-                                            {appointment.warehouse || 'No especificado'}
-                                        </p>
-                                    </div>
-                                </div>
-
-                                {/* Proveedor */}
-                                <div className="flex items-start gap-3">
-                                    <div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0">
-                                        <BuildingOfficeIcon className="w-5 h-5 text-emerald-600" />
-                                    </div>
-                                    <div>
-                                        <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                                            Proveedor
-                                        </p>
-                                        <p className="text-sm font-bold text-gray-900 mt-1">
-                                            {appointment.supplierName}
-                                        </p>
-                                        <p className="text-xs text-gray-500 mt-0.5">
-                                            RUC: {appointment.supplierRUC}
-                                        </p>
-                                    </div>
-                                </div>
-
-                                {/* Contacto (si existe) */}
-                                {appointment.supplierEmail && (
-                                    <div className="flex items-start gap-3">
-                                        <div className="w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center flex-shrink-0">
-                                            <PhoneIcon className="w-5 h-5 text-amber-600" />
-                                        </div>
-                                        <div>
-                                            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                                                Contacto
-                                            </p>
-                                            <p className="text-sm font-medium text-gray-900 mt-1">
-                                                {appointment.supplierEmail}
-                                            </p>
-                                            {appointment.supplierPhone && (
-                                                <p className="text-xs text-gray-500 mt-0.5">
-                                                    {appointment.supplierPhone}
-                                                </p>
-                                            )}
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Notas */}
-                            {appointment.notes && (
-                                <>
-                                    <Divider className="my-4" />
-                                    <div className="flex items-start gap-3">
-                                        <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
-                                            <DocumentTextIcon className="w-5 h-5 text-gray-600" />
-                                        </div>
-                                        <div className="flex-1">
-                                            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                                                Notas Adicionales
-                                            </p>
-                                            <p className="text-sm text-gray-700 mt-1 leading-relaxed">
-                                                {appointment.notes}
-                                            </p>
-                                        </div>
-                                    </div>
-                                </>
-                            )}
-                        </CardBody>
-                    </Card>
 
                     {/* PackingList Section */}
                     <Card className={`border-2 transition-all ${
-                        appointment.packingList 
+                        packingListsFromApi.length > 0 
                             ? 'border-emerald-200 bg-emerald-50/30' 
                             : 'border-gray-200 hover:border-blue-300'
                     }`}>
@@ -463,11 +587,11 @@ const AppointmentDetail: React.FC = () => {
                             <div className="flex items-center justify-between mb-4">
                                 <h4 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
                                     <ClipboardDocumentListIcon className={`w-5 h-5 ${
-                                        appointment.packingList ? 'text-emerald-600' : 'text-gray-400'
+                                        packingListsFromApi.length > 0 ? 'text-emerald-600' : 'text-gray-400'
                                     }`} />
                                     PackingList
                                 </h4>
-                                {appointment.packingList ? (
+                                {packingListsFromApi.length > 0 ? (
                                     <Chip color="success" variant="flat" startContent={<CheckCircleIcon className="w-4 h-4" />}>
                                         Completado
                                     </Chip>
@@ -490,7 +614,8 @@ const AppointmentDetail: React.FC = () => {
                                             <TableColumn width={120}>NÚMERO</TableColumn>
                                             <TableColumn width={100}>ALMACÉN</TableColumn>
                                             <TableColumn width={120}>TICKET</TableColumn>
-                                            <TableColumn width={120}>FECHA</TableColumn>
+                                            <TableColumn width={120}>FECHA ESPERADA</TableColumn>
+                                            <TableColumn width={120}>FECHA EMISIÓN</TableColumn>
                                             <TableColumn width={100}>TIPO</TableColumn>
                                             <TableColumn width={80}>ITEMS</TableColumn>
                                             <TableColumn>COMENTARIO</TableColumn>
@@ -500,48 +625,50 @@ const AppointmentDetail: React.FC = () => {
                                             {packingListsFromApi.map((pl) => {
                                                 // Obtener el detalle (puede venir en cualquiera de los dos campos)
                                                 const detalle = pl.DetallePackinList || pl._detallePackinList || [];
-                                                const isExpanded = expandedPackingListId === pl.Id;
                                                 
                                                 return (
-                                                    <React.Fragment key={pl.Id}>
-                                                        <TableRow 
-                                                            className={`cursor-pointer hover:bg-gray-50 transition-colors ${isExpanded ? 'bg-blue-50' : ''}`}
-                                                            onClick={() => {
-                                                                setExpandedPackingListId(isExpanded ? null : pl.Id);
-                                                            }}
-                                                        >
-                                                            <TableCell className="whitespace-nowrap font-medium">
-                                                                <div className="flex items-center gap-2">
-                                                                    {detalle.length > 0 && (
-                                                                        isExpanded ? (
-                                                                            <ChevronDownIcon className="w-4 h-4 text-gray-500" />
-                                                                        ) : (
-                                                                            <ChevronRightIcon className="w-4 h-4 text-gray-500" />
-                                                                        )
-                                                                    )}
-                                                                    {pl.Number}
-                                                                </div>
-                                                            </TableCell>
-                                                            <TableCell className="whitespace-nowrap">{pl.WhsCode}</TableCell>
-                                                            <TableCell className="whitespace-nowrap">{pl.Ticket || '-'}</TableCell>
-                                                            <TableCell className="whitespace-nowrap">
-                                                                {typeof pl.DateExpected === 'string' 
-                                                                    ? pl.DateExpected.split('T')[0].split(' ')[0] 
-                                                                    : pl.DateExpected
-                                                                }
-                                                            </TableCell>
-                                                            <TableCell className="whitespace-nowrap">
-                                                                {pl.InboundType ? (
-                                                                    <Chip size="sm" variant="flat" color={pl.InboundType === 'OCNAC' ? 'primary' : 'secondary'}>
-                                                                        {pl.InboundType}
-                                                                    </Chip>
-                                                                ) : (
-                                                                    '-'
-                                                                )}
-                                                            </TableCell>
-                                                            <TableCell className="whitespace-nowrap text-center">
-                                                                {detalle.length}
-                                                            </TableCell>
+                                                    <TableRow 
+                                                        key={pl.Id}
+                                                        className="cursor-pointer hover:bg-gray-50 transition-colors"
+                                                        onClick={() => {
+                                                            setSelectedPackingList(pl);
+                                                            onPackingListDetailOpen();
+                                                        }}
+                                                    >
+                                                        <TableCell className="whitespace-nowrap font-medium">
+                                                            <div className="flex items-center gap-2">
+                                                                {pl.Number}
+                                                            </div>
+                                                        </TableCell>
+                                                        <TableCell className="whitespace-nowrap">{pl.WhsCode}</TableCell>
+                                                        <TableCell className="whitespace-nowrap">{pl.Ticket || '-'}</TableCell>
+                                                        <TableCell className="whitespace-nowrap">
+                                                            {typeof pl.DateExpected === 'string' 
+                                                                ? pl.DateExpected.split('T')[0].split(' ')[0] 
+                                                                : pl.DateExpected
+                                                            }
+                                                        </TableCell>
+                                                        <TableCell className="whitespace-nowrap">
+                                                            {pl.EmissionDate 
+                                                                ? (typeof pl.EmissionDate === 'string' 
+                                                                    ? pl.EmissionDate.split('T')[0].split(' ')[0] 
+                                                                    : pl.EmissionDate
+                                                                )
+                                                                : '-'
+                                                            }
+                                                        </TableCell>
+                                                        <TableCell className="whitespace-nowrap">
+                                                            {pl.InboundType ? (
+                                                                <Chip size="sm" variant="flat" color={pl.InboundType === 'OCNAC' ? 'primary' : 'secondary'}>
+                                                                    {pl.InboundType}
+                                                                </Chip>
+                                                            ) : (
+                                                                '-'
+                                                            )}
+                                                        </TableCell>
+                                                        <TableCell className="whitespace-nowrap text-center">
+                                                            {detalle.length}
+                                                        </TableCell>
                                                             <TableCell>
                                                                 <div className="max-w-[200px] truncate" title={pl.Comments || ''}>
                                                                     {pl.Comments || '-'}
@@ -563,63 +690,10 @@ const AppointmentDetail: React.FC = () => {
                                                                 )}
                                                             </TableCell>
                                                         </TableRow>
-                                                    </React.Fragment>
                                                 );
                                             })}
                                         </TableBody>
                                     </Table>
-                                    
-                                    {/* Detalle expandido fuera de la tabla */}
-                                    {packingListsFromApi.map((pl) => {
-                                        const detalle = pl.DetallePackinList || pl._detallePackinList || [];
-                                        const isExpanded = expandedPackingListId === pl.Id;
-                                        
-                                        if (!isExpanded || detalle.length === 0) return null;
-                                        
-                                        return (
-                                            <div key={`detail-${pl.Id}`} className="mt-2 mb-4 p-4 bg-gray-50 border border-gray-200 rounded-lg">
-                                                <h5 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                                                    <DocumentTextIcon className="w-4 h-4" />
-                                                    Detalle del PackingList {pl.Number} ({detalle.length} {detalle.length === 1 ? 'item' : 'items'})
-                                                </h5>
-                                                <div className="overflow-x-auto">
-                                                    <Table aria-label="Tabla de detalles" removeWrapper>
-                                                        <TableHeader>
-                                                            <TableColumn width={80}>LÍNEA</TableColumn>
-                                                            <TableColumn width={120}>CÓDIGO</TableColumn>
-                                                            <TableColumn>DESCRIPCIÓN</TableColumn>
-                                                            <TableColumn width={100} className="text-right">CANTIDAD</TableColumn>
-                                                        </TableHeader>
-                                                        <TableBody>
-                                                            {detalle.map((item, index) => {
-                                                                const lineNumber = item.LineNumber || item.lineNumber || index + 1;
-                                                                const itemCode = item.ItemCode || item.itemCode || '';
-                                                                const itemName = item.ItemName || item.itemName || '';
-                                                                const quantity = item.Quantity || item.quantity || 0;
-                                                                
-                                                                return (
-                                                                    <TableRow key={`${pl.Id}-${lineNumber}-${index}`}>
-                                                                        <TableCell className="whitespace-nowrap font-medium">{lineNumber}</TableCell>
-                                                                        <TableCell className="whitespace-nowrap font-mono text-sm">{itemCode}</TableCell>
-                                                                        <TableCell>{itemName}</TableCell>
-                                                                        <TableCell className="text-right font-semibold">
-                                                                            {quantity > 0 ? (
-                                                                                <Chip size="sm" color="primary" variant="flat">
-                                                                                    {quantity}
-                                                                                </Chip>
-                                                                            ) : (
-                                                                                <span className="text-gray-400">0</span>
-                                                                            )}
-                                                                        </TableCell>
-                                                                    </TableRow>
-                                                                );
-                                                            })}
-                                                        </TableBody>
-                                                    </Table>
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
                                 </div>
                             ) : (
                                 <div className="text-center py-6 mb-4">
@@ -646,127 +720,140 @@ const AppointmentDetail: React.FC = () => {
                         </CardBody>
                     </Card>
 
-                    {/* Transport Section */}
-                    <Card className={`border-2 transition-all ${
-                        appointment.transportData 
-                            ? 'border-emerald-200 bg-emerald-50/30' 
-                            : 'border-gray-200 hover:border-blue-300'
-                    }`}>
-                        <CardBody className="p-6">
-                            <div className="flex items-center justify-between mb-4">
-                                <h4 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                                    <TruckIcon className={`w-5 h-5 ${
-                                        appointment.transportData ? 'text-emerald-600' : 'text-gray-400'
-                                    }`} />
-                                    Datos de Transporte
-                                </h4>
-                                {appointment.transportData ? (
-                                    <Chip color="success" variant="flat" startContent={<CheckCircleIcon className="w-4 h-4" />}>
-                                        Completado
-                                    </Chip>
-                                ) : (
-                                    <Chip color="warning" variant="flat" startContent={<ExclamationTriangleIcon className="w-4 h-4" />}>
-                                        Pendiente
-                                    </Chip>
-                                )}
-                            </div>
-
-                            {appointment.transportData ? (
-                                <div className="bg-white rounded-lg p-4 border border-emerald-100">
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="flex items-start gap-3">
-                                            <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
-                                                <BuildingOfficeIcon className="w-5 h-5 text-blue-600" />
-                                            </div>
-                                            <div>
-                                                <p className="text-xs text-gray-500">Transportista</p>
-                                                <p className="text-sm font-semibold text-gray-900">
-                                                    {appointment.transportData.transportCompany || 'No especificado'}
-                                                </p>
-                                            </div>
-                                        </div>
-
-                                        <div className="flex items-start gap-3">
-                                            <div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0">
-                                                <UserIcon className="w-5 h-5 text-emerald-600" />
-                                            </div>
-                                            <div>
-                                                <p className="text-xs text-gray-500">Conductor</p>
-                                                <p className="text-sm font-semibold text-gray-900">
-                                                    {appointment.transportData.driverName}
-                                                </p>
-                                                {appointment.transportData.driverLicense && (
-                                                    <p className="text-xs text-gray-500">
-                                                        Lic: {appointment.transportData.driverLicense}
-                                                    </p>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        <div className="flex items-start gap-3">
-                                            <div className="w-10 h-10 rounded-lg bg-purple-50 flex items-center justify-center flex-shrink-0">
-                                                <TruckIcon className="w-5 h-5 text-purple-600" />
-                                            </div>
-                                            <div>
-                                                <p className="text-xs text-gray-500">Vehículo</p>
-                                                <p className="text-sm font-semibold text-gray-900">
-                                                    {appointment.transportData.vehiclePlate}
-                                                </p>
-                                                {appointment.transportData.vehicleType && (
-                                                    <p className="text-xs text-gray-500">
-                                                        {appointment.transportData.vehicleType}
-                                                    </p>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        <div className="flex items-start gap-3">
-                                            <div className="w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center flex-shrink-0">
-                                                <PhoneIcon className="w-5 h-5 text-amber-600" />
-                                            </div>
-                                            <div>
-                                                <p className="text-xs text-gray-500">Contacto</p>
-                                                <p className="text-sm font-semibold text-gray-900">
-                                                    {appointment.transportData.contactPhone}
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {appointment.transportData.notes && (
-                                        <div className="mt-4 pt-4 border-t border-gray-200">
-                                            <p className="text-xs text-gray-500 mb-1">Notas</p>
-                                            <p className="text-sm text-gray-700">{appointment.transportData.notes}</p>
-                                        </div>
-                                    )}
+                    {/* Modal de Detalle del PackingList */}
+                    <Modal 
+                        isOpen={isPackingListDetailOpen} 
+                        onClose={onPackingListDetailClose}
+                        size="4xl"
+                        scrollBehavior="inside"
+                    >
+                        <ModalContent>
+                            <ModalHeader className="flex flex-col gap-1">
+                                <div className="flex items-center gap-3">
+                                    <ClipboardDocumentListIcon className="w-6 h-6 text-blue-600" />
+                                    <h3 className="text-xl font-bold">Items del PackingList</h3>
                                 </div>
-                            ) : (
-                                <div className="text-center py-8">
-                                    <div className="w-16 h-16 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-3">
-                                        <TruckIcon className="w-8 h-8 text-amber-600" />
-                                    </div>
-                                    <p className="text-gray-600 mb-4">
-                                        Los datos de transporte aún no han sido completados
-                                    </p>
-                                    {canManageTransport && (
-                                        <Button
-                                            color="primary"
-                                            size="lg"
-                                            startContent={<TruckIcon className="w-5 h-5" />}
-                                            onPress={handleOpenTransport}
-                                            className="shadow-lg"
-                                        >
-                                            Completar Datos de Transporte
-                                        </Button>
-                                    )}
+                            </ModalHeader>
+                            <ModalBody className="pb-6">
+                                {selectedPackingList && (() => {
+                                    const detalle = selectedPackingList.DetallePackinList || selectedPackingList._detallePackinList || [];
+                                    
+                                    return (
+                                        <>
+                                            {detalle.length > 0 ? (
+                                                <div className="overflow-x-auto">
+                                                    <Table aria-label="Tabla de items del PackingList" removeWrapper>
+                                                        <TableHeader>
+                                                            <TableColumn width={80}>LÍNEA</TableColumn>
+                                                            <TableColumn width={150}>CÓDIGO</TableColumn>
+                                                            <TableColumn>DESCRIPCIÓN</TableColumn>
+                                                            <TableColumn width={120} className="text-right">CANTIDAD</TableColumn>
+                                                        </TableHeader>
+                                                        <TableBody>
+                                                            {detalle.map((item: any, index: number) => {
+                                                                const lineNumber = item.LineNumber || item.lineNumber || index + 1;
+                                                                const itemCode = item.ItemCode || item.itemCode || '';
+                                                                const itemName = item.ItemName || item.itemName || '';
+                                                                const quantity = item.Quantity || item.quantity || 0;
+                                                                return (
+                                                                    <TableRow key={index}>
+                                                                        <TableCell className="whitespace-nowrap text-center">
+                                                                            {lineNumber}
+                                                                        </TableCell>
+                                                                        <TableCell className="whitespace-nowrap font-medium">
+                                                                            {itemCode}
+                                                                        </TableCell>
+                                                                        <TableCell>
+                                                                            <div className="max-w-[400px]">
+                                                                                {itemName}
+                                                                            </div>
+                                                                        </TableCell>
+                                                                        <TableCell className="text-right whitespace-nowrap font-semibold">
+                                                                            {quantity.toLocaleString()}
+                                                                        </TableCell>
+                                                                    </TableRow>
+                                                                );
+                                                            })}
+                                                        </TableBody>
+                                                    </Table>
+                                                </div>
+                                            ) : (
+                                                <div className="text-center py-8 text-gray-500">
+                                                    <DocumentTextIcon className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                                                    <p>No hay items en este PackingList</p>
+                                                </div>
+                                            )}
+                                        </>
+                                    );
+                                })()}
+                            </ModalBody>
+                        </ModalContent>
+                    </Modal>
+
+                    {/* Modal para visualizar documentos */}
+                    <Modal 
+                        isOpen={isDocumentViewerOpen} 
+                        onClose={onDocumentViewerClose}
+                        size="5xl"
+                        scrollBehavior="inside"
+                    >
+                        <ModalContent>
+                            <ModalHeader className="flex flex-col gap-1">
+                                <div className="flex items-center gap-3">
+                                    <DocumentTextIcon className="w-6 h-6 text-blue-600" />
+                                    <h3 className="text-xl font-bold">
+                                        {selectedDocument?.name || 'Documento'}
+                                    </h3>
                                 </div>
-                            )}
-                        </CardBody>
-                    </Card>
+                            </ModalHeader>
+                            <ModalBody className="pb-6">
+                                {selectedDocument && (() => {
+                                    const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].includes(selectedDocument.type.toLowerCase());
+                                    const isPdf = selectedDocument.type.toLowerCase() === 'pdf';
+                                    
+                                    return (
+                                        <div className="w-full h-[70vh] flex items-center justify-center bg-gray-100 rounded-lg">
+                                            {isImage ? (
+                                                <img 
+                                                    src={selectedDocument.url} 
+                                                    alt={selectedDocument.name}
+                                                    className="max-w-full max-h-full object-contain rounded-lg shadow-lg"
+                                                    onError={(e) => {
+                                                        (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" dy=".3em" fill="%23999"%3EError al cargar imagen%3C/text%3E%3C/svg%3E';
+                                                    }}
+                                                />
+                                            ) : isPdf ? (
+                                                <iframe
+                                                    src={selectedDocument.url}
+                                                    className="w-full h-full border-0 rounded-lg"
+                                                    title={selectedDocument.name}
+                                                />
+                                            ) : (
+                                                <div className="text-center p-8">
+                                                    <DocumentTextIcon className="w-16 h-16 mx-auto mb-4 text-gray-400" />
+                                                    <p className="text-gray-600 mb-4">
+                                                        Tipo de archivo: {selectedDocument.type.toUpperCase()}
+                                                    </p>
+                                                    <Button
+                                                        color="primary"
+                                                        variant="flat"
+                                                        onPress={() => window.open(selectedDocument.url, '_blank')}
+                                                        startContent={<DocumentTextIcon className="w-5 h-5" />}
+                                                    >
+                                                        Abrir en nueva ventana
+                                                    </Button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })()}
+                            </ModalBody>
+                        </ModalContent>
+                    </Modal>
 
                     {/* Documents Section */}
                     <Card className={`border-2 transition-all ${
-                        appointment.documents?.completed 
+                        appointmentDocuments.length > 0 || appointment.documents?.completed
                             ? 'border-emerald-200 bg-emerald-50/30' 
                             : 'border-gray-200 hover:border-blue-300'
                     }`}>
@@ -774,11 +861,11 @@ const AppointmentDetail: React.FC = () => {
                             <div className="flex items-center justify-between mb-4">
                                 <h4 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
                                     <DocumentTextIcon className={`w-5 h-5 ${
-                                        appointment.documents?.completed ? 'text-emerald-600' : 'text-gray-400'
+                                        appointmentDocuments.length > 0 || appointment.documents?.completed ? 'text-emerald-600' : 'text-gray-400'
                                     }`} />
                                     Documentos
                                 </h4>
-                                {appointment.documents?.completed ? (
+                                {appointmentDocuments.length > 0 || appointment.documents?.completed ? (
                                     <Chip color="success" variant="flat" startContent={<CheckCircleIcon className="w-4 h-4" />}>
                                         Completado
                                     </Chip>
@@ -789,76 +876,102 @@ const AppointmentDetail: React.FC = () => {
                                 )}
                             </div>
 
-                            {appointment.documents ? (
+                            {appointmentDocuments.length > 0 || appointment.documents ? (
                                 <div className="bg-white rounded-lg p-4 border border-gray-200">
-                                    <div className="grid grid-cols-2 gap-3">
-                                        {/* Factura */}
-                                        <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
-                                            <div className="flex items-center gap-3">
-                                                <DocumentTextIcon className="w-5 h-5 text-gray-600" />
-                                                <span className="text-sm font-medium text-gray-900">Factura</span>
+                                    {(() => {
+                                        const allDocuments = getAllDocuments();
+                                        return allDocuments.length > 0 ? (
+                                            <div className="space-y-2">
+                                                {allDocuments.map((doc, index) => (
+                                                    <div
+                                                        key={index}
+                                                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100 hover:bg-blue-50 hover:border-blue-300 cursor-pointer transition-colors"
+                                                        onClick={() => handleDocumentClick(doc)}
+                                                    >
+                                                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                                                            <DocumentTextIcon className="w-5 h-5 text-gray-600 flex-shrink-0" />
+                                                            <span className="text-sm font-medium text-gray-900 truncate" title={doc.name}>
+                                                                {doc.name}
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex items-center gap-2 flex-shrink-0">
+                                                            <span className="text-xs text-gray-500 uppercase">{doc.type}</span>
+                                                            <CheckCircleIcon className="w-5 h-5 text-emerald-500" />
+                                                        </div>
+                                                    </div>
+                                                ))}
                                             </div>
-                                            {appointment.documents.invoice ? (
-                                                <CheckCircleIcon className="w-5 h-5 text-emerald-500" />
-                                            ) : (
-                                                <XCircleIcon className="w-5 h-5 text-amber-500" />
-                                            )}
-                                        </div>
+                                        ) : (
+                                            <div className="grid grid-cols-2 gap-3">
+                                                {/* Factura */}
+                                                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
+                                                    <div className="flex items-center gap-3">
+                                                        <DocumentTextIcon className="w-5 h-5 text-gray-600" />
+                                                        <span className="text-sm font-medium text-gray-900">Factura</span>
+                                                    </div>
+                                                    {appointment.documents?.invoice ? (
+                                                        <CheckCircleIcon className="w-5 h-5 text-emerald-500" />
+                                                    ) : (
+                                                        <XCircleIcon className="w-5 h-5 text-amber-500" />
+                                                    )}
+                                                </div>
 
-                                        {/* Orden de Compra */}
-                                        <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
-                                            <div className="flex items-center gap-3">
-                                                <DocumentTextIcon className="w-5 h-5 text-gray-600" />
-                                                <span className="text-sm font-medium text-gray-900">O. Compra</span>
+                                                {/* Orden de Compra */}
+                                                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
+                                                    <div className="flex items-center gap-3">
+                                                        <DocumentTextIcon className="w-5 h-5 text-gray-600" />
+                                                        <span className="text-sm font-medium text-gray-900">O. Compra</span>
+                                                    </div>
+                                                    {appointment.documents?.purchaseOrder ? (
+                                                        <CheckCircleIcon className="w-5 h-5 text-emerald-500" />
+                                                    ) : (
+                                                        <XCircleIcon className="w-5 h-5 text-amber-500" />
+                                                    )}
+                                                </div>
+
+                                                {/* Guía de Remisión */}
+                                                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
+                                                    <div className="flex items-center gap-3">
+                                                        <DocumentTextIcon className="w-5 h-5 text-gray-600" />
+                                                        <span className="text-sm font-medium text-gray-900">Guía Remisión</span>
+                                                    </div>
+                                                    {appointment.documents?.deliveryGuide ? (
+                                                        <CheckCircleIcon className="w-5 h-5 text-emerald-500" />
+                                                    ) : (
+                                                        <XCircleIcon className="w-5 h-5 text-amber-500" />
+                                                    )}
+                                                </div>
+
+                                                {/* CDR */}
+                                                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
+                                                    <div className="flex items-center gap-3">
+                                                        <DocumentTextIcon className="w-5 h-5 text-gray-600" />
+                                                        <span className="text-sm font-medium text-gray-900">CDR</span>
+                                                    </div>
+                                                    {appointment.documents?.cdr ? (
+                                                        <CheckCircleIcon className="w-5 h-5 text-emerald-500" />
+                                                    ) : (
+                                                        <XCircleIcon className="w-5 h-5 text-amber-500" />
+                                                    )}
+                                                </div>
+
+                                                {/* XML */}
+                                                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100 col-span-2">
+                                                    <div className="flex items-center gap-3">
+                                                        <DocumentTextIcon className="w-5 h-5 text-gray-600" />
+                                                        <span className="text-sm font-medium text-gray-900">XML</span>
+                                                    </div>
+                                                    {appointment.documents?.xml ? (
+                                                        <CheckCircleIcon className="w-5 h-5 text-emerald-500" />
+                                                    ) : (
+                                                        <XCircleIcon className="w-5 h-5 text-amber-500" />
+                                                    )}
+                                                </div>
                                             </div>
-                                            {appointment.documents.purchaseOrder ? (
-                                                <CheckCircleIcon className="w-5 h-5 text-emerald-500" />
-                                            ) : (
-                                                <XCircleIcon className="w-5 h-5 text-amber-500" />
-                                            )}
-                                        </div>
+                                        );
+                                    })()}
 
-                                        {/* Guía de Remisión */}
-                                        <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
-                                            <div className="flex items-center gap-3">
-                                                <DocumentTextIcon className="w-5 h-5 text-gray-600" />
-                                                <span className="text-sm font-medium text-gray-900">Guía Remisión</span>
-                                            </div>
-                                            {appointment.documents.deliveryGuide ? (
-                                                <CheckCircleIcon className="w-5 h-5 text-emerald-500" />
-                                            ) : (
-                                                <XCircleIcon className="w-5 h-5 text-amber-500" />
-                                            )}
-                                        </div>
-
-                                        {/* CDR */}
-                                        <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
-                                            <div className="flex items-center gap-3">
-                                                <DocumentTextIcon className="w-5 h-5 text-gray-600" />
-                                                <span className="text-sm font-medium text-gray-900">CDR</span>
-                                            </div>
-                                            {appointment.documents.cdr ? (
-                                                <CheckCircleIcon className="w-5 h-5 text-emerald-500" />
-                                            ) : (
-                                                <XCircleIcon className="w-5 h-5 text-amber-500" />
-                                            )}
-                                        </div>
-
-                                        {/* XML */}
-                                        <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100 col-span-2">
-                                            <div className="flex items-center gap-3">
-                                                <DocumentTextIcon className="w-5 h-5 text-gray-600" />
-                                                <span className="text-sm font-medium text-gray-900">XML</span>
-                                            </div>
-                                            {appointment.documents.xml ? (
-                                                <CheckCircleIcon className="w-5 h-5 text-emerald-500" />
-                                            ) : (
-                                                <XCircleIcon className="w-5 h-5 text-amber-500" />
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {!appointment.documents.completed && canManageDocuments && (
+                                    {(appointmentDocuments.length === 0 && !appointment.documents?.completed) && canManageDocuments && (
                                         <div className="mt-4">
                                             <Button
                                                 color="primary"
@@ -907,15 +1020,17 @@ const AppointmentDetail: React.FC = () => {
                     >
                         Cerrar
                     </Button>
-                    <Button 
-                        color="primary" 
-                        onPress={handleEdit}
-                        size="lg"
-                        className="font-medium"
-                        startContent={<CalendarIcon className="w-5 h-5" />}
-                    >
-                        Editar Cita
-                    </Button>
+                    {!isProvider && (
+                        <Button 
+                            color="primary" 
+                            onPress={handleEdit}
+                            size="lg"
+                            className="font-medium"
+                            startContent={<CalendarIcon className="w-5 h-5" />}
+                        >
+                            Editar Cita
+                        </Button>
+                    )}
                 </div>
             </div>
         </Dashboard>

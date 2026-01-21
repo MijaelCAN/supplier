@@ -5,16 +5,36 @@ const DEFAULT_APPOINTMENTS_API_BASE_URL = 'http://192.168.254.27:8082';
 const APPOINTMENTS_ENDPOINT = '/api/Proveedores/CitasProveedor';
 const CREATE_APPOINTMENT_ENDPOINT = '/api/Proveedores/Cita';
 
+export interface AppointmentDatosTransporte {
+    U_EmpresaTransporte?: string;
+    U_NombreConductor?: string;
+    U_LicenciaConducir?: string;
+    U_PlacaVehiculo?: string;
+    U_TipoVehiculo?: string;
+    U_TelefonoContacto?: string;
+    U_HoraLlegada?: string;
+    U_Notas?: string;
+}
+
+export interface AppointmentDocument {
+    DocumentDocEntry: string;
+    U_CodCita: string;
+    U_nameFile: string;
+    U_LinkDocumento: string;
+}
+
 export interface AppointmentApiRecord {
     DocEntry?: string; // ID de la cita en el sistema
     U_Ruc: string;
     U_RazonSocial: string;
-    U_Fecha: string; // Formato: "06-01-2026"
-    U_HoraInicio: string; // Formato: "147" (minutos desde medianoche)
-    U_HoraFin: string; // Formato: "1540" (minutos desde medianoche)
+    U_Fecha: string; // Formato: "06-01-2026" o "19-01-2026"
+    U_HoraInicio: string; // Formato: "147" (minutos desde medianoche) o "1100" (HHMM)
+    U_HoraFin: string; // Formato: "1540" (minutos desde medianoche) o "1200" (HHMM)
     U_Descripcion: string;
     U_Almacen: string;
     U_Active: string; // "Y" o "N"
+    DatosTransporte?: AppointmentDatosTransporte;
+    Documents?: AppointmentDocument[];
 }
 
 interface AppointmentsApiResponse {
@@ -25,12 +45,33 @@ interface AppointmentsApiResponse {
 }
 
 /**
- * Convierte minutos desde medianoche a formato HH:MM
- * Ejemplo: 647 -> "10:47" (647 minutos = 10 horas y 47 minutos)
+ * Convierte minutos desde medianoche o formato HHMM a formato HH:MM
+ * Ejemplos: 
+ * - "647" -> "10:47" (647 minutos = 10 horas y 47 minutos)
+ * - "1100" -> "11:00" (formato HHMM directo)
+ * - "900" -> "09:00" (formato HHMM directo)
+ * - "800" -> "08:00" (formato HHMM directo)
  */
 const minutesToTime = (time: string): string => {
-    const s = time.padStart(4, '0'); // convierte 847 → "0847"
-    return s.slice(0, 2) + ':' + s.slice(2);
+    if (!time) return '08:00';
+    
+    const numTime = parseInt(time);
+    
+    // Normalizar a 4 dígitos con padding a la izquierda para análisis
+    const padded = time.padStart(4, '0');
+    const hours = parseInt(padded.slice(0, 2));
+    const minutes = parseInt(padded.slice(2));
+    
+    // Si puede interpretarse como HHMM válido (hora <= 23, minutos <= 59), tratarlo como HHMM
+    if (hours <= 23 && minutes <= 59) {
+        return padded.slice(0, 2) + ':' + padded.slice(2);
+    }
+    
+    // Si no es un HHMM válido, tratarlo como minutos desde medianoche
+    const totalMinutes = numTime;
+    const hoursFromMinutes = Math.floor(totalMinutes / 60);
+    const minsFromMinutes = totalMinutes % 60;
+    return `${String(hoursFromMinutes).padStart(2, '0')}:${String(minsFromMinutes).padStart(2, '0')}`;
 };
 
 /**
@@ -79,6 +120,107 @@ const mapApiRecordToAppointment = (record: AppointmentApiRecord, index: number):
     // Generar número de cita
     const appointmentNumber = `CITA-${record.U_Ruc.substring(0, 4)}-${record.U_Fecha.replace(/-/g, '')}`;
     
+    // Mapear datos de transporte si existen
+    const transportData = record.DatosTransporte && Object.keys(record.DatosTransporte).length > 0 ? {
+        id: `transport-${id}`,
+        appointmentId: id,
+        transportCompany: record.DatosTransporte.U_EmpresaTransporte || '',
+        driverName: record.DatosTransporte.U_NombreConductor || '',
+        driverLicense: record.DatosTransporte.U_LicenciaConducir || '',
+        vehiclePlate: record.DatosTransporte.U_PlacaVehiculo || '',
+        vehicleType: record.DatosTransporte.U_TipoVehiculo || '',
+        contactPhone: record.DatosTransporte.U_TelefonoContacto || '',
+        estimatedArrival: record.DatosTransporte.U_HoraLlegada || '',
+        notes: record.DatosTransporte.U_Notas || '',
+        completed: true,
+        completedDate: new Date().toISOString(),
+    } : undefined;
+
+    // Mapear documentos si existen
+    const documents = record.Documents && record.Documents.length > 0 ? {
+        invoice: (() => {
+            const doc = record.Documents.find(d => {
+                const name = d.U_nameFile.toLowerCase();
+                return name.includes('fac') || name.includes('invoice');
+            });
+            return doc ? {
+                id: doc.DocumentDocEntry,
+                name: doc.U_nameFile,
+                type: doc.U_nameFile.split('.').pop() || 'pdf',
+                url: doc.U_LinkDocumento,
+                uploadDate: new Date().toISOString(),
+                uploadedBy: 'system'
+            } : undefined;
+        })(),
+        purchaseOrder: (() => {
+            const doc = record.Documents.find(d => {
+                const name = d.U_nameFile.toLowerCase();
+                return name.includes('oc') || name.includes('order');
+            });
+            return doc ? {
+                id: doc.DocumentDocEntry,
+                name: doc.U_nameFile,
+                type: doc.U_nameFile.split('.').pop() || 'pdf',
+                url: doc.U_LinkDocumento,
+                uploadDate: new Date().toISOString(),
+                uploadedBy: 'system'
+            } : undefined;
+        })(),
+        deliveryGuide: (() => {
+            const doc = record.Documents.find(d => {
+                const name = d.U_nameFile.toLowerCase();
+                return name.includes('guia') || name.includes('guide');
+            });
+            return doc ? {
+                id: doc.DocumentDocEntry,
+                name: doc.U_nameFile,
+                type: doc.U_nameFile.split('.').pop() || 'pdf',
+                url: doc.U_LinkDocumento,
+                uploadDate: new Date().toISOString(),
+                uploadedBy: 'system'
+            } : undefined;
+        })(),
+        cdr: (() => {
+            const doc = record.Documents.find(d => d.U_nameFile.toLowerCase().includes('cdr'));
+            return doc ? {
+                id: doc.DocumentDocEntry,
+                name: doc.U_nameFile,
+                type: doc.U_nameFile.split('.').pop() || 'pdf',
+                url: doc.U_LinkDocumento,
+                uploadDate: new Date().toISOString(),
+                uploadedBy: 'system'
+            } : undefined;
+        })(),
+        xml: (() => {
+            const doc = record.Documents.find(d => d.U_nameFile.toLowerCase().includes('xml'));
+            return doc ? {
+                id: doc.DocumentDocEntry,
+                name: doc.U_nameFile,
+                type: doc.U_nameFile.split('.').pop() || 'xml',
+                url: doc.U_LinkDocumento,
+                uploadDate: new Date().toISOString(),
+                uploadedBy: 'system'
+            } : undefined;
+        })(),
+        id: `docs-${id}`,
+        appointmentId: id,
+        otherDocuments: record.Documents.filter(doc => {
+            const name = doc.U_nameFile.toLowerCase();
+            return !name.includes('fac') && !name.includes('invoice') && !name.includes('oc') && 
+                   !name.includes('order') && !name.includes('guia') && !name.includes('guide') && 
+                   !name.includes('cdr') && !name.includes('xml');
+        }).map(doc => ({
+            id: doc.DocumentDocEntry,
+            name: doc.U_nameFile,
+            type: doc.U_nameFile.split('.').pop() || 'unknown',
+            url: doc.U_LinkDocumento,
+            uploadDate: new Date().toISOString(),
+            uploadedBy: 'system'
+        })),
+        completed: true,
+        completedDate: new Date().toISOString()
+    } : undefined;
+    
     return {
         id,
         appointmentNumber,
@@ -98,6 +240,8 @@ const mapApiRecordToAppointment = (record: AppointmentApiRecord, index: number):
         createdDate: new Date().toISOString(),
         notes: record.U_Descripcion,
         warehouse: record.U_Almacen,
+        transportData,
+        documents,
         notificationSent: false,
     };
 };

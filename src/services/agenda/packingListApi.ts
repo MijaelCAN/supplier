@@ -8,21 +8,34 @@ const DOCUMENTS_ENDPOINT = '/api/PackingList/Documentos';
 const DOCUMENT_DETAIL_ENDPOINT = '/api/PackingList/Documentos/Detalle';
 const FILES_ENDPOINT = '/api/PackingList/Archivos';
 
+export interface DatosTransporte {
+    U_EmpresaTransporte?: string;
+    U_NombreConductor?: string;
+    U_LicenciaConducir?: string;
+    U_PlacaVehiculo?: string;
+    U_TipoVehiculo?: string;
+    U_TelefonoContacto?: string;
+    U_HoraLlegada?: string;
+    U_Notas?: string;
+    U_CodCita?: string;
+}
+
 export interface PackingListApiRecord {
-    Id: string;
+    Id: string | number;
     VendorId: string;
     WhsCode: string;
     Number: string;
     InboundType: string;
     Comments: string;
-    DateExpected: string; // Formato: "26/12/2025 00:00:00"
-    Ticket: string;
+    DateExpected: string; // Formato: "26/12/2025 00:00:00" o "2026-01-19T00:00:00"
+    Ticket: string | number;
     WmsResponse: string;
     EmissionDate?: string;
     ExpirationDate?: string;
     CreateAt?: string;
     UpdateAt?: string;
     AppointmentCode?: string;
+    DatosTransporte?: DatosTransporte;
     _detallePackinList?: PackingListDetailApiRecord[]; // Detalle de items del PackingList
     DetallePackinList?: PackingListDetailApiRecord[]; // Detalle de items del PackingList (alternativo)
 }

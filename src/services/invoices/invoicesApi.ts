@@ -406,6 +406,7 @@ export const fetchScheduledInvoices = async (
         // El API puede devolver success: false pero con datos válidos
         // Verificamos si hay datos en la respuesta
         if (!json.data) {
+            console.log('No hay datos en la respuesta del API');
             return null;
         }
         
@@ -414,9 +415,16 @@ export const fetchScheduledInvoices = async (
             ? json.data 
             : [json.data];
         
-        // Filtrar solo facturas programadas (U_Estado = "Y") y mapear al formato Invoice
+        console.log('Datos recibidos del API:', dataArray.length, 'facturas');
+        
+        // Filtrar solo facturas programadas (U_Estado = "Y" o "Y " o cualquier variante)
+        // También incluimos facturas sin U_Estado si tienen U_FechaCompromisoPago
         const invoices: Invoice[] = dataArray
-            .filter(item => item.U_Estado === 'Y')
+            .filter(item => {
+                const estado = String(item.U_Estado || '').trim().toUpperCase();
+                // Incluir si el estado es "Y" o si no tiene estado pero tiene fecha de compromiso
+                return estado === 'Y' || (!estado && item.U_FechaCompromisoPago);
+            })
             .map((item): Invoice & { supplierRUC?: string; taxDate?: string; importePagar?: number; scheduledPaymentDate?: string } => {
                 const supplierId = item.U_CodProveedor ? `P${item.U_CodProveedor}` : '';
                 
@@ -443,6 +451,9 @@ export const fetchScheduledInvoices = async (
                     scheduledPaymentDate: parseScheduledDate(item.U_FechaCompromisoPago)
                 } as Invoice & { supplierRUC?: string; taxDate?: string; importePagar?: number; scheduledPaymentDate?: string };
             });
+        
+        console.log('Facturas mapeadas después del filtro:', invoices.length);
+        console.log('Primera factura mapeada (si existe):', invoices.length > 0 ? invoices[0] : 'N/A');
         
         return invoices.length > 0 ? invoices : null;
     } catch (error) {

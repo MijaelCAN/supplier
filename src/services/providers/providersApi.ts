@@ -254,7 +254,6 @@ const mapApiRecordToSupplier = (record: SupplierApiRecord): Supplier => {
         matrizAmbiental: normalizedRecord.DocumentoEvaluacion?.some(doc => doc.U_DocumentoEvaluacion === 'matrizAmbiental') ?? false,
     });
 
-    console.log("Avtar", normalizedRecord.Avatar)
     const createdAt = normaliseString(normalizedRecord.createDate);
     const updatedAt = normaliseString(normalizedRecord.updateDate);
     const supplier: Supplier = {
@@ -343,7 +342,6 @@ type SuppliersApiListResponse = {
 };
 
 const handleResponse = async (response: Response): Promise<SuppliersApiResponse | SuppliersApiListResponse> => {
-    console.log('Respuesta recibida:', response);
 
     if (!response.ok) {
         console.error(`Error HTTP al consultar proveedores: ${response.status}`);
@@ -353,7 +351,7 @@ const handleResponse = async (response: Response): Promise<SuppliersApiResponse 
     let json;
     try {
         json = await response.json();
-        console.log('JSON parseado correctamente:', json);
+        //console.log('JSON parseado correctamente:', json);
     } catch (error) {
         console.error('Error al parsear JSON:', error);
         throw new Error('No se pudo parsear la respuesta JSON.');
@@ -438,8 +436,6 @@ export const fetchSunatSupplierData = async (ruc: string): Promise<SunatApiRespo
         credentials: 'omit',
     });
     
-    console.log('SUNAT API Response status:', response.status);
-    console.log('SUNAT API Response headers:', Object.fromEntries(response.headers.entries()));
 
     if (!response.ok) {
         let errorMessage = `No se pudo consultar el RUC (HTTP ${response.status}).`;
@@ -511,7 +507,7 @@ export const fetchSuppliersListFromApi = async (
 export const    fetchSupplierByCardCode = async (
     cardCode: string,
 ): Promise<{ supplier: Supplier; record: SupplierApiRecord } | null> => {
-    console.log("Codigo de Proveedor a llmar", cardCode)
+
     if (!cardCode) {
         return null;
     }
@@ -535,7 +531,6 @@ export const updateSupplierProfile = async (
     supplierId: string,
     payload: SupplierApiRecord,
 ): Promise<{ supplier: Supplier; record: SupplierApiRecord }> => {
-    console.log("Payload", payload)
     const json = await fetchSupplierResponse(supplierId, {
         method: 'PATCH',
         body: JSON.stringify(payload),

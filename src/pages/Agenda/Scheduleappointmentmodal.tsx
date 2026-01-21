@@ -55,14 +55,11 @@ interface ScheduleAppointmentModalProps {
         address?: string;
         contactPerson?: string;
     } | null;
-    timeSlots: string[];
     isCreating: boolean;
     isLookingUp: boolean;
     prefilledDate?: string;
     prefilledTime?: string;
-    /** Función para verificar si un horario está disponible (sin conflictos) */
-    isTimeSlotAvailable?: (date: Date, startTime: string, endTime: string, excludeAppointmentId?: string, excludeSupplierRUC?: string) => boolean;
-    /** Función para obtener las citas conflictivas */
+    /** Función para obtener las citas conflictivas (solo informativa, no bloquea) */
     getConflictingAppointments?: (date: Date, startTime: string, endTime: string, excludeAppointmentId?: string, excludeSupplierRUC?: string) => Array<{
         supplierName: string;
         deliveryTime: string;
@@ -87,12 +84,10 @@ const ScheduleAppointmentModal: React.FC<ScheduleAppointmentModalProps> = ({
     onOpenChange,
     onSchedule,
     onLookupRUC,
-    timeSlots,
     isCreating,
     isLookingUp,
     prefilledDate,
     prefilledTime,
-    isTimeSlotAvailable,
     getConflictingAppointments,
     editingAppointment
 }) => {
@@ -165,6 +160,12 @@ const ScheduleAppointmentModal: React.FC<ScheduleAppointmentModalProps> = ({
     useEffect(() => {
         if (isOpen && supplierData && step === 1 && !editingAppointment) {
             setStep(2);
+            // Limpiar error de ruc cuando se avanza al paso 2
+            setErrors(prev => {
+                const newErrors = { ...prev };
+                delete newErrors.ruc;
+                return newErrors;
+            });
         }
     }, [supplierData, step, isOpen, editingAppointment]);
 
@@ -185,56 +186,38 @@ const ScheduleAppointmentModal: React.FC<ScheduleAppointmentModalProps> = ({
         deliveryTimeEnd: string;
     }>>([]);
 
-    // Validate time slot availability when date/time changes
+    // Mostrar citas conflictivas como información (ya no bloqueamos)
     useEffect(() => {
-        if (formData.deliveryDate && formData.deliveryTime && formData.deliveryTimeEnd && isTimeSlotAvailable) {
+        if (formData.deliveryDate && formData.deliveryTime && formData.deliveryTimeEnd && getConflictingAppointments) {
             const appointmentDate = new Date(formData.deliveryDate);
             // En modo edición, excluir citas del mismo RUC
             const excludeSupplierRUC = editingAppointment ? (supplierData?.supplierRUC || editingAppointment.supplierRUC) : undefined;
-            const isAvailable = isTimeSlotAvailable(
+            
+            // Get conflicting appointments para mostrar como información
+            const conflicts = getConflictingAppointments(
                 appointmentDate,
                 formData.deliveryTime,
                 formData.deliveryTimeEnd,
                 undefined, // excludeAppointmentId se maneja en el padre
                 excludeSupplierRUC
             );
+            setConflictingAppointments(conflicts);
             
-            // Get conflicting appointments if function is provided
-            if (getConflictingAppointments) {
-                const conflicts = getConflictingAppointments(
-                    appointmentDate,
-                    formData.deliveryTime,
-                    formData.deliveryTimeEnd,
-                    undefined, // excludeAppointmentId se maneja en el padre
-                    excludeSupplierRUC
-                );
-                setConflictingAppointments(conflicts);
-            }
-            
-            if (!isAvailable) {
-                setErrors(prev => ({
-                    ...prev,
-                    deliveryTime: 'Este horario está ocupado. Por favor, seleccione otro horario.',
-                    deliveryTimeEnd: 'Este horario está ocupado. Por favor, seleccione otro horario.'
-                }));
-            } else {
-                // Clear errors if slot is available
-                setErrors(prev => {
-                    const newErrors = { ...prev };
-                    if (newErrors.deliveryTime === 'Este horario está ocupado. Por favor, seleccione otro horario.') {
-                        delete newErrors.deliveryTime;
-                    }
-                    if (newErrors.deliveryTimeEnd === 'Este horario está ocupado. Por favor, seleccione otro horario.') {
-                        delete newErrors.deliveryTimeEnd;
-                    }
-                    return newErrors;
-                });
-                setConflictingAppointments([]);
-            }
+            // Limpiar errores de horario ocupado si existen
+            setErrors(prev => {
+                const newErrors = { ...prev };
+                if (newErrors.deliveryTime === 'Este horario está ocupado. Por favor, seleccione otro horario.') {
+                    delete newErrors.deliveryTime;
+                }
+                if (newErrors.deliveryTimeEnd === 'Este horario está ocupado. Por favor, seleccione otro horario.') {
+                    delete newErrors.deliveryTimeEnd;
+                }
+                return newErrors;
+            });
         } else {
             setConflictingAppointments([]);
         }
-    }, [formData.deliveryDate, formData.deliveryTime, formData.deliveryTimeEnd, isTimeSlotAvailable, getConflictingAppointments, editingAppointment, supplierData]);
+    }, [formData.deliveryDate, formData.deliveryTime, formData.deliveryTimeEnd, getConflictingAppointments, editingAppointment, supplierData]);
 
     // Handle RUC lookup
     const handleRUCLookup = async () => {
@@ -243,7 +226,12 @@ const ScheduleAppointmentModal: React.FC<ScheduleAppointmentModalProps> = ({
             return;
         }
 
-        setErrors(prev => ({ ...prev, ruc: '' }));
+        // Limpiar error de ruc antes de buscar
+        setErrors(prev => {
+            const newErrors = { ...prev };
+            delete newErrors.ruc;
+            return newErrors;
+        });
         
         try {
             // Llamar a onLookupRUC que retorna la respuesta
@@ -252,7 +240,12 @@ const ScheduleAppointmentModal: React.FC<ScheduleAppointmentModalProps> = ({
             if (result.success && result.data) {
                 // El supplierData se actualizará en el padre y llegará como prop
                 // El useEffect detectará el cambio y avanzará al paso 2
-                // No necesitamos hacer nada más aquí
+                // Asegurarnos de limpiar el error de ruc cuando se encuentra exitosamente
+                setErrors(prev => {
+                    const newErrors = { ...prev };
+                    delete newErrors.ruc;
+                    return newErrors;
+                });
             } else {
                 setErrors(prev => ({ ...prev, ruc: result.message || 'Proveedor no encontrado' }));
             }
@@ -284,24 +277,7 @@ const ScheduleAppointmentModal: React.FC<ScheduleAppointmentModalProps> = ({
             }
         }
 
-        // Validate time slot availability (check for conflicts with existing appointments)
-        if (formData.deliveryDate && formData.deliveryTime && formData.deliveryTimeEnd && isTimeSlotAvailable) {
-            const appointmentDate = new Date(formData.deliveryDate);
-            // En modo edición, excluir citas del mismo RUC
-            const excludeSupplierRUC = editingAppointment ? (supplierData?.supplierRUC || editingAppointment.supplierRUC) : undefined;
-            const isAvailable = isTimeSlotAvailable(
-                appointmentDate,
-                formData.deliveryTime,
-                formData.deliveryTimeEnd,
-                undefined, // excludeAppointmentId se maneja en el padre
-                excludeSupplierRUC
-            );
-            
-            if (!isAvailable) {
-                newErrors.deliveryTime = 'El horario seleccionado está ocupado. Por favor, seleccione otro horario.';
-                newErrors.deliveryTimeEnd = 'El horario seleccionado está ocupado. Por favor, seleccione otro horario.';
-            }
-        }
+        // Ya no validamos horarios ocupados - se permiten citas solapadas
 
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
@@ -432,7 +408,12 @@ const ScheduleAppointmentModal: React.FC<ScheduleAppointmentModalProps> = ({
                                                 size='sm'
                                                 onValueChange={(value) => {
                                                     setRucSearch(value);
-                                                    setErrors(prev => ({ ...prev, ruc: '' }));
+                                                    // Eliminar error de ruc cuando el usuario escribe
+                                                    setErrors(prev => {
+                                                        const newErrors = { ...prev };
+                                                        delete newErrors.ruc;
+                                                        return newErrors;
+                                                    });
                                                 }}
                                                 isInvalid={!!errors.ruc}
                                                 errorMessage={errors.ruc}
@@ -667,16 +648,19 @@ const ScheduleAppointmentModal: React.FC<ScheduleAppointmentModalProps> = ({
                                         {formData.deliveryTime && formData.deliveryTimeEnd && (
                                             <>
                                                 {conflictingAppointments.length > 0 ? (
-                                                    <Card className="bg-red-50 border border-red-200">
+                                                    <Card className="bg-amber-50 border border-amber-200">
                                                         <CardBody className="py-3 space-y-2">
                                                             <div className="flex items-start gap-3">
-                                                                <ExclamationTriangleIcon className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                                                                <InformationCircleIcon className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
                                                                 <div className="flex-1">
-                                                                    <p className="text-sm font-bold text-red-900 mb-2">
-                                                                        Horario ocupado
+                                                                    <p className="text-sm font-bold text-amber-900 mb-2">
+                                                                        Citas en horario similar
+                                                                    </p>
+                                                                    <p className="text-xs text-amber-800 mb-2">
+                                                                        Se permiten citas solapadas. Las citas se mostrarán lado a lado en el calendario.
                                                                     </p>
                                                                     {conflictingAppointments.map((conflict, index) => (
-                                                                        <p key={index} className="text-sm text-red-800">
+                                                                        <p key={index} className="text-sm text-amber-800">
                                                                             <span className="font-semibold">{conflict.supplierName}</span> - {conflict.deliveryTime} a {conflict.deliveryTimeEnd}
                                                                         </p>
                                                                     ))}
@@ -775,6 +759,7 @@ const ScheduleAppointmentModal: React.FC<ScheduleAppointmentModalProps> = ({
                                     </Button>
                                     
                                     {step === 2 && (
+                                        <>
                                         <Button
                                             color="primary"
                                             size="lg"
@@ -785,24 +770,18 @@ const ScheduleAppointmentModal: React.FC<ScheduleAppointmentModalProps> = ({
                                                 !formData.deliveryDate || 
                                                 !formData.deliveryTime || 
                                                 !formData.deliveryTimeEnd || 
-                                                isCreating ||
-                                                // Solo deshabilitar si hay errores de validación reales (excluir errores de conflicto si es el mismo proveedor en edición)
-                                                (() => {
-                                                    // Filtrar errores: si está en modo edición y el error es de "ocupado", no contar ese error
-                                                    const relevantErrors = Object.entries(errors).filter(([key, value]) => {
-                                                        if (editingAppointment && (key === 'deliveryTime' || key === 'deliveryTimeEnd') && value.includes('ocupado')) {
-                                                            return false; // No contar errores de conflicto si es el mismo proveedor
-                                                        }
-                                                        return true; // Contar todos los demás errores
-                                                    });
-                                                    return relevantErrors.length > 0;
-                                                })()
+                                                !formData.warehouse ||
+                                                isCreating 
+                                                ||
+                                                // Solo deshabilitar si hay errores de validación reales (ignorar errores con valores vacíos)
+                                                (!isCreating && Object.entries(errors).some(([_, value]) => value && value.trim() !== ''))
                                             }
                                             className="px-8 font-semibold shadow-lg"
                                             startContent={!isCreating && <CheckCircleIcon className="w-5 h-5" />}
                                         >
                                             {isCreating ? (editingAppointment ? 'Actualizando...' : 'Programando...') : (editingAppointment ? 'Actualizar Cita' : 'Programar Entrega')}
                                         </Button>
+                                        </>
                                     )}
                                 </div>
                             </div>
