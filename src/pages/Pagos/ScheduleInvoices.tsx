@@ -667,7 +667,7 @@ const ScheduleInvoices: React.FC = () => {
               <Button 
                 color="primary" 
                 onPress={handleScheduleInvoices}
-                isDisabled={selectedInvoices.size === 0}
+                isDisabled={selectedInvoices.size === 0 || !scheduleDate}
               >
                 Programar {selectedInvoices.size > 0 ? `${selectedInvoices.size} ` : ''}Factura(s)
               </Button>

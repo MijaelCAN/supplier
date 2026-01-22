@@ -1035,12 +1035,12 @@ const PaymentCalendar: React.FC = () => {
           {(onClose) => (
             <>
               <ModalHeader className="flex flex-col gap-1">
-                <div className="flex items-baseline justify-between w-full">
+                <div className="flex items-baseline justify-left w-full">
                   <div>
                     <h3 className="text-xl font-semibold">Detalle de Pago Programado</h3>
                     {selectedPayment && (
                       <p className="text-sm text-gray-500 mt-1">
-                        {selectedPayment.title} • {formatDate(selectedPayment.date)}
+                        {selectedPayment.title}
                       </p>
                     )}
                   </div>

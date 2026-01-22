@@ -38,8 +38,9 @@ import { UserRole } from "@/routes/menuTypes";
 import { DeliveryAppointment, PackingListItem } from "@/store/types";
 import { useNavigate, useLocation } from 'react-router-dom';
 import ScheduleAppointmentModal from './Scheduleappointmentmodal';
-import { fetchPackingListFromApi, createPackingListInApi, PackingListApiRecord, fetchWarehousesFromApi, WarehouseApiRecord, fetchDocumentsFromApi, DocumentApiRecord, fetchDocumentDetailFromApi, uploadFileToPackingList } from "@/services/agenda/packingListApi";
+import { fetchPackingListFromApi, createPackingListInApi, fetchWarehousesFromApi, WarehouseApiRecord, fetchDocumentsFromApi, DocumentApiRecord, fetchDocumentDetailFromApi, uploadFileToPackingList } from "@/services/agenda/packingListApi";
 import { formatDateForAPI } from "@/services/agenda/appointmentsApi";
+
 import { createChoferInApi } from "@/services/agenda/choferesApi";
 import DocumentsModal from './DocumentsModal';
 
@@ -131,13 +132,14 @@ const Agenda: React.FC = () => {
         warehouse: '',
         comment: '',
         commentWms: '',
-        number: '', // Número de PackingList (debe venir de orden de compra)
+        number: '', // Número de PackingList generado (ej: 251047379_1)
+        orderNumber: '', // Número de orden de compra (ej: 251047379)
         inboundType: 'OCNAC', // Tipo de entrada
         ticket: '', // Ticket WMS
         items: [] as PackingListItem[]
     });
-    const [packingListsFromApi, setPackingListsFromApi] = useState<PackingListApiRecord[]>([]);
-    const [isLoadingPackingLists, setIsLoadingPackingLists] = useState(false);
+    //const [packingListsFromApi, setPackingListsFromApi] = useState<PackingListApiRecord[]>([]);
+    //const [isLoadingPackingLists, setIsLoadingPackingLists] = useState(false);
     const [warehouses, setWarehouses] = useState<WarehouseApiRecord[]>([]);
     const [isLoadingWarehouses, setIsLoadingWarehouses] = useState(false);
     const [documents, setDocuments] = useState<DocumentApiRecord[]>([]);
@@ -784,7 +786,7 @@ const Agenda: React.FC = () => {
     }, [location.state, selectedAppointment]);
 
     // Load PackingList from API when modal opens
-    useEffect(() => {
+    /*useEffect(() => {
         if (isPackingListOpen && selectedAppointment) {
             const loadPackingLists = async () => {
                 setIsLoadingPackingLists(true);
@@ -810,7 +812,7 @@ const Agenda: React.FC = () => {
         } else {
             setPackingListsFromApi([]);
         }
-    }, [isPackingListOpen, selectedAppointment, weekStart, weekEnd]);
+    }, [isPackingListOpen, selectedAppointment, weekStart, weekEnd]);*/
 
     // Load warehouses from API when modal opens
     useEffect(() => {
@@ -851,6 +853,94 @@ const Agenda: React.FC = () => {
     }, [isPackingListOpen, selectedAppointment?.deliveryDate]);
 
 
+    /**
+     * Genera el siguiente número de PackingList basándose en los existentes
+     * Formato: {DocNum}_{correlativo}
+     * Ejemplo: Si hay 251047379_1, 251047379_2, 251047379_3, genera 251047379_4
+     * @param docNum - Número de orden de compra
+     * @param codCita - Código de la cita (DocEntry) - requerido para buscar PackingList
+     */
+    const generateNextPackingListNumber = async (docNum: string, codCita: string): Promise<string> => {
+        try {
+            if (!codCita) {
+                console.warn('⚠️ No se proporcionó CodCita, retornando número por defecto');
+                return `${docNum}_1`;
+            }
+            
+            // Buscar todos los PackingList existentes para esta cita
+            // Usar un rango amplio de fechas para asegurar que encontremos todos los PackingList
+            const now = new Date();
+            const startDate = new Date(now.getFullYear() - 2, 0, 1); // 2 años atrás para asegurar que encontremos todos
+            const endDate = new Date(now.getFullYear() + 2, 11, 31); // 2 años adelante
+            
+            const fechaInicio = formatDateForAPI(startDate);
+            const fechaFin = formatDateForAPI(endDate);
+            
+            console.log('🔍 Buscando PackingList existentes para:', docNum);
+            console.log('📋 CodCita:', codCita);
+            console.log('📅 Rango de fechas:', fechaInicio, 'a', fechaFin);
+            
+            // Buscar PackingList usando CodCita (requerido por el API)
+            const allPackingLists = await fetchPackingListFromApi(fechaInicio, fechaFin, codCita);
+            
+            console.log('📦 Total de PackingList encontrados:', allPackingLists.length);
+            if (allPackingLists.length > 0) {
+                console.log('📦 Primeros 10 PackingList encontrados:', allPackingLists.slice(0, 10).map(pl => pl.Number));
+            }
+            
+            // Filtrar PackingList que empiecen con el número de orden
+            // El número puede venir como string o number, normalizarlo
+            const matchingPackingLists = allPackingLists.filter(pl => {
+                if (!pl.Number) return false;
+                // Normalizar el número a string
+                const numberStr = String(pl.Number).trim();
+                // El número de PackingList tiene formato: {DocNum}_{correlativo}
+                const matches = numberStr.startsWith(`${docNum}_`);
+                if (matches) {
+                    console.log('✅ PackingList que coincide:', numberStr);
+                }
+                return matches;
+            });
+            
+            console.log('🎯 PackingList que coinciden con', docNum, ':', matchingPackingLists.length);
+            if (matchingPackingLists.length > 0) {
+                console.log('🎯 Números encontrados:', matchingPackingLists.map(pl => String(pl.Number)));
+            }
+            
+            // Extraer correlativos y encontrar el máximo
+            let maxCorrelative = 0;
+            matchingPackingLists.forEach(pl => {
+                if (pl.Number) {
+                    // Normalizar el número a string
+                    const numberStr = String(pl.Number).trim();
+                    // Extraer el correlativo después del guion bajo
+                    const parts = numberStr.split('_');
+                    if (parts.length >= 2) {
+                        // Tomar la última parte como correlativo (por si hay múltiples guiones bajos)
+                        const correlativeStr = parts[parts.length - 1];
+                        const correlative = parseInt(correlativeStr, 10);
+                        if (!isNaN(correlative) && correlative > maxCorrelative) {
+                            maxCorrelative = correlative;
+                            console.log('📊 Nuevo máximo correlativo encontrado:', maxCorrelative, 'de', numberStr);
+                        }
+                    }
+                }
+            });
+            
+            // Generar el siguiente número
+            const nextCorrelative = maxCorrelative + 1;
+            const nextNumber = `${docNum}_${nextCorrelative}`;
+            console.log('✨ Siguiente número generado:', nextNumber, '(correlativo máximo encontrado:', maxCorrelative, ')');
+            
+            return nextNumber;
+        } catch (error) {
+            console.error('❌ Error al generar número de PackingList:', error);
+            // Si hay error, retornar el número base con correlativo 1
+            console.log('⚠️ Retornando número por defecto:', `${docNum}_1`);
+            return `${docNum}_1`;
+        }
+    };
+
     // Handle create packing list
     const handleCreatePackingList = async () => {
         if (!selectedAppointment || !selectedAppointment.docEntry || !packingListForm.warehouse || packingListItems.length === 0) {
@@ -874,6 +964,17 @@ const Agenda: React.FC = () => {
         }
         
         try {
+            // Filtrar solo los items seleccionados (marca = true) y con cantidad > 0
+            const selectedItems = packingListItems.filter(item => 
+                item.marca === true && item.quantity > 0
+            );
+            
+            // Validar que haya al menos un item seleccionado
+            if (selectedItems.length === 0) {
+                alert('Debe seleccionar al menos un item con cantidad mayor a 0');
+                return;
+            }
+            
             const data = {
                 vendorId: vendorId,
                 whsCode: packingListForm.warehouse,
@@ -884,9 +985,9 @@ const Agenda: React.FC = () => {
                 ticket: "0", // Ticket WMS
                 wmsResponse: packingListForm.commentWms || '',
                 codCita: selectedAppointment.docEntry,
-                _detallePackinList: packingListItems.map((item, index) => ({
+                _detallePackinList: selectedItems.map((item, index) => ({
                     document: (item as any).document || 0, // Número de documento de orden de compra (debe venir del item)
-                    lineNumber: index + 1,
+                    lineNumber: index + 1, // LineNumber secuencial desde 1 para los items seleccionados
                     itemCode: item.productCode,
                     itemName: item.productName,
                     quantity: item.quantity
@@ -901,25 +1002,25 @@ const Agenda: React.FC = () => {
                 inboundType: packingListForm.inboundType || 'OCNAC',
                 comments: packingListForm.comment || '',
                 dateExpected: packingListForm.date || new Date().toISOString().split('T')[0], // Formato YYYY-MM-DD
-                ticket: packingListForm.ticket || '', // Ticket WMS
+                ticket: "0", // Ticket WMS
                 wmsResponse: packingListForm.commentWms || '',
                 codCita: selectedAppointment.docEntry,
-                _detallePackinList: packingListItems.map((item, index) => ({
+                _detallePackinList: selectedItems.map((item, index) => ({
                     document: (item as any).document || 0, // Número de documento de orden de compra (debe venir del item)
-                    lineNumber: index + 1,
+                    lineNumber: index + 1, // LineNumber secuencial desde 1 para los items seleccionados
                     itemCode: item.productCode,
                     itemName: item.productName,
                     quantity: item.quantity
                 }))
             });
 
-            // Actualizar estado local
+            // Actualizar estado local (solo con los items seleccionados)
             addPackingList(selectedAppointment.id, {
                 appointmentId: selectedAppointment.id,
                 supplierId: selectedAppointment.supplierId,
                 date: packingListForm.date || new Date().toISOString().split('T')[0],
                 warehouse: packingListForm.warehouse,
-                items: packingListItems,
+                items: selectedItems, // Solo los items seleccionados
                 comment: packingListForm.comment,
                 commentWms: packingListForm.commentWms,
                 createdBy: currentUser?.id || 'system'
@@ -931,11 +1032,11 @@ const Agenda: React.FC = () => {
             alert('PackingList creado exitosamente en el sistema.');
 
             // Recargar PackingList del API
-            const fechaInicio = formatDateForAPI(weekStart);
+            /*const fechaInicio = formatDateForAPI(weekStart);
             const fechaFin = formatDateForAPI(weekEnd);
             const codCita = selectedAppointment.docEntry;
             const packingLists = await fetchPackingListFromApi(fechaInicio, fechaFin, codCita);
-            setPackingListsFromApi(packingLists);
+            setPackingListsFromApi(packingLists);*/
 
             // Reset and close
             setPackingListForm({
@@ -944,6 +1045,7 @@ const Agenda: React.FC = () => {
                 comment: '',
                 commentWms: '',
                 number: '',
+                orderNumber: '',
                 inboundType: 'OCNAC',
                 ticket: '',
                 items: [] as PackingListItem[]
@@ -1516,7 +1618,11 @@ const Agenda: React.FC = () => {
                             <>
                                 <ModalHeader>
                                     <div className="flex items-center justify-between w-full">
-                                        <span>PackingList</span>
+                                        {selectedAppointment?.docEntry && (
+                                                <div className="mb-3 py-2 px-8 bg-blue-50 border border-blue-200 rounded-full text-sm text-blue-700">
+                                                    <strong>Código de Cita:</strong> {selectedAppointment.docEntry} (se usará automáticamente)
+                                                </div>
+                                            )}
                                         <div className="flex gap-2 px-6 items-center">
                                             <Select
                                                 label="Tipo de Entrada"
@@ -1583,48 +1689,21 @@ const Agenda: React.FC = () => {
                                 </ModalHeader>
                                 <ModalBody>
                                     <div className="space-y-6">
-                                        {/* Listado de PackingList existentes - Se muestra en el Modal de Detalle de Cita */}
-
-                                        {isLoadingPackingLists && (
-                                            <div className="text-center py-4">
-                                                <p className="text-sm text-gray-500">Cargando PackingList...</p>
-                                            </div>
-                                        )}
-
-                                        {!isLoadingPackingLists && packingListsFromApi.length === 0 && (
-                                            <div className="text-center py-4">
-                                                <p className="text-sm text-gray-500">No se encontraron PackingList para el rango de fechas seleccionado.</p>
-                                            </div>
-                                        )}
-
+                                        
                                         <Divider />
 
                                         {/* Formulario para crear nuevo PackingList */}
                                         <div className='py-2 flex flex-col gap-4'>
-                                            <h4 className="text-md font-semibold mb-3">Crear Nuevo PackingList</h4>
-                                            {selectedAppointment?.docEntry && (
-                                                <div className="mb-3 p-2 bg-blue-50 border border-blue-200 rounded text-sm text-blue-700">
-                                                    <strong>Código de Cita:</strong> {selectedAppointment.docEntry} (se usará automáticamente)
-                                                </div>
-                                            )}
+                                            <h4 className="text-lg font-semibold mb-3">Crear Nuevo PackingList</h4>
                                             
                                             <div className="grid grid-cols-2 gap-4">
                                                 <Input
                                                     label="N° Orden de Compra"
                                                     size='sm'
-                                                    value={packingListForm.number}
-                                                    onValueChange={(value) => setPackingListForm(prev => ({ ...prev, date: value }))}
+                                                    value={packingListForm.orderNumber}
+                                                    onValueChange={(value) => setPackingListForm(prev => ({ ...prev, orderNumber: value }))}
                                                     isRequired
-                                                    isReadOnly
-                                                />
-                                                <Input
-                                                    label="Número de PackingList"
-                                                    placeholder="Ej: 251047379_1"
-                                                    size='sm'
-                                                    value={packingListForm.number}
-                                                    onValueChange={(value) => setPackingListForm(prev => ({ ...prev, number: value }))}
-                                                    isRequired
-                                                    description="Número de PackingList (se completa al seleccionar un documento)"
+                                                    description="Número de orden de compra"
                                                     isReadOnly
                                                     endContent={
                                                         <Button
@@ -1641,6 +1720,16 @@ const Agenda: React.FC = () => {
                                                             Seleccionar
                                                         </Button>
                                                     }
+                                                />
+                                                <Input
+                                                    label="Número de PackingList"
+                                                    placeholder="Ej: 251047379_1"
+                                                    size='sm'
+                                                    value={packingListForm.number}
+                                                    onValueChange={(value) => setPackingListForm(prev => ({ ...prev, number: value }))}
+                                                    isRequired
+                                                    description="Número de PackingList (se genera automáticamente al seleccionar un documento)"
+                                                    isReadOnly
                                                 />
                                                 <Input
                                                     label="Fecha Entrega"
@@ -1785,11 +1874,19 @@ const Agenda: React.FC = () => {
                                         color="primary"
                                         onPress={handleCreatePackingList}
                                         isDisabled={
-                                            !packingListForm.warehouse || 
-                                            !packingListForm.number || 
+                                            !packingListForm.warehouse ||
+                                            !packingListForm.number ||
                                             !packingListForm.date ||
-                                            //packingListItems.some(item => item.quantity < item.pendingQuantity) ||
-                                            packingListItems.length === 0
+                                            packingListItems.length === 0 ||
+                                            // Si ningún item está seleccionado (marca = true) y con cantidad > 0, desactivar el botón
+                                            packingListItems.filter(item => item.marca === true && item.quantity > 0).length === 0 ||
+                                            // Si algún item seleccionado tiene cantidad inválida (mayor a pendiente), desactivar
+                                            packingListItems.some(
+                                                item =>
+                                                    item.marca === true &&
+                                                    item.quantity > 0 &&
+                                                    item.quantity > item.pendingQuantity
+                                            )
                                         }
                                     >
                                         Crear PackingList
@@ -1909,10 +2006,19 @@ const Agenda: React.FC = () => {
                                                                             return;
                                                                         }
                                                                         
+                                                                        // Generar el siguiente número de PackingList basado en el número de orden
+                                                                        // Necesitamos el CodCita de la cita seleccionada
+                                                                        if (!selectedAppointment?.docEntry) {
+                                                                            alert('La cita no tiene código (DocEntry). No se puede generar el número de PackingList.');
+                                                                            return;
+                                                                        }
+                                                                        const nextPackingListNumber = await generateNextPackingListNumber(doc.DocNum, selectedAppointment.docEntry);
+                                                                        
                                                                         // Completar el formulario con los datos del documento
                                                                         setPackingListForm(prev => ({
                                                                             ...prev,
-                                                                            number: doc.DocNum,
+                                                                            orderNumber: doc.DocNum, // Mantener el número de orden
+                                                                            number: nextPackingListNumber, // Asignar el número de PackingList generado
                                                                             inboundType: selectedInboundType || 'OCNAC'
                                                                         }));
                                                                         
