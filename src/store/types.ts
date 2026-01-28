@@ -399,6 +399,7 @@ export interface DeliveryAppointment {
     transportData?: TransportData;
     documents?: DeliveryDocuments;
     notificationSent: boolean;
+    evaluation?: DeliveryEvaluation; // Calificación de la entrega
 }
 
 export interface PackingList {
@@ -471,3 +472,59 @@ export type statusConfig = {
     label: string;
 }
 
+// Calificación de Entrega (Cita)
+export interface DeliveryEvaluation {
+    id?: string;
+    codCita: string; // DocEntry de la cita
+    // Evaluaciones por sección (1-5)
+    puntualidad?: EvaluationScore; // Seguridad
+    documentacion?: EvaluationScore; // Seguridad
+    estadoMercaderia?: EvaluationScore; // Calidad
+    cantidadCorrecta?: EvaluationScore; // Almacén
+    // Puntaje total calculado
+    puntajeTotal?: number;
+    // Badge según puntaje
+    badge?: 'Excelente' | 'Bueno' | 'Regular' | 'Deficiente';
+    // Comentario general
+    comentario?: string;
+    // Archivos adjuntos (solo Calidad y Almacén)
+    archivos?: EvaluationFile[];
+    // Metadatos
+    createdBy?: string;
+    createdDate?: string;
+    updatedBy?: string;
+    updatedDate?: string;
+}
+
+export interface EvaluationScore {
+    puntaje: number; // 1-5
+    comentario?: string;
+    evaluadoPor?: string; // Rol que evaluó
+    fechaEvaluacion?: string;
+    peso?: number; // Peso de esta sección en el cálculo total
+}
+
+export interface EvaluationFile {
+    id?: string;
+    nombre: string;
+    url: string;
+    tipo: string; // 'calidad' | 'almacen'
+    uploadedBy?: string;
+    uploadDate?: string;
+}
+
+// Pesos de cada sección
+export const EVALUATION_WEIGHTS = {
+    puntualidad: 0.25,      // 25%
+    documentacion: 0.25,    // 25%
+    estadoMercaderia: 0.30, // 30%
+    cantidadCorrecta: 0.20, // 20%
+};
+
+// Rangos de calificación para badges
+export const EVALUATION_RANGES = {
+    Excelente: { min: 4.5, max: 5.0 },
+    Bueno: { min: 3.5, max: 4.49 },
+    Regular: { min: 2.5, max: 3.49 },
+    Deficiente: { min: 1.0, max: 2.49 },
+};

@@ -1,5 +1,5 @@
 // src/pages/Agenda/AppointmentDetail.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
     Button,
@@ -17,6 +17,13 @@ import {
     ModalContent,
     ModalHeader,
     ModalBody,
+    ModalFooter,
+    Input,
+    Textarea,
+    Select,
+    SelectItem,
+    Checkbox,
+    Divider,
     useDisclosure
 } from "@heroui/react";
 import {
@@ -29,15 +36,32 @@ import {
     CalendarIcon,
     ClipboardDocumentListIcon,
     ExclamationTriangleIcon,
-    ArrowLeftIcon
+    ArrowLeftIcon,
+    StarIcon
 } from "@heroicons/react/24/outline";
 import Dashboard from "@/layouts/Dashboard";
 import { useAgendaStore } from "@/store/agendaStore";
 import { useAuth } from "@/store/authStore";
 import { UserRole } from "@/routes/menuTypes";
-import { fetchPackingListFromApi, PackingListApiRecord } from "@/services/agenda/packingListApi";
+import { fetchPackingListFromApi, PackingListApiRecord, uploadFileToPackingList, createPackingListInApi, fetchWarehousesFromApi, WarehouseApiRecord, fetchDocumentsFromApi, DocumentApiRecord, fetchDocumentDetailFromApi } from "@/services/agenda/packingListApi";
 import { formatDateForAPI, fetchAppointmentsFromApi, AppointmentDocument } from "@/services/agenda/appointmentsApi";
-import { DeliveryAppointment } from "@/store/types";
+import { createChoferInApi } from "@/services/agenda/choferesApi";
+import { fetchEvaluationByCodCita, calculateTotalScore } from "@/services/agenda/evaluationsApi";
+import { DeliveryAppointment, PackingListItem, DeliveryEvaluation } from "@/store/types";
+import DocumentsModal from './DocumentsModal';
+import EvaluationModal from './EvaluationModal';
+
+// Función para convertir fecha de formato DD-MM-YYYY a Date para ordenamiento
+const parseDate = (dateStr: string): Date => {
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+        const day = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1;
+        const year = parseInt(parts[2], 10);
+        return new Date(year, month, day);
+    }
+    return new Date(0);
+};
 
 const AppointmentDetail: React.FC = () => {
     const { appointmentId } = useParams<{ appointmentId: string }>();
@@ -48,6 +72,9 @@ const AppointmentDetail: React.FC = () => {
     const [appointment, setAppointment] = useState<DeliveryAppointment | null>(null);
     const [isLoadingAppointment, setIsLoadingAppointment] = useState(true);
     const [appointmentDocuments, setAppointmentDocuments] = useState<AppointmentDocument[]>([]);
+    const [evaluation, setEvaluation] = useState<DeliveryEvaluation | null>(null);
+    const [isEvaluationModalOpen, setIsEvaluationModalOpen] = useState(false);
+    const [evaluationModalType, setEvaluationModalType] = useState<'puntualidad' | 'documentacion' | 'estadoMercaderia' | 'cantidadCorrecta'>('puntualidad');
 
     // Cargar appointment SIEMPRE desde el API (no usar localStorage/store)
     useEffect(() => {
@@ -62,6 +89,18 @@ const AppointmentDetail: React.FC = () => {
 
                 if (foundApiAppointment) {
                     setAppointment(foundApiAppointment);
+                    
+                    // Cargar evaluación si existe docEntry
+                    if (foundApiAppointment.docEntry) {
+                        try {
+                            const evalData = await fetchEvaluationByCodCita(foundApiAppointment.docEntry);
+                            if (evalData) {
+                                setEvaluation(evalData);
+                            }
+                        } catch (error) {
+                            console.error('Error al cargar evaluación:', error);
+                        }
+                    }
                 } else {
                     setAppointment(null);
                 }
@@ -115,6 +154,73 @@ const AppointmentDetail: React.FC = () => {
     const [selectedDocument, setSelectedDocument] = useState<{ name: string; url: string; type: string } | null>(null);
     const { isOpen: isDocumentViewerOpen, onOpen: onDocumentViewerOpen, onClose: onDocumentViewerClose } = useDisclosure();
     
+    // Estados para modales de gestión
+    const { isOpen: isPackingListOpen, onOpen: onPackingListOpen, onClose: onPackingListClose } = useDisclosure();
+    const { isOpen: isTransportOpen, onOpen: onTransportOpen, onClose: onTransportClose } = useDisclosure();
+    const { isOpen: isDocumentsOpen, onOpen: onDocumentsOpen, onClose: onDocumentsClose } = useDisclosure();
+    const { isOpen: isDocumentsSelectOpen, onOpen: onDocumentsSelectOpen, onClose: onDocumentsSelectClose } = useDisclosure();
+    
+    // Estado para formulario de transporte
+    const [transportForm, setTransportForm] = useState({
+        transportCompany: '',
+        driverName: '',
+        driverLicense: '',
+        vehiclePlate: '',
+        vehicleType: '',
+        contactPhone: '',
+        estimatedArrival: '',
+        notes: ''
+    });
+
+    // Estados para PackingList
+    const [packingListForm, setPackingListForm] = useState({
+        date: '',
+        warehouse: '',
+        comment: '',
+        commentWms: '',
+        number: '',
+        orderNumber: '',
+        inboundType: 'OCNAC' as 'OCNAC' | 'OCINT',
+        ticket: '',
+        items: [] as PackingListItem[]
+    });
+    const [packingListItems, setPackingListItems] = useState<PackingListItem[]>([]);
+    const [warehouses, setWarehouses] = useState<WarehouseApiRecord[]>([]);
+    const [isLoadingWarehouses, setIsLoadingWarehouses] = useState(false);
+    const [documents, setDocuments] = useState<DocumentApiRecord[]>([]);
+    const [isLoadingDocuments, setIsLoadingDocuments] = useState(false);
+    const [selectedInboundType, setSelectedInboundType] = useState<'OCNAC' | 'OCINT' | ''>('');
+    const [documentSearchFilter, setDocumentSearchFilter] = useState<string>('');
+    const documentSearchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    
+    // Verificar si todos los documentos requeridos están completos
+    const areAllDocumentsComplete = (): boolean => {
+        // Documentos requeridos: invoice, purchaseOrder, deliveryGuide, cdr, xml (5 documentos)
+        const REQUIRED_DOCUMENTS_COUNT = 5;
+        
+        // Prioridad 1: Si hay documentos del API, verificar que haya al menos 5 documentos
+        // (uno por cada tipo requerido: invoice, purchaseOrder, deliveryGuide, cdr, xml)
+        if (appointmentDocuments.length > 0) {
+            // Debe haber al menos 5 documentos del API para considerarse completo
+            return appointmentDocuments.length >= REQUIRED_DOCUMENTS_COUNT;
+        }
+        
+        // Prioridad 2: Si no hay documentos del API, verificar documentos mapeados
+        // Todos los tipos requeridos deben estar presentes
+        if (appointment?.documents) {
+            const hasInvoice = !!appointment.documents.invoice?.url;
+            const hasPurchaseOrder = !!appointment.documents.purchaseOrder?.url;
+            const hasDeliveryGuide = !!appointment.documents.deliveryGuide?.url;
+            const hasCdr = !!appointment.documents.cdr?.url;
+            const hasXml = !!appointment.documents.xml?.url;
+            
+            // Todos los documentos requeridos deben estar presentes
+            return hasInvoice && hasPurchaseOrder && hasDeliveryGuide && hasCdr && hasXml;
+        }
+        
+        return false;
+    };
+
     // Obtener todos los documentos disponibles (priorizar documentos del API, luego los mapeados)
     const getAllDocuments = (): Array<{ name: string; url: string; type: string }> => {
         // Si hay documentos del API, usarlos directamente
@@ -184,6 +290,20 @@ const AppointmentDetail: React.FC = () => {
         onDocumentViewerOpen();
     };
 
+    // Ordenar y filtrar documentos - DEBE estar antes del return condicional
+    const sortedAndFilteredDocuments = useMemo(() => {
+        let filtered = [...documents];
+        
+        // Ordenar por fecha (TaxDate) descendente (más reciente primero)
+        filtered.sort((a, b) => {
+            const dateA = parseDate(a.TaxDate);
+            const dateB = parseDate(b.TaxDate);
+            return dateB.getTime() - dateA.getTime();
+        });
+        
+        return filtered;
+    }, [documents]);
+
     // Cargar PackingList cuando se monta el componente
     useEffect(() => {
         if (appointment?.docEntry) {
@@ -216,6 +336,30 @@ const AppointmentDetail: React.FC = () => {
             setPackingListsFromApi([]);
         }
     }, [appointment?.docEntry]);
+
+    // Cargar almacenes cuando se abre el modal de PackingList
+    useEffect(() => {
+        if (isPackingListOpen) {
+            const loadWarehouses = async () => {
+                setIsLoadingWarehouses(true);
+                try {
+                    const warehousesData = await fetchWarehousesFromApi();
+                    setWarehouses(warehousesData);
+                } catch (error) {
+                    console.error('Error al cargar almacenes:', error);
+                } finally {
+                    setIsLoadingWarehouses(false);
+                }
+            };
+            loadWarehouses();
+        } else {
+            // Limpiar estados cuando se cierra el modal
+            setSelectedInboundType('');
+            setDocuments([]);
+            setDocumentSearchFilter('');
+            setPackingListItems([]);
+        }
+    }, [isPackingListOpen]);
 
     // Redirigir si no se encuentra el appointment después de cargar
     useEffect(() => {
@@ -258,8 +402,8 @@ const AppointmentDetail: React.FC = () => {
         {
             label: 'Documentos',
             icon: DocumentTextIcon,
-            completed: appointmentDocuments.length > 0 || appointment.documents?.completed, // Usar datos del API
-            active: !!appointment.transportData && appointmentDocuments.length === 0 && !appointment.documents?.completed,
+            completed: areAllDocumentsComplete(), // Verificar que todos los documentos requeridos estén presentes
+            active: !!appointment.transportData && !areAllDocumentsComplete(),
         },
     ];
 
@@ -311,20 +455,174 @@ const AppointmentDetail: React.FC = () => {
     const canManagePackingList = [UserRole.ADMIN, UserRole.COMPRAS, UserRole.ALMACEN].includes(currentUser?.role || UserRole.ADMIN);
     const canManageTransport = currentUser?.role === UserRole.PROVEEDOR;
     const canManageDocuments = currentUser?.role === UserRole.PROVEEDOR;
+    const canEvaluateSecurity = [UserRole.SEGURIDAD, UserRole.ADMIN].includes(currentUser?.role || UserRole.ADMIN);
+    const canEvaluateQuality = [UserRole.CALIDAD, UserRole.ADMIN].includes(currentUser?.role || UserRole.ADMIN);
+    const canEvaluateWarehouse = [UserRole.ALMACEN, UserRole.ADMIN].includes(currentUser?.role || UserRole.ADMIN);
+    const canViewEvaluation = [UserRole.ADMIN, UserRole.COMPRAS, UserRole.PROVEEDOR, UserRole.ALMACEN, UserRole.CALIDAD, UserRole.SEGURIDAD].includes(currentUser?.role || UserRole.ADMIN);
 
     const handleOpenPackingList = () => {
         setSelectedAppointment(appointment);
-        navigate('/agenda', { state: { openPackingList: true } });
+        // Pre-llenar fecha con la fecha de la cita si está disponible
+        if (appointment.deliveryDate && !packingListForm.date) {
+            setPackingListForm(prev => ({
+                ...prev,
+                date: appointment.deliveryDate
+            }));
+        }
+        onPackingListOpen();
+    };
+
+    // Generar siguiente número de PackingList
+    const generateNextPackingListNumber = async (docNum: string, codCita: string): Promise<string> => {
+        try {
+            if (!codCita) {
+                return `${docNum}_1`;
+            }
+            
+            const now = new Date();
+            const startDate = new Date(now.getFullYear() - 2, 0, 1);
+            const endDate = new Date(now.getFullYear() + 2, 11, 31);
+            
+            const fechaInicio = formatDateForAPI(startDate);
+            const fechaFin = formatDateForAPI(endDate);
+            
+            const allPackingLists = await fetchPackingListFromApi(fechaInicio, fechaFin, codCita);
+            
+            const matchingPackingLists = allPackingLists.filter(pl => {
+                if (!pl.Number) return false;
+                const numberStr = String(pl.Number).trim();
+                return numberStr.startsWith(`${docNum}_`);
+            });
+            
+            let maxCorrelative = 0;
+            matchingPackingLists.forEach(pl => {
+                if (pl.Number) {
+                    const numberStr = String(pl.Number).trim();
+                    const parts = numberStr.split('_');
+                    if (parts.length >= 2) {
+                        const correlativeStr = parts[parts.length - 1];
+                        const correlative = parseInt(correlativeStr, 10);
+                        if (!isNaN(correlative) && correlative > maxCorrelative) {
+                            maxCorrelative = correlative;
+                        }
+                    }
+                }
+            });
+            
+            const nextCorrelative = maxCorrelative + 1;
+            return `${docNum}_${nextCorrelative}`;
+        } catch (error) {
+            console.error('Error al generar número de PackingList:', error);
+            return `${docNum}_1`;
+        }
+    };
+
+    // Handle create packing list
+    const handleCreatePackingList = async () => {
+        if (!appointment || !appointment.docEntry || !packingListForm.warehouse || packingListItems.length === 0) {
+            alert('Por favor complete todos los campos requeridos. Asegúrese de que la cita tenga DocEntry.');
+            return;
+        }
+
+        if (!packingListForm.number || !packingListForm.number.trim()) {
+            alert('El número de PackingList es requerido. Debe venir de una orden de compra.');
+            return;
+        }
+        
+        let vendorId = appointment.supplierId || appointment.supplierRUC;
+        if (vendorId && !vendorId.startsWith('P')) {
+            vendorId = `P${vendorId}`;
+        }
+        
+        try {
+            const selectedItems = packingListItems.filter(item => 
+                item.marca === true && item.quantity > 0
+            );
+            
+            if (selectedItems.length === 0) {
+                alert('Debe seleccionar al menos un item con cantidad mayor a 0');
+                return;
+            }
+            
+            await createPackingListInApi({
+                vendorId: vendorId,
+                whsCode: packingListForm.warehouse,
+                number: packingListForm.number.trim(),
+                inboundType: packingListForm.inboundType || 'OCNAC',
+                comments: packingListForm.comment || '',
+                dateExpected: packingListForm.date || new Date().toISOString().split('T')[0],
+                ticket: "0",
+                wmsResponse: packingListForm.commentWms || '',
+                codCita: appointment.docEntry,
+                _detallePackinList: selectedItems.map((item, index) => ({
+                    document: (item as any).document || 0,
+                    lineNumber: index + 1,
+                    itemCode: item.productCode,
+                    itemName: item.productName,
+                    quantity: item.quantity
+                }))
+            });
+
+            alert('PackingList creado exitosamente');
+            
+            // Limpiar formulario
+            setPackingListForm({
+                date: appointment.deliveryDate || '',
+                warehouse: '',
+                comment: '',
+                commentWms: '',
+                number: '',
+                orderNumber: '',
+                inboundType: 'OCNAC',
+                ticket: '',
+                items: []
+            });
+            setPackingListItems([]);
+            setSelectedInboundType('');
+            setDocuments([]);
+            
+            // Recargar PackingList
+            const today = new Date();
+            const startDate = new Date(today);
+            startDate.setDate(startDate.getDate() - 30);
+            const endDate = new Date(today);
+            endDate.setDate(endDate.getDate() + 30);
+            
+            const fechaInicio = formatDateForAPI(startDate);
+            const fechaFin = formatDateForAPI(endDate);
+            
+            const packingLists = await fetchPackingListFromApi(fechaInicio, fechaFin, appointment.docEntry);
+            setPackingListsFromApi(packingLists);
+            
+            onPackingListClose();
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+            alert(`Error al crear PackingList: ${errorMessage}`);
+            console.error('Error al crear PackingList:', error);
+        }
     };
 
     const handleOpenTransport = () => {
         setSelectedAppointment(appointment);
-        navigate('/agenda', { state: { openTransport: true } });
+        // Pre-llenar formulario si hay datos de transporte existentes
+        if (appointment.transportData) {
+            setTransportForm({
+                transportCompany: appointment.transportData.transportCompany || '',
+                driverName: appointment.transportData.driverName || '',
+                driverLicense: appointment.transportData.driverLicense || '',
+                vehiclePlate: appointment.transportData.vehiclePlate || '',
+                vehicleType: appointment.transportData.vehicleType || '',
+                contactPhone: appointment.transportData.contactPhone || '',
+                estimatedArrival: appointment.transportData.estimatedArrival || '',
+                notes: appointment.transportData.notes || ''
+            });
+        }
+        onTransportOpen();
     };
 
     const handleOpenDocuments = () => {
         setSelectedAppointment(appointment);
-        navigate('/agenda', { state: { openDocuments: true } });
+        onDocumentsOpen();
     };
 
     const handleEdit = () => {
@@ -332,19 +630,209 @@ const AppointmentDetail: React.FC = () => {
         navigate('/agenda', { state: { openEdit: true } });
     };
 
+    const handleOpenEvaluation = () => {
+        if (appointment?.docEntry) {
+            navigate(`/agenda/evaluation/${appointment.docEntry}`);
+        }
+    };
+
+    const handleOpenEvaluationModal = (type: 'puntualidad' | 'documentacion' | 'estadoMercaderia' | 'cantidadCorrecta') => {
+        setEvaluationModalType(type);
+        setIsEvaluationModalOpen(true);
+    };
+
+    const handleEvaluationSaved = (updatedEvaluation: DeliveryEvaluation) => {
+        setEvaluation(updatedEvaluation);
+        // Recargar evaluación completa
+        if (appointment?.docEntry) {
+            fetchEvaluationByCodCita(appointment.docEntry).then(setEvaluation).catch(console.error);
+        }
+    };
+
+    // Handler para guardar datos de transporte
+    const handleSaveTransportData = async () => {
+        if (!appointment || !transportForm.driverName || !transportForm.vehiclePlate) {
+            alert('Por favor complete los campos requeridos');
+            return;
+        }
+
+        if (!appointment.docEntry) {
+            alert('La cita no tiene código (DocEntry). No se puede guardar el chofer.');
+            return;
+        }
+
+        try {
+            // Preparar los datos para el API
+            const choferData = {
+                u_EmpresaTranspote: transportForm.transportCompany || '',
+                u_NombreConductor: transportForm.driverName || '',
+                u_LicenciaConducir: transportForm.driverLicense || '',
+                u_PlacaVehiculo: transportForm.vehiclePlate || '',
+                u_TipoVehiculo: transportForm.vehicleType || '',
+                u_TelefonoContacto: transportForm.contactPhone || '',
+                u_HoraLlegada: transportForm.estimatedArrival || '',
+                u_Notas: transportForm.notes || '',
+                u_CodCita: appointment.docEntry
+            };
+
+            // Llamar al API para crear el chofer
+            await createChoferInApi(choferData);
+
+            // Recargar el appointment para obtener los datos actualizados
+            const apiAppointments = await fetchAppointmentsFromApi();
+            const updatedAppointment = apiAppointments.find(
+                (apt) => apt.docEntry === appointment.docEntry || apt.appointmentNumber === appointment.appointmentNumber
+            );
+            if (updatedAppointment) {
+                setAppointment(updatedAppointment);
+            }
+
+            alert('Datos de transporte guardados exitosamente');
+            setTransportForm({
+                transportCompany: '',
+                driverName: '',
+                driverLicense: '',
+                vehiclePlate: '',
+                vehicleType: '',
+                contactPhone: '',
+                estimatedArrival: '',
+                notes: ''
+            });
+            onTransportClose();
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Error al guardar datos de transporte';
+            alert(`Error al guardar datos de transporte: ${errorMessage}`);
+            console.error('Error al guardar datos de transporte:', error);
+        }
+    };
+
+    // Handler para subir documentos
+    const handleUploadDocument = async (type: string, file: File): Promise<void> => {
+        if (!appointment) {
+            throw new Error('No hay cita seleccionada');
+        }
+
+        if (!appointment.docEntry) {
+            throw new Error('La cita no tiene código (DocEntry). No se puede subir el archivo.');
+        }
+
+        try {
+            // Subir archivo al API
+            await uploadFileToPackingList(file, type, appointment.docEntry);
+            
+            // Recargar documentos del appointment
+            const apiAppointments = await fetchAppointmentsFromApi();
+            const foundApiAppointment = apiAppointments.find(
+                (apt) => apt.docEntry === appointment.docEntry
+            );
+            if (foundApiAppointment && (foundApiAppointment as any).Documents) {
+                setAppointmentDocuments((foundApiAppointment as any).Documents || []);
+            }
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Error desconocido al subir archivo';
+            throw new Error(errorMessage);
+        }
+    };
+
     return (
         <Dashboard>
             <div className="py-6">
-                {/* Header con botón de regreso */}
+                {/* Header con botón de regreso y acciones */}
                 <div className="mb-6">
-                    <Button
-                        variant="light"
-                        startContent={<ArrowLeftIcon className="w-5 h-5" />}
-                        onPress={() => navigate('/agenda')}
-                        className="mb-4"
-                    >
-                        Volver a Agenda
-                    </Button>
+                    <div className="flex items-center justify-between gap-4 mb-4">
+                        <Button
+                            variant="light"
+                            startContent={<ArrowLeftIcon className="w-5 h-5" />}
+                            onPress={() => navigate('/agenda')}
+                        >
+                            Volver a Agenda
+                        </Button>
+                        
+                        {/* Botones de acción */}
+                        <div className="flex items-center gap-2 flex-wrap">
+                            {!isProvider && (
+                                <>
+                                    <Button 
+                                        color="primary" 
+                                        onPress={handleEdit}
+                                        size="md"
+                                        className="font-medium"
+                                        startContent={<CalendarIcon className="w-4 h-4" />}
+                                    >
+                                        Editar Cita
+                                    </Button>
+                                    {canViewEvaluation && (
+                                        <Button
+                                            color="secondary"
+                                            variant="flat"
+                                            onPress={handleOpenEvaluation}
+                                            size="md"
+                                            className="font-medium"
+                                            startContent={<StarIcon className="w-4 h-4" />}
+                                        >
+                                            Ver Calificación
+                                        </Button>
+                                    )}
+                                    {canEvaluateSecurity && appointment?.docEntry && (
+                                        <>
+                                            <Button
+                                                color="warning"
+                                                variant="flat"
+                                                onPress={() => handleOpenEvaluationModal('puntualidad')}
+                                                size="sm"
+                                                startContent={<ClockIcon className="w-4 h-4" />}
+                                            >
+                                                Evaluar Puntualidad
+                                            </Button>
+                                            <Button
+                                                color="warning"
+                                                variant="flat"
+                                                onPress={() => handleOpenEvaluationModal('documentacion')}
+                                                size="sm"
+                                                startContent={<DocumentTextIcon className="w-4 h-4" />}
+                                            >
+                                                Evaluar Documentación
+                                            </Button>
+                                        </>
+                                    )}
+                                    {canEvaluateQuality && appointment?.docEntry && (
+                                        <Button
+                                            color="success"
+                                            variant="flat"
+                                            onPress={() => handleOpenEvaluationModal('estadoMercaderia')}
+                                            size="sm"
+                                            startContent={<CheckCircleIcon className="w-4 h-4" />}
+                                        >
+                                            Evaluar Estado Mercadería
+                                        </Button>
+                                    )}
+                                    {canEvaluateWarehouse && appointment?.docEntry && (
+                                        <Button
+                                            color="primary"
+                                            variant="flat"
+                                            onPress={() => handleOpenEvaluationModal('cantidadCorrecta')}
+                                            size="sm"
+                                            startContent={<BuildingOfficeIcon className="w-4 h-4" />}
+                                        >
+                                            Evaluar Cantidad
+                                        </Button>
+                                    )}
+                                    {[UserRole.ADMIN, UserRole.COMPRAS].includes(currentUser?.role || UserRole.ADMIN) && (
+                                        <Button
+                                            color="primary"
+                                            variant="solid"
+                                            onPress={handleOpenEvaluation}
+                                            size="md"
+                                            className="font-medium"
+                                            startContent={<StarIcon className="w-4 h-4" />}
+                                        >
+                                            Calificar
+                                        </Button>
+                                    )}
+                                </>
+                            )}
+                        </div>
+                    </div>
 
                     {/* Header Rediseñado */}
                     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
@@ -362,9 +850,27 @@ const AppointmentDetail: React.FC = () => {
                                         size="lg"
                                     />
                                     <div>
-                                        <h3 className="text-2xl font-bold text-gray-900">
-                                            {appointment.docEntry ? `Cita #${appointment.docEntry}` : `Cita #${appointment.appointmentNumber}`}
-                                        </h3>
+                                        <div className="flex items-center gap-3 mb-1">
+                                            <h3 className="text-2xl font-bold text-gray-900">
+                                                {appointment.docEntry ? `Cita #${appointment.docEntry}` : `Cita #${appointment.appointmentNumber}`}
+                                            </h3>
+                                            {evaluation && evaluation.puntajeTotal && evaluation.puntajeTotal > 0 && (
+                                                <Chip
+                                                    color={
+                                                        evaluation.badge === 'Excelente' ? 'success' :
+                                                        evaluation.badge === 'Bueno' ? 'primary' :
+                                                        evaluation.badge === 'Regular' ? 'warning' : 'danger'
+                                                    }
+                                                    variant="flat"
+                                                    size="lg"
+                                                    classNames={{
+                                                        base: "font-bold shadow-md"
+                                                    }}
+                                                >
+                                                    {evaluation.badge} ({evaluation.puntajeTotal.toFixed(1)}/5)
+                                                </Chip>
+                                            )}
+                                        </div>
                                         <p className="text-sm text-gray-500 mt-1">
                                             {appointment.supplierName}
                                         </p>
@@ -853,7 +1359,7 @@ const AppointmentDetail: React.FC = () => {
 
                     {/* Documents Section */}
                     <Card className={`border-2 transition-all ${
-                        appointmentDocuments.length > 0 || appointment.documents?.completed
+                        areAllDocumentsComplete()
                             ? 'border-emerald-200 bg-emerald-50/30' 
                             : 'border-gray-200 hover:border-blue-300'
                     }`}>
@@ -861,11 +1367,11 @@ const AppointmentDetail: React.FC = () => {
                             <div className="flex items-center justify-between mb-4">
                                 <h4 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
                                     <DocumentTextIcon className={`w-5 h-5 ${
-                                        appointmentDocuments.length > 0 || appointment.documents?.completed ? 'text-emerald-600' : 'text-gray-400'
+                                        areAllDocumentsComplete() ? 'text-emerald-600' : 'text-gray-400'
                                     }`} />
                                     Documentos
                                 </h4>
-                                {appointmentDocuments.length > 0 || appointment.documents?.completed ? (
+                                {areAllDocumentsComplete() ? (
                                     <Chip color="success" variant="flat" startContent={<CheckCircleIcon className="w-4 h-4" />}>
                                         Completado
                                     </Chip>
@@ -971,7 +1477,7 @@ const AppointmentDetail: React.FC = () => {
                                         );
                                     })()}
 
-                                    {(appointmentDocuments.length === 0 && !appointment.documents?.completed) && canManageDocuments && (
+                                    {!areAllDocumentsComplete() && canManageDocuments && (
                                         <div className="mt-4">
                                             <Button
                                                 color="primary"
@@ -1010,28 +1516,546 @@ const AppointmentDetail: React.FC = () => {
                     </Card>
                 </div>
 
-                {/* Footer con botones de acción */}
-                <div className="mt-6 flex justify-end gap-3">
-                    <Button 
-                        variant="light" 
-                        onPress={() => navigate('/agenda')}
-                        size="lg"
-                        className="font-medium"
-                    >
-                        Cerrar
-                    </Button>
-                    {!isProvider && (
-                        <Button 
-                            color="primary" 
-                            onPress={handleEdit}
-                            size="lg"
-                            className="font-medium"
-                            startContent={<CalendarIcon className="w-5 h-5" />}
-                        >
-                            Editar Cita
-                        </Button>
-                    )}
-                </div>
+                {/* Modal de PackingList */}
+                <Modal isOpen={isPackingListOpen} onClose={onPackingListClose} size="4xl" scrollBehavior="inside">
+                    <ModalContent>
+                        {(onClose) => (
+                            <>
+                                <ModalHeader>
+                                    <div className="flex items-center justify-between w-full">
+                                        {appointment?.docEntry && (
+                                            <div className="mb-3 py-2 px-8 bg-blue-50 border border-blue-200 rounded-full text-sm text-blue-700">
+                                                <strong>Código de Cita:</strong> {appointment.docEntry} (se usará automáticamente)
+                                            </div>
+                                        )}
+                                        <div className="flex gap-2 px-6 items-center">
+                                            <Select
+                                                label="Tipo de Entrada"
+                                                size='sm'
+                                                variant="flat"
+                                                placeholder="Seleccione el tipo"
+                                                selectedKeys={selectedInboundType ? [selectedInboundType] : []}
+                                                onSelectionChange={(keys) => {
+                                                    const selected = Array.from(keys)[0] as 'OCNAC' | 'OCINT' | '';
+                                                    setSelectedInboundType(selected);
+                                                    setPackingListForm(prev => ({ ...prev, inboundType: selected || 'OCNAC' }));
+                                                    setPackingListForm(prev => ({ ...prev, number: '' }));
+                                                    setDocuments([]);
+                                                }}
+                                                className="min-w-[200px]"
+                                            >
+                                                <SelectItem key="OCNAC">Compras Nacionales</SelectItem>
+                                                <SelectItem key="OCINT">Importaciones</SelectItem>
+                                            </Select>
+                                            {selectedInboundType && (
+                                                <Button
+                                                    size="sm"
+                                                    color="primary"
+                                                    variant="flat"
+                                                    className="px-6"
+                                                    onPress={async () => {
+                                                        if (!selectedInboundType) {
+                                                            alert('Por favor seleccione un tipo de entrada primero');
+                                                            return;
+                                                        }
+                                                        
+                                                        if (documents.length > 0 && packingListForm.inboundType === selectedInboundType) {
+                                                            onDocumentsSelectOpen();
+                                                            return;
+                                                        }
+                                                        
+                                                        setIsLoadingDocuments(true);
+                                                        try {
+                                                            const docs = await fetchDocumentsFromApi(selectedInboundType, undefined, appointment?.supplierRUC);
+                                                            setDocuments(docs);
+                                                            if (docs.length === 0) {
+                                                                alert('No se encontraron documentos para el tipo seleccionado');
+                                                            } else {
+                                                                onDocumentsSelectOpen();
+                                                            }
+                                                        } catch (error) {
+                                                            console.error('Error al cargar documentos:', error);
+                                                            alert('Error al cargar documentos del API');
+                                                        } finally {
+                                                            setIsLoadingDocuments(false);
+                                                        }
+                                                    }}
+                                                    isLoading={isLoadingDocuments}
+                                                >
+                                                    {documents.length > 0 && packingListForm.inboundType === selectedInboundType 
+                                                        ? 'Ver Documentos' 
+                                                        : 'Buscar Documentos'}
+                                                </Button>
+                                            )}
+                                        </div>
+                                    </div>
+                                </ModalHeader>
+                                <ModalBody>
+                                    <div className="space-y-6">
+                                        <Divider />
+                                        <div className='py-2 flex flex-col gap-4'>
+                                            <h4 className="text-lg font-semibold mb-3">Crear Nuevo PackingList</h4>
+                                            
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <Input
+                                                    label="N° Orden de Compra"
+                                                    size='sm'
+                                                    value={packingListForm.orderNumber}
+                                                    onValueChange={(value) => setPackingListForm(prev => ({ ...prev, orderNumber: value }))}
+                                                    isRequired
+                                                    description="Número de orden de compra"
+                                                    isReadOnly
+                                                    endContent={
+                                                        <Button
+                                                            size="sm"
+                                                            variant="light"
+                                                            onPress={() => {
+                                                                if (!selectedInboundType) {
+                                                                    alert('Por favor seleccione un tipo de entrada primero');
+                                                                    return;
+                                                                }
+                                                                onDocumentsSelectOpen();
+                                                            }}
+                                                        >
+                                                            Seleccionar
+                                                        </Button>
+                                                    }
+                                                />
+                                                <Input
+                                                    label="Número de PackingList"
+                                                    placeholder="Ej: 251047379_1"
+                                                    size='sm'
+                                                    value={packingListForm.number}
+                                                    onValueChange={(value) => setPackingListForm(prev => ({ ...prev, number: value }))}
+                                                    isRequired
+                                                    description="Número de PackingList (se genera automáticamente al seleccionar un documento)"
+                                                    isReadOnly
+                                                />
+                                                <Input
+                                                    label="Fecha Entrega"
+                                                    type="date"
+                                                    size='sm'
+                                                    value={packingListForm.date}
+                                                    onValueChange={(value) => setPackingListForm(prev => ({ ...prev, date: value }))}
+                                                    isRequired
+                                                />
+                                                <Select
+                                                    label="Almacén"
+                                                    size="sm"
+                                                    variant="flat"
+                                                    placeholder={isLoadingWarehouses ? "Cargando almacenes..." : "Seleccione el almacén"}
+                                                    selectedKeys={packingListForm.warehouse ? new Set([packingListForm.warehouse]) : new Set()}
+                                                    onSelectionChange={(keys) => {
+                                                        const keysArray = Array.from(keys);
+                                                        const value = keysArray.length > 0 ? keysArray[0] : '';
+                                                        setPackingListForm(prev => ({ ...prev, warehouse: value as string }));
+                                                    }}
+                                                    className="min-w-[200px]"
+                                                    isRequired
+                                                    isDisabled={isLoadingWarehouses}
+                                                    selectionMode="single"
+                                                >
+                                                    {warehouses.map((warehouse) => (
+                                                        <SelectItem key={warehouse.Codigo} textValue={`${warehouse.Almacen} (${warehouse.Codigo})`}>
+                                                            {warehouse.Almacen} ({warehouse.Codigo})
+                                                        </SelectItem>
+                                                    ))}
+                                                </Select>
+                                            </div>
+
+                                            {packingListItems.length > 0 ? (
+                                                <div>
+                                                    <p className="text-sm font-semibold mb-2">Items del Documento</p>
+                                                    <Table>
+                                                        <TableHeader>
+                                                            <TableColumn width={50}>Sel</TableColumn>
+                                                            <TableColumn>Código</TableColumn>
+                                                            <TableColumn>Producto</TableColumn>
+                                                            <TableColumn>Cantidad OC</TableColumn>
+                                                            <TableColumn>Pendiente</TableColumn>
+                                                            <TableColumn>Cantidad</TableColumn>
+                                                        </TableHeader>
+                                                        <TableBody>
+                                                            {packingListItems.map((item) => (
+                                                                <TableRow key={item.id}>
+                                                                    <TableCell>
+                                                                        <Checkbox
+                                                                            isSelected={item.marca ?? false}
+                                                                            onValueChange={(checked) => {
+                                                                                setPackingListItems(prev => prev.map(pi =>
+                                                                                    pi.id === item.id ? { ...pi, marca: checked } : pi
+                                                                                ));
+                                                                                if (!checked) {
+                                                                                    setPackingListItems(prev => prev.map(pi =>
+                                                                                        pi.id === item.id ? { ...pi, quantity: 0 } : pi
+                                                                                    ));
+                                                                                }
+                                                                            }}
+                                                                        />
+                                                                    </TableCell>
+                                                                    <TableCell>{item.productCode}</TableCell>
+                                                                    <TableCell>{item.productName}</TableCell>
+                                                                    <TableCell>{item.cantidadOC ?? 0}</TableCell>
+                                                                    <TableCell>{item.pendingQuantity}</TableCell>
+                                                                    <TableCell>
+                                                                        <Input
+                                                                            type="number"
+                                                                            size="sm"
+                                                                            value={item.quantity.toString()}
+                                                                            disabled={!item.marca}
+                                                                            onValueChange={(value) => {
+                                                                                const qty = parseInt(value) || 0;
+                                                                                setPackingListItems(prev => prev.map(pi =>
+                                                                                    pi.id === item.id ? { ...pi, quantity: qty } : pi
+                                                                                ));
+                                                                            }}
+                                                                            min={0}
+                                                                            max={item.pendingQuantity}
+                                                                        />
+                                                                    </TableCell>
+                                                                </TableRow>
+                                                            ))}
+                                                        </TableBody>
+                                                    </Table>
+                                                </div>
+                                            ) : packingListForm.number ? (
+                                                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                                                    <div className="flex items-start">
+                                                        <div className="flex-shrink-0">
+                                                            <ExclamationTriangleIcon className="h-5 w-5 text-yellow-400" />
+                                                        </div>
+                                                        <div className="ml-3">
+                                                            <h3 className="text-sm font-medium text-yellow-800">
+                                                                No hay detalles disponibles
+                                                            </h3>
+                                                            <div className="mt-2 text-sm text-yellow-700">
+                                                                <p>El documento seleccionado no tiene items. No se puede crear el PackingList sin detalles.</p>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ) : null}
+
+                                            <Textarea
+                                                label="Comentario"
+                                                placeholder="Comentario adicional"
+                                                value={packingListForm.comment}
+                                                onValueChange={(value) => setPackingListForm(prev => ({ ...prev, comment: value }))}
+                                            />
+                                            <Textarea
+                                                label="Comentario WMS"
+                                                placeholder="Comentario para WMS"
+                                                value={packingListForm.commentWms}
+                                                onValueChange={(value) => setPackingListForm(prev => ({ ...prev, commentWms: value }))}
+                                            />
+                                        </div>
+                                    </div>
+                                </ModalBody>
+                                <ModalFooter>
+                                    <Button variant="light" onPress={onClose}>
+                                        Cancelar
+                                    </Button>
+                                    <Button
+                                        color="primary"
+                                        onPress={handleCreatePackingList}
+                                        isDisabled={
+                                            !packingListForm.warehouse ||
+                                            !packingListForm.number ||
+                                            !packingListForm.date ||
+                                            packingListItems.length === 0 ||
+                                            packingListItems.filter(item => item.marca === true && item.quantity > 0).length === 0 ||
+                                            packingListItems.some(
+                                                item =>
+                                                    item.marca === true &&
+                                                    item.quantity > 0 &&
+                                                    item.quantity > item.pendingQuantity
+                                            )
+                                        }
+                                    >
+                                        Crear PackingList
+                                    </Button>
+                                </ModalFooter>
+                            </>
+                        )}
+                    </ModalContent>
+                </Modal>
+
+                {/* Modal de Selección de Documentos */}
+                <Modal isOpen={isDocumentsSelectOpen} onClose={onDocumentsSelectClose} size="5xl" scrollBehavior="inside">
+                    <ModalContent>
+                        {(onClose) => {
+                            const handleSearchChange = (value: string) => {
+                                setDocumentSearchFilter(value);
+                                if (documentSearchTimeoutRef.current) {
+                                    clearTimeout(documentSearchTimeoutRef.current);
+                                }
+                                
+                                if (!selectedInboundType) {
+                                    return;
+                                }
+                                
+                                documentSearchTimeoutRef.current = setTimeout(async () => {
+                                    setIsLoadingDocuments(true);
+                                    try {
+                                        const docs = await fetchDocumentsFromApi(
+                                            selectedInboundType, 
+                                            value ? value.trim() : undefined,
+                                            appointment?.supplierRUC
+                                        );
+                                        setDocuments(docs);
+                                    } catch (error) {
+                                        console.error('Error al buscar documentos:', error);
+                                        alert('Error al buscar documentos');
+                                    } finally {
+                                        setIsLoadingDocuments(false);
+                                    }
+                                }, 500);
+                            };
+
+                            return (
+                                <>
+                                    <ModalHeader>
+                                        <div className="flex flex-col gap-2 w-full">
+                                            <span>Seleccionar Documento - {selectedInboundType === 'OCNAC' ? 'Compras Nacionales' : 'Importaciones'}</span>
+                                            <Input
+                                                size="sm"
+                                                placeholder="Buscar por número de orden..."
+                                                value={documentSearchFilter}
+                                                onValueChange={handleSearchChange}
+                                                classNames={{
+                                                    input: "text-sm"
+                                                }}
+                                            />
+                                        </div>
+                                    </ModalHeader>
+                                    <ModalBody>
+                                        {isLoadingDocuments ? (
+                                            <div className="text-center py-8">
+                                                <p className="text-sm text-gray-500">Cargando documentos...</p>
+                                            </div>
+                                        ) : documents.length === 0 ? (
+                                            <div className="text-center py-8">
+                                                <p className="text-sm text-gray-500">No se encontraron documentos. Ingrese un número de documento para buscar.</p>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-2">
+                                                <Table aria-label="Tabla de documentos">
+                                                    <TableHeader>
+                                                        <TableColumn width={150}>N° Orden</TableColumn>
+                                                        <TableColumn width={150}>CÓDIGO</TableColumn>
+                                                        <TableColumn>PROVEEDOR</TableColumn>
+                                                        <TableColumn width={120}>FECHA</TableColumn>
+                                                    </TableHeader>
+                                                    <TableBody>
+                                                        {sortedAndFilteredDocuments.map((doc) => (
+                                                            <TableRow 
+                                                                key={doc.DocEntry}
+                                                                className="cursor-pointer hover:bg-gray-100 transition-colors"
+                                                                onClick={async () => {
+                                                                    if (!selectedInboundType) {
+                                                                        alert('Tipo de entrada no seleccionado');
+                                                                        return;
+                                                                    }
+                                                                    
+                                                                    try {
+                                                                        const detailItems = await fetchDocumentDetailFromApi(doc.DocNum, selectedInboundType);
+                                                                        
+                                                                        if (!detailItems || detailItems.length === 0) {
+                                                                            alert('El documento seleccionado no tiene detalles. No se puede crear el PackingList sin items.');
+                                                                            return;
+                                                                        }
+                                                                        
+                                                                        if (!appointment?.docEntry) {
+                                                                            alert('La cita no tiene código (DocEntry). No se puede generar el número de PackingList.');
+                                                                            return;
+                                                                        }
+                                                                        const nextPackingListNumber = await generateNextPackingListNumber(doc.DocNum, appointment.docEntry);
+                                                                        
+                                                                        setPackingListForm(prev => ({
+                                                                            ...prev,
+                                                                            orderNumber: doc.DocNum,
+                                                                            number: nextPackingListNumber,
+                                                                            inboundType: selectedInboundType || 'OCNAC'
+                                                                        }));
+                                                                        
+                                                                        const items: PackingListItem[] = detailItems.map((item, index: number) => {
+                                                                            const marca = item.Marca?.toLowerCase() === 'true' || item.Marca === '1';
+                                                                            const cantidadOC = parseFloat(item["Cantidad OC"] || item.CantidadOC || "0");
+                                                                            const pendiente = parseFloat(item.Pendiente || "0");
+                                                                            
+                                                                            return {
+                                                                                id: `${doc.DocNum}-${item.Artículo}-${index}`,
+                                                                                productCode: item.Artículo,
+                                                                                productName: item.Descripción,
+                                                                                quantity: 0,
+                                                                                pendingQuantity: pendiente,
+                                                                                cantidadOC: cantidadOC,
+                                                                                marca: marca,
+                                                                                unit: 'UN'
+                                                                            };
+                                                                        });
+                                                                        setPackingListItems(items);
+                                                                        
+                                                                        onClose();
+                                                                    } catch (error) {
+                                                                        console.error('Error al obtener detalle del documento:', error);
+                                                                        alert('Error al obtener detalle del documento');
+                                                                    }
+                                                                }}
+                                                            >
+                                                                <TableCell className="whitespace-nowrap">{doc.DocNum}</TableCell>
+                                                                <TableCell className="whitespace-nowrap">{doc.CardCode}</TableCell>
+                                                                <TableCell>
+                                                                    <div className="max-w-[400px] truncate" title={doc.CardName}>
+                                                                        {doc.CardName}
+                                                                    </div>
+                                                                </TableCell>
+                                                                <TableCell className="whitespace-nowrap">{doc.TaxDate}</TableCell>
+                                                            </TableRow>
+                                                        ))}
+                                                    </TableBody>
+                                                </Table>
+                                            </div>
+                                        )}
+                                    </ModalBody>
+                                    <ModalFooter>
+                                        <Button variant="light" onPress={onClose}>
+                                            Cerrar
+                                        </Button>
+                                    </ModalFooter>
+                                </>
+                            );
+                        }}
+                    </ModalContent>
+                </Modal>
+
+                {/* Modal de Transporte */}
+                <Modal isOpen={isTransportOpen} onClose={onTransportClose} size="2xl" scrollBehavior="inside">
+                    <ModalContent>
+                        {(onClose) => (
+                            <>
+                                <ModalHeader>Datos de Transportista</ModalHeader>
+                                <ModalBody>
+                                    <div className="space-y-4">
+                                        <Input
+                                            label="Empresa de Transporte (Opcional)"
+                                            placeholder="Nombre de la empresa"
+                                            value={transportForm.transportCompany}
+                                            onValueChange={(value) => setTransportForm(prev => ({ ...prev, transportCompany: value }))}
+                                        />
+                                        <Input
+                                            label="Nombre del Conductor"
+                                            placeholder="Nombre completo"
+                                            value={transportForm.driverName}
+                                            onValueChange={(value) => setTransportForm(prev => ({ ...prev, driverName: value }))}
+                                            isRequired
+                                        />
+                                        <Input
+                                            label="Licencia de Conducir"
+                                            placeholder="Número de licencia"
+                                            value={transportForm.driverLicense}
+                                            onValueChange={(value) => setTransportForm(prev => ({ ...prev, driverLicense: value }))}
+                                            isRequired
+                                        />
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <Input
+                                                label="Placa del Vehículo"
+                                                placeholder="ABC-123"
+                                                value={transportForm.vehiclePlate}
+                                                onValueChange={(value) => setTransportForm(prev => ({ ...prev, vehiclePlate: value }))}
+                                                isRequired
+                                            />
+                                            <Input
+                                                label="Tipo de Vehículo"
+                                                placeholder="Camión, Furgón, etc."
+                                                value={transportForm.vehicleType}
+                                                onValueChange={(value) => setTransportForm(prev => ({ ...prev, vehicleType: value }))}
+                                            />
+                                        </div>
+                                        <Input
+                                            label="Teléfono de Contacto"
+                                            placeholder="+51 999 999 999"
+                                            value={transportForm.contactPhone}
+                                            onValueChange={(value) => setTransportForm(prev => ({ ...prev, contactPhone: value }))}
+                                            isRequired
+                                        />
+                                        <Input
+                                            label="Hora Estimada de Llegada"
+                                            type="time"
+                                            value={transportForm.estimatedArrival}
+                                            onValueChange={(value) => setTransportForm(prev => ({ ...prev, estimatedArrival: value }))}
+                                            isRequired
+                                        />
+                                        <Textarea
+                                            label="Notas"
+                                            placeholder="Notas adicionales"
+                                            value={transportForm.notes}
+                                            onValueChange={(value) => setTransportForm(prev => ({ ...prev, notes: value }))}
+                                        />
+                                    </div>
+                                </ModalBody>
+                                <ModalFooter>
+                                    <Button variant="light" onPress={onClose}>
+                                        Cancelar
+                                    </Button>
+                                    <Button
+                                        color="primary"
+                                        onPress={handleSaveTransportData}
+                                        isDisabled={
+                                            !transportForm.driverName ||
+                                            !transportForm.vehiclePlate ||
+                                            !transportForm.driverLicense ||
+                                            !transportForm.contactPhone ||
+                                            !transportForm.estimatedArrival
+                                        }
+                                    >
+                                        Guardar
+                                    </Button>
+                                </ModalFooter>
+                            </>
+                        )}
+                    </ModalContent>
+                </Modal>
+
+                {/* Modal de Documentos */}
+                <DocumentsModal
+                    isOpen={isDocumentsOpen}
+                    onOpenChange={async (open) => {
+                        if (!open) {
+                            onDocumentsClose();
+                            // Recargar documentos del appointment cuando se cierra el modal
+                            if (appointment?.docEntry) {
+                                try {
+                                    const apiAppointments = await fetchAppointmentsFromApi();
+                                    const foundApiAppointment = apiAppointments.find(
+                                        (apt) => apt.docEntry === appointment.docEntry
+                                    );
+                                    if (foundApiAppointment && (foundApiAppointment as any).Documents) {
+                                        setAppointmentDocuments((foundApiAppointment as any).Documents || []);
+                                    }
+                                } catch (error) {
+                                    console.error('Error al recargar documentos:', error);
+                                }
+                            }
+                        }
+                    }}
+                    selectedAppointment={appointment}
+                    handleUploadDocument={handleUploadDocument}
+                    loadedDocuments={getAllDocuments()}
+                />
+
+                {/* Modal de Evaluación */}
+                {appointment?.docEntry && (
+                    <EvaluationModal
+                        isOpen={isEvaluationModalOpen}
+                        onOpenChange={setIsEvaluationModalOpen}
+                        codCita={appointment.docEntry}
+                        userRole={currentUser?.role || UserRole.ADMIN}
+                        evaluationType={evaluationModalType}
+                        currentEvaluation={evaluation || undefined}
+                        onEvaluationSaved={handleEvaluationSaved}
+                    />
+                )}
             </div>
         </Dashboard>
     );

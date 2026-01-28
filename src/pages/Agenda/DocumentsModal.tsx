@@ -15,6 +15,14 @@ interface DocumentFile {
     file: File | null;
     uploaded: boolean;
     progress: number;
+    loadedName?: string;
+    loadedUrl?: string;
+}
+
+interface LoadedDocument {
+    name: string;
+    url: string;
+    type: string;
 }
 
 interface DocumentsModalProps {
@@ -22,6 +30,7 @@ interface DocumentsModalProps {
     onOpenChange: (open: boolean) => void;
     selectedAppointment: any;
     handleUploadDocument: (type: string, file: File) => Promise<void>;
+    loadedDocuments?: LoadedDocument[];
 }
 
 interface DocumentType {
@@ -37,14 +46,79 @@ const DocumentsModal: React.FC<DocumentsModalProps> = ({
     onOpenChange,
     selectedAppointment,
     handleUploadDocument,
+    loadedDocuments = [],
 }) => {
-    const [documents, setDocuments] = useState<Record<string, DocumentFile>>({
-        invoice: { file: null, uploaded: false, progress: 0 },
-        purchaseOrder: { file: null, uploaded: false, progress: 0 },
-        deliveryGuide: { file: null, uploaded: false, progress: 0 },
-        cdr: { file: null, uploaded: false, progress: 0 },
-        xml: { file: null, uploaded: false, progress: 0 },
-    });
+    // Función para mapear documentos cargados a tipos del modal
+    const mapLoadedDocumentsToTypes = (docs: LoadedDocument[]): Record<string, DocumentFile> => {
+        const mapped: Record<string, DocumentFile> = {
+            invoice: { file: null, uploaded: false, progress: 0 },
+            purchaseOrder: { file: null, uploaded: false, progress: 0 },
+            deliveryGuide: { file: null, uploaded: false, progress: 0 },
+            cdr: { file: null, uploaded: false, progress: 0 },
+            xml: { file: null, uploaded: false, progress: 0 },
+        };
+
+        docs.forEach(doc => {
+            const name = doc.name.toLowerCase();
+            
+            // Mapear según el nombre del archivo
+            if (name.includes('fac') || name.includes('factura') || name.includes('invoice')) {
+                mapped.invoice = { 
+                    file: null, 
+                    uploaded: true, 
+                    progress: 100,
+                    loadedName: doc.name,
+                    loadedUrl: doc.url
+                };
+            } else if (name.includes('oc') || name.includes('orden') || name.includes('purchase')) {
+                mapped.purchaseOrder = { 
+                    file: null, 
+                    uploaded: true, 
+                    progress: 100,
+                    loadedName: doc.name,
+                    loadedUrl: doc.url
+                };
+            } else if (name.includes('gr') || name.includes('guia') || name.includes('remision') || name.includes('delivery')) {
+                mapped.deliveryGuide = { 
+                    file: null, 
+                    uploaded: true, 
+                    progress: 100,
+                    loadedName: doc.name,
+                    loadedUrl: doc.url
+                };
+            } else if (name.includes('cdr')) {
+                mapped.cdr = { 
+                    file: null, 
+                    uploaded: true, 
+                    progress: 100,
+                    loadedName: doc.name,
+                    loadedUrl: doc.url
+                };
+            } else if (name.includes('xml') && !name.includes('cdr')) {
+                mapped.xml = { 
+                    file: null, 
+                    uploaded: true, 
+                    progress: 100,
+                    loadedName: doc.name,
+                    loadedUrl: doc.url
+                };
+            }
+        });
+
+        return mapped;
+    };
+
+    // Inicializar con documentos cargados cuando se abre el modal
+    const [documents, setDocuments] = useState<Record<string, DocumentFile>>(() => 
+        mapLoadedDocumentsToTypes(loadedDocuments)
+    );
+
+    // Actualizar cuando cambian los documentos cargados o se abre el modal
+    React.useEffect(() => {
+        if (isOpen) {
+            setDocuments(mapLoadedDocumentsToTypes(loadedDocuments));
+        }
+    }, [isOpen, loadedDocuments]);
 
     const documentTypes: DocumentType[] = [
         {
@@ -186,15 +260,17 @@ const DocumentsModal: React.FC<DocumentsModalProps> = ({
                                                             {docType.description}
                                                         </p>
 
-                                                        {hasFile ? (
+                                                        {(hasFile || doc.uploaded) ? (
                                                             <div className="space-y-2">
                                                                 <div className="flex items-center justify-between">
                                                                     <p className="text-sm text-gray-700 dark:text-gray-300 truncate">
-                                                                        {doc.file ? doc.file.name : ''}
+                                                                        {doc.file ? doc.file.name : (doc.loadedName || 'Documento cargado')}
                                                                     </p>
-                                                                    <p className="text-xs text-gray-500 ml-2">
-                                                                        {doc.file ? formatFileSize(doc.file.size) : ''}
-                                                                    </p>
+                                                                    {doc.file && (
+                                                                        <p className="text-xs text-gray-500 ml-2">
+                                                                            {formatFileSize(doc.file.size)}
+                                                                        </p>
+                                                                    )}
                                                                 </div>
                                                                 {doc.progress > 0 && doc.progress < 100 && (
                                                                     <Progress
@@ -205,6 +281,34 @@ const DocumentsModal: React.FC<DocumentsModalProps> = ({
                                                                             indicator: 'bg-gradient-to-r from-blue-500 to-blue-600',
                                                                         }}
                                                                     />
+                                                                )}
+                                                                {doc.uploaded && doc.loadedUrl && (
+                                                                    <a 
+                                                                        href={doc.loadedUrl} 
+                                                                        target="_blank" 
+                                                                        rel="noopener noreferrer"
+                                                                        className="text-xs text-blue-600 hover:text-blue-800 underline"
+                                                                    >
+                                                                        Ver documento
+                                                                    </a>
+                                                                )}
+                                                                {doc.uploaded && !doc.file && (
+                                                                    <label className="cursor-pointer inline-block">
+                                                                        <input
+                                                                            type="file"
+                                                                            accept={docType.accept}
+                                                                            onChange={(e) => {
+                                                                                const file = e.target.files?.[0];
+                                                                                if (file) {
+                                                                                    handleFileSelect(docType.key, file);
+                                                                                }
+                                                                            }}
+                                                                            className="hidden"
+                                                                        />
+                                                                        <span className="text-xs text-blue-600 hover:text-blue-800 underline">
+                                                                            Cambiar archivo
+                                                                        </span>
+                                                                    </label>
                                                                 )}
                                                             </div>
                                                         ) : (

@@ -19,6 +19,7 @@ import PaymentsList from "@/pages/Finanzas/pagos.tsx";
 import {SolicitudCompra} from "@/pages/SolicitudCompra";
 import AgendaPage from "@/pages/Agenda";
 import AppointmentDetailPage from "@/pages/Agenda/AppointmentDetail";
+import EvaluationPage from "@/pages/Agenda/EvaluationPage";
 import ReceptionPage from "@/pages/Recepcion";
 import PaymentCalendar from "@/pages/Pagos/Paymentcalendar ";
 import ScheduleInvoices from "@/pages/Pagos/ScheduleInvoices";
@@ -204,8 +205,16 @@ const router = createBrowserRouter([
   {
     path: "/agenda/detail/:appointmentId",
     element: (
-      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.ALMACEN]}>
+      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.ALMACEN, UserRole.CALIDAD, UserRole.SEGURIDAD]}>
         <AppointmentDetailPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/agenda/evaluation/:appointmentId",
+    element: (
+      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.COMPRAS, UserRole.ALMACEN, UserRole.CALIDAD, UserRole.SEGURIDAD]}>
+        <EvaluationPage />
       </ProtectedRoute>
     ),
   },
