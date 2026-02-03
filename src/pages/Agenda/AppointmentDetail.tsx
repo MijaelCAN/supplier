@@ -46,10 +46,13 @@ import { UserRole } from "@/routes/menuTypes";
 import { fetchPackingListFromApi, PackingListApiRecord, uploadFileToPackingList, createPackingListInApi, fetchWarehousesFromApi, WarehouseApiRecord, fetchDocumentsFromApi, DocumentApiRecord, fetchDocumentDetailFromApi } from "@/services/agenda/packingListApi";
 import { formatDateForAPI, fetchAppointmentsFromApi, AppointmentDocument } from "@/services/agenda/appointmentsApi";
 import { createChoferInApi } from "@/services/agenda/choferesApi";
-import { fetchEvaluationByCodCita, calculateTotalScore } from "@/services/agenda/evaluationsApi";
+import { fetchEvaluationByCodCita } from "@/services/agenda/evaluationsApi";
 import { DeliveryAppointment, PackingListItem, DeliveryEvaluation } from "@/store/types";
 import DocumentsModal from './DocumentsModal';
 import EvaluationModal from './EvaluationModal';
+import ClaimModal from './ClaimModal';
+import { SupplierClaim } from '@/store/types';
+import { generateClaimPDF, openClaimPDFInNewTab } from '@/utils/pdfGenerator';
 
 // Función para convertir fecha de formato DD-MM-YYYY a Date para ordenamiento
 const parseDate = (dateStr: string): Date => {
@@ -68,6 +71,7 @@ const AppointmentDetail: React.FC = () => {
     const navigate = useNavigate();
     const { currentUser } = useAuth();
     const isProvider = currentUser?.role === UserRole.PROVEEDOR;
+    const isSecurity = currentUser?.role === UserRole.SEGURIDAD;
     const { setSelectedAppointment } = useAgendaStore(); // Solo usamos setSelectedAppointment, no el store local de appointments
     const [appointment, setAppointment] = useState<DeliveryAppointment | null>(null);
     const [isLoadingAppointment, setIsLoadingAppointment] = useState(true);
@@ -75,6 +79,7 @@ const AppointmentDetail: React.FC = () => {
     const [evaluation, setEvaluation] = useState<DeliveryEvaluation | null>(null);
     const [isEvaluationModalOpen, setIsEvaluationModalOpen] = useState(false);
     const [evaluationModalType, setEvaluationModalType] = useState<'puntualidad' | 'documentacion' | 'estadoMercaderia' | 'cantidadCorrecta'>('puntualidad');
+    const [isClaimModalOpen, setIsClaimModalOpen] = useState(false);
 
     // Cargar appointment SIEMPRE desde el API (no usar localStorage/store)
     useEffect(() => {
@@ -371,6 +376,13 @@ const AppointmentDetail: React.FC = () => {
         }
     }, [appointment, isLoadingAppointment, navigate]);
 
+    // Cargar evaluación cuando se carga el appointment
+    useEffect(() => {
+        if (appointment?.docEntry) {
+            fetchEvaluationByCodCita(appointment.docEntry).then(setEvaluation).catch(console.error);
+        }
+    }, [appointment?.docEntry]);
+
     if (isLoadingAppointment || !appointment) {
         return (
             <Dashboard>
@@ -644,8 +656,35 @@ const AppointmentDetail: React.FC = () => {
     const handleEvaluationSaved = (updatedEvaluation: DeliveryEvaluation) => {
         setEvaluation(updatedEvaluation);
         // Recargar evaluación completa
-        if (appointment?.docEntry) {
-            fetchEvaluationByCodCita(appointment.docEntry).then(setEvaluation).catch(console.error);
+    };
+
+    const handleRejectEvaluation = () => {
+        // Abrir modal de reclamo cuando se rechaza
+        console.log('handleRejectEvaluation llamado, abriendo modal de reclamo...');
+        setIsClaimModalOpen(true);
+    };
+
+    const handleGenerateClaim = async (claimData: Partial<SupplierClaim>) => {
+        try {
+            const claim: SupplierClaim = {
+                ...claimData,
+                codCita: appointment?.docEntry || appointment?.id || '',
+                numeroReclamo: claimData.numeroReclamo || `REC-${appointment?.docEntry || appointment?.id}-${Date.now()}`,
+                fechaReclamo: claimData.fechaReclamo || new Date().toISOString().split('T')[0],
+                proveedor: appointment?.supplierName || '',
+                status: 'Abierto',
+            } as SupplierClaim;
+
+            // Generar y descargar el PDF
+            await generateClaimPDF(claim);
+            
+            // También abrir en nueva pestaña para visualización
+            await openClaimPDFInNewTab(claim);
+            
+            alert('Reclamo generado exitosamente. El PDF se ha descargado y abierto en una nueva pestaña.');
+        } catch (error) {
+            console.error('Error al generar reclamo:', error);
+            alert(`Error al generar el reclamo: ${error instanceof Error ? error.message : 'Error desconocido'}`);
         }
     };
 
@@ -752,7 +791,8 @@ const AppointmentDetail: React.FC = () => {
                         <div className="flex items-center gap-2 flex-wrap">
                             {!isProvider && (
                                 <>
-                                    <Button 
+                                    {!isSecurity && (
+                                        <Button 
                                         color="primary" 
                                         onPress={handleEdit}
                                         size="md"
@@ -761,6 +801,7 @@ const AppointmentDetail: React.FC = () => {
                                     >
                                         Editar Cita
                                     </Button>
+                                    )}
                                     {canViewEvaluation && (
                                         <Button
                                             color="secondary"
@@ -776,19 +817,19 @@ const AppointmentDetail: React.FC = () => {
                                     {canEvaluateSecurity && appointment?.docEntry && (
                                         <>
                                             <Button
-                                                color="warning"
+                                                color="primary"
                                                 variant="flat"
                                                 onPress={() => handleOpenEvaluationModal('puntualidad')}
-                                                size="sm"
+                                                size="md"
                                                 startContent={<ClockIcon className="w-4 h-4" />}
                                             >
                                                 Evaluar Puntualidad
                                             </Button>
                                             <Button
-                                                color="warning"
+                                                color="primary"
                                                 variant="flat"
                                                 onPress={() => handleOpenEvaluationModal('documentacion')}
-                                                size="sm"
+                                                size="md"
                                                 startContent={<DocumentTextIcon className="w-4 h-4" />}
                                             >
                                                 Evaluar Documentación
@@ -867,7 +908,7 @@ const AppointmentDetail: React.FC = () => {
                                                         base: "font-bold shadow-md"
                                                     }}
                                                 >
-                                                    {evaluation.badge} ({evaluation.puntajeTotal.toFixed(1)}/5)
+                                                    {evaluation.badge} ({evaluation.puntajeTotal.toFixed(1)}/10)
                                                 </Chip>
                                             )}
                                         </div>
@@ -970,7 +1011,7 @@ const AppointmentDetail: React.FC = () => {
                                     if (!transporte) {
                                         return (
                                             <div className="text-center py-4">
-                                                <p className="text-xs text-gray-500 mb-2">Sin datos de transporte</p>
+                                                <p className="text-md text-gray-500 mb-2">Sin datos de transporte</p>
                                                 {canManageTransport && (
                                                     <Button
                                                         color="primary"
@@ -2046,15 +2087,25 @@ const AppointmentDetail: React.FC = () => {
 
                 {/* Modal de Evaluación */}
                 {appointment?.docEntry && (
-                    <EvaluationModal
-                        isOpen={isEvaluationModalOpen}
-                        onOpenChange={setIsEvaluationModalOpen}
-                        codCita={appointment.docEntry}
-                        userRole={currentUser?.role || UserRole.ADMIN}
-                        evaluationType={evaluationModalType}
-                        currentEvaluation={evaluation || undefined}
-                        onEvaluationSaved={handleEvaluationSaved}
-                    />
+                    <>
+                        <EvaluationModal
+                            isOpen={isEvaluationModalOpen}
+                            onOpenChange={setIsEvaluationModalOpen}
+                            codCita={appointment.docEntry}
+                            userRole={currentUser?.role || UserRole.ADMIN}
+                            evaluationType={evaluationModalType}
+                            currentEvaluation={evaluation || undefined}
+                            onEvaluationSaved={handleEvaluationSaved}
+                            appointment={appointment}
+                            onReject={handleRejectEvaluation}
+                        />
+                        <ClaimModal
+                            isOpen={isClaimModalOpen}
+                            onOpenChange={setIsClaimModalOpen}
+                            appointment={appointment}
+                            onGenerateClaim={handleGenerateClaim}
+                        />
+                    </>
                 )}
             </div>
         </Dashboard>

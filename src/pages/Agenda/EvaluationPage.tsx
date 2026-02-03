@@ -12,7 +12,6 @@ import {
 } from '@heroui/react';
 import {
     ArrowLeftIcon,
-    StarIcon,
     DocumentTextIcon,
     ClockIcon,
     CheckCircleIcon,
@@ -117,9 +116,9 @@ const EvaluationPage: React.FC = () => {
     };
 
     const getScoreColor = (score: number) => {
-        if (score >= 4.5) return 'success';
-        if (score >= 3.5) return 'primary';
-        if (score >= 2.5) return 'warning';
+        if (score >= 9.0) return 'success';
+        if (score >= 7.0) return 'primary';
+        if (score >= 5.0) return 'warning';
         return 'danger';
     };
 
@@ -222,26 +221,71 @@ const EvaluationPage: React.FC = () => {
                     </CardBody>
                 </Card>
 
-                {/* Puntaje Total y Badge */}
-                {totalScore > 0 && (
+                {/* Resumen de Evaluación */}
+                {evaluation && (
                     <Card className="mb-6">
                         <CardBody>
-                            <div className="flex items-center justify-between">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                {/* Puntaje Total */}
                                 <div>
                                     <p className="text-sm text-gray-500 mb-1">Puntaje Total</p>
-                                    <div className="flex items-center gap-3">
-                                        <p className="text-3xl font-bold text-gray-900">{totalScore.toFixed(2)}</p>
-                                        <Chip color={getBadgeColor(badge) as any} size="lg" variant="flat">
-                                            {badge}
-                                        </Chip>
+                                    <div className="flex items-center gap-2">
+                                        <p className="text-2xl font-bold text-gray-900">
+                                            {evaluation.puntajeTotal ? evaluation.puntajeTotal.toFixed(2) : totalScore.toFixed(2)}
+                                        </p>
+                                        <span className="text-sm text-gray-500">/ 10.00</span>
                                     </div>
-                                </div>
                                 <Progress
-                                    value={(totalScore / 5) * 100}
-                                    color={getScoreColor(totalScore) as any}
-                                    className="max-w-md"
-                                    size="lg"
+                                    value={((evaluation.puntajeTotal || totalScore) / 10) * 100}
+                                    color={getScoreColor(evaluation.puntajeTotal || totalScore) as any}
+                                    className="mt-2"
+                                    size="sm"
                                 />
+                                </div>
+
+                                {/* Nivel/Badge */}
+                                <div>
+                                    <p className="text-sm text-gray-500 mb-1">Nivel de Calificación</p>
+                                    <Chip color={getBadgeColor(badge) as any} size="md" variant="flat" className="font-semibold">
+                                        {badge || 'Sin calificar'}
+                                    </Chip>
+                                </div>
+
+                                {/* Estado */}
+                                <div>
+                                    <p className="text-sm text-gray-500 mb-1">Estado</p>
+                                    <Chip
+                                        color={
+                                            evaluation.estado === 'COMPLETADO'
+                                                ? 'success'
+                                                : evaluation.estado === 'CERRADO'
+                                                ? 'default'
+                                                : 'warning'
+                                        }
+                                        size="md"
+                                        variant="flat"
+                                        className="font-semibold"
+                                    >
+                                        {evaluation.estado || 'BORRADOR'}
+                                    </Chip>
+                                </div>
+
+                                {/* Fecha de Evaluación */}
+                                <div>
+                                    <p className="text-sm text-gray-500 mb-1">Fecha de Evaluación</p>
+                                    <p className="font-semibold text-gray-900">
+                                        {evaluation.fechaEvaluacion
+                                            ? new Date(evaluation.fechaEvaluacion).toLocaleDateString('es-PE', {
+                                                  day: '2-digit',
+                                                  month: '2-digit',
+                                                  year: 'numeric',
+                                              })
+                                            : 'No evaluada'}
+                                    </p>
+                                    {evaluation.evaluador && (
+                                        <p className="text-xs text-gray-500 mt-1">Evaluador: {evaluation.evaluador}</p>
+                                    )}
+                                </div>
                             </div>
                         </CardBody>
                     </Card>
@@ -274,19 +318,16 @@ const EvaluationPage: React.FC = () => {
                             {evaluation?.puntualidad ? (
                                 <div>
                                     <div className="flex items-center gap-2 mb-2">
-                                        {[1, 2, 3, 4, 5].map((val) => (
-                                            <StarIcon
-                                                key={val}
-                                                className={`w-5 h-5 ${
-                                                    val <= evaluation.puntualidad!.puntaje
-                                                        ? 'fill-yellow-400 text-yellow-400'
-                                                        : 'text-gray-300'
-                                                }`}
-                                            />
-                                        ))}
-                                        <span className="font-semibold text-gray-900 ml-2">
-                                            {evaluation.puntualidad.puntaje}/5
+                                        <span className="text-2xl font-bold text-gray-900">
+                                            {evaluation.puntualidad.puntaje.toFixed(1)}
                                         </span>
+                                        <span className="text-sm text-gray-500">/ 10</span>
+                                        <Progress
+                                            value={(evaluation.puntualidad.puntaje / 10) * 100}
+                                            color={getScoreColor(evaluation.puntualidad.puntaje) as any}
+                                            className="flex-1 max-w-xs"
+                                            size="sm"
+                                        />
                                     </div>
                                     {evaluation.puntualidad.comentario && (
                                         <p className="text-sm text-gray-600 mt-2">{evaluation.puntualidad.comentario}</p>
@@ -321,24 +362,42 @@ const EvaluationPage: React.FC = () => {
                                 )}
                             </div>
                             {evaluation?.documentacion ? (
-                                <div>
+                                <div className="space-y-3">
                                     <div className="flex items-center gap-2 mb-2">
-                                        {[1, 2, 3, 4, 5].map((val) => (
-                                            <StarIcon
-                                                key={val}
-                                                className={`w-5 h-5 ${
-                                                    val <= evaluation.documentacion!.puntaje
-                                                        ? 'fill-yellow-400 text-yellow-400'
-                                                        : 'text-gray-300'
-                                                }`}
-                                            />
-                                        ))}
-                                        <span className="font-semibold text-gray-900 ml-2">
-                                            {evaluation.documentacion.puntaje}/5
+                                        <span className="text-2xl font-bold text-gray-900">
+                                            {evaluation.documentacion.puntaje.toFixed(1)}
                                         </span>
+                                        <span className="text-sm text-gray-500">/ 10</span>
+                                        <Progress
+                                            value={(evaluation.documentacion.puntaje / 10) * 100}
+                                            color={getScoreColor(evaluation.documentacion.puntaje) as any}
+                                            className="flex-1 max-w-xs"
+                                            size="sm"
+                                        />
                                     </div>
                                     {evaluation.documentacion.comentario && (
                                         <p className="text-sm text-gray-600 mt-2">{evaluation.documentacion.comentario}</p>
+                                    )}
+                                    {/* Archivos si existen para documentación (aunque normalmente no debería tener) */}
+                                    {evaluation.archivos && evaluation.archivos.some(a => a.tipo === 'documentacion') && (
+                                        <div className="mt-3">
+                                            <p className="text-xs font-semibold text-gray-600 mb-2">Archivos adjuntos:</p>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                {evaluation.archivos
+                                                    .filter(archivo => archivo.tipo === 'documentacion')
+                                                    .map((archivo, index) => (
+                                                        <a
+                                                            key={index}
+                                                            href={archivo.url}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="text-xs text-blue-600 hover:underline"
+                                                        >
+                                                            {archivo.nombre}
+                                                        </a>
+                                                    ))}
+                                            </div>
+                                        </div>
                                     )}
                                 </div>
                             ) : (
@@ -370,24 +429,100 @@ const EvaluationPage: React.FC = () => {
                                 )}
                             </div>
                             {evaluation?.estadoMercaderia ? (
-                                <div>
-                                    <div className="flex items-center gap-2 mb-2">
-                                        {[1, 2, 3, 4, 5].map((val) => (
-                                            <StarIcon
-                                                key={val}
-                                                className={`w-5 h-5 ${
-                                                    val <= evaluation.estadoMercaderia!.puntaje
-                                                        ? 'fill-yellow-400 text-yellow-400'
-                                                        : 'text-gray-300'
-                                                }`}
-                                            />
-                                        ))}
-                                        <span className="font-semibold text-gray-900 ml-2">
-                                            {evaluation.estadoMercaderia.puntaje}/5
+                                <div className="space-y-3">
+                                    {/* Mostrar Estado */}
+                                    <div className="flex items-center gap-3 flex-wrap">
+                                        <Chip
+                                            color={
+                                                evaluation.estadoMercaderia.estado === 'ACEPTADO' 
+                                                    ? 'success' 
+                                                    : evaluation.estadoMercaderia.estado === 'OBSERVADO'
+                                                    ? 'warning'
+                                                    : 'danger'
+                                            }
+                                            variant="flat"
+                                            size="lg"
+                                            className="font-semibold"
+                                        >
+                                            {evaluation.estadoMercaderia.estado || 'Evaluado'}
+                                        </Chip>
+                                        <span className="text-sm text-gray-500">
+                                            Puntaje: {evaluation.estadoMercaderia.puntaje.toFixed(1)}/10
                                         </span>
                                     </div>
+                                    
+                                    {/* Mostrar Comentario/Motivo si existe */}
                                     {evaluation.estadoMercaderia.comentario && (
-                                        <p className="text-sm text-gray-600 mt-2">{evaluation.estadoMercaderia.comentario}</p>
+                                        <div className={`p-3 rounded-lg border ${
+                                            evaluation.estadoMercaderia.estado === 'ACEPTADO'
+                                                ? 'bg-gray-50 dark:bg-gray-900/20 border-gray-200 dark:border-gray-800'
+                                                : evaluation.estadoMercaderia.estado === 'OBSERVADO'
+                                                ? 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800'
+                                                : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+                                        }`}>
+                                            <p className={`text-xs font-semibold mb-1 ${
+                                                evaluation.estadoMercaderia.estado === 'ACEPTADO'
+                                                    ? 'text-gray-600 dark:text-gray-400'
+                                                    : evaluation.estadoMercaderia.estado === 'OBSERVADO'
+                                                    ? 'text-yellow-800 dark:text-yellow-300'
+                                                    : 'text-red-800 dark:text-red-300'
+                                            }`}>
+                                                {evaluation.estadoMercaderia.estado === 'ACEPTADO'
+                                                    ? 'Comentario:'
+                                                    : evaluation.estadoMercaderia.estado === 'OBSERVADO'
+                                                    ? 'Motivo de Observación:'
+                                                    : 'Motivo de Rechazo:'}
+                                            </p>
+                                            <p className={`text-sm ${
+                                                evaluation.estadoMercaderia.estado === 'ACEPTADO'
+                                                    ? 'text-gray-700 dark:text-gray-300'
+                                                    : evaluation.estadoMercaderia.estado === 'OBSERVADO'
+                                                    ? 'text-yellow-900 dark:text-yellow-200'
+                                                    : 'text-red-900 dark:text-red-200'
+                                            }`}>
+                                                {evaluation.estadoMercaderia.comentario}
+                                            </p>
+                                        </div>
+                                    )}
+
+                                    {/* Mostrar imágenes si existen (CALIDAD) */}
+                                    {evaluation.archivos && evaluation.archivos.length > 0 && (
+                                        <div className="mt-3">
+                                            <p className="text-xs font-semibold text-gray-600 mb-2">Archivos adjuntos:</p>
+                                            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                                                {evaluation.archivos
+                                                    .filter(archivo => archivo.tipo === 'calidad')
+                                                    .map((archivo, index) => (
+                                                        <div key={index} className="relative group">
+                                                            <a
+                                                                href={archivo.url}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="block"
+                                                            >
+                                                                {archivo.url.match(/\.(jpg|jpeg|png|gif|webp)/i) || archivo.nombre.match(/\.(jpg|jpeg|png|gif|webp)/i) ? (
+                                                                    <img
+                                                                        src={archivo.url}
+                                                                        alt={archivo.nombre}
+                                                                        className="w-full h-32 object-cover rounded-lg border border-gray-200 hover:border-blue-400 transition-colors cursor-pointer"
+                                                                        onError={(e) => {
+                                                                            // Si falla la carga, mostrar un placeholder
+                                                                            (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100" height="100"%3E%3Crect width="100" height="100" fill="%23e5e7eb"/%3E%3Ctext x="50" y="50" text-anchor="middle" dy=".3em" fill="%239ca3af" font-size="12"%3EImagen%3C/text%3E%3C/svg%3E';
+                                                                        }}
+                                                                    />
+                                                                ) : (
+                                                                    <div className="w-full h-32 bg-gray-100 rounded-lg border border-gray-200 flex items-center justify-center cursor-pointer hover:bg-gray-200 transition-colors">
+                                                                        <DocumentTextIcon className="w-8 h-8 text-gray-400" />
+                                                                    </div>
+                                                                )}
+                                                                <p className="text-xs text-gray-600 mt-1 truncate" title={archivo.nombre}>
+                                                                    {archivo.nombre}
+                                                                </p>
+                                                            </a>
+                                                        </div>
+                                                    ))}
+                                            </div>
+                                        </div>
                                     )}
                                 </div>
                             ) : (
@@ -419,24 +554,60 @@ const EvaluationPage: React.FC = () => {
                                 )}
                             </div>
                             {evaluation?.cantidadCorrecta ? (
-                                <div>
+                                <div className="space-y-3">
                                     <div className="flex items-center gap-2 mb-2">
-                                        {[1, 2, 3, 4, 5].map((val) => (
-                                            <StarIcon
-                                                key={val}
-                                                className={`w-5 h-5 ${
-                                                    val <= evaluation.cantidadCorrecta!.puntaje
-                                                        ? 'fill-yellow-400 text-yellow-400'
-                                                        : 'text-gray-300'
-                                                }`}
-                                            />
-                                        ))}
-                                        <span className="font-semibold text-gray-900 ml-2">
-                                            {evaluation.cantidadCorrecta.puntaje}/5
+                                        <span className="text-2xl font-bold text-gray-900">
+                                            {evaluation.cantidadCorrecta.puntaje.toFixed(1)}
                                         </span>
+                                        <span className="text-sm text-gray-500">/ 10</span>
+                                        <Progress
+                                            value={(evaluation.cantidadCorrecta.puntaje / 10) * 100}
+                                            color={getScoreColor(evaluation.cantidadCorrecta.puntaje) as any}
+                                            className="flex-1 max-w-xs"
+                                            size="sm"
+                                        />
                                     </div>
                                     {evaluation.cantidadCorrecta.comentario && (
                                         <p className="text-sm text-gray-600 mt-2">{evaluation.cantidadCorrecta.comentario}</p>
+                                    )}
+
+                                    {/* Mostrar archivos si existen (ALMACEN) */}
+                                    {evaluation.archivos && evaluation.archivos.length > 0 && (
+                                        <div className="mt-3">
+                                            <p className="text-xs font-semibold text-gray-600 mb-2">Archivos adjuntos:</p>
+                                            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                                                {evaluation.archivos
+                                                    .filter(archivo => archivo.tipo === 'almacen')
+                                                    .map((archivo, index) => (
+                                                        <div key={index} className="relative group">
+                                                            <a
+                                                                href={archivo.url}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="block"
+                                                            >
+                                                                {archivo.url.match(/\.(jpg|jpeg|png|gif|webp)/i) || archivo.nombre.match(/\.(jpg|jpeg|png|gif|webp)/i) ? (
+                                                                    <img
+                                                                        src={archivo.url}
+                                                                        alt={archivo.nombre}
+                                                                        className="w-full h-32 object-cover rounded-lg border border-gray-200 hover:border-blue-400 transition-colors cursor-pointer"
+                                                                        onError={(e) => {
+                                                                            (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100" height="100"%3E%3Crect width="100" height="100" fill="%23e5e7eb"/%3E%3Ctext x="50" y="50" text-anchor="middle" dy=".3em" fill="%239ca3af" font-size="12"%3EImagen%3C/text%3E%3C/svg%3E';
+                                                                        }}
+                                                                    />
+                                                                ) : (
+                                                                    <div className="w-full h-32 bg-gray-100 rounded-lg border border-gray-200 flex items-center justify-center cursor-pointer hover:bg-gray-200 transition-colors">
+                                                                        <DocumentTextIcon className="w-8 h-8 text-gray-400" />
+                                                                    </div>
+                                                                )}
+                                                                <p className="text-xs text-gray-600 mt-1 truncate" title={archivo.nombre}>
+                                                                    {archivo.nombre}
+                                                                </p>
+                                                            </a>
+                                                        </div>
+                                                    ))}
+                                            </div>
+                                        </div>
                                     )}
                                 </div>
                             ) : (

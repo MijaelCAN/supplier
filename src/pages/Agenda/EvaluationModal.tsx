@@ -15,7 +15,7 @@ import {
 } from '@heroui/react';
 import { StarIcon, DocumentArrowUpIcon } from '@heroicons/react/24/outline';
 import { DeliveryEvaluation, EvaluationScore } from '@/store/types';
-import { saveEvaluation, uploadEvaluationFile } from '@/services/agenda/evaluationsApi';
+import { saveEvaluation, EVALUATION_CRITERIA_CODES } from '@/services/agenda/evaluationsApi';
 import { UserRole } from '@/routes/menuTypes';
 
 interface EvaluationModalProps {
@@ -26,6 +26,8 @@ interface EvaluationModalProps {
     evaluationType: 'puntualidad' | 'documentacion' | 'estadoMercaderia' | 'cantidadCorrecta' | 'full';
     currentEvaluation?: DeliveryEvaluation;
     onEvaluationSaved?: (evaluation: DeliveryEvaluation) => void;
+    appointment?: any; // DeliveryAppointment - para generar reclamo
+    onReject?: (evaluation: DeliveryEvaluation) => void; // Callback cuando se rechaza
 }
 
 const EvaluationModal: React.FC<EvaluationModalProps> = ({
@@ -36,6 +38,8 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({
     evaluationType,
     currentEvaluation,
     onEvaluationSaved,
+    appointment,
+    onReject,
 }) => {
     const [score, setScore] = useState<number>(0);
     const [comment, setComment] = useState<string>('');
@@ -43,6 +47,9 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({
     const [file, setFile] = useState<File | null>(null);
     const [isUploading, setIsUploading] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
+    // Estados específicos para estadoMercaderia
+    const [estadoMercaderia, setEstadoMercaderia] = useState<'ACEPTADO' | 'OBSERVADO' | 'RECHAZADO' | ''>('');
+    const [files, setFiles] = useState<File[]>([]); // Múltiples archivos para estadoMercaderia
 
     // Títulos y descripciones según el tipo
     const getEvaluationConfig = () => {
@@ -106,8 +113,16 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({
                 setScore(currentEvaluation.documentacion.puntaje || 0);
                 setComment(currentEvaluation.documentacion.comentario || '');
             } else if (evaluationType === 'estadoMercaderia' && currentEvaluation.estadoMercaderia) {
-                setScore(currentEvaluation.estadoMercaderia.puntaje || 0);
+                setEstadoMercaderia(currentEvaluation.estadoMercaderia.estado || '');
+                // El comentario puede ser el motivo o comentario adicional
                 setComment(currentEvaluation.estadoMercaderia.comentario || '');
+                // Si hay puntaje antiguo, convertirlo a estado si es necesario (escala 1-10)
+                if (!currentEvaluation.estadoMercaderia.estado && currentEvaluation.estadoMercaderia.puntaje) {
+                    const oldScore = currentEvaluation.estadoMercaderia.puntaje;
+                    if (oldScore >= 9.0) setEstadoMercaderia('ACEPTADO');
+                    else if (oldScore >= 5.0) setEstadoMercaderia('OBSERVADO');
+                    else setEstadoMercaderia('RECHAZADO');
+                }
             } else if (evaluationType === 'cantidadCorrecta' && currentEvaluation.cantidadCorrecta) {
                 setScore(currentEvaluation.cantidadCorrecta.puntaje || 0);
                 setComment(currentEvaluation.cantidadCorrecta.comentario || '');
@@ -120,11 +135,24 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({
             setComment('');
             setGeneralComment('');
             setFile(null);
+            setEstadoMercaderia('');
+            setFiles([]);
         }
     }, [isOpen, currentEvaluation, evaluationType]);
 
     const handleSave = async () => {
-        if (evaluationType !== 'full' && score === 0) {
+        // Validaciones específicas para estadoMercaderia
+        if (evaluationType === 'estadoMercaderia') {
+            if (!estadoMercaderia) {
+                alert('Por favor seleccione un estado (ACEPTADO, OBSERVADO o RECHAZADO)');
+                return;
+            }
+            if ((estadoMercaderia === 'OBSERVADO' || estadoMercaderia === 'RECHAZADO') && !comment.trim()) {
+                const tipoMotivo = estadoMercaderia === 'OBSERVADO' ? 'observación' : 'rechazo';
+                alert(`Por favor ingrese el motivo de ${tipoMotivo}`);
+                return;
+            }
+        } else if (evaluationType !== 'full' && score === 0) {
             alert('Por favor seleccione un puntaje');
             return;
         }
@@ -152,9 +180,16 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({
                     fechaEvaluacion: new Date().toISOString(),
                 };
             } else if (evaluationType === 'estadoMercaderia') {
+                // Convertir estado a puntaje para cálculo (escala 1-10: ACEPTADO=10, OBSERVADO=7, RECHAZADO=2)
+                const puntajeMap: Record<string, number> = {
+                    'ACEPTADO': 10,
+                    'OBSERVADO': 7,
+                    'RECHAZADO': 2
+                };
                 evaluation.estadoMercaderia = {
-                    puntaje: score,
-                    comentario: comment,
+                    puntaje: puntajeMap[estadoMercaderia] || 0,
+                    estado: estadoMercaderia as 'ACEPTADO' | 'OBSERVADO' | 'RECHAZADO',
+                    comentario: comment || undefined, // Comentario se usa como motivo cuando es OBSERVADO o RECHAZADO
                     evaluadoPor: userRole,
                     fechaEvaluacion: new Date().toISOString(),
                 };
@@ -186,53 +221,130 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({
                 }
             }
 
-            const savedEvaluation = await saveEvaluation(evaluation, userRole);
-
-            // Subir archivo si existe y es permitido
-            if (file && canUploadFile) {
-                setIsUploading(true);
-                try {
-                    const fileType = userRole === UserRole.CALIDAD ? 'calidad' : 'almacen';
-                    await uploadEvaluationFile(codCita, file, fileType, userRole);
-                } catch (error) {
-                    console.error('Error al subir archivo:', error);
-                    alert('La evaluación se guardó pero hubo un error al subir el archivo');
-                } finally {
-                    setIsUploading(false);
+            // Preparar archivos para enviar con los criterios
+            const filesToSend: { criterioCodigo: string; file: File }[] = [];
+            
+            if (canUploadFile) {
+                if (evaluationType === 'estadoMercaderia' && files.length > 0) {
+                    // Múltiples archivos para estadoMercaderia
+                    files.forEach(f => {
+                        filesToSend.push({
+                            criterioCodigo: EVALUATION_CRITERIA_CODES.ESTADO_MERCADERIA,
+                            file: f,
+                        });
+                    });
+                } else if (evaluationType === 'cantidadCorrecta' && file) {
+                    // Un archivo para cantidadCorrecta
+                    filesToSend.push({
+                        criterioCodigo: EVALUATION_CRITERIA_CODES.CANTIDAD_CORRECTA,
+                        file: file,
+                    });
                 }
             }
+
+            const savedEvaluation = await saveEvaluation(evaluation, userRole, filesToSend.length > 0 ? filesToSend : undefined);
 
             if (onEvaluationSaved) {
                 onEvaluationSaved(savedEvaluation);
             }
 
-            alert('Evaluación guardada exitosamente');
-            onOpenChange(false);
+            // Si es estadoMercaderia y se rechazó, abrir modal de reclamo
+            if (evaluationType === 'estadoMercaderia' && estadoMercaderia === 'RECHAZADO') {
+                if (onReject) {
+                    onOpenChange(false);
+                    // Pequeño delay para que se cierre el modal actual
+                    setTimeout(() => {
+                        onReject(savedEvaluation);
+                    }, 300);
+                } else {
+                    alert('Evaluación guardada exitosamente. Nota: Debe generar el reclamo manualmente.');
+                    onOpenChange(false);
+                }
+            } else {
+                alert('Evaluación guardada exitosamente');
+                onOpenChange(false);
+            }
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Error al guardar evaluación';
-            alert(`Error: ${errorMessage}`);
             console.error('Error al guardar evaluación:', error);
+            
+            // Si es RECHAZADO, permitir abrir el modal de reclamo incluso si falla el guardado
+            if (evaluationType === 'estadoMercaderia' && estadoMercaderia === 'RECHAZADO' && onReject) {
+                const shouldOpenClaim = window.confirm(
+                    `Error al guardar la evaluación: ${errorMessage}\n\n` +
+                    `¿Desea generar el reclamo de todas formas? (La evaluación no se guardó en el sistema)`
+                );
+                
+                if (shouldOpenClaim) {
+                    // Crear una evaluación temporal para el reclamo
+                    const tempEvaluation: DeliveryEvaluation = {
+                        codCita,
+                        estadoMercaderia: {
+                            puntaje: 1,
+                            estado: 'RECHAZADO',
+                            comentario: comment,
+                            evaluadoPor: userRole,
+                            fechaEvaluacion: new Date().toISOString(),
+                        },
+                    };
+                    
+                    onOpenChange(false);
+                    setTimeout(() => {
+                        onReject(tempEvaluation);
+                    }, 300);
+                } else {
+                    onOpenChange(false);
+                }
+            } else {
+                alert(`Error al guardar la evaluación: ${errorMessage}\n\nPor favor, intente nuevamente.`);
+                // No cerrar el modal si hay error, para que el usuario pueda corregir
+            }
         } finally {
             setIsSaving(false);
         }
     };
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const selectedFile = e.target.files?.[0];
-        if (selectedFile) {
-            // Validar tipo de archivo
-            const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
-            if (!allowedTypes.includes(selectedFile.type)) {
+        const selectedFiles = e.target.files;
+        if (!selectedFiles || selectedFiles.length === 0) return;
+
+        const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg', 'video/mp4', 'video/quicktime', 'video/x-msvideo'];
+        const maxSize = 50 * 1024 * 1024; // 50MB para videos
+
+        if (evaluationType === 'estadoMercaderia') {
+            // Permitir múltiples archivos para estadoMercaderia
+            const validFiles: File[] = [];
+            for (let i = 0; i < selectedFiles.length; i++) {
+                const file = selectedFiles[i];
+                if (!allowedTypes.includes(file.type)) {
+                    alert(`El archivo ${file.name} no es válido. Solo se permiten PDF, imágenes (JPG, PNG) y videos (MP4, MOV, AVI)`);
+                    continue;
+                }
+                if (file.size > maxSize) {
+                    alert(`El archivo ${file.name} excede el tamaño máximo de 50MB`);
+                    continue;
+                }
+                validFiles.push(file);
+            }
+            setFiles([...files, ...validFiles]);
+        } else {
+            // Un solo archivo para otros tipos
+            const selectedFile = selectedFiles[0];
+            const allowedTypesSingle = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
+            if (!allowedTypesSingle.includes(selectedFile.type)) {
                 alert('Solo se permiten archivos PDF e imágenes (JPG, PNG)');
                 return;
             }
-            // Validar tamaño (máximo 10MB)
             if (selectedFile.size > 10 * 1024 * 1024) {
                 alert('El archivo no debe exceder 10MB');
                 return;
             }
             setFile(selectedFile);
         }
+    };
+
+    const handleRemoveFile = (index: number) => {
+        setFiles(files.filter((_, i) => i !== index));
     };
 
     return (
@@ -255,42 +367,112 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({
                             <div className="space-y-4">
                                 {evaluationType !== 'full' && (
                                     <>
-                                        <div>
-                                            <label className="text-sm font-medium text-gray-700 mb-2 block">
-                                                {config.label} (1-5)
-                                            </label>
-                                            <div className="flex gap-2">
-                                                {[1, 2, 3, 4, 5].map((value) => (
-                                                    <button
-                                                        key={value}
-                                                        type="button"
-                                                        onClick={() => setScore(value)}
-                                                        className={`flex-1 p-3 rounded-lg border-2 transition-all ${
-                                                            score === value
-                                                                ? 'border-blue-500 bg-blue-50 text-blue-700'
-                                                                : 'border-gray-300 bg-white text-gray-700 hover:border-blue-300'
-                                                        }`}
-                                                    >
-                                                        <div className="flex items-center justify-center gap-1">
-                                                            <StarIcon
-                                                                className={`w-5 h-5 ${
-                                                                    score >= value ? 'fill-yellow-400 text-yellow-400' : ''
+                                        {evaluationType === 'estadoMercaderia' ? (
+                                            <>
+                                                {/* Selector de Estado para Estado de Mercadería */}
+                                                <div>
+                                                    <label className="text-sm font-medium text-gray-700 mb-2 block">
+                                                        Estado de la Mercadería *
+                                                    </label>
+                                                    <div className="grid grid-cols-3 gap-3">
+                                                        {(['ACEPTADO', 'OBSERVADO', 'RECHAZADO'] as const).map((estado) => (
+                                                            <button
+                                                                key={estado}
+                                                                type="button"
+                                                                onClick={() => setEstadoMercaderia(estado)}
+                                                                className={`p-4 rounded-lg border-2 transition-all ${
+                                                                    estadoMercaderia === estado
+                                                                        ? estado === 'ACEPTADO'
+                                                                            ? 'border-green-500 bg-green-50 text-green-700'
+                                                                            : estado === 'OBSERVADO'
+                                                                            ? 'border-yellow-500 bg-yellow-50 text-yellow-700'
+                                                                            : 'border-red-500 bg-red-50 text-red-700'
+                                                                        : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
                                                                 }`}
-                                                            />
-                                                            <span className="font-semibold">{value}</span>
-                                                        </div>
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </div>
+                                                            >
+                                                                <div className="flex flex-col items-center gap-2">
+                                                                    <span className="font-semibold text-lg">{estado}</span>
+                                                                </div>
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
 
-                                        <Textarea
-                                            label="Comentario"
-                                            placeholder="Agregue un comentario sobre esta evaluación..."
-                                            value={comment}
-                                            onValueChange={setComment}
-                                            minRows={3}
-                                        />
+                                                {/* Campo de Comentario/Motivo (label dinámico según estado) */}
+                                                <Textarea
+                                                    label={
+                                                        estadoMercaderia === 'ACEPTADO'
+                                                            ? 'Comentario (Opcional)'
+                                                            : estadoMercaderia === 'OBSERVADO'
+                                                            ? 'Motivo de Observación'
+                                                            : estadoMercaderia === 'RECHAZADO'
+                                                            ? 'Motivo de Rechazo'
+                                                            : 'Comentario'
+                                                    }
+                                                    placeholder={
+                                                        estadoMercaderia === 'ACEPTADO'
+                                                            ? 'Agregue un comentario opcional sobre esta evaluación...'
+                                                            : estadoMercaderia === 'OBSERVADO'
+                                                            ? 'Ingrese el motivo de la observación...'
+                                                            : estadoMercaderia === 'RECHAZADO'
+                                                            ? 'Ingrese el motivo del rechazo...'
+                                                            : 'Seleccione un estado primero...'
+                                                    }
+                                                    value={comment}
+                                                    onValueChange={setComment}
+                                                    minRows={3}
+                                                    isRequired={estadoMercaderia === 'OBSERVADO' || estadoMercaderia === 'RECHAZADO'}
+                                                    isDisabled={!estadoMercaderia}
+                                                />
+                                            </>
+                                        ) : (
+                                            <>
+                                                {/* Selector de Puntaje para otros tipos (escala 1-10) */}
+                                                <div>
+                                                    <label className="text-sm font-medium text-gray-700 mb-2 block">
+                                                        {config.label} (1-10)
+                                                    </label>
+                                                    <div className="flex gap-2 flex-wrap">
+                                                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((value) => (
+                                                            <button
+                                                                key={value}
+                                                                type="button"
+                                                                onClick={() => setScore(value)}
+                                                                className={`flex-1 min-w-[60px] p-3 rounded-lg border-2 transition-all ${
+                                                                    score === value
+                                                                        ? 'border-blue-500 bg-blue-50 text-blue-700'
+                                                                        : 'border-gray-300 bg-white text-gray-700 hover:border-blue-300'
+                                                                }`}
+                                                            >
+                                                                <div className="flex flex-col items-center justify-center gap-1">
+                                                                    <StarIcon
+                                                                        className={`w-5 h-5 ${
+                                                                            score >= value ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'
+                                                                        }`}
+                                                                    />
+                                                                    <span className="font-semibold text-sm">{value}</span>
+                                                                </div>
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                    {score > 0 && (
+                                                        <div className="mt-3 text-center">
+                                                            <span className="text-sm font-semibold text-gray-700">
+                                                                Puntaje seleccionado: {score}/10
+                                                            </span>
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                <Textarea
+                                                    label="Comentario"
+                                                    placeholder="Agregue un comentario sobre esta evaluación..."
+                                                    value={comment}
+                                                    onValueChange={setComment}
+                                                    minRows={3}
+                                                />
+                                            </>
+                                        )}
                                     </>
                                 )}
 
@@ -307,11 +489,16 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({
                                 {canUploadFile && (
                                     <div>
                                         <label className="text-sm font-medium text-gray-700 mb-2 block">
-                                            Archivo Adjunto (PDF, JPG, PNG - Máx. 10MB)
+                                            {evaluationType === 'estadoMercaderia' 
+                                                ? 'Archivos Adjuntos (PDF, Imágenes, Videos - Máx. 50MB por archivo)' 
+                                                : 'Archivo Adjunto (PDF, JPG, PNG - Máx. 10MB)'}
                                         </label>
                                         <input
                                             type="file"
-                                            accept=".pdf,.jpg,.jpeg,.png"
+                                            accept={evaluationType === 'estadoMercaderia' 
+                                                ? ".pdf,.jpg,.jpeg,.png,.mp4,.mov,.avi" 
+                                                : ".pdf,.jpg,.jpeg,.png"}
+                                            multiple={evaluationType === 'estadoMercaderia'}
                                             onChange={handleFileChange}
                                             className="block w-full text-sm text-gray-500
                                                 file:mr-4 file:py-2 file:px-4
@@ -320,7 +507,29 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({
                                                 file:bg-blue-50 file:text-blue-700
                                                 hover:file:bg-blue-100"
                                         />
-                                        {file && (
+                                        {evaluationType === 'estadoMercaderia' && files.length > 0 && (
+                                            <div className="mt-2 space-y-2">
+                                                {files.map((file, index) => (
+                                                    <div key={index} className="p-2 bg-gray-50 rounded-lg flex items-center justify-between">
+                                                        <div className="flex-1">
+                                                            <p className="text-sm text-gray-700 font-medium">{file.name}</p>
+                                                            <p className="text-xs text-gray-500">
+                                                                {(file.size / 1024 / 1024).toFixed(2)} MB • {file.type.includes('video') ? 'Video' : file.type.includes('image') ? 'Imagen' : 'PDF'}
+                                                            </p>
+                                                        </div>
+                                                        <Button
+                                                            size="sm"
+                                                            variant="light"
+                                                            color="danger"
+                                                            onPress={() => handleRemoveFile(index)}
+                                                        >
+                                                            Eliminar
+                                                        </Button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                        {evaluationType !== 'estadoMercaderia' && file && (
                                             <div className="mt-2 p-2 bg-gray-50 rounded-lg">
                                                 <p className="text-sm text-gray-700">
                                                     Archivo seleccionado: {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)
@@ -343,7 +552,11 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({
                                 color="primary"
                                 onPress={handleSave}
                                 isLoading={isSaving || isUploading}
-                                isDisabled={evaluationType !== 'full' && score === 0}
+                                isDisabled={
+                                    evaluationType === 'estadoMercaderia' 
+                                        ? !estadoMercaderia || ((estadoMercaderia === 'OBSERVADO' || estadoMercaderia === 'RECHAZADO') && !comment.trim())
+                                        : evaluationType !== 'full' && score === 0
+                                }
                             >
                                 {isSaving ? 'Guardando...' : isUploading ? 'Subiendo archivo...' : 'Guardar Evaluación'}
                             </Button>

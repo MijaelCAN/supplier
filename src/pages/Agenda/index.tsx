@@ -29,7 +29,9 @@ import {
     PlusIcon,
     ArrowLeftIcon,
     ArrowRightIcon,
-    CalendarDaysIcon
+    CalendarDaysIcon,
+    Squares2X2Icon,
+    ListBulletIcon
 } from "@heroicons/react/24/outline";
 import Dashboard from "@/layouts/Dashboard";
 import { useAgendaStore } from "@/store/agendaStore";
@@ -38,7 +40,7 @@ import { UserRole } from "@/routes/menuTypes";
 import { DeliveryAppointment, PackingListItem } from "@/store/types";
 import { useNavigate, useLocation } from 'react-router-dom';
 import ScheduleAppointmentModal from './Scheduleappointmentmodal';
-import { fetchPackingListFromApi, createPackingListInApi, fetchWarehousesFromApi, WarehouseApiRecord, fetchDocumentsFromApi, DocumentApiRecord, fetchDocumentDetailFromApi, uploadFileToPackingList } from "@/services/agenda/packingListApi";
+import { fetchPackingListFromApi, createPackingListInApi, fetchWarehousesFromApi, WarehouseApiRecord, fetchDocumentsFromApi, DocumentApiRecord, fetchDocumentDetailFromApi, uploadFileToPackingList, fetchProductsFromApi, ProductApiRecord } from "@/services/agenda/packingListApi";
 import { formatDateForAPI } from "@/services/agenda/appointmentsApi";
 
 import { createChoferInApi } from "@/services/agenda/choferesApi";
@@ -75,6 +77,7 @@ const Agenda: React.FC = () => {
     const [packingListItems, setPackingListItems] = useState<PackingListItem[]>([]);
     const [filterStatus, setFilterStatus] = useState<string>('all');
     const [scrollbarWidth, setScrollbarWidth] = useState<number>(0);
+    const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar'); // Toggle entre calendario y lista
     
     // Estado para vista ampliada
     const [extendedViewAppointments, setExtendedViewAppointments] = useState<DeliveryAppointment[]>([]);
@@ -84,6 +87,19 @@ const Agenda: React.FC = () => {
         const now = new Date();
         return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     });
+    
+    // Estado para datos de lista (productos)
+    const [listViewData, setListViewData] = useState<ProductApiRecord[]>([]);
+    const [isLoadingListView, setIsLoadingListView] = useState(false);
+    
+    // Estados para filtros de búsqueda por columna
+    const [filterFecha, setFilterFecha] = useState<string>('');
+    const [filterNumber, setFilterNumber] = useState<string>('');
+    const [filterItemCode, setFilterItemCode] = useState<string>('');
+    const [filterItemName, setFilterItemName] = useState<string>('');
+    const [filterRazonSocial, setFilterRazonSocial] = useState<string>('');
+    const [filterQuantity, setFilterQuantity] = useState<string>('');
+    const [filterHorario, setFilterHorario] = useState<string>('');
 
     // Modals
     const { isOpen: isScheduleOpen, onOpen: onScheduleOpen, onOpenChange: onScheduleOpenChange } = useDisclosure();
@@ -279,6 +295,103 @@ const Agenda: React.FC = () => {
         // weekStart y weekEnd están memoizados basados en currentWeek, así que currentWeek.getTime() es suficiente
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentWeek.getTime(), currentUser?.id, currentUser?.role, currentUser?.username]);
+
+    // Cargar datos para vista de lista (fusionar citas y packing lists)
+    useEffect(() => {
+        const loadListViewData = async () => {
+            if (viewMode !== 'list') return;
+            
+            setIsLoadingListView(true);
+            try {
+                const fechaInicio = formatDateForAPI(weekStart);
+                const fechaFin = formatDateForAPI(weekEnd);
+                
+                // Llamar al nuevo endpoint de productos
+                const products = await fetchProductsFromApi(fechaInicio, fechaFin);
+                
+                setListViewData(products);
+            } catch (error) {
+                console.error('Error al cargar datos de lista:', error);
+                setListViewData([]);
+            } finally {
+                setIsLoadingListView(false);
+            }
+        };
+        
+        loadListViewData();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [viewMode, weekStart, weekEnd]);
+
+    // Función para formatear fecha desde formato "19/01/2026 00:00:00" a formato legible
+    const formatDateFromAPI = (dateStr: string): string => {
+        try {
+            // Formato: "19/01/2026 00:00:00"
+            const datePart = dateStr.split(' ')[0]; // "19/01/2026"
+            const [day, month, year] = datePart.split('/');
+            if (day && month && year) {
+                return `${day}/${month}/${year}`;
+            }
+        } catch (error) {
+            console.error('Error al formatear fecha:', error);
+        }
+        return dateStr;
+    };
+
+    // Función para formatear horario desde formato "1100 - 1200" a formato legible "11:00 - 12:00"
+    const formatHorario = (horario: string): string => {
+        try {
+            if (!horario) return '-';
+            // Formato: "1100 - 1200"
+            const parts = horario.split(' - ');
+            if (parts.length === 2) {
+                const formatTime = (time: string) => {
+                    if (time.length === 4) {
+                        return `${time.substring(0, 2)}:${time.substring(2, 4)}`;
+                    }
+                    return time;
+                };
+                return `${formatTime(parts[0])} - ${formatTime(parts[1])}`;
+            }
+        } catch (error) {
+            console.error('Error al formatear horario:', error);
+        }
+        return horario;
+    };
+
+    // Filtrar datos según los filtros de búsqueda
+    const filteredListViewData = useMemo(() => {
+        return listViewData.filter(product => {
+            // Filtrar por fecha
+            if (filterFecha && !formatDateFromAPI(product.U_Fecha).toLowerCase().includes(filterFecha.toLowerCase())) {
+                return false;
+            }
+            // Filtrar por Number
+            if (filterNumber && !product.Number.toLowerCase().includes(filterNumber.toLowerCase())) {
+                return false;
+            }
+            // Filtrar por ItemCode
+            if (filterItemCode && !product.ItemCode.toLowerCase().includes(filterItemCode.toLowerCase())) {
+                return false;
+            }
+            // Filtrar por ItemName
+            if (filterItemName && !product.ItemName.toLowerCase().includes(filterItemName.toLowerCase())) {
+                return false;
+            }
+            // Filtrar por U_RazonSocial
+            if (filterRazonSocial && !product.U_RazonSocial.toLowerCase().includes(filterRazonSocial.toLowerCase())) {
+                return false;
+            }
+            // Filtrar por Quantity
+            if (filterQuantity && !product.Quantity.toLowerCase().includes(filterQuantity.toLowerCase())) {
+                return false;
+            }
+            // Filtrar por Horario
+            if (filterHorario && !formatHorario(product.Horario).toLowerCase().includes(filterHorario.toLowerCase())) {
+                return false;
+            }
+            return true;
+        });
+    }, [listViewData, filterFecha, filterNumber, filterItemCode, filterItemName, filterRazonSocial, filterQuantity, filterHorario]);
 
     // Get days of the week
     const weekDays = useMemo(() => {
@@ -1272,25 +1385,215 @@ const Agenda: React.FC = () => {
                         <h1 className="text-3xl font-bold text-gray-900">Agenda de Entregas</h1>
                         <p className="text-gray-600 mt-1">Gestiona las entregas programadas de proveedores</p>
                     </div>
-                    {canCreateAppointment && (
+                    <div className="flex items-center gap-2">
+                        {/* Toggle entre vista calendario y lista */}
                         <Button
+                            isIconOnly
+                            variant="flat"
                             color="primary"
-                            startContent={<PlusIcon className="w-5 h-5" />}
-                            onPress={onScheduleOpen}
+                            onPress={() => setViewMode(prev => prev === 'calendar' ? 'list' : 'calendar')}
+                            title={viewMode === 'calendar' ? 'Ver como Lista' : 'Ver como Calendario'}
                         >
-                            Programar Entrega
+                            {viewMode === 'calendar' ? (
+                                <ListBulletIcon className="w-5 h-5" />
+                            ) : (
+                                <Squares2X2Icon className="w-5 h-5" />
+                            )}
                         </Button>
-                    )}
+                        {canCreateAppointment && (
+                            <Button
+                                color="primary"
+                                startContent={<PlusIcon className="w-5 h-5" />}
+                                onPress={onScheduleOpen}
+                            >
+                                Programar Entrega
+                            </Button>
+                        )}
+                    </div>
                 </div>
 
-                {/* Weekly Calendar - Modern Design */}
-                <Card
-                    className="shadow-lg border-r-0 rounded-none flex flex-col"
-                    style={{
-                        minHeight: 'calc(100vh - 100px)', // Ajusta '100px' si tu header/márgenes superiores ocupan más/menos
-                        height: 'calc(100vh - 100px)',   // Opcional, asegura altura mínima y fija
-                    }}
-                >
+                {/* Vista de Lista o Calendario */}
+                {viewMode === 'list' ? (
+                    <>
+                        {/* Controles de navegación y filtros - Fuera del Card */}
+                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4 bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                                <Button
+                                    isIconOnly
+                                    variant="light"
+                                    size="sm"
+                                    onPress={goToPreviousWeek}
+                                    className="hover:bg-gray-200"
+                                    isDisabled={isLoadingListView}
+                                >
+                                    <ArrowLeftIcon className="w-5 h-5" />
+                                </Button>
+                                <span className="block min-w-[160px] px-2 text-center">
+                                    <h2 className="text-xl font-bold text-gray-900 whitespace-nowrap leading-none">
+                                        {weekStart.toLocaleDateString('es-PE', { month: 'long', year: 'numeric' })}
+                                    </h2>
+                                </span>
+                                <Button
+                                    isIconOnly
+                                    variant="light"
+                                    size="sm"
+                                    onPress={goToNextWeek}
+                                    className="hover:bg-gray-200"
+                                    isDisabled={isLoadingListView}
+                                >
+                                    <ArrowRightIcon className="w-5 h-5" />
+                                </Button>
+                                <Button
+                                    variant="light"
+                                    size="sm"
+                                    onPress={goToToday}
+                                    className="ml-2"
+                                    isDisabled={isLoadingListView}
+                                >
+                                    Hoy
+                                </Button>
+                            </div>
+                            <div className="flex items-center gap-2 flex-shrink-0 justify-end min-w-[150px]">
+                                {isLoadingListView && (
+                                    <Chip color="primary" variant="flat" size="sm">
+                                        Cargando...
+                                    </Chip>
+                                )}
+                                <Chip color="primary" variant="flat" size="md">
+                                    {filteredListViewData.length} {filteredListViewData.length === 1 ? 'producto' : 'productos'}
+                                </Chip>
+                            </div>
+                        </div>
+
+                        {/* Card de Lista - Filtros y tabla */}
+                        <Card className="shadow-lg border-r-0 rounded-none flex flex-col" style={{ minHeight: 'calc(100vh - 200px)', height: 'calc(100vh - 200px)' }}>
+                            <CardBody className="p-4 rounded-none flex-1 flex flex-col" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+                                {/* Filtros de búsqueda fuera de la tabla */}
+                                <div className="flex-shrink-0 mb-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-4">
+                                        <Input
+                                            size="sm"
+                                            label="Fecha"
+                                            placeholder="Buscar fecha..."
+                                            value={filterFecha}
+                                            onValueChange={setFilterFecha}
+                                            classNames={{ base: "w-full" }}
+                                        />
+                                        <Input
+                                            size="sm"
+                                            label="Número"
+                                            placeholder="Buscar número..."
+                                            value={filterNumber}
+                                            onValueChange={setFilterNumber}
+                                            classNames={{ base: "w-full" }}
+                                        />
+                                        <Input
+                                            size="sm"
+                                            label="Código"
+                                            placeholder="Buscar código..."
+                                            value={filterItemCode}
+                                            onValueChange={setFilterItemCode}
+                                            classNames={{ base: "w-full" }}
+                                        />
+                                        <Input
+                                            size="sm"
+                                            label="Descripción"
+                                            placeholder="Buscar descripción..."
+                                            value={filterItemName}
+                                            onValueChange={setFilterItemName}
+                                            classNames={{ base: "w-full" }}
+                                        />
+                                        <Input
+                                            size="sm"
+                                            label="Proveedor"
+                                            placeholder="Buscar proveedor..."
+                                            value={filterRazonSocial}
+                                            onValueChange={setFilterRazonSocial}
+                                            classNames={{ base: "w-full" }}
+                                        />
+                                        <Input
+                                            size="sm"
+                                            label="Cantidad"
+                                            placeholder="Buscar cantidad..."
+                                            value={filterQuantity}
+                                            onValueChange={setFilterQuantity}
+                                            classNames={{ base: "w-full" }}
+                                        />
+                                        <Input
+                                            size="sm"
+                                            label="Horario"
+                                            placeholder="Buscar horario..."
+                                            value={filterHorario}
+                                            onValueChange={setFilterHorario}
+                                            classNames={{ base: "w-full" }}
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Tabla */}
+                                {isLoadingListView ? (
+                                    <div className="p-8 text-center rounded-none flex-1 flex items-center justify-center">
+                                        <p className="text-gray-500">Cargando datos...</p>
+                                    </div>
+                                ) : filteredListViewData.length === 0 ? (
+                                    <div className="p-8 text-center rounded-none flex-1 flex items-center justify-center">
+                                        <p className="text-gray-500">No hay datos para mostrar</p>
+                                    </div>
+                                ) : (
+                                    <div className="overflow-auto flex-1">
+                                        <Table aria-label="Tabla de productos" classNames={{
+                                            wrapper: "min-h-[222px]",
+                                        }}>
+                                            <TableHeader>
+                                                <TableColumn className="w-[100px] min-w-[100px]">FECHA</TableColumn>
+                                                <TableColumn className="w-[120px] min-w-[120px]">NÚMERO</TableColumn>
+                                                <TableColumn className="w-[120px] min-w-[120px]">CÓDIGO</TableColumn>
+                                                <TableColumn>DESCRIPCIÓN</TableColumn>
+                                                <TableColumn>PROVEEDOR</TableColumn>
+                                                <TableColumn className="w-[100px] min-w-[100px]">CANTIDAD</TableColumn>
+                                                <TableColumn className="w-[120px] min-w-[120px]">HORARIO</TableColumn>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {filteredListViewData.map((row, index) => (
+                                                    <TableRow 
+                                                        key={`${row.Number}-${row.ItemCode}-${index}`}
+                                                        className="hover:bg-gray-50"
+                                                    >
+                                                        <TableCell className="whitespace-nowrap">
+                                                            {formatDateFromAPI(row.U_Fecha)}
+                                                        </TableCell>
+                                                        <TableCell className="whitespace-nowrap">{row.Number}</TableCell>
+                                                        <TableCell className="whitespace-nowrap">{row.ItemCode}</TableCell>
+                                                        <TableCell>
+                                                            <div className="truncate max-w-full" title={row.ItemName}>
+                                                                {row.ItemName}
+                                                            </div>
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <div className="truncate max-w-full" title={row.U_RazonSocial}>
+                                                                {row.U_RazonSocial}
+                                                            </div>
+                                                        </TableCell>
+                                                        <TableCell className="whitespace-nowrap">{row.Quantity}</TableCell>
+                                                        <TableCell className="whitespace-nowrap">{formatHorario(row.Horario)}</TableCell>
+                                                    </TableRow>
+                                                ))}
+                                            </TableBody>
+                                        </Table>
+                                    </div>
+                                )}
+                            </CardBody>
+                        </Card>
+                    </>
+                ) : (
+                    /* Vista de Calendario */
+                    <Card
+                        className="shadow-lg border-r-0 rounded-none flex flex-col"
+                        style={{
+                            minHeight: 'calc(100vh - 100px)', // Ajusta '100px' si tu header/márgenes superiores ocupan más/menos
+                            height: 'calc(100vh - 100px)',   // Opcional, asegura altura mínima y fija
+                        }}
+                    >
                     <CardHeader className="border-b border-gray-200 bg-gray-50 py-2 px-4 rounded-none">
                         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 w-full">
                             {/* Left section: Navigation and Title */}
@@ -1591,6 +1894,7 @@ const Agenda: React.FC = () => {
                         )}
                     </CardBody>
                 </Card>
+                )}
 
                 {/* Schedule Appointment Modal */}
                 <ScheduleAppointmentModal

@@ -64,25 +64,24 @@ const supplierRegisterSchema = z.object({
 
 type SupplierRegisterFormData = z.infer<typeof supplierRegisterSchema>
 
-// Interface para los datos de SUNAT
+// Interface para los datos de SUNAT (nuevo formato apiperu.dev)
 interface SunatData {
     ruc: string;
-    razon_social: string;
-    tipo_contribuyente: string;
-    nombre_comercial: string;
-    fecha_inscripcion: string;
-    fecha_inicio_actividades: string;
+    nombre_o_razon_social: string;
     estado: string;
     condicion: string;
-    domicilio_fiscal: {
-        direccion: string;
-        distrito: string;
-        provincia: string;
-        departamento: string;
-    };
-    actividades_economicas?: string[];
-    agente_retencion?: string;
-    agente_percepcion?: string;
+    direccion: string;
+    direccion_completa: string;
+    departamento: string;
+    provincia: string;
+    distrito: string;
+    ubigeo_sunat: string;
+    ubigeo: string[];
+    actividades_economicas: string[];
+    es_agente_de_retencion: string;
+    es_agente_de_percepcion: string;
+    es_agente_de_percepcion_combustible: string;
+    es_buen_contribuyente: string;
 }
 
 interface ModalRegisterProps {
@@ -213,23 +212,46 @@ const ModalRegister: FC<ModalRegisterProps> = ({
             setBlackListRecord(blackListData)
 
             // Procesar respuesta de SUNAT
-            if (!sunatResponse.success || !sunatResponse.datos) {
+            if (!sunatResponse.success || !sunatResponse.data) {
                 throw new Error('La consulta a SUNAT no devolvió información válida.')
             }
 
-            const data = sunatResponse.datos
-            setSunatData(data)
+            const data = sunatResponse.data
+            setSunatData({
+                ruc: data.ruc,
+                nombre_o_razon_social: data.nombre_o_razon_social,
+                estado: data.estado,
+                condicion: data.condicion,
+                direccion: data.direccion,
+                direccion_completa: data.direccion_completa,
+                departamento: data.departamento,
+                provincia: data.provincia,
+                distrito: data.distrito,
+                ubigeo_sunat: data.ubigeo_sunat,
+                ubigeo: data.ubigeo,
+                actividades_economicas: data.actividades_economicas || [],
+                es_agente_de_retencion: data.es_agente_de_retencion || 'NO',
+                es_agente_de_percepcion: data.es_agente_de_percepcion || 'NO',
+                es_agente_de_percepcion_combustible: data.es_agente_de_percepcion_combustible || 'NO',
+                es_buen_contribuyente: data.es_buen_contribuyente || 'NO'
+            })
 
-            const isValidStatus = data.estado === 'ACTIVO' && data.condicion === 'HABIDO'
+            // Validar estado y condición (la nueva API puede tener diferentes valores)
+            const isValidStatus = data.estado && !data.estado.includes('BAJA') && !data.estado.includes('SUSPENSION') && data.condicion && data.condicion.includes('HABIDO')
             setIsRucValid(isValidStatus)
 
             if (isValidStatus) {
-                setValue('cardName', data.razon_social ?? '')
-                setValue('address', data.domicilio_fiscal?.direccion ?? '')
-                setValue('businessType', data.actividades_economicas?.[0] ?? '')
-                setValue('ubigeo', '')
+                setValue('cardName', data.nombre_o_razon_social ?? '')
+                setValue('address', data.direccion ?? '')
+                // Extraer la actividad económica principal (formato: "Principal - 1030 - DESCRIPCION")
+                const actividadPrincipal = data.actividades_economicas?.find(act => act.includes('Principal')) || ''
+                const actividadDescripcion = actividadPrincipal.split(' - ').slice(2).join(' - ') || actividadPrincipal
+                setValue('businessType', actividadDescripcion || '')
+                setValue('ubigeo', data.ubigeo_sunat || '')
                 setValue('paymentTerms', '')
-                setValue('personType', data.tipo_contribuyente?.includes('NATURAL') ? 'TPN' : 'TPJ')
+                // Determinar tipo de persona basado en el RUC (10 = natural, 20 = jurídica)
+                const tipoPersona = data.ruc.startsWith('10') ? 'TPN' : 'TPJ'
+                setValue('personType', tipoPersona)
             }
         } catch (error) {
             console.error('Error consultando RUC:', error)
@@ -251,8 +273,13 @@ const ModalRegister: FC<ModalRegisterProps> = ({
 
     const onSubmit = async (data: SupplierRegisterFormData) => {
 
-        if(sunatData?.estado !== "ACTIVO" && sunatData?.condicion !== "HABIDO"){
-            alert('debe ser activo y Habido')
+        // Validar estado y condición (la nueva API puede tener diferentes valores)
+        const estadoValido = sunatData?.estado && !sunatData.estado.includes('BAJA') && !sunatData.estado.includes('SUSPENSION')
+        const condicionValida = sunatData?.condicion && sunatData.condicion.includes('HABIDO')
+        
+        if (!estadoValido || !condicionValida) {
+            alert('El RUC debe estar activo y habido para poder registrarse.')
+            return
         }
 
         if (!isRucValid || !sunatData) {
@@ -267,12 +294,16 @@ const ModalRegister: FC<ModalRegisterProps> = ({
 
         try {
             const nowIso = new Date().toISOString()
-            const domicilioFiscal = sunatData.domicilio_fiscal?.direccion ?? data.address
-            const distrito = sunatData.domicilio_fiscal?.distrito ?? ''
-            const provincia = sunatData.domicilio_fiscal?.provincia ?? ''
-            const departamento = sunatData.domicilio_fiscal?.departamento ?? ''
-            //const economicActivity = sunatData.actividades_economicas?.[0] ?? data.businessType ?? ''
-            const ubigeoValue = data.ubigeo ?? ''
+            const domicilioFiscal = sunatData.direccion ?? data.address
+            const distrito = sunatData.distrito ?? ''
+            const provincia = sunatData.provincia ?? ''
+            const departamento = sunatData.departamento ?? ''
+            // Extraer actividad económica principal
+            const actividadPrincipal = sunatData.actividades_economicas?.find(act => act.includes('Principal')) || ''
+            //const economicActivity = actividadPrincipal.split(' - ').slice(2).join(' - ') || data.businessType ?? ''
+            const economicActivity = (actividadPrincipal.split(' - ').slice(2).join(' - ') || data.businessType) ?? '';
+
+            const ubigeoValue = data.ubigeo || sunatData.ubigeo_sunat || ''
             const supplierId = `P${data.cardCode}`
 
             const payload: SupplierApiRecord = {
@@ -298,12 +329,12 @@ const ModalRegister: FC<ModalRegisterProps> = ({
                 website: data.website ?? '',
                 createDate: nowIso,
                 updateDate: nowIso,
-                statusContributer: sunatData.estado === "ACTIVO" ? '00' :'10',
-                statusDomicilio: sunatData.condicion === "HABIDO" ? '00' :'12',
-                agentePercepcion: sunatData.agente_percepcion === 'SI' ? 'Y' : 'N',
+                statusContributer: estadoValido ? '00' : '10',
+                statusDomicilio: condicionValida ? '00' : '12',
+                agentePercepcion: sunatData.es_agente_de_percepcion === 'SI' ? 'Y' : 'N',
                 exoPercepcion: 'N',
-                agenteRetencion: sunatData.agente_retencion === 'SI' ? 'Y' : 'N',
-                goodContributor: 'N',
+                agenteRetencion: sunatData.es_agente_de_retencion === 'SI' ? 'Y' : 'N',
+                goodContributor: sunatData.es_buen_contribuyente === 'SI' ? 'Y' : 'N',
                 economiActivitySunat: "007", // CAMBIAR AL CODIGO DE SAP de momento duro - 007
                 status: data.status ?? (sunatData.estado === 'ACTIVO' ? 'Pendiente' : 'Pendiente'),
                 approvalDate: '',
@@ -591,23 +622,27 @@ const ModalRegister: FC<ModalRegisterProps> = ({
                                                 </div>
                                                 <div className="flex justify-between">
                                                     <span className="text-gray-500">Razón Social</span>
-                                                    <span className="font-medium text-right">{sunatData.razon_social}</span>
+                                                    <span className="font-medium text-right">{sunatData.nombre_o_razon_social}</span>
                                                 </div>
                                                 <div className="flex justify-between">
-                                                    <span className="text-gray-500">Nombre Comercial</span>
-                                                    <span className="text-right">{sunatData.nombre_comercial || '-'}</span>
+                                                    <span className="text-gray-500">Dirección Completa</span>
+                                                    <span className="text-right text-sm">{sunatData.direccion_completa || '-'}</span>
                                                 </div>
                                                 <div className="flex justify-between">
-                                                    <span className="text-gray-500">Tipo Contribuyente</span>
-                                                    <span className="text-right">{sunatData.tipo_contribuyente}</span>
+                                                    <span className="text-gray-500">Ubigeo</span>
+                                                    <span className="text-right">{sunatData.ubigeo_sunat || '-'}</span>
                                                 </div>
                                                 <div className="flex justify-between">
-                                                    <span className="text-gray-500">Fec. Inscripción</span>
-                                                    <span className="text-right">{sunatData.fecha_inscripcion}</span>
+                                                    <span className="text-gray-500">Buen Contribuyente</span>
+                                                    <span className="text-right">{sunatData.es_buen_contribuyente || 'NO'}</span>
                                                 </div>
                                                 <div className="flex justify-between">
-                                                    <span className="text-gray-500">Inicio Actividades</span>
-                                                    <span className="text-right">{sunatData.fecha_inicio_actividades}</span>
+                                                    <span className="text-gray-500">Agente Retención</span>
+                                                    <span className="text-right">{sunatData.es_agente_de_retencion || 'NO'}</span>
+                                                </div>
+                                                <div className="flex justify-between">
+                                                    <span className="text-gray-500">Agente Percepción</span>
+                                                    <span className="text-right">{sunatData.es_agente_de_percepcion || 'NO'}</span>
                                                 </div>
                                             </div>
                                             <div className="mt-3 grid grid-cols-1 lg:grid-cols-2 gap-3">

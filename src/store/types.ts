@@ -485,6 +485,11 @@ export interface DeliveryEvaluation {
     puntajeTotal?: number;
     // Badge según puntaje
     badge?: 'Excelente' | 'Bueno' | 'Regular' | 'Deficiente';
+    // Estado de la evaluación
+    estado?: 'BORRADOR' | 'COMPLETADO' | 'CERRADO';
+    // Evaluador y fecha
+    evaluador?: string;
+    fechaEvaluacion?: string;
     // Comentario general
     comentario?: string;
     // Archivos adjuntos (solo Calidad y Almacén)
@@ -497,11 +502,14 @@ export interface DeliveryEvaluation {
 }
 
 export interface EvaluationScore {
-    puntaje: number; // 1-5
+    puntaje: number; // 1-5 (para puntualidad, documentacion, cantidadCorrecta)
     comentario?: string;
     evaluadoPor?: string; // Rol que evaluó
     fechaEvaluacion?: string;
     peso?: number; // Peso de esta sección en el cálculo total
+    // Campos específicos para estadoMercaderia
+    estado?: 'ACEPTADO' | 'OBSERVADO' | 'RECHAZADO'; // Solo para estadoMercaderia
+    // Nota: comentario se usa como motivo cuando estado es OBSERVADO o RECHAZADO
 }
 
 export interface EvaluationFile {
@@ -521,10 +529,70 @@ export const EVALUATION_WEIGHTS = {
     cantidadCorrecta: 0.20, // 20%
 };
 
-// Rangos de calificación para badges
+// Rangos de calificación para badges (escala 1-10)
 export const EVALUATION_RANGES = {
-    Excelente: { min: 4.5, max: 5.0 },
-    Bueno: { min: 3.5, max: 4.49 },
-    Regular: { min: 2.5, max: 3.49 },
-    Deficiente: { min: 1.0, max: 2.49 },
+    Excelente: { min: 9.0, max: 10.0 },
+    Bueno: { min: 7.0, max: 8.99 },
+    Regular: { min: 5.0, max: 6.99 },
+    Deficiente: { min: 1.0, max: 4.99 },
 };
+
+// Reclamo a Proveedor
+export interface SupplierClaim {
+    id?: string;
+    codCita: string; // DocEntry de la cita
+    numeroReclamo: string; // Número único del reclamo
+    fechaReclamo: string; // Fecha de creación del reclamo
+    areaEmite: string; // Área que emite el reclamo (ej: Calidad)
+    responsable: string; // Responsable que emite el reclamo
+    // Datos de la cabecera
+    nLote?: string;
+    cantidad?: string;
+    proveedor: string; // Nombre del proveedor
+    ordenCompra?: string;
+    factura?: string;
+    insumoMaterial?: string;
+    fechaArribo?: string;
+    // Sección 1: Datos del registro de inspección o análisis
+    datosRegistroInspeccion?: string;
+    // Sección 2: Motivo del reclamo e impacto
+    motivoReclamo: string; // Requerido
+    impacto?: string;
+    // Sección 3: Respuesta inmediata del proveedor
+    respuestaInmediata?: {
+        fechaRespuesta?: string;
+        responsable?: string;
+        respuesta?: string;
+    };
+    // Sección 4: Evaluación del reclamo (por el proveedor)
+    evaluacionReclamo?: {
+        fechaEvaluacion?: string;
+        evaluadoPor?: string;
+        reclamoProcede?: 'SI' | 'NO';
+        descripcion?: string;
+    };
+    // Sección 5: Plan de acciones
+    planAcciones?: ClaimAction[];
+    // Sección 6: Cierre del reclamo
+    cierreReclamo?: {
+        accionesEfectivas?: 'SI' | 'NO';
+        fechaCierre?: string;
+        responsableCierre?: string;
+        observacion?: string;
+    };
+    // Metadatos
+    createdBy?: string;
+    createdDate?: string;
+    updatedBy?: string;
+    updatedDate?: string;
+    status?: 'Abierto' | 'En Respuesta' | 'Cerrado';
+}
+
+export interface ClaimAction {
+    id?: string;
+    accion: string;
+    fecha: string;
+    estado?: 'Abierto' | 'Cerrado'; // Para verificación
+    verificadoPor?: string;
+    fechaVerificacion?: string;
+}

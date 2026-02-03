@@ -574,3 +574,74 @@ export const uploadFileToPackingList = async (
     
     return json.data;
 };
+
+/**
+ * Interfaz para un producto del endpoint de productos
+ */
+export interface ProductApiRecord {
+    U_Fecha: string; // Formato: "19/01/2026 00:00:00"
+    Number: string;
+    ItemCode: string;
+    ItemName: string;
+    U_RazonSocial: string;
+    Quantity: string;
+    Horario: string; // Formato: "1100 - 1200"
+}
+
+/**
+ * Interfaz para la respuesta del API de productos
+ */
+interface ProductListApiResponse {
+    statusCode: number;
+    success: boolean;
+    message: string;
+    data: ProductApiRecord[];
+}
+
+/**
+ * Obtiene el listado de productos desde el API
+ * @param fechaInicio - Fecha de inicio en formato YYYYMMDD
+ * @param fechaFin - Fecha de fin en formato YYYYMMDD
+ */
+export const fetchProductsFromApi = async (
+    fechaInicio: string,
+    fechaFin: string
+): Promise<ProductApiRecord[]> => {
+    const PRODUCTS_ENDPOINT = '/api/Documentos/Productos';
+    const params: Record<string, string> = {
+        FechaInicio: fechaInicio,
+        FechaFin: fechaFin
+    };
+    
+    const url = buildSecureUrl(DEFAULT_API_BASE_URL, PRODUCTS_ENDPOINT, params);
+    
+    const response = await httpClient(url, {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+    });
+    
+    if (!response.ok) {
+        throw new Error(`Error al consultar productos (${response.status})`);
+    }
+    
+    const json = (await response.json()) as ProductListApiResponse;
+    
+    if (!json || typeof json !== 'object') {
+        throw new Error('Respuesta del servicio de productos inválida.');
+    }
+    
+    if (!json.success) {
+        throw new Error(json.message || 'Error al obtener productos');
+    }
+    
+    // Manejar ambos casos: objeto único o array
+    const products: ProductApiRecord[] = Array.isArray(json.data) 
+        ? json.data 
+        : json.data 
+            ? [json.data] 
+            : [];
+    
+    return products;
+};

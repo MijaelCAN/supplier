@@ -78,18 +78,18 @@ export const menuItems: MenuItem[] = [
         icon: <HomeIcon className="h-5 w-5" />,
         href: "/dashboard",
         single: true,
-        roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.FINANZAS, UserRole.ALMACEN]
+        roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.FINANZAS, UserRole.ALMACEN, UserRole.SEGURIDAD, UserRole.CALIDAD]
     },
     {
         title: "Proveedores",
         icon: <BuildingOfficeIcon className="h-5 w-5" />,
-        roles: [UserRole.ADMIN, UserRole.COMPRAS],
+        roles: [UserRole.ADMIN, UserRole.COMPRAS, UserRole.SEGURIDAD, UserRole.CALIDAD],
         items: [
             {
                 title: "Lista de Proveedores",
                 icon: <UsersIcon className="h-4 w-4" />,
                 href: "/proveedores",
-                roles: [UserRole.ADMIN, UserRole.COMPRAS]
+                roles: [UserRole.ADMIN, UserRole.COMPRAS, UserRole.SEGURIDAD, UserRole.CALIDAD]
             },
             {
                 title: "Evaluaciones",
@@ -133,7 +133,7 @@ export const menuItems: MenuItem[] = [
     {
         title: "Procesos de Compra",
         icon: <ShoppingCartIcon className="h-5 w-5" />,
-        roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.FINANZAS, UserRole.ALMACEN],
+        roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.FINANZAS, UserRole.ALMACEN, UserRole.SEGURIDAD, UserRole.CALIDAD],
         items: [
             {
                 title: "Solicitud de compra",
@@ -151,7 +151,7 @@ export const menuItems: MenuItem[] = [
                 title: "Agenda - Citas",
                 icon: <BookOpenIcon className="h-4 w-4" />,
                 href: "/agenda",
-                roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS ]
+                roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.SEGURIDAD, UserRole.CALIDAD]
             },
             {
                 title: "Fecha de entrega",
@@ -163,7 +163,7 @@ export const menuItems: MenuItem[] = [
                 title: "Recepción",
                 icon: <FolderIcon className="h-4 w-4" />,
                 href: "/recepcion",
-                roles: [UserRole.ADMIN, UserRole.COMPRAS, UserRole.PROVEEDOR]
+                roles: [UserRole.ADMIN, UserRole.COMPRAS, UserRole.PROVEEDOR, UserRole.SEGURIDAD, UserRole.ALMACEN, UserRole.CALIDAD]
             },
             {
                 title: "Facturas",

@@ -115,8 +115,8 @@ const resolveEnv = (key: string): string | undefined => {
 
 const DEFAULT_SUPPLIERS_API_BASE_URL = 'http://192.168.254.27:8082';
 const SUPPLIERS_ENDPOINT = '/api/Proveedores';
-const SUNAT_RUC_ENDPOINT = 'https://miapi.cloud/v1/ruc/completo';
-const SUNAT_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxNjAsImV4cCI6MTc1MzgyMDM4OH0.92i1bhAjras26HI3-HdW7aplYv9T9GlJEV5fVV7CAVI';
+const SUNAT_RUC_ENDPOINT = 'https://apiperu.dev/api/ruc_sunat';
+const SUNAT_API_TOKEN = 'b16dde83c5863385f85337a7622ea978acbd12cc406fec979fed510123a7ffda';
 const DOCUMENT_KEY_ALIASES: Record<string, string> = {
     certificacionISO: 'certificaciones',
     licenciaMuni: 'licenciaMunicipal',
@@ -382,36 +382,26 @@ const handleResponse = async (response: Response): Promise<SuppliersApiResponse 
 
 type SunatApiResponse = {
     success: boolean;
-    datos?: {
+    data?: {
+        direccion: string;
+        direccion_completa: string;
         ruc: string;
-        razon_social: string;
-        tipo_contribuyente: string;
-        nombre_comercial: string;
-        fecha_inscripcion: string;
-        fecha_inicio_actividades: string;
+        nombre_o_razon_social: string;
         estado: string;
-        fecha_baja: string | null;
-        mensaje_estado: string | null;
         condicion: string;
-        domicilio_fiscal: {
-            direccion: string;
-            distrito: string;
-            provincia: string;
-            departamento: string;
-        };
-        sistema_emision?: string;
-        actividad_comercio_exterior?: string;
-        sistema_contabilidad?: string;
-        actividades_economicas?: string[];
-        comprobantes_pago?: string[];
-        sistema_emision_electronica?: string[];
-        emisor_electronico_desde?: string;
-        comprobantes_electronicos?: string[];
-        afiliado_PLE_desde?: string;
-        padrones?: string[];
-        agente_retencion?: string;
-        agente_percepcion?: string;
+        departamento: string;
+        provincia: string;
+        distrito: string;
+        ubigeo_sunat: string;
+        ubigeo: string[];
+        actividades_economicas: string[];
+        es_agente_de_retencion: string;
+        es_agente_de_percepcion: string;
+        es_agente_de_percepcion_combustible: string;
+        es_buen_contribuyente: string;
     };
+    time?: number;
+    total_time?: number;
 };
 
 export const fetchSunatSupplierData = async (ruc: string): Promise<SunatApiResponse> => {
@@ -420,18 +410,18 @@ export const fetchSunatSupplierData = async (ruc: string): Promise<SunatApiRespo
         throw new Error('El RUC debe contener 11 dígitos.');
     }
 
-    const url = `${SUNAT_RUC_ENDPOINT}/${sanitizedRuc}`;
-
     // Usar fetch directamente para evitar que httpClient modifique headers o agregue tokens
     // Las APIs externas pueden ser sensibles a headers adicionales o modificados
-    const response = await fetch(url, {
-        method: 'GET',
+    const response = await fetch(SUNAT_RUC_ENDPOINT, {
+        method: 'POST',
         headers: {
-            'Authorization': `Bearer ${SUNAT_TOKEN}`,
+            'Authorization': `Bearer ${SUNAT_API_TOKEN}`,
             'Content-Type': 'application/json',
             'Accept': 'application/json',
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         },
+        body: JSON.stringify({
+            ruc: sanitizedRuc
+        }),
         // No incluir credentials para evitar problemas de CORS
         credentials: 'omit',
     });
@@ -452,6 +442,11 @@ export const fetchSunatSupplierData = async (ruc: string): Promise<SunatApiRespo
     }
 
     const json = (await response.json()) as SunatApiResponse;
+    
+    if (!json.success || !json.data) {
+        throw new Error('No se pudo obtener información del RUC desde SUNAT.');
+    }
+    
     return json;
 };
 
