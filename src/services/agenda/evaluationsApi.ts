@@ -241,6 +241,7 @@ const determineEstadoMercaderia = (
     calificacion: number | string,
     comentario?: string
 ): 'ACEPTADO' | 'OBSERVADO' | 'RECHAZADO' | undefined => {
+    console.log('comentario', comentario);
     const puntaje = toNumber(calificacion);
     if (puntaje >= 9.0) return 'ACEPTADO';
     if (puntaje >= 5.0) return 'OBSERVADO';
@@ -318,6 +319,7 @@ export const saveEvaluation = async (
     rolEvaluador: string,
     files?: { criterioCodigo: string; file: File }[]
 ): Promise<DeliveryEvaluation> => {
+    console.log('rolEvaluador', rolEvaluador);
     if (!evaluation.codCita) {
         throw new Error('El código de cita es requerido');
     }

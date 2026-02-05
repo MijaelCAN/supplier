@@ -44,7 +44,7 @@ const router = createBrowserRouter([
   {
     path: "/proveedores",
     element: (
-      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.COMPRAS, UserRole.SEGURIDAD, UserRole.CALIDAD]}>
+      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.COMPRAS, UserRole.SEGURIDAD, UserRole.CALIDAD, UserRole.ALMACEN]}>
         <SupplierManagement />
       </ProtectedRoute>
     ),
@@ -122,7 +122,7 @@ const router = createBrowserRouter([
   {
     path: "/factura",
     element: (
-      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.FINANZAS, UserRole.PROVEEDOR, UserRole.COMPRAS]}>
+      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.FINANZAS, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.ALMACEN]}>
         <InvoicesList />
       </ProtectedRoute>
     ),

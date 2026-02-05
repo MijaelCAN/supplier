@@ -593,16 +593,32 @@ const InvoicesList = () => {
                                                 <Card className="border-none bg-default-50">
                                                     <CardBody className="py-3">
                                                         <p className="text-xs text-gray-500 mb-3 font-semibold">Detalle de Factura</p>
-                                                        <div className="space-y-2">
-                                                            {selectedInvoice.detalle.map((item, index) => (
-                                                                <div key={index} className="flex justify-between items-start gap-4 pb-2 border-b border-default-200 last:border-b-0">
-                                                                    <p className="text-sm flex-1">{item.description}</p>
-                                                                    <p className="text-sm font-medium text-right whitespace-nowrap">
-                                                                        {formatCurrency(item.lineTotal, selectedInvoice.currency)}
-                                                                    </p>
-                                                                </div>
-                                                            ))}
-                                                        </div>
+                                                        <Table aria-label="Detalle de factura" removeWrapper>
+                                                            <TableHeader>
+                                                                <TableColumn>DOC. ENTRY</TableColumn>
+                                                                <TableColumn>CÓDIGO</TableColumn>
+                                                                <TableColumn>DESCRIPCIÓN</TableColumn>
+                                                                <TableColumn className="text-right">CANTIDAD</TableColumn>
+                                                                <TableColumn className="text-right">TOTAL</TableColumn>
+                                                            </TableHeader>
+                                                            <TableBody>
+                                                                {selectedInvoice.detalle.map((item, index) => (
+                                                                    <TableRow key={index}>
+                                                                        <TableCell>{item.docEntry || '-'}</TableCell>
+                                                                        <TableCell>{item.itemCode || '-'}</TableCell>
+                                                                        <TableCell>
+                                                                            <div className="max-w-[300px] truncate" title={item.description}>
+                                                                                {item.description}
+                                                                            </div>
+                                                                        </TableCell>
+                                                                        <TableCell className="text-right">{item.quantity || '0'}</TableCell>
+                                                                        <TableCell className="text-right font-medium">
+                                                                            {formatCurrency(item.lineTotal, selectedInvoice.currency)}
+                                                                        </TableCell>
+                                                                    </TableRow>
+                                                                ))}
+                                                            </TableBody>
+                                                        </Table>
                                                     </CardBody>
                                                 </Card>
                                             )}

@@ -1,7 +1,9 @@
 export interface InvoiceItem {
+    DocEntry: string;
     Dscription: string;
-    ItemCode?: string;
+    ItemCode: string;
     LineTotal: string;
+    Quantity: string;
 }
 
 export interface InvoicePayment {

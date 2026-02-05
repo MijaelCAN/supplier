@@ -521,11 +521,13 @@ export default function SupplierManagement() {
         ? (supplierList.reduce((acc, supplier) => acc + (supplier.rating || 0), 0) / supplierList.length).toFixed(1)
         : '0.0';
 
+    const canCreateSupplier = currentUser?.role !== UserRole.ALMACEN;
+
     return (
         <Dashboard>
             <div className="w-full space-y-6">
 
-                <HeaderComponent title={title} subtitle={subtitle} isOptions={true} onRegisterOpen={onRegisterOpen} />
+                <HeaderComponent title={title} subtitle={subtitle} isOptions={true} onRegisterOpen={onRegisterOpen} canCreate={canCreateSupplier} />
                 {/* Stats Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"   >
                     <Card>

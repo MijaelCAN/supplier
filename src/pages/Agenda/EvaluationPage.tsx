@@ -5,10 +5,8 @@ import {
     Card,
     CardBody,
     Chip,
-    Input,
     Textarea,
-    Progress,
-    Divider,
+    Progress
 } from '@heroui/react';
 import {
     ArrowLeftIcon,

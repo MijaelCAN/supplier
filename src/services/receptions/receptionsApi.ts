@@ -63,8 +63,11 @@ const mapRecordReceptionToReception = (record: ReceptionApi): Reception => {
 
     // Mapear detalle
     const detalle = record.Detalle?.map(item => ({
+        docEntry: item.DocEntry?.toString() || '',
         description: item.Dscription || '',
-        lineTotal: parseAmount(item.LineTotal)
+        itemCode: item.ItemCode || '',
+        lineTotal: parseAmount(item.LineTotal),
+        quantity: parseAmount(item.Quantity)
     })) || [];
 
     return {

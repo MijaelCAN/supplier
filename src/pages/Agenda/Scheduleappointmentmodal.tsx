@@ -28,6 +28,7 @@ import {
     ExclamationTriangleIcon,
     InformationCircleIcon
 } from "@heroicons/react/24/outline";
+import { UserRole } from "@/routes/menuTypes";
 
 interface ScheduleAppointmentModalProps {
     isOpen: boolean;
@@ -76,6 +77,8 @@ interface ScheduleAppointmentModalProps {
         warehouse?: string;
         notes?: string;
     } | null;
+    /** Rol del usuario actual para controlar permisos de edición */
+    currentUserRole?: UserRole;
 }
 
 const ScheduleAppointmentModal: React.FC<ScheduleAppointmentModalProps> = ({
@@ -89,7 +92,8 @@ const ScheduleAppointmentModal: React.FC<ScheduleAppointmentModalProps> = ({
     prefilledDate,
     prefilledTime,
     getConflictingAppointments,
-    editingAppointment
+    editingAppointment,
+    currentUserRole
 }) => {
     // Form state
     const [step, setStep] = useState<1 | 2>(1);
@@ -259,6 +263,14 @@ const ScheduleAppointmentModal: React.FC<ScheduleAppointmentModalProps> = ({
     const validateForm = (): boolean => {
         const newErrors: Record<string, string> = {};
 
+        // Si es ALMACEN en modo edición, solo validar warehouse si es necesario
+        if (isAlmacenEditing) {
+            // Para ALMACEN en modo edición, no validamos otros campos
+            setErrors(newErrors);
+            return true;
+        }
+
+        // Validaciones normales para creación o edición por otros roles
         if (!formData.deliveryDate) newErrors.deliveryDate = 'Fecha requerida';
         if (!formData.deliveryTime) newErrors.deliveryTime = 'Hora de inicio requerida';
         if (!formData.deliveryTimeEnd) newErrors.deliveryTimeEnd = 'Hora de fin requerida';
@@ -278,6 +290,7 @@ const ScheduleAppointmentModal: React.FC<ScheduleAppointmentModalProps> = ({
         }
 
         // Ya no validamos horarios ocupados - se permiten citas solapadas
+        // El almacén ya no es obligatorio
 
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
@@ -301,6 +314,9 @@ const ScheduleAppointmentModal: React.FC<ScheduleAppointmentModalProps> = ({
 
     // Progress indicator
     const progress = step === 1 ? 50 : 100;
+
+    // Determinar si el usuario es ALMACEN y está en modo edición
+    const isAlmacenEditing = !!(editingAppointment && currentUserRole === UserRole.ALMACEN);
 
     return (
         <Modal 
@@ -571,13 +587,15 @@ const ScheduleAppointmentModal: React.FC<ScheduleAppointmentModalProps> = ({
                                                     RUC: {supplierData?.supplierRUC}
                                                 </p>
                                             </div>
-                                            <Button
-                                                size="sm"
-                                                variant="flat"
-                                                onPress={() => setStep(1)}
-                                            >
-                                                Cambiar
-                                            </Button>
+                                            {!isAlmacenEditing && (
+                                                <Button
+                                                    size="sm"
+                                                    variant="flat"
+                                                    onPress={() => setStep(1)}
+                                                >
+                                                    Cambiar
+                                                </Button>
+                                            )}
                                         </CardBody>
                                     </Card>
 
@@ -597,9 +615,10 @@ const ScheduleAppointmentModal: React.FC<ScheduleAppointmentModalProps> = ({
                                                     setFormData(prev => ({ ...prev, deliveryDate: value }));
                                                     setErrors(prev => ({ ...prev, deliveryDate: '' }));
                                                 }}
-                                                isRequired
+                                                isRequired={!isAlmacenEditing}
                                                 isInvalid={!!errors.deliveryDate}
                                                 errorMessage={errors.deliveryDate}
+                                                isDisabled={isAlmacenEditing}
                                                 classNames={{
                                                     inputWrapper: "h-12"
                                                 }}
@@ -614,9 +633,10 @@ const ScheduleAppointmentModal: React.FC<ScheduleAppointmentModalProps> = ({
                                                     setFormData(prev => ({ ...prev, deliveryTime: value }));
                                                     setErrors(prev => ({ ...prev, deliveryTime: '' }));
                                                 }}
-                                                isRequired
+                                                isRequired={!isAlmacenEditing}
                                                 isInvalid={!!errors.deliveryTime}
                                                 errorMessage={errors.deliveryTime}
+                                                isDisabled={isAlmacenEditing}
                                                 startContent={<ClockIcon className="w-4 h-4 text-gray-400" />}
                                                 classNames={{
                                                     inputWrapper: "h-12"
@@ -633,9 +653,10 @@ const ScheduleAppointmentModal: React.FC<ScheduleAppointmentModalProps> = ({
                                                     setFormData(prev => ({ ...prev, deliveryTimeEnd: value }));
                                                     setErrors(prev => ({ ...prev, deliveryTimeEnd: '' }));
                                                 }}
-                                                isRequired
+                                                isRequired={!isAlmacenEditing}
                                                 isInvalid={!!errors.deliveryTimeEnd}
                                                 errorMessage={errors.deliveryTimeEnd}
+                                                isDisabled={isAlmacenEditing}
                                                 startContent={<ClockIcon className="w-4 h-4 text-gray-400" />}
                                                 classNames={{
                                                     inputWrapper: "h-12"
@@ -698,9 +719,13 @@ const ScheduleAppointmentModal: React.FC<ScheduleAppointmentModalProps> = ({
                                             selectedKeys={formData.warehouse ? [formData.warehouse] : []}
                                             onSelectionChange={(keys) => setFormData(prev => ({ ...prev, warehouse: Array.from(keys)[0] as string }))}
                                             startContent={<MapPinIcon className="w-4 h-4 text-gray-400" />}
+                                            isRequired={isAlmacenEditing}
+                                            description={isAlmacenEditing ? "Complete este campo para actualizar la cita" : undefined}
                                         >
                                             <SelectItem key="ALM001">Sede Ancon</SelectItem>
                                             <SelectItem key="ALM002">Sede Villas</SelectItem>
+                                            <SelectItem key="ALM003">Sede AN030</SelectItem>
+                                            <SelectItem key="ALM004">Sede AN043</SelectItem>
                                         </Select>
                                     </div>
 
@@ -718,16 +743,28 @@ const ScheduleAppointmentModal: React.FC<ScheduleAppointmentModalProps> = ({
                                             onValueChange={(value) => setFormData(prev => ({ ...prev, notes: value }))}
                                             minRows={3}
                                             maxRows={5}
+                                            isDisabled={isAlmacenEditing}
                                         />
                                     </div>
 
                                     {/* Warning if incomplete */}
-                                    {(!formData.deliveryDate || !formData.deliveryTime || !formData.deliveryTimeEnd) && (
+                                    {!isAlmacenEditing && (!formData.deliveryDate || !formData.deliveryTime || !formData.deliveryTimeEnd) && (
                                         <Card className="bg-amber-50 border border-amber-200">
                                             <CardBody className="flex-row gap-3 py-3">
                                                 <ExclamationTriangleIcon className="w-5 h-5 text-amber-600 flex-shrink-0" />
                                                 <p className="text-sm text-amber-900">
                                                     Complete todos los campos requeridos para continuar.
+                                                </p>
+                                            </CardBody>
+                                        </Card>
+                                    )}
+                                    {/* Info para ALMACEN en modo edición */}
+                                    {isAlmacenEditing && (
+                                        <Card className="bg-blue-50 border border-blue-200">
+                                            <CardBody className="flex-row gap-3 py-3">
+                                                <InformationCircleIcon className="w-5 h-5 text-blue-600 flex-shrink-0" />
+                                                <p className="text-sm text-blue-900">
+                                                    Como usuario de Almacén, solo puede editar el campo Almacén de Destino. Los demás campos están bloqueados.
                                                 </p>
                                             </CardBody>
                                         </Card>
@@ -739,7 +776,7 @@ const ScheduleAppointmentModal: React.FC<ScheduleAppointmentModalProps> = ({
                         <ModalFooter className="px-6">
                             <div className="flex items-center justify-between w-full">
                                 {/* Back button in step 2 */}
-                                {step === 2 && (
+                                {step === 2 && !isAlmacenEditing && (
                                     <Button 
                                         variant="flat" 
                                         onPress={() => setStep(1)}
@@ -766,13 +803,14 @@ const ScheduleAppointmentModal: React.FC<ScheduleAppointmentModalProps> = ({
                                             onPress={handleSubmit}
                                             isLoading={isCreating}
                                             isDisabled={
-                                                (!supplierData ) || 
-                                                !formData.deliveryDate || 
-                                                !formData.deliveryTime || 
-                                                !formData.deliveryTimeEnd || 
-                                                !formData.warehouse ||
-                                                isCreating 
-                                                ||
+                                                isCreating ||
+                                                // Si es ALMACEN en modo edición, solo necesita supplierData
+                                                (isAlmacenEditing ? !supplierData : (
+                                                    (!supplierData ) || 
+                                                    !formData.deliveryDate || 
+                                                    !formData.deliveryTime || 
+                                                    !formData.deliveryTimeEnd
+                                                )) ||
                                                 // Solo deshabilitar si hay errores de validación reales (ignorar errores con valores vacíos)
                                                 (!isCreating && Object.entries(errors).some(([_, value]) => value && value.trim() !== ''))
                                             }

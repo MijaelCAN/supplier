@@ -6,15 +6,10 @@ import {
     ModalBody,
     ModalFooter,
     Button,
-    Input,
     Textarea,
-    Select,
-    SelectItem,
-    Progress,
-    Chip,
 } from '@heroui/react';
-import { StarIcon, DocumentArrowUpIcon } from '@heroicons/react/24/outline';
-import { DeliveryEvaluation, EvaluationScore } from '@/store/types';
+import { StarIcon } from '@heroicons/react/24/outline';
+import { DeliveryEvaluation } from '@/store/types';
 import { saveEvaluation, EVALUATION_CRITERIA_CODES } from '@/services/agenda/evaluationsApi';
 import { UserRole } from '@/routes/menuTypes';
 
@@ -38,14 +33,13 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({
     evaluationType,
     currentEvaluation,
     onEvaluationSaved,
-    appointment,
     onReject,
 }) => {
     const [score, setScore] = useState<number>(0);
     const [comment, setComment] = useState<string>('');
     const [generalComment, setGeneralComment] = useState<string>('');
     const [file, setFile] = useState<File | null>(null);
-    const [isUploading, setIsUploading] = useState(false);
+    const [isUploading] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     // Estados específicos para estadoMercaderia
     const [estadoMercaderia, setEstadoMercaderia] = useState<'ACEPTADO' | 'OBSERVADO' | 'RECHAZADO' | ''>('');
@@ -101,7 +95,7 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({
 
     const config = getEvaluationConfig();
     const canUploadFile = config.canUploadFile && (userRole === UserRole.CALIDAD || userRole === UserRole.ALMACEN);
-    const canEditAll = userRole === UserRole.COMPRAS;
+    //const canEditAll = userRole === UserRole.COMPRAS;
 
     // Cargar datos existentes cuando se abre el modal
     useEffect(() => {

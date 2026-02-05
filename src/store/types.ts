@@ -147,8 +147,11 @@ export interface OrderItem {
 }
 
 export interface InvoiceDetail {
+    docEntry: string;
     description: string;
+    itemCode: string;
     lineTotal: number;
+    quantity: number;
 }
 
 export interface InvoicePayment {
@@ -158,8 +161,11 @@ export interface InvoicePayment {
 }
 
 export interface ReceptionDetail {
+    docEntry: string;
     description: string;
+    itemCode: string;
     lineTotal: number;
+    quantity: number;
 }
 
 export interface Reception {

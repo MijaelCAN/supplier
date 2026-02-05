@@ -5,4 +5,5 @@ export interface HeaderCompProps{
     onExport?: () => void;
     onRegisterOpen?:()=>void;
     onRegisterOrder?:()=>void;
+    canCreate?: boolean;
 }

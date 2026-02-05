@@ -325,6 +325,7 @@ export const fetchAppointmentsFromApi = async (
     }
     
     const json = (await response.json()) as AppointmentsApiResponse;
+    console.log('json citas', json);
     
     if (!json || typeof json !== 'object') {
         throw new Error('Respuesta del servicio de citas inválida.');

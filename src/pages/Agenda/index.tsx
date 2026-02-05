@@ -31,7 +31,9 @@ import {
     ArrowRightIcon,
     CalendarDaysIcon,
     Squares2X2Icon,
-    ListBulletIcon
+    ListBulletIcon,
+    ArrowDownTrayIcon,
+    PrinterIcon
 } from "@heroicons/react/24/outline";
 import Dashboard from "@/layouts/Dashboard";
 import { useAgendaStore } from "@/store/agendaStore";
@@ -45,6 +47,8 @@ import { formatDateForAPI } from "@/services/agenda/appointmentsApi";
 
 import { createChoferInApi } from "@/services/agenda/choferesApi";
 import DocumentsModal from './DocumentsModal';
+import * as XLSX from 'xlsx';
+import { saveAs } from 'file-saver';
 
 const Agenda: React.FC = () => {
     const navigate = useNavigate();
@@ -337,18 +341,27 @@ const Agenda: React.FC = () => {
         return dateStr;
     };
 
-    // Función para formatear horario desde formato "1100 - 1200" a formato legible "11:00 - 12:00"
+    // Función para formatear horario desde formato "1100 - 1200" o "800 - 1100" a formato legible "11:00 - 12:00" o "08:00 - 11:00"
     const formatHorario = (horario: string): string => {
         try {
             if (!horario) return '-';
-            // Formato: "1100 - 1200"
+            // Formato: "1100 - 1200" o "800 - 1100"
             const parts = horario.split(' - ');
             if (parts.length === 2) {
                 const formatTime = (time: string) => {
-                    if (time.length === 4) {
-                        return `${time.substring(0, 2)}:${time.substring(2, 4)}`;
+                    // Limpiar espacios
+                    const cleanTime = time.trim();
+                    // Si tiene 3 caracteres, agregar un cero al inicio (ej: "800" -> "0800")
+                    let paddedTime = cleanTime;
+                    if (cleanTime.length === 3) {
+                        paddedTime = `0${cleanTime}`;
                     }
-                    return time;
+                    // Si tiene 4 caracteres, formatear como HH:MM
+                    if (paddedTime.length === 4) {
+                        return `${paddedTime.substring(0, 2)}:${paddedTime.substring(2, 4)}`;
+                    }
+                    // Si tiene otro formato, devolverlo tal cual
+                    return cleanTime;
                 };
                 return `${formatTime(parts[0])} - ${formatTime(parts[1])}`;
             }
@@ -392,6 +405,205 @@ const Agenda: React.FC = () => {
             return true;
         });
     }, [listViewData, filterFecha, filterNumber, filterItemCode, filterItemName, filterRazonSocial, filterQuantity, filterHorario]);
+
+    // Función para exportar a Excel
+    const handleExportToExcel = () => {
+        try {
+            // Preparar los datos para exportar
+            const dataToExport = filteredListViewData.map(product => ({
+                'Fecha': formatDateFromAPI(product.U_Fecha),
+                'Número': product.Number,
+                'Código': product.ItemCode,
+                'Descripción': product.ItemName,
+                'Proveedor': product.U_RazonSocial,
+                'Cantidad': product.Quantity,
+                'Horario': formatHorario(product.Horario)
+            }));
+
+            // Crear un libro de trabajo
+            const wb = XLSX.utils.book_new();
+            
+            // Crear una hoja de trabajo con los datos
+            const ws = XLSX.utils.json_to_sheet(dataToExport);
+
+            // Ajustar el ancho de las columnas
+            const colWidths = [
+                { wch: 12 }, // Fecha
+                { wch: 15 }, // Número
+                { wch: 15 }, // Código
+                { wch: 50 }, // Descripción
+                { wch: 40 }, // Proveedor
+                { wch: 12 }, // Cantidad
+                { wch: 15 }  // Horario
+            ];
+            ws['!cols'] = colWidths;
+
+            // Agregar la hoja al libro
+            XLSX.utils.book_append_sheet(wb, ws, 'Productos');
+
+            // Generar el nombre del archivo con fecha
+            const fechaInicio = formatDateForAPI(weekStart);
+            const fechaFin = formatDateForAPI(weekEnd);
+            const fechaActual = new Date().toISOString().split('T')[0].replace(/-/g, '');
+            const fileName = `Productos_${fechaInicio}_${fechaFin}_${fechaActual}.xlsx`;
+
+            // Escribir el archivo y descargarlo
+            const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+            const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+            saveAs(blob, fileName);
+        } catch (error) {
+            console.error('Error al exportar a Excel:', error);
+            alert('Error al exportar a Excel. Por favor, intente nuevamente.');
+        }
+    };
+
+    // Función para imprimir la tabla
+    const handlePrint = () => {
+        try {
+            // Crear una ventana nueva para imprimir
+            const printWindow = window.open('', '_blank');
+            if (!printWindow) {
+                alert('Por favor, permita ventanas emergentes para imprimir.');
+                return;
+            }
+
+            // Obtener el rango de fechas formateado
+            const fechaInicioFormatted = weekStart.toLocaleDateString('es-PE', { 
+                day: '2-digit', 
+                month: 'long', 
+                year: 'numeric' 
+            });
+            const fechaFinFormatted = weekEnd.toLocaleDateString('es-PE', { 
+                day: '2-digit', 
+                month: 'long', 
+                year: 'numeric' 
+            });
+
+            // Crear el contenido HTML para imprimir
+            const printContent = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Lista de Productos - ${fechaInicioFormatted} a ${fechaFinFormatted}</title>
+                    <style>
+                        @media print {
+                            @page {
+                                margin: 1cm;
+                                size: A4 landscape;
+                            }
+                            body {
+                                margin: 0;
+                                padding: 0;
+                            }
+                        }
+                        body {
+                            font-family: Arial, sans-serif;
+                            font-size: 10pt;
+                            margin: 20px;
+                        }
+                        .header {
+                            text-align: center;
+                            margin-bottom: 20px;
+                            border-bottom: 2px solid #000;
+                            padding-bottom: 10px;
+                        }
+                        .header h1 {
+                            margin: 0;
+                            font-size: 18pt;
+                            font-weight: bold;
+                        }
+                        .header p {
+                            margin: 5px 0;
+                            font-size: 12pt;
+                        }
+                        table {
+                            width: 100%;
+                            border-collapse: collapse;
+                            margin-top: 20px;
+                        }
+                        th {
+                            background-color: #f0f0f0;
+                            border: 1px solid #000;
+                            padding: 8px;
+                            text-align: left;
+                            font-weight: bold;
+                            font-size: 9pt;
+                        }
+                        td {
+                            border: 1px solid #000;
+                            padding: 6px;
+                            font-size: 9pt;
+                        }
+                        .footer {
+                            margin-top: 20px;
+                            text-align: center;
+                            font-size: 8pt;
+                            color: #666;
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="header">
+                        <h1>Lista de Productos</h1>
+                        <p>Período: ${fechaInicioFormatted} a ${fechaFinFormatted}</p>
+                        <p>Total de registros: ${filteredListViewData.length}</p>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Número</th>
+                                <th>Código</th>
+                                <th>Descripción</th>
+                                <th>Proveedor</th>
+                                <th>Cantidad</th>
+                                <th>Horario</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${filteredListViewData.map(product => `
+                                <tr>
+                                    <td>${formatDateFromAPI(product.U_Fecha)}</td>
+                                    <td>${product.Number}</td>
+                                    <td>${product.ItemCode}</td>
+                                    <td>${product.ItemName}</td>
+                                    <td>${product.U_RazonSocial}</td>
+                                    <td>${product.Quantity}</td>
+                                    <td>${formatHorario(product.Horario)}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                    <div class="footer">
+                        <p>Generado el ${new Date().toLocaleDateString('es-PE', { 
+                            day: '2-digit', 
+                            month: 'long', 
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                        })}</p>
+                    </div>
+                </body>
+                </html>
+            `;
+
+            // Escribir el contenido y abrir el diálogo de impresión
+            printWindow.document.write(printContent);
+            printWindow.document.close();
+            
+            // Esperar a que se cargue el contenido antes de imprimir
+            printWindow.onload = () => {
+                setTimeout(() => {
+                    printWindow.print();
+                    // Cerrar la ventana después de imprimir (opcional)
+                    // printWindow.close();
+                }, 250);
+            };
+            } catch (error) {
+            console.error('Error al imprimir:', error);
+            alert('Error al imprimir. Por favor, intente nuevamente.');
+        }
+    };
 
     // Get days of the week
     const weekDays = useMemo(() => {
@@ -878,6 +1090,92 @@ const Agenda: React.FC = () => {
         // Navegar a la página de detalle usando docEntry o appointmentNumber
         const appointmentId = appointment.docEntry || appointment.appointmentNumber;
         navigate(`/agenda/detail/${appointmentId}`);
+    };
+
+    // Función para buscar cita relacionada con un producto y navegar al detalle
+    const handleProductRowClick = (product: ProductApiRecord) => {
+        try {
+            // Convertir fecha del producto a formato YYYY-MM-DD para comparar
+            const parseProductDate = (dateStr: string): string | null => {
+                try {
+                    const datePart = dateStr.split(' ')[0]; // "19/01/2026"
+                    const [day, month, year] = datePart.split('/');
+                    if (day && month && year) {
+                        return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+                    }
+                } catch (error) {
+                    console.error('Error al parsear fecha:', error);
+                }
+                return null;
+            };
+
+            const productDate = parseProductDate(product.U_Fecha);
+            if (!productDate) {
+                console.warn('No se pudo parsear la fecha del producto');
+                return;
+            }
+
+            // Buscar cita que coincida con:
+            // 1. Fecha de entrega
+            // 2. Nombre del proveedor (U_RazonSocial)
+            // 3. Horario (comparar el horario formateado)
+            const matchingAppointment = appointments.find(apt => {
+                // Comparar fecha
+                if (apt.deliveryDate !== productDate) {
+                    return false;
+                }
+
+                // Comparar proveedor (normalizar para comparación)
+                const aptSupplierName = apt.supplierName?.toLowerCase().trim() || '';
+                const productSupplierName = product.U_RazonSocial?.toLowerCase().trim() || '';
+                if (aptSupplierName && productSupplierName && !aptSupplierName.includes(productSupplierName) && !productSupplierName.includes(aptSupplierName)) {
+                    return false;
+                }
+
+                // Comparar horario (extraer hora inicial del rango)
+                if (product.Horario && apt.deliveryTime) {
+                    const productHorarioParts = product.Horario.split(' - ');
+                    if (productHorarioParts.length > 0) {
+                        const productHoraInicio = productHorarioParts[0].trim();
+                        // Normalizar hora (agregar cero si tiene 3 dígitos)
+                        const normalizedHora = productHoraInicio.length === 3 ? `0${productHoraInicio}` : productHoraInicio;
+                        const horaFormateada = normalizedHora.length === 4 
+                            ? `${normalizedHora.substring(0, 2)}:${normalizedHora.substring(2, 4)}`
+                            : productHoraInicio;
+                        
+                        // Comparar con el horario de la cita (formato HH:MM)
+                        if (apt.deliveryTime && !apt.deliveryTime.includes(horaFormateada.substring(0, 2))) {
+                            return false;
+                        }
+                    }
+                }
+
+                return true;
+            });
+
+            if (matchingAppointment) {
+                handleViewAppointment(matchingAppointment);
+            } else {
+                // Si no se encuentra una cita exacta, intentar buscar solo por fecha y proveedor
+                const fallbackAppointment = appointments.find(apt => {
+                    if (apt.deliveryDate !== productDate) return false;
+                    const aptSupplierName = apt.supplierName?.toLowerCase().trim() || '';
+                    const productSupplierName = product.U_RazonSocial?.toLowerCase().trim() || '';
+                    return aptSupplierName && productSupplierName && 
+                           (aptSupplierName.includes(productSupplierName) || productSupplierName.includes(aptSupplierName));
+                });
+
+                if (fallbackAppointment) {
+                    handleViewAppointment(fallbackAppointment);
+                } else {
+                    console.warn('No se encontró una cita relacionada para el producto:', product);
+                    alert('No se encontró una cita relacionada con este producto.');
+                }
+            }
+        } catch (error) {
+            console.error('Error al buscar cita relacionada:', error);
+            alert('Error al buscar la cita relacionada. Por favor, intente nuevamente.');
+        }
     };
 
     // Detectar navegación desde la página de detalle para abrir modales
@@ -1462,6 +1760,26 @@ const Agenda: React.FC = () => {
                                 <Chip color="primary" variant="flat" size="md">
                                     {filteredListViewData.length} {filteredListViewData.length === 1 ? 'producto' : 'productos'}
                                 </Chip>
+                                <Button
+                                    color="default"
+                                    variant="flat"
+                                    size="sm"
+                                    startContent={<PrinterIcon className="w-4 h-4" />}
+                                    onPress={handlePrint}
+                                    isDisabled={isLoadingListView || filteredListViewData.length === 0}
+                                >
+                                    Imprimir
+                                </Button>
+                                <Button
+                                    color="success"
+                                    variant="flat"
+                                    size="sm"
+                                    startContent={<ArrowDownTrayIcon className="w-4 h-4" />}
+                                    onPress={handleExportToExcel}
+                                    isDisabled={isLoadingListView || filteredListViewData.length === 0}
+                                >
+                                    Exportar Excel
+                                </Button>
                             </div>
                         </div>
 
@@ -1531,59 +1849,60 @@ const Agenda: React.FC = () => {
                                 </div>
 
                                 {/* Tabla */}
-                                {isLoadingListView ? (
+                            {isLoadingListView ? (
                                     <div className="p-8 text-center rounded-none flex-1 flex items-center justify-center">
-                                        <p className="text-gray-500">Cargando datos...</p>
-                                    </div>
+                                    <p className="text-gray-500">Cargando datos...</p>
+                                </div>
                                 ) : filteredListViewData.length === 0 ? (
                                     <div className="p-8 text-center rounded-none flex-1 flex items-center justify-center">
-                                        <p className="text-gray-500">No hay datos para mostrar</p>
-                                    </div>
-                                ) : (
-                                    <div className="overflow-auto flex-1">
+                                    <p className="text-gray-500">No hay datos para mostrar</p>
+                                </div>
+                            ) : (
+                                <div className="overflow-auto flex-1">
                                         <Table aria-label="Tabla de productos" classNames={{
                                             wrapper: "min-h-[222px]",
                                         }}>
-                                            <TableHeader>
+                                        <TableHeader>
                                                 <TableColumn className="w-[100px] min-w-[100px]">FECHA</TableColumn>
                                                 <TableColumn className="w-[120px] min-w-[120px]">NÚMERO</TableColumn>
                                                 <TableColumn className="w-[120px] min-w-[120px]">CÓDIGO</TableColumn>
                                                 <TableColumn>DESCRIPCIÓN</TableColumn>
-                                                <TableColumn>PROVEEDOR</TableColumn>
+                                            <TableColumn>PROVEEDOR</TableColumn>
                                                 <TableColumn className="w-[100px] min-w-[100px]">CANTIDAD</TableColumn>
                                                 <TableColumn className="w-[120px] min-w-[120px]">HORARIO</TableColumn>
-                                            </TableHeader>
-                                            <TableBody>
+                                        </TableHeader>
+                                        <TableBody>
                                                 {filteredListViewData.map((row, index) => (
-                                                    <TableRow 
+                                                <TableRow 
                                                         key={`${row.Number}-${row.ItemCode}-${index}`}
-                                                        className="hover:bg-gray-50"
+                                                        className="hover:bg-gray-50 cursor-pointer"
+                                                        onClick={() => handleProductRowClick(row)}
                                                     >
                                                         <TableCell className="whitespace-nowrap">
                                                             {formatDateFromAPI(row.U_Fecha)}
                                                         </TableCell>
                                                         <TableCell className="whitespace-nowrap">{row.Number}</TableCell>
                                                         <TableCell className="whitespace-nowrap">{row.ItemCode}</TableCell>
-                                                        <TableCell>
+                                                    <TableCell>
                                                             <div className="truncate max-w-full" title={row.ItemName}>
                                                                 {row.ItemName}
                                                             </div>
-                                                        </TableCell>
-                                                        <TableCell>
+                                                    </TableCell>
+                                                    <TableCell>
                                                             <div className="truncate max-w-full" title={row.U_RazonSocial}>
                                                                 {row.U_RazonSocial}
-                                                            </div>
-                                                        </TableCell>
+                                                        </div>
+                                                    </TableCell>
                                                         <TableCell className="whitespace-nowrap">{row.Quantity}</TableCell>
                                                         <TableCell className="whitespace-nowrap">{formatHorario(row.Horario)}</TableCell>
-                                                    </TableRow>
-                                                ))}
-                                            </TableBody>
-                                        </Table>
-                                    </div>
-                                )}
-                            </CardBody>
-                        </Card>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </div>
+                            )}
+                        </CardBody>
+                    </Card>
                     </>
                 ) : (
                     /* Vista de Calendario */
@@ -1912,6 +2231,7 @@ const Agenda: React.FC = () => {
                     prefilledDate={scheduleForm.deliveryDate}
                     prefilledTime={scheduleForm.deliveryTime}
                     editingAppointment={editingAppointment}
+                    currentUserRole={currentUser?.role}
                 />
 
 
