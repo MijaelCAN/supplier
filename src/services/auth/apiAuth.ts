@@ -1,5 +1,6 @@
 import { UserRole } from '@/routes/menuTypes';
 import { httpClient } from '@/services/http/httpClient';
+import { getApiBaseUrl } from '@/config/api.ts';
 
 export type RoleType = 'internal' | 'provider';
 
@@ -98,15 +99,8 @@ interface ApiUpdatePasswordResponse {
 }
 
 // Configuration
-const resolveEnv = (key: string): string | undefined => {
-    if (key in import.meta.env && typeof import.meta.env[key] === 'string') {
-        return import.meta.env[key] as string;
-    }
-    return undefined;
-};
-
 const getAuthApiBaseUrl = (): string => {
-    return resolveEnv('VITE_AUTH_API_BASE_URL') || 'http://192.168.254.27:8082';
+    return getApiBaseUrl();
 };
 
 // Helper functions

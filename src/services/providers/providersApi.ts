@@ -95,6 +95,8 @@ interface SuppliersApiResponse {
     data: SupplierApiRecord;
 }
 
+import { getApiBaseUrl } from "@/config/api.ts";
+
 const resolveEnv = (key: string): string | undefined => {
     if (key in import.meta.env && typeof import.meta.env[key] === 'string') {
         return import.meta.env[key] as string;
@@ -113,7 +115,7 @@ const resolveEnv = (key: string): string | undefined => {
     return undefined;
 };
 
-const DEFAULT_SUPPLIERS_API_BASE_URL = 'http://192.168.254.27:8082';
+const DEFAULT_SUPPLIERS_API_BASE_URL = getApiBaseUrl();
 const SUPPLIERS_ENDPOINT = '/api/Proveedores';
 const SUNAT_RUC_ENDPOINT = 'https://apiperu.dev/api/ruc_sunat';
 const SUNAT_API_TOKEN = 'b16dde83c5863385f85337a7622ea978acbd12cc406fec979fed510123a7ffda';
@@ -309,8 +311,7 @@ const mapApiRecordToSupplier = (record: SupplierApiRecord): Supplier => {
 };
 
 const buildEndpointUrl = (cardCode?: string) => {
-    const baseUrl =
-        normaliseString(resolveEnv('SUPPLIERS_API_BASE_URL')) || DEFAULT_SUPPLIERS_API_BASE_URL;
+    const baseUrl = DEFAULT_SUPPLIERS_API_BASE_URL;
 
     const params: Record<string, string> = {};
     if (cardCode && cardCode.trim() !== '') {

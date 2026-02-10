@@ -1,7 +1,8 @@
 import { httpClient, buildSecureUrl } from "@/services/http/httpClient";
 import { DeliveryEvaluation, EvaluationScore, EvaluationFile, EVALUATION_WEIGHTS, EVALUATION_RANGES } from "@/store/types";
+import { getApiBaseUrl } from "@/config/api.ts";
 
-const DEFAULT_API_BASE_URL = 'http://192.168.254.27:8082';
+const DEFAULT_API_BASE_URL = getApiBaseUrl();
 const EVALUATIONS_ENDPOINT = '/api/Evaluacion';
 
 // Códigos de criterios de evaluación

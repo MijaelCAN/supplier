@@ -49,6 +49,7 @@ import { createChoferInApi } from "@/services/agenda/choferesApi";
 import DocumentsModal from './DocumentsModal';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
+import { STATUS_CONFIG } from '@/services/agenda/appointmentStatus';
 
 const Agenda: React.FC = () => {
     const navigate = useNavigate();
@@ -973,6 +974,10 @@ const Agenda: React.FC = () => {
         try {
             if (editingAppointment) {
                 // Modo edición: actualizar la cita
+                // Obtener el estado actual de la cita que se está editando
+                const currentAppointment = appointments.find(apt => apt.docEntry === editingAppointment.docEntry);
+                const currentStatus = currentAppointment?.status || 'REGISTRADA';
+                
                 await updateAppointmentFromApi(editingAppointment.docEntry, {
                     supplierRUC: data.supplierRUC,
                     supplierName: data.supplierName,
@@ -981,7 +986,8 @@ const Agenda: React.FC = () => {
                     deliveryTimeEnd: data.deliveryTimeEnd,
                     description: data.notes,
                     warehouse: data.warehouse,
-                    active: 'Y'
+                    active: 'Y',
+                    estado: currentStatus // Incluir el estado actual de la cita
                 });
 
                 alert('Cita actualizada exitosamente');
@@ -1437,10 +1443,17 @@ const Agenda: React.FC = () => {
                 createdBy: currentUser?.id || 'system'
             });
 
-            // Update appointment status
-            updateAppointment(selectedAppointment.id, { status: 'PackingListCompletado' });
+            // Actualizar estado de la cita a PROGRAMADA cuando se crea el packing list
+            if (selectedAppointment.docEntry && currentUser) {
+                const { updateAppointmentStatus } = await import('@/services/agenda/appointmentStatus');
+                const userId = currentUser.userCode || currentUser.id || currentUser.username || 'system';
+                await updateAppointmentStatus(selectedAppointment.docEntry, 'PROGRAMADA', userId);
+            }
             
-            alert('PackingList creado exitosamente en el sistema.');
+            // Update appointment status local
+            updateAppointment(selectedAppointment.id, { status: 'PROGRAMADA' });
+            
+            alert('PackingList creado exitosamente. Estado actualizado a PROGRAMADA.');
 
             // Recargar PackingList del API
             /*const fechaInicio = formatDateForAPI(weekStart);
@@ -1485,25 +1498,35 @@ const Agenda: React.FC = () => {
         try {
             // Preparar los datos para el API
             const choferData = {
-                u_EmpresaTranspote: transportForm.transportCompany || '',
-                u_NombreConductor: transportForm.driverName || '',
-                u_LicenciaConducir: transportForm.driverLicense || '',
-                u_PlacaVehiculo: transportForm.vehiclePlate || '',
-                u_TipoVehiculo: transportForm.vehicleType || '',
-                u_TelefonoContacto: transportForm.contactPhone || '',
-                u_HoraLlegada: transportForm.estimatedArrival || '',
-                u_Notas: transportForm.notes || '',
-                u_CodCita: selectedAppointment.docEntry
+                U_EmpresaTransporte: transportForm.transportCompany || '',
+                U_NombreConductor: transportForm.driverName || '',
+                U_LicenciaConducir: transportForm.driverLicense || '',
+                U_PlacaVehiculo: transportForm.vehiclePlate || '',
+                U_TipoVehiculo: transportForm.vehicleType || '',
+                U_TelefonoContacto: transportForm.contactPhone || '',
+                U_HoraLlegada: transportForm.estimatedArrival || '',
+                U_Notas: transportForm.notes || '',
+                U_CodCita: selectedAppointment.docEntry
             };
 
             // Llamar al API para crear el chofer
             await createChoferInApi(choferData);
+
+            // Actualizar estado de la cita a TRANSPORTE_COMPLETO
+            if (selectedAppointment.docEntry && currentUser) {
+                const { updateAppointmentStatus } = await import('@/services/agenda/appointmentStatus');
+                const userId = currentUser.userCode || currentUser.id || currentUser.username || 'system';
+                await updateAppointmentStatus(selectedAppointment.docEntry, 'TRANSPORTE_COMPLETO', userId);
+            }
 
             // Guardar también en el store local
             addTransportData(selectedAppointment.id, {
                 appointmentId: selectedAppointment.id,
                 ...transportForm
             });
+            
+            // Actualizar estado local
+            updateAppointment(selectedAppointment.id, { status: 'TRANSPORTE_COMPLETO' });
 
             alert('Datos de transporte guardados exitosamente');
             setTransportForm({
@@ -1552,6 +1575,37 @@ const Agenda: React.FC = () => {
             };
 
             addDocument(selectedAppointment.id, documentType, document);
+            
+            // Verificar si todos los documentos están completos y actualizar estado
+            // Recargar appointment para verificar documentos completos
+            const { loadAppointmentsFromApi } = useAgendaStore.getState();
+            const ruc = currentUser?.role === UserRole.PROVEEDOR && currentUser.username ? currentUser.username : undefined;
+            const today = new Date();
+            const weekStart = new Date(today.setDate(today.getDate() - today.getDay()));
+            const weekEnd = new Date(today.setDate(today.getDate() - today.getDay() + 6));
+            const fechaInicio = formatDateForAPI(weekStart);
+            const fechaFin = formatDateForAPI(weekEnd);
+            await loadAppointmentsFromApi(ruc, fechaInicio, fechaFin);
+            
+            // Verificar si todos los documentos están completos
+            const updatedAppointment = useAgendaStore.getState().appointments.find(
+                apt => apt.docEntry === selectedAppointment.docEntry
+            );
+            
+            if (updatedAppointment) {
+                const hasAllDocs = updatedAppointment.documents?.invoice && 
+                                  updatedAppointment.documents?.purchaseOrder && 
+                                  updatedAppointment.documents?.deliveryGuide && 
+                                  updatedAppointment.documents?.cdr && 
+                                  updatedAppointment.documents?.xml;
+                
+                if (hasAllDocs && updatedAppointment.status !== 'DOCUMENTOS_COMPLETOS' && updatedAppointment.docEntry && currentUser) {
+                    const { updateAppointmentStatus } = await import('@/services/agenda/appointmentStatus');
+                    const userId = currentUser.userCode || currentUser.id || currentUser.username || 'system';
+                    await updateAppointmentStatus(updatedAppointment.docEntry, 'DOCUMENTOS_COMPLETOS', userId);
+                    updateAppointment(selectedAppointment.id, { status: 'DOCUMENTOS_COMPLETOS' });
+                }
+            }
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Error desconocido al subir archivo';
             throw new Error(errorMessage);
@@ -1961,12 +2015,20 @@ const Agenda: React.FC = () => {
                                     className="max-w-xs min-w-[170px]"
                                     size="sm"
                                 >
-                                    <SelectItem key="all" >Todos</SelectItem>
-                                    <SelectItem key="Pendiente" >Pendiente</SelectItem>
-                                    <SelectItem key="PackingListCompletado" >PackingList Completado</SelectItem>
-                                    <SelectItem key="TransporteCompletado" >Transporte Completado</SelectItem>
-                                    <SelectItem key="ListaParaEntrega" >Lista para Entrega</SelectItem>
-                                    <SelectItem key="Completada" >Completada</SelectItem>
+                                    <SelectItem key="all">Todos</SelectItem>
+                                    <SelectItem key="REGISTRADA">Registrada</SelectItem>
+                                    <SelectItem key="PROGRAMADA">Programada</SelectItem>
+                                    <SelectItem key="REPROGRAMADA">Reprogramada</SelectItem>
+                                    <SelectItem key="TRANSPORTE_COMPLETO">Transporte Completo</SelectItem>
+                                    <SelectItem key="DOCUMENTOS_COMPLETOS">Documentos Completos</SelectItem>
+                                    <SelectItem key="EN_EXPLANADA">En Explanada</SelectItem>
+                                    <SelectItem key="CALIDAD_ACEPTADO">Calidad Aceptado</SelectItem>
+                                    <SelectItem key="CALIDAD_OBSERVADO">Calidad Observado</SelectItem>
+                                    <SelectItem key="ALMACEN_ACEPTADO">Almacén Aceptado</SelectItem>
+                                    <SelectItem key="ALMACEN_OBSERVADO">Almacén Observado</SelectItem>
+                                    <SelectItem key="PARTE_DE_INGRESO_GENERADO">Parte de Ingreso Generado</SelectItem>
+                                    <SelectItem key="ENTREGADO">Entregado</SelectItem>
+                                    <SelectItem key="Cancelada">Cancelada</SelectItem>
                                 </Select>
                                 <Button
                                     size="sm"
@@ -2154,18 +2216,18 @@ const Agenda: React.FC = () => {
                                                                     
                                                                     // Estilos según el estado de la cita
                                                                     const getStatusStyles = () => {
-                                                                        switch(apt.status) {
-                                                                            case 'ListaParaEntrega':
-                                                                                return 'bg-green-500 text-white border-green-600';
-                                                                            case 'Pendiente':
-                                                                                return 'bg-yellow-200 text-yellow-900 border-yellow-500';
-                                                                            case 'Completada':
-                                                                                return 'bg-gray-400 text-white border-gray-500';
-                                                                            case 'Cancelada':
-                                                                                return 'bg-red-400 text-white border-red-500';
-                                                                            default:
-                                                                                return 'bg-blue-300 text-white border-blue-500';
+                                                                        const statusConfig = STATUS_CONFIG[apt.status as keyof typeof STATUS_CONFIG];
+                                                                        if (statusConfig) {
+                                                                            const colorMap: Record<string, string> = {
+                                                                                'default': 'bg-gray-200 text-gray-900 border-gray-500',
+                                                                                'primary': 'bg-blue-200 text-blue-900 border-blue-500',
+                                                                                'success': 'bg-green-200 text-green-900 border-green-500',
+                                                                                'warning': 'bg-yellow-200 text-yellow-900 border-yellow-500',
+                                                                                'danger': 'bg-red-200 text-red-900 border-red-500'
+                                                                            };
+                                                                            return colorMap[statusConfig.color] || 'bg-blue-300 text-white border-blue-500';
                                                                         }
+                                                                        return 'bg-blue-300 text-white border-blue-500';
                                                                     };
 
                                                                     return (

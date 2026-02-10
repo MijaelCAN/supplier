@@ -1,11 +1,12 @@
 /**
  * Servicio de API para notificaciones por correo electrónico
- * Usa el endpoint: http://192.168.254.27:8082/api/Notificaciones
+ * Usa el endpoint configurado desde variables de entorno
  */
 
 import { httpClient, buildSecureUrl } from "@/services/http/httpClient.ts";
+import { getApiBaseUrl } from "@/config/api.ts";
 
-const DEFAULT_NOTIFICACIONES_API_BASE_URL = 'http://192.168.254.27:8082';
+const DEFAULT_NOTIFICACIONES_API_BASE_URL = getApiBaseUrl();
 const NOTIFICACIONES_ENDPOINT = '/api/Notificaciones';
 
 const buildEndpointUrl = (): string => {

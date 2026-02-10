@@ -396,7 +396,7 @@ export interface DeliveryAppointment {
     deliveryTimeEnd: string; // Time string (HH:MM) - Hora de fin
     scheduledDateTime: string; // Combined ISO datetime
     scheduledDateTimeEnd: string; // Combined ISO datetime - Fecha/hora de fin
-    status: 'Pendiente' | 'PackingListCompletado' | 'TransporteCompletado' | 'DocumentosCompletados' | 'ListaParaEntrega' | 'Completada' | 'Cancelada';
+    status: AppointmentStatus;
     createdBy: string;
     createdDate: string;
     notes?: string;
@@ -472,6 +472,33 @@ export interface DocumentFile {
     uploadedBy: string;
 }
 
+// Estados del flujo completo de entrega
+export type AppointmentStatus = 
+    // Fase 1: Registro inicial
+    | 'REGISTRADA'
+    // Fase 2: Programación
+    | 'PROGRAMADA'
+    | 'REPROGRAMADA'
+    // Fase 3: Preparación del proveedor
+    | 'TRANSPORTE_COMPLETO'
+    | 'DOCUMENTOS_COMPLETOS'
+    // Fase 4: Recepción física
+    | 'EN_EXPLANADA'
+    | 'EN_ENTREGA'
+    // Fase 5: Control de Calidad
+    | 'CALIDAD_ACEPTADO'
+    | 'CALIDAD_OBSERVADO'
+    | 'CALIDAD_RECHAZADO'
+    // Fase 6: Almacén
+    | 'ALMACEN_ACEPTADO'
+    | 'ALMACEN_OBSERVADO'
+    | 'ALMACEN_RECHAZADO'
+    // Fase 7: Cierre
+    | 'PARTE_DE_INGRESO_GENERADO'
+    | 'ENTREGADO'
+    // Estados de cancelación/error
+    | 'Cancelada';
+
 export type statusConfig = {
     key: string;
     color: 'default' | 'primary' | 'secondary' | 'success' | 'warning' | 'danger';
@@ -508,13 +535,15 @@ export interface DeliveryEvaluation {
 }
 
 export interface EvaluationScore {
-    puntaje: number; // 1-5 (para puntualidad, documentacion, cantidadCorrecta)
+    // Para puntualidad y documentación: 0 = No, 1 = Sí (binario)
+    // Para estadoMercaderia y cantidadCorrecta: 1-5 (escala)
+    puntaje: number; 
     comentario?: string;
     evaluadoPor?: string; // Rol que evaluó
     fechaEvaluacion?: string;
     peso?: number; // Peso de esta sección en el cálculo total
-    // Campos específicos para estadoMercaderia
-    estado?: 'ACEPTADO' | 'OBSERVADO' | 'RECHAZADO'; // Solo para estadoMercaderia
+    // Campos específicos para estadoMercaderia y cantidadCorrecta
+    estado?: 'ACEPTADO' | 'OBSERVADO' | 'RECHAZADO'; // Para estadoMercaderia y cantidadCorrecta
     // Nota: comentario se usa como motivo cuando estado es OBSERVADO o RECHAZADO
 }
 

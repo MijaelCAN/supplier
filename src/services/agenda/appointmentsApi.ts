@@ -1,7 +1,8 @@
 import { httpClient, buildSecureUrl } from "@/services/http/httpClient";
 import { DeliveryAppointment } from "@/store/types";
+import { getApiBaseUrl } from "@/config/api.ts";
 
-const DEFAULT_APPOINTMENTS_API_BASE_URL = 'http://192.168.254.27:8082';
+const DEFAULT_APPOINTMENTS_API_BASE_URL = getApiBaseUrl();
 const APPOINTMENTS_ENDPOINT = '/api/Proveedores/CitasProveedor';
 const CREATE_APPOINTMENT_ENDPOINT = '/api/Proveedores/Cita';
 
@@ -33,6 +34,7 @@ export interface AppointmentApiRecord {
     U_Descripcion: string;
     U_Almacen: string;
     U_Active: string; // "Y" o "N"
+    U_Estado:  'Pendiente' | 'PackingListCompletado' | 'TransporteCompletado' | 'DocumentosCompletados' | 'ListaParaEntrega' | 'Completada' | 'Cancelada' | 'Programado';
     DatosTransporte?: AppointmentDatosTransporte;
     Documents?: AppointmentDocument[];
 }
@@ -111,9 +113,9 @@ const mapApiRecordToAppointment = (record: AppointmentApiRecord, index: number):
 
     const scheduledDateTime = new Date(startUTC).toISOString();
     const scheduledDateTimeEnd = new Date(endUTC).toISOString();
-    // Determinar status basado en U_Active
-    const status: DeliveryAppointment['status'] = record.U_Active === 'Y' ? 'Pendiente' : 'Cancelada';
-    
+    // Determinar status basado en U_Estado, con fallback a REGISTRADA si no viene
+    const status: DeliveryAppointment['status'] = (record.U_Estado as DeliveryAppointment['status']) || 'REGISTRADA';
+
     // Generar ID único
     const id = `apt-api-${record.U_Ruc}-${record.U_Fecha}-${index}-${Date.now()}`;
     
@@ -332,10 +334,10 @@ export const fetchAppointmentsFromApi = async (
     }
     
     // Manejar ambos casos: objeto único o array
-    const records: AppointmentApiRecord[] = Array.isArray(json.data) 
-        ? json.data 
-        : json.data 
-            ? [json.data] 
+    const records: AppointmentApiRecord[] = Array.isArray(json.data)
+        ? json.data
+        : json.data
+            ? [json.data]
             : [];
     
     // Convertir cada registro a DeliveryAppointment
@@ -354,6 +356,7 @@ export interface CreateAppointmentRequest {
     u_Descripcion: string;
     u_Almacen: string;
     U_Active: string; // "Y" o "N"
+    U_Estado: string; // Estado de la cita (ej: "PENDIENTE")
 }
 
 /**
@@ -383,7 +386,7 @@ const formatTimeToSeconds = (timeStr: string): string => {
  * @returns ID de la cita creada
  */
 export const createAppointmentInApi = async (
-    appointmentData: Omit<CreateAppointmentRequest, 'U_Active'> & { U_Active?: string }
+    appointmentData: Omit<CreateAppointmentRequest, 'U_Active' | 'U_Estado'> & { U_Active?: string; U_Estado?: string }
 ): Promise<string> => {
     const url = `${DEFAULT_APPOINTMENTS_API_BASE_URL}${CREATE_APPOINTMENT_ENDPOINT}`;
     
@@ -396,7 +399,8 @@ export const createAppointmentInApi = async (
         u_HoraFin: formatTimeToSeconds(appointmentData.u_HoraFin),
         u_Descripcion: appointmentData.u_Descripcion || '',
         u_Almacen: appointmentData.u_Almacen || '',
-        U_Active: appointmentData.U_Active || 'Y'
+        U_Active: appointmentData.U_Active || 'Y',
+        U_Estado: appointmentData.U_Estado || 'REGISTRADA'
     };
     
     const response = await httpClient(url, {
@@ -434,6 +438,7 @@ export interface UpdateAppointmentRequest {
     u_Descripcion: string;
     u_Almacen: string;
     u_Active: string; // "Y" o "N"
+    U_Estado?: string; // Estado de la cita (ej: "Programado", "PENDIENTE")
 }
 
 /**
@@ -467,7 +472,8 @@ export const updateAppointmentInApi = async (
         u_HoraFin: formatTimeToSeconds(appointmentData.u_HoraFin),
         u_Descripcion: appointmentData.u_Descripcion || '',
         u_Almacen: appointmentData.u_Almacen || '',
-        u_Active: appointmentData.u_Active || 'Y'
+        u_Active: appointmentData.u_Active || 'Y',
+        U_Estado: appointmentData.U_Estado
     };
     
     const response = await httpClient(url, {

@@ -1,21 +1,22 @@
 import { httpClient } from "@/services/http/httpClient";
+import { getApiBaseUrl } from "@/config/api.ts";
 
-const DEFAULT_API_BASE_URL = 'http://192.168.254.27:8082';
+const DEFAULT_API_BASE_URL = getApiBaseUrl();
 const CHOFERES_ENDPOINT = '/api/Documentos/Choferes';
 
 /**
  * Interfaz para la petición de crear un chofer
  */
 export interface CreateChoferRequest {
-    u_EmpresaTranspote: string;
-    u_NombreConductor: string;
-    u_LicenciaConducir: string;
-    u_PlacaVehiculo: string;
-    u_TipoVehiculo: string;
-    u_TelefonoContacto: string;
-    u_HoraLlegada: string;
-    u_Notas: string;
-    u_CodCita: string;
+    U_EmpresaTransporte: string;
+    U_NombreConductor: string;
+    U_LicenciaConducir: string;
+    U_PlacaVehiculo: string;
+    U_TipoVehiculo: string;
+    U_TelefonoContacto: string;
+    U_HoraLlegada: string;
+    U_Notas: string;
+    U_CodCita: string;
 }
 
 /**
@@ -55,15 +56,15 @@ export const createChoferInApi = async (
     
     // Preparar el request body
     const requestBody: CreateChoferRequest = {
-        u_EmpresaTranspote: choferData.u_EmpresaTranspote || '',
-        u_NombreConductor: choferData.u_NombreConductor || '',
-        u_LicenciaConducir: choferData.u_LicenciaConducir || '',
-        u_PlacaVehiculo: choferData.u_PlacaVehiculo || '',
-        u_TipoVehiculo: choferData.u_TipoVehiculo || '',
-        u_TelefonoContacto: choferData.u_TelefonoContacto || '',
-        u_HoraLlegada: choferData.u_HoraLlegada || '',
-        u_Notas: choferData.u_Notas || '',
-        u_CodCita: choferData.u_CodCita || ''
+        U_EmpresaTransporte: choferData.U_EmpresaTransporte || '',
+        U_NombreConductor: choferData.U_NombreConductor || '',
+        U_LicenciaConducir: choferData.U_LicenciaConducir || '',
+        U_PlacaVehiculo: choferData.U_PlacaVehiculo || '',
+        U_TipoVehiculo: choferData.U_TipoVehiculo || '',
+        U_TelefonoContacto: choferData.U_TelefonoContacto || '',
+        U_HoraLlegada: choferData.U_HoraLlegada || '',
+        U_Notas: choferData.U_Notas || '',
+        U_CodCita: choferData.U_CodCita || ''
     };
     
     const response = await httpClient(url, {

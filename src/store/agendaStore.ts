@@ -48,6 +48,7 @@ interface AgendaState {
         description?: string;
         warehouse?: string;
         active?: 'Y' | 'N';
+        estado?: string;
     }) => Promise<void>;
     
     // PackingList actions
@@ -273,7 +274,7 @@ export const useAgendaStore = create<AgendaState>()(
                         deliveryTimeEnd: appointmentData.deliveryTimeEnd,
                         scheduledDateTime,
                         scheduledDateTimeEnd,
-                        status: 'Pendiente',
+                        status: 'REGISTRADA', // Estado inicial: cita registrada
                         createdBy: 'system',
                         createdDate: new Date().toISOString(),
                         notes: appointmentData.description || '',
@@ -291,6 +292,11 @@ export const useAgendaStore = create<AgendaState>()(
 
             updateAppointmentFromApi: async (docEntry, appointmentData) => {
                 try {
+                    // Obtener el estado actual de la cita si no se proporciona
+                    const appointments = get().appointments;
+                    const currentAppointment = appointments.find(apt => apt.docEntry === docEntry);
+                    const estadoToSend = appointmentData.estado || currentAppointment?.status || 'REGISTRADA';
+                    
                     // Actualizar la cita en el API
                     await updateAppointmentInApi(docEntry, {
                         u_Ruc: appointmentData.supplierRUC,
@@ -300,11 +306,12 @@ export const useAgendaStore = create<AgendaState>()(
                         u_HoraFin: appointmentData.deliveryTimeEnd,
                         u_Descripcion: appointmentData.description || '',
                         u_Almacen: appointmentData.warehouse || '',
-                        u_Active: appointmentData.active || 'Y'
+                        u_Active: appointmentData.active || 'Y',
+                        U_Estado: estadoToSend // Siempre enviar el estado actual
                     });
 
                     // Actualizar la cita en el store local
-                    const appointments = get().appointments;
+                    //const appointments = get().appointments;
                     const appointmentToUpdate = appointments.find(apt => apt.docEntry === docEntry);
                     
                     if (appointmentToUpdate) {

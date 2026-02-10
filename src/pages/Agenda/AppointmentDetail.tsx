@@ -575,7 +575,14 @@ const AppointmentDetail: React.FC = () => {
                 }))
             });
 
-            alert('PackingList creado exitosamente');
+            // Actualizar estado de la cita a PROGRAMADA cuando se crea el packing list
+            if (appointment.docEntry && currentUser) {
+                const { updateAppointmentStatus } = await import('@/services/agenda/appointmentStatus');
+                const userId = currentUser.userCode || currentUser.id || currentUser.username || 'system';
+                await updateAppointmentStatus(appointment.docEntry, 'PROGRAMADA', userId);
+            }
+
+            alert('PackingList creado exitosamente. Estado actualizado a PROGRAMADA.');
             
             // Limpiar formulario
             setPackingListForm({
@@ -653,15 +660,142 @@ const AppointmentDetail: React.FC = () => {
         setIsEvaluationModalOpen(true);
     };
 
-    const handleEvaluationSaved = (updatedEvaluation: DeliveryEvaluation) => {
+    const handleEvaluationSaved = async (updatedEvaluation: DeliveryEvaluation) => {
         setEvaluation(updatedEvaluation);
-        // Recargar evaluación completa
+        
+        // Actualizar estado de la cita según el tipo de evaluación
+        if (!appointment?.docEntry) return;
+        
+        const { updateAppointmentStatus } = await import('@/services/agenda/appointmentStatus');
+        
+        // Si se evaluó estado de mercadería, actualizar estado de calidad
+        if (updatedEvaluation.estadoMercaderia?.estado) {
+            const calidadEstado = updatedEvaluation.estadoMercaderia.estado;
+            let newStatus: 'CALIDAD_ACEPTADO' | 'CALIDAD_OBSERVADO' | 'CALIDAD_RECHAZADO';
+            
+            if (calidadEstado === 'ACEPTADO') {
+                newStatus = 'CALIDAD_ACEPTADO';
+            } else if (calidadEstado === 'OBSERVADO') {
+                newStatus = 'CALIDAD_OBSERVADO';
+            } else {
+                newStatus = 'CALIDAD_RECHAZADO';
+            }
+            
+            const userId = currentUser?.userCode || currentUser?.id || currentUser?.username || 'system';
+            await updateAppointmentStatus(appointment.docEntry, newStatus, userId);
+            
+            setAppointment({ ...appointment, status: newStatus });
+        }
+        
+        // Si se evaluó cantidad correcta, actualizar estado de almacén
+        if (updatedEvaluation.cantidadCorrecta && appointment.docEntry && currentUser) {
+            // Determinar estado basado en el puntaje o estado explícito
+            let almacenEstado: 'ACEPTADO' | 'OBSERVADO' | 'RECHAZADO';
+            
+            if (updatedEvaluation.cantidadCorrecta.estado) {
+                almacenEstado = updatedEvaluation.cantidadCorrecta.estado;
+            } else {
+                // Si no hay estado explícito, determinarlo por puntaje (escala 1-10)
+                const puntaje = updatedEvaluation.cantidadCorrecta.puntaje || 0;
+                if (puntaje >= 9) {
+                    almacenEstado = 'ACEPTADO';
+                } else if (puntaje >= 5) {
+                    almacenEstado = 'OBSERVADO';
+                } else {
+                    almacenEstado = 'RECHAZADO';
+                }
+            }
+            
+            let newStatus: 'ALMACEN_ACEPTADO' | 'ALMACEN_OBSERVADO' | 'ALMACEN_RECHAZADO';
+            
+            if (almacenEstado === 'ACEPTADO') {
+                newStatus = 'ALMACEN_ACEPTADO';
+            } else if (almacenEstado === 'OBSERVADO') {
+                newStatus = 'ALMACEN_OBSERVADO';
+            } else {
+                newStatus = 'ALMACEN_RECHAZADO';
+            }
+            
+            const userId = currentUser.userCode || currentUser.id || currentUser.username || 'system';
+            await updateAppointmentStatus(appointment.docEntry, newStatus, userId);
+            
+            setAppointment({ ...appointment, status: newStatus });
+        }
     };
 
     const handleRejectEvaluation = () => {
         // Abrir modal de reclamo cuando se rechaza
         console.log('handleRejectEvaluation llamado, abriendo modal de reclamo...');
         setIsClaimModalOpen(true);
+    };
+
+    // Handler para marcar proveedor como llegado (EN_EXPLANADA)
+    const handleMarkArrived = async () => {
+        if (!appointment?.docEntry || !currentUser) {
+            alert('La cita no tiene código (DocEntry) o no hay usuario autenticado');
+            return;
+        }
+
+        try {
+            const { updateAppointmentStatus } = await import('@/services/agenda/appointmentStatus');
+            const userId = currentUser.userCode || currentUser.id || currentUser.username || 'system';
+            await updateAppointmentStatus(appointment.docEntry, 'EN_EXPLANADA', userId);
+            
+            setAppointment({ ...appointment, status: 'EN_EXPLANADA' });
+            alert('Proveedor marcado como llegado. Estado actualizado a EN_EXPLANADA.');
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Error al actualizar estado';
+            alert(`Error: ${errorMessage}`);
+            console.error('Error al marcar como llegado:', error);
+        }
+    };
+
+    // Handler para generar Parte de Ingreso
+    const handleGenerateParteIngreso = async () => {
+        if (!appointment?.docEntry || !currentUser) {
+            alert('La cita no tiene código (DocEntry) o no hay usuario autenticado');
+            return;
+        }
+
+        const confirm = window.confirm('¿Confirma que desea generar el Parte de Ingreso? Esta acción actualizará el estado de la cita.');
+        if (!confirm) return;
+
+        try {
+            const { updateAppointmentStatus } = await import('@/services/agenda/appointmentStatus');
+            const userId = currentUser.userCode || currentUser.id || currentUser.username || 'system';
+            await updateAppointmentStatus(appointment.docEntry, 'PARTE_DE_INGRESO_GENERADO', userId);
+            
+            setAppointment({ ...appointment, status: 'PARTE_DE_INGRESO_GENERADO' });
+            alert('Parte de Ingreso generado exitosamente. Estado actualizado.');
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Error al generar Parte de Ingreso';
+            alert(`Error: ${errorMessage}`);
+            console.error('Error al generar Parte de Ingreso:', error);
+        }
+    };
+
+    // Handler para marcar como entregado
+    const handleMarkDelivered = async () => {
+        if (!appointment?.docEntry || !currentUser) {
+            alert('La cita no tiene código (DocEntry) o no hay usuario autenticado');
+            return;
+        }
+
+        const confirm = window.confirm('¿Confirma que la entrega está completa y desea marcar como ENTREGADO? Esta acción cerrará el proceso.');
+        if (!confirm) return;
+
+        try {
+            const { updateAppointmentStatus } = await import('@/services/agenda/appointmentStatus');
+            const userId = currentUser.userCode || currentUser.id || currentUser.username || 'system';
+            await updateAppointmentStatus(appointment.docEntry, 'ENTREGADO', userId);
+            
+            setAppointment({ ...appointment, status: 'ENTREGADO' });
+            alert('Entrega marcada como completada. Estado actualizado a ENTREGADO.');
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Error al marcar como entregado';
+            alert(`Error: ${errorMessage}`);
+            console.error('Error al marcar como entregado:', error);
+        }
     };
 
     const handleGenerateClaim = async (claimData: Partial<SupplierClaim>) => {
@@ -717,6 +851,13 @@ const AppointmentDetail: React.FC = () => {
             // Llamar al API para crear el chofer
             await createChoferInApi(choferData);
 
+            // Actualizar estado de la cita a TRANSPORTE_COMPLETO
+            if (appointment.docEntry && currentUser) {
+                const { updateAppointmentStatus } = await import('@/services/agenda/appointmentStatus');
+                const userId = currentUser.userCode || currentUser.id || currentUser.username || 'system';
+                await updateAppointmentStatus(appointment.docEntry, 'TRANSPORTE_COMPLETO', userId);
+            }
+
             // Recargar el appointment para obtener los datos actualizados
             const apiAppointments = await fetchAppointmentsFromApi();
             const updatedAppointment = apiAppointments.find(
@@ -726,7 +867,7 @@ const AppointmentDetail: React.FC = () => {
                 setAppointment(updatedAppointment);
             }
 
-            alert('Datos de transporte guardados exitosamente');
+            alert('Datos de transporte guardados exitosamente. Estado actualizado a TRANSPORTE_COMPLETO.');
             setTransportForm({
                 transportCompany: '',
                 driverName: '',
@@ -766,6 +907,17 @@ const AppointmentDetail: React.FC = () => {
             );
             if (foundApiAppointment && (foundApiAppointment as any).Documents) {
                 setAppointmentDocuments((foundApiAppointment as any).Documents || []);
+                
+                // Verificar si todos los documentos están completos y actualizar estado
+                const documents = (foundApiAppointment as any).Documents || [];
+                if (documents.length >= 5 && appointment.status !== 'DOCUMENTOS_COMPLETOS' && appointment.docEntry && currentUser) {
+                    const { updateAppointmentStatus } = await import('@/services/agenda/appointmentStatus');
+                    const userId = currentUser.userCode || currentUser.id || currentUser.username || 'system';
+                    await updateAppointmentStatus(appointment.docEntry, 'DOCUMENTOS_COMPLETOS', userId);
+                    
+                    // Actualizar estado local
+                    setAppointment({ ...appointment, status: 'DOCUMENTOS_COMPLETOS' });
+                }
             }
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Error desconocido al subir archivo';
@@ -856,6 +1008,45 @@ const AppointmentDetail: React.FC = () => {
                                             startContent={<BuildingOfficeIcon className="w-4 h-4" />}
                                         >
                                             Evaluar Cantidad
+                                        </Button>
+                                    )}
+                                    {canEvaluateSecurity && appointment?.docEntry && 
+                                     (appointment.status === 'DOCUMENTOS_COMPLETOS' || appointment.status === 'EN_EXPLANADA' || appointment.status === 'EN_ENTREGA') && (
+                                        <Button
+                                            color="warning"
+                                            variant="solid"
+                                            onPress={handleMarkArrived}
+                                            size="md"
+                                            className="font-medium"
+                                            startContent={<TruckIcon className="w-4 h-4" />}
+                                        >
+                                            Proveedor Llegó
+                                        </Button>
+                                    )}
+                                    {canEvaluateWarehouse && appointment?.docEntry && 
+                                     (appointment.status === 'ALMACEN_ACEPTADO' || appointment.status === 'ALMACEN_OBSERVADO') && (
+                                        <Button
+                                            color="success"
+                                            variant="solid"
+                                            onPress={handleGenerateParteIngreso}
+                                            size="md"
+                                            className="font-medium"
+                                            startContent={<DocumentTextIcon className="w-4 h-4" />}
+                                        >
+                                            Generar Parte Ingreso
+                                        </Button>
+                                    )}
+                                    {canEvaluateWarehouse && appointment?.docEntry && 
+                                     appointment.status === 'PARTE_DE_INGRESO_GENERADO' && (
+                                        <Button
+                                            color="success"
+                                            variant="solid"
+                                            onPress={handleMarkDelivered}
+                                            size="md"
+                                            className="font-medium"
+                                            startContent={<CheckCircleIcon className="w-4 h-4" />}
+                                        >
+                                            Marcar como Entregado
                                         </Button>
                                     )}
                                     {[UserRole.ADMIN, UserRole.COMPRAS].includes(currentUser?.role || UserRole.ADMIN) && (

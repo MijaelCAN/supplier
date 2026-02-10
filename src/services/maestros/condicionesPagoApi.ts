@@ -1,6 +1,7 @@
 // src/services/maestros/condicionesPagoApi.ts
 
 import {httpClient, buildSecureUrl} from "@/services/http/httpClient.ts";
+import { getApiBaseUrl } from "@/config/api.ts";
 
 export interface CondicionPago {
     GroupNum: string;
@@ -13,20 +14,7 @@ interface CondicionesPagoApiResponse {
     data: CondicionPago[];
 }
 
-const resolveEnv = (key: string): string | undefined => {
-    if (key in import.meta.env && typeof import.meta.env[key] === 'string') {
-        return import.meta.env[key] as string;
-    }
-
-    const viteKey = `VITE_${key}`;
-    if (viteKey in import.meta.env && typeof import.meta.env[viteKey] === 'string') {
-        return import.meta.env[viteKey] as string;
-    }
-
-    return undefined;
-};
-
-const BASE_URL = resolveEnv('API_BASE_URL') || 'http://192.168.254.27:8082';
+const BASE_URL = getApiBaseUrl();
 
 /**
  * Obtiene todas las condiciones de pago desde el API

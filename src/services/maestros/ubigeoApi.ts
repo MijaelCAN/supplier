@@ -1,6 +1,7 @@
 import { httpClient, buildSecureUrl } from "@/services/http/httpClient.ts";
+import { getApiBaseUrl } from "@/config/api.ts";
 
-const DEFAULT_UBIGEO_API_BASE_URL = 'http://192.168.254.27:8082';
+const DEFAULT_UBIGEO_API_BASE_URL = getApiBaseUrl();
 const UBIGEO_ENDPOINT = '/api/Proveedores/Ubigeo';
 
 export interface UbigeoRecord {

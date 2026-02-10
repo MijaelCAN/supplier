@@ -1,7 +1,8 @@
 import { httpClient, buildSecureUrl } from "@/services/http/httpClient";
 import { formatDateForAPI } from "./appointmentsApi";
+import { getApiBaseUrl } from "@/config/api.ts";
 
-const DEFAULT_API_BASE_URL = 'http://192.168.254.27:8082';
+const DEFAULT_API_BASE_URL = getApiBaseUrl();
 const PACKING_LIST_ENDPOINT = '/api/Documentos/PackinList';
 const WAREHOUSE_LIST_ENDPOINT = '/api/PackingList/ListadoAlmacen';
 const DOCUMENTS_ENDPOINT = '/api/PackingList/Documentos';

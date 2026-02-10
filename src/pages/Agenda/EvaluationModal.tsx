@@ -8,7 +8,6 @@ import {
     Button,
     Textarea,
 } from '@heroui/react';
-import { StarIcon } from '@heroicons/react/24/outline';
 import { DeliveryEvaluation } from '@/store/types';
 import { saveEvaluation, EVALUATION_CRITERIA_CODES } from '@/services/agenda/evaluationsApi';
 import { UserRole } from '@/routes/menuTypes';
@@ -35,7 +34,7 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({
     onEvaluationSaved,
     onReject,
 }) => {
-    const [score, setScore] = useState<number>(0);
+    const [score, setScore] = useState<number | null>(null);
     const [comment, setComment] = useState<string>('');
     const [generalComment, setGeneralComment] = useState<string>('');
     const [file, setFile] = useState<File | null>(null);
@@ -118,14 +117,14 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({
                     else setEstadoMercaderia('RECHAZADO');
                 }
             } else if (evaluationType === 'cantidadCorrecta' && currentEvaluation.cantidadCorrecta) {
-                setScore(currentEvaluation.cantidadCorrecta.puntaje || 0);
+                setScore(currentEvaluation.cantidadCorrecta.puntaje || null);
                 setComment(currentEvaluation.cantidadCorrecta.comentario || '');
             } else if (evaluationType === 'full') {
                 setGeneralComment(currentEvaluation.comentario || '');
             }
         } else if (isOpen) {
             // Reset cuando se abre sin evaluación previa
-            setScore(0);
+            setScore(null);
             setComment('');
             setGeneralComment('');
             setFile(null);
@@ -146,8 +145,11 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({
                 alert(`Por favor ingrese el motivo de ${tipoMotivo}`);
                 return;
             }
-        } else if (evaluationType !== 'full' && score === 0) {
+        } else if (evaluationType !== 'full' && evaluationType !== 'puntualidad' && evaluationType !== 'documentacion' && score === 0) {
             alert('Por favor seleccione un puntaje');
+            return;
+        } else if ((evaluationType === 'puntualidad' || evaluationType === 'documentacion') && score === null) {
+            alert('Por favor seleccione Sí o No');
             return;
         }
 
@@ -161,14 +163,14 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({
             // Asignar según el tipo
             if (evaluationType === 'puntualidad') {
                 evaluation.puntualidad = {
-                    puntaje: score,
+                    puntaje: score === 1 ? 1 : 0, // Binario: 1 = Sí, 0 = No
                     comentario: comment,
                     evaluadoPor: userRole,
                     fechaEvaluacion: new Date().toISOString(),
                 };
             } else if (evaluationType === 'documentacion') {
                 evaluation.documentacion = {
-                    puntaje: score,
+                    puntaje: score === 1 ? 1 : 0, // Binario: 1 = Sí, 0 = No
                     comentario: comment,
                     evaluadoPor: userRole,
                     fechaEvaluacion: new Date().toISOString(),
@@ -188,8 +190,20 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({
                     fechaEvaluacion: new Date().toISOString(),
                 };
             } else if (evaluationType === 'cantidadCorrecta') {
+                // Para cantidadCorrecta, usar escala 1-10 pero también permitir estados ACEPTADO/OBSERVADO/RECHAZADO
+                // Si el score es >= 9, es ACEPTADO; >= 5 es OBSERVADO; < 5 es RECHAZADO
+                let estado: 'ACEPTADO' | 'OBSERVADO' | 'RECHAZADO' | undefined;
+                if (score && score >= 9) {
+                    estado = 'ACEPTADO';
+                } else if (score && score >= 5) {
+                    estado = 'OBSERVADO';
+                } else {
+                    estado = 'RECHAZADO';
+                }
+                
                 evaluation.cantidadCorrecta = {
-                    puntaje: score,
+                    puntaje: score || 0,
+                    estado: estado,
                     comentario: comment,
                     evaluadoPor: userRole,
                     fechaEvaluacion: new Date().toISOString(),
@@ -419,43 +433,53 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({
                                                     isDisabled={!estadoMercaderia}
                                                 />
                                             </>
-                                        ) : (
+                                        ) : evaluationType === 'puntualidad' || evaluationType === 'documentacion' && (
                                             <>
-                                                {/* Selector de Puntaje para otros tipos (escala 1-10) */}
+                                                {/* Selector Binario para Puntualidad y Documentación (Sí/No) */}
                                                 <div>
                                                     <label className="text-sm font-medium text-gray-700 mb-2 block">
-                                                        {config.label} (1-10)
+                                                        {config.label} *
                                                     </label>
-                                                    <div className="flex gap-2 flex-wrap">
-                                                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((value) => (
-                                                            <button
-                                                                key={value}
-                                                                type="button"
-                                                                onClick={() => setScore(value)}
-                                                                className={`flex-1 min-w-[60px] p-3 rounded-lg border-2 transition-all ${
-                                                                    score === value
-                                                                        ? 'border-blue-500 bg-blue-50 text-blue-700'
-                                                                        : 'border-gray-300 bg-white text-gray-700 hover:border-blue-300'
-                                                                }`}
-                                                            >
-                                                                <div className="flex flex-col items-center justify-center gap-1">
-                                                                    <StarIcon
-                                                                        className={`w-5 h-5 ${
-                                                                            score >= value ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'
-                                                                        }`}
-                                                                    />
-                                                                    <span className="font-semibold text-sm">{value}</span>
-                                                                </div>
-                                                            </button>
-                                                        ))}
+                                                    <div className="grid grid-cols-2 gap-3">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setScore(1)}
+                                                            className={`p-4 rounded-lg border-2 transition-all ${
+                                                                score === 1
+                                                                    ? 'border-green-500 bg-green-50 text-green-700'
+                                                                    : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
+                                                            }`}
+                                                        >
+                                                            <div className="flex flex-col items-center gap-2">
+                                                                <span className="text-2xl">✓</span>
+                                                                <span className="font-semibold text-lg">Sí</span>
+                                                                <span className="text-xs text-gray-600">
+                                                                    {evaluationType === 'documentacion' 
+                                                                        ? 'Documentación completa' 
+                                                                        : 'Llegó puntual'}
+                                                                </span>
+                                                            </div>
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setScore(0)}
+                                                            className={`p-4 rounded-lg border-2 transition-all ${
+                                                                score === 0 && score !== null
+                                                                    ? 'border-red-500 bg-red-50 text-red-700'
+                                                                    : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
+                                                            }`}
+                                                        >
+                                                            <div className="flex flex-col items-center gap-2">
+                                                                <span className="text-2xl">✗</span>
+                                                                <span className="font-semibold text-lg">No</span>
+                                                                <span className="text-xs text-gray-600">
+                                                                    {evaluationType === 'puntualidad' 
+                                                                        ? 'No llegó puntual' 
+                                                                        : 'Documentación incompleta'}
+                                                                </span>
+                                                            </div>
+                                                        </button>
                                                     </div>
-                                                    {score > 0 && (
-                                                        <div className="mt-3 text-center">
-                                                            <span className="text-sm font-semibold text-gray-700">
-                                                                Puntaje seleccionado: {score}/10
-                                                            </span>
-                                                        </div>
-                                                    )}
                                                 </div>
 
                                                 <Textarea
@@ -549,6 +573,8 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({
                                 isDisabled={
                                     evaluationType === 'estadoMercaderia' 
                                         ? !estadoMercaderia || ((estadoMercaderia === 'OBSERVADO' || estadoMercaderia === 'RECHAZADO') && !comment.trim())
+                                        : evaluationType === 'puntualidad' || evaluationType === 'documentacion'
+                                        ? score === null
                                         : evaluationType !== 'full' && score === 0
                                 }
                             >

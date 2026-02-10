@@ -1,17 +1,9 @@
 import {Invoice as InvoiceApi, InvoiceApiResponse} from "@/services/invoices/types.ts";
 import {Invoice} from "@/store/types.ts";
 import {httpClient, buildSecureUrl} from "@/services/http/httpClient.ts";
+import {getApiBaseUrl} from "@/config/api.ts";
 
-const nameBaseUrl = 'VITE_BASE_URL';
-
-const normaliseString = (value?: string | null) => (value ?? '').trim();
-
-const resolveEnv = (key: string): string | undefined => {
-    if (key in import.meta.env && typeof import.meta.env[key] === 'string') {
-        return import.meta.env[key];
-    }
-    return undefined;
-}
+//const normaliseString = (value?: string | null) => (value ?? '').trim();
 
 const buildEnpointUrlOrder = (
     cardCode?: string,
@@ -19,8 +11,8 @@ const buildEnpointUrlOrder = (
     startDate?: string,
     endDate?: string,
 ): string => {
-    const BASE_URL = normaliseString(resolveEnv(nameBaseUrl));
-    const ENDPOINT = resolveEnv('VITE_INVOICE_ENDPOINT') || '/api/Documentos/Factura';
+    const BASE_URL = getApiBaseUrl();
+    const ENDPOINT = '/api/Documentos/Factura';
     
     const params: Record<string, string> = {};
     if (state && state.trim() !== '') params['Estado'] = state.trim();
@@ -163,7 +155,7 @@ export const fetchInvoicesForPaymentSchedule = async (
     endDate: string,   // Formato: YYYYMMDD
     codigoProveedor?: string
 ): Promise<Invoice[] | null> => {
-    const BASE_URL = 'http://192.168.254.27:8082';
+    const BASE_URL = getApiBaseUrl();
     const ENDPOINT = '/api/Pagos/Factura';
     
     const params: Record<string, string> = {
@@ -281,7 +273,7 @@ export const schedulePaymentInvoices = async (
         editedImportePagar?: string;
     }>
 ): Promise<SchedulePaymentResponse> => {
-    const BASE_URL = 'http://192.168.254.27:8082';
+    const BASE_URL = getApiBaseUrl();
     const ENDPOINT = '/api/Pagos/ProgramarFacturas';
     
     // El request es directamente un array de facturas, sin etiqueta "facturas"
@@ -382,7 +374,7 @@ export const fetchScheduledInvoices = async (
     endDate?: string,   // Formato: YYYYMMDD
     codigoProveedor?: string
 ): Promise<Invoice[] | null> => {
-    const BASE_URL = 'http://192.168.254.27:8082';
+    const BASE_URL = getApiBaseUrl();
     const ENDPOINT = '/api/Pagos/FacturasProgramadas';
     
     const params: Record<string, string> = {};
