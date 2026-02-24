@@ -193,28 +193,32 @@ const fileToBase64 = (file: File): Promise<string> =>
     });
 
 const createEmptyContact = (): Contacto => ({
-    Active: 'Y',
-    DocEntry: '0',
-    E_MailL: '',
-    Name: '',
-    Profesion: '',
-    Telefono: '',
+    active: 'Y',
+    doc_entry: '0',
+    e_mail_l: '',
+    name: '',
+    nombre: '',
+    segundo_nombre: '',
+    apellido: '',
+    profesion: '',
+    telefono: '',
 });
 
 const createEmptyBank = (): Banco => ({
-    Banco: '',
-    Cuenta: '',
-    Sectorista: '',
+    banco: '',
+    cuenta: '',
+    sectorista: '',
 });
 
 const createEmptyDocument = (cardCode: string): DocumentoEvaluacion => ({
-    DocEntry: '0',
-    U_CardCode: cardCode,
-    U_DocumentoEvaluacion: '',
-    U_LinkDocumento: '',
-    U_NombDocu: '',
-    U_Status: 'Pendiente',
-    U_typeArchiv: 'application/pdf',
+    doc_entry: '0',
+    u_card_code: cardCode,
+    u_documento_evaluacion: '',
+    u_link_documento: '',
+    u_nomb_docu: '',
+    u_observacion: '',
+    u_status: 'Pendiente',
+    u_type_archiv: 'application/pdf',
 });
 
 
@@ -311,16 +315,16 @@ const SupplierProfileCard = () => {
                     // Marcar este código como cargado
                     lastLoadedSupplierCodeRef.current = supplierCode;
                     
-                    const normalizedCover = normalizeImagePayloadValue(result.record.coverImage);
-                    const normalizedAvatar = normalizeImagePayloadValue(result.record.Avatar);
+                    const normalizedCover = normalizeImagePayloadValue(result.record.cover_image);
+                    const normalizedAvatar = normalizeImagePayloadValue(result.record.avatar);
                     savedCoverImageRef.current = normalizedCover;
                     savedAvatarRef.current = normalizedAvatar;
                     setSelectedSupplier(result.supplier);
                     setFormData({
                         ...result.record,
-                        coverImage: normalizedCover,
-                        Avatar: normalizedAvatar,
-                        ReferenciasComerciales: result.record.ReferenciasComerciales ?? [],
+                        cover_image: normalizedCover,
+                        avatar: normalizedAvatar,
+                        referencias_comerciales: result.record.referencias_comerciales ?? [],
                         ServiciosOfrecidos: result.record.ServiciosOfrecidos ?? [],
                     });
                 }
@@ -347,7 +351,7 @@ const SupplierProfileCard = () => {
         avatarOriginalRef.current = null;
         setCoverPreview(null);
         setAvatarPreview(null);
-    }, [selectedSupplier?.cardCode, formData?.CodigoSN]);
+    }, [selectedSupplier?.cardCode, formData?.codigo_sn]);
 
     // Inicializar formData si no hay datos (modo agregar)
     useEffect(() => {
@@ -379,47 +383,47 @@ const SupplierProfileCard = () => {
     const initializeFormData = () => {
         if (!formData && supplierCode) {
             const emptyFormData: SupplierApiRecord = {
-                CodigoSN: "",
-                NombreSN: "",
-                RUC: "",
-                TipoPersona: "",
-                Moneda: "",
-                Telefono1: "",
-                Telefono2: "",
-                TelefonoMovil: "",
-                Correo: "",
-                TipoDocumento: "",
-                Direccion: "",
-                Distrito: "",
-                Provincia: "",
-                Departamento: "",
-                Ubigeo: "",
-                CondicionPago: "",
-                DireccionSUNAT: "",
-                ResolucionAgenteRetencion: "",
-                ResolucionAgentePercepcion: "",
+                codigo_sn: "",
+                nombre_sn: "",
+                ruc: "",
+                tipo_persona: "",
+                moneda: "",
+                telefono1: "",
+                telefono2: "",
+                telefono_movil: "",
+                correo: "",
+                tipo_documento: "",
+                direccion: "",
+                distrito: "",
+                provincia: "",
+                departamento: "",
+                ubigeo: "",
+                condicion_pago: "",
+                direccion_sunat: "",
+                resolucion_agente_retencion: "",
+                resolucion_agente_percepcion: "",
                 website: null,
-                createDate: "",
-                updateDate: "",
-                statusContributer: null,
-                statusDomicilio: null,
-                agentePercepcion: "",
-                exoPercepcion: "",
-                agenteRetencion: "",
-                goodContributor: "",
-                economiActivitySunat: "",
+                create_date: "",
+                update_date: "",
+                status_contributer: null,
+                status_domicilio: null,
+                agente_percepcion: "",
+                exo_percepcion: "",
+                agente_retencion: "",
+                good_contributor: "",
+                economi_activity_sunat: "",
                 status: "",
-                approvalDate: "",
-                coverImage: "",
-                Avatar: "",
-                generalManager: "",
-                adminManager: "",
-                salesManager: "",
-                Contactos: [],
-                Bancos: [],
-                Direcciones: [],
-                DocumentoEvaluacion: [],
-                ReferenciasComerciales: [],
+                approval_date: "",
+                cover_image: "",
+                avatar: "",
+                general_manager: "",
+                admin_manager: "",
+                sales_manager: "",
+                contactos: [],
+                bancos: [],
+                direcciones: [],
+                documento_evaluacion: [],
+                referencias_comerciales: [],
                 ServiciosOfrecidos: []
             };
             setFormData(emptyFormData);
@@ -439,54 +443,54 @@ const SupplierProfileCard = () => {
     const handleContactChange = (index: number, field: keyof Contacto, value: string | boolean) => {
         setFormData((prev) => {
             if (!prev) return prev;
-            const contactos = [...(prev.Contactos ?? [])];
+            const contactos = [...(prev.contactos ?? [])];
             while (contactos.length <= index) {
                 contactos.push(createEmptyContact());
             }
             const updatedContact: Contacto = {
                 ...contactos[index],
-                [field]: field === 'Active' ? (value ? 'Y' : 'N') : (value as string),
+                [field]: field === 'active' ? (value ? 'Y' : 'N') : (value as string),
             } as Contacto;
             contactos[index] = updatedContact;
-            return {...prev, Contactos: contactos};
+            return {...prev, contactos: contactos};
         });
     };
 
     const addContact = () => {
-        setFormData((prev) => (prev ? {...prev, Contactos: [...(prev.Contactos ?? []), createEmptyContact()]} : prev));
+        setFormData((prev) => (prev ? {...prev, contactos: [...(prev.contactos ?? []), createEmptyContact()]} : prev));
     };
 
     const removeContact = (index: number) => {
         setFormData((prev) => {
             if (!prev) return prev;
-            const contactos = [...(prev.Contactos ?? [])];
+            const contactos = [...(prev.contactos ?? [])];
             contactos.splice(index, 1);
-            return {...prev, Contactos: contactos};
+            return {...prev, contactos: contactos};
         });
     };
 
     const handleBankChange = (index: number, field: keyof Banco, value: string) => {
         setFormData((prev) => {
             if (!prev) return prev;
-            const bancos = [...(prev.Bancos ?? [])];
+            const bancos = [...(prev.bancos ?? [])];
             while (bancos.length <= index) {
                 bancos.push(createEmptyBank());
             }
             bancos[index] = {...bancos[index], [field]: value} as Banco;
-            return {...prev, Bancos: bancos};
+            return {...prev, bancos: bancos};
         });
     };
 
     const addBank = () => {
-        setFormData((prev) => (prev ? {...prev, Bancos: [...(prev.Bancos ?? []), createEmptyBank()]} : prev));
+        setFormData((prev) => (prev ? {...prev, bancos: [...(prev.bancos ?? []), createEmptyBank()]} : prev));
     };
 
     const removeBank = (index: number) => {
         setFormData((prev) => {
             if (!prev) return prev;
-            const bancos = [...(prev.Bancos ?? [])];
+            const bancos = [...(prev.bancos ?? [])];
             bancos.splice(index, 1);
-            return {...prev, Bancos: bancos};
+            return {...prev, bancos: bancos};
         });
     };
 
@@ -497,28 +501,28 @@ const SupplierProfileCard = () => {
     ) => {
         setFormData((prev) => {
             if (!prev) return prev;
-            const documentos = [...(prev.DocumentoEvaluacion ?? [])];
+            const documentos = [...(prev.documento_evaluacion ?? [])];
             while (documentos.length <= index) {
-                documentos.push(createEmptyDocument(prev.CodigoSN));
+                documentos.push(createEmptyDocument(prev.codigo_sn));
             }
             documentos[index] = {...documentos[index], [field]: value} as DocumentoEvaluacion;
-            return {...prev, DocumentoEvaluacion: documentos};
+            return {...prev, documento_evaluacion: documentos};
         });
     };
 
     const addDocument = () => {
         setFormData((prev) => (prev ? {
             ...prev,
-            DocumentoEvaluacion: [...(prev.DocumentoEvaluacion ?? []), createEmptyDocument(prev.CodigoSN)],
+            documento_evaluacion: [...(prev.documento_evaluacion ?? []), createEmptyDocument(prev.codigo_sn)],
         } : prev));
     };
 
     const removeDocument = (index: number) => {
         setFormData((prev) => {
             if (!prev) return prev;
-            const documentos = [...(prev.DocumentoEvaluacion ?? [])];
+            const documentos = [...(prev.documento_evaluacion ?? [])];
             documentos.splice(index, 1);
-            return {...prev, DocumentoEvaluacion: documentos};
+            return {...prev, documento_evaluacion: documentos};
         });
     };
 
@@ -531,19 +535,19 @@ const SupplierProfileCard = () => {
             const base64 = await fileToBase64(file);
             setFormData((prev) => {
                 if (!prev) return prev;
-                const documentos = [...(prev.DocumentoEvaluacion ?? [])];
+                const documentos = [...(prev.documento_evaluacion ?? [])];
                 while (documentos.length <= index) {
-                    documentos.push(createEmptyDocument(prev.CodigoSN));
+                    documentos.push(createEmptyDocument(prev.codigo_sn));
                 }
 
                 documentos[index] = {
                     ...documentos[index],
-                    U_LinkDocumento: base64,
-                    U_NombDocu: file.name,
-                    U_typeArchiv: file.type || 'application/pdf',
+                    u_link_documento: base64,
+                    u_nomb_docu: file.name,
+                    u_type_archiv: file.type || 'application/pdf',
                 } as DocumentoEvaluacion;
 
-                return {...prev, DocumentoEvaluacion: documentos};
+                return {...prev, documento_evaluacion: documentos};
             });
         } catch (error) {
             console.error('No se pudo procesar el archivo seleccionado.', error);
@@ -581,11 +585,11 @@ const SupplierProfileCard = () => {
                 }
 
                 if (field === 'coverImage' && coverImageOriginalRef.current === null) {
-                    coverImageOriginalRef.current = prev.coverImage ?? '';
+                    coverImageOriginalRef.current = prev.cover_image ?? '';
                 }
 
                 if (field === 'Avatar' && avatarOriginalRef.current === null) {
-                    avatarOriginalRef.current = prev.Avatar ?? '';
+                    avatarOriginalRef.current = prev.avatar ?? '';
                 }
 
                 return {
@@ -838,24 +842,24 @@ const SupplierProfileCard = () => {
         try {
             const payload: SupplierApiRecord = {
                 ...formData,
-                coverImage: normalizeImagePayloadValue(savedCoverImageRef.current || formData.coverImage || ''),
-                Avatar: normalizeImagePayloadValue(savedAvatarRef.current || formData.Avatar || ''),
+                cover_image: normalizeImagePayloadValue(savedCoverImageRef.current || formData.cover_image || ''),
+                avatar: normalizeImagePayloadValue(savedAvatarRef.current || formData.avatar || ''),
             };
-            savedCoverImageRef.current = payload.coverImage;
-            savedAvatarRef.current = payload.Avatar;
-            await updateSupplierProfile(formData.CodigoSN, payload);
-            const refreshed = await fetchSupplierByCardCode(formData.CodigoSN);
+            savedCoverImageRef.current = payload.cover_image;
+            savedAvatarRef.current = payload.avatar;
+            await updateSupplierProfile(formData.codigo_sn, payload);
+            const refreshed = await fetchSupplierByCardCode(formData.codigo_sn);
 
             if (refreshed) {
-                const normalizedCover = normalizeImagePayloadValue(refreshed.record.coverImage);
-                const normalizedAvatar = normalizeImagePayloadValue(refreshed.record.Avatar);
+                const normalizedCover = normalizeImagePayloadValue(refreshed.record.cover_image);
+                const normalizedAvatar = normalizeImagePayloadValue(refreshed.record.avatar);
                 savedCoverImageRef.current = normalizedCover;
                 savedAvatarRef.current = normalizedAvatar;
                 setFormData({
                     ...refreshed.record,
-                    coverImage: normalizedCover,
-                    Avatar: normalizedAvatar,
-                    ReferenciasComerciales: refreshed.record.ReferenciasComerciales ?? [],
+                    cover_image: normalizedCover,
+                    avatar: normalizedAvatar,
+                    referencias_comerciales: refreshed.record.referencias_comerciales ?? [],
                     ServiciosOfrecidos: refreshed.record.ServiciosOfrecidos ?? [],
                 });
                 setSelectedSupplier(refreshed.supplier);
@@ -919,17 +923,17 @@ const SupplierProfileCard = () => {
     const addAddress = () => {
         setFormData((prev) => {
             if (!prev) return prev;
-            const direcciones = [...(prev.Direcciones ?? [])];
+            const direcciones = [...(prev.direcciones ?? [])];
             direcciones.push({
-                CodDireccion: '',
-                Direccion: '',
-                NroLinea: '0',
-                Departamento: '',
-                Provincia: '',
-                Distrito: '',
-                Ubigeo: ''
+                cod_direccion: '',
+                direccion: '',
+                nro_linea: '0',
+                departamento: '',
+                provincia: '',
+                distrito: '',
+                ubigeo: ''
             });
-            return { ...prev, Direcciones: direcciones };
+            return { ...prev, direcciones: direcciones };
         });
     };
 
@@ -937,9 +941,9 @@ const SupplierProfileCard = () => {
     const removeAddress = (index: number) => {
         setFormData((prev) => {
             if (!prev) return prev;
-            const direcciones = [...(prev.Direcciones ?? [])];
+            const direcciones = [...(prev.direcciones ?? [])];
             direcciones.splice(index, 1);
-            return { ...prev, Direcciones: direcciones };
+            return { ...prev, direcciones: direcciones };
         });
     };
 
@@ -978,7 +982,7 @@ const SupplierProfileCard = () => {
                     {/* Header con botón de guardar */}
                     <div className="flex justify-between items-center pt-6">
                         <h1 className="text-3xl font-extrabold text-gray-900 dark:text-white">
-                            {formData.NombreSN || 'Nuevo Proveedor'}
+                            {formData.nombre_sn || 'Nuevo Proveedor'}
                         </h1>
                         <div className="flex gap-3">
                             {/* Botones de PDF - Solo visibles si NO es proveedor */}
@@ -1047,63 +1051,63 @@ const SupplierProfileCard = () => {
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                             <Input 
                                                 label="Código" 
-                                                value={formData.CodigoSN || ''} 
-                                                onValueChange={(value) => handleFieldChange('CodigoSN', value)} 
+                                                value={formData.codigo_sn || ''} 
+                                                onValueChange={(value) => handleFieldChange('codigo_sn', value)} 
                                                 isDisabled
                                             />
                                             <Input 
                                                 label="Razón Social" 
-                                                value={formData.NombreSN || ''} 
-                                                onValueChange={(value) => handleFieldChange('NombreSN', value)}
+                                                value={formData.nombre_sn || ''} 
+                                                onValueChange={(value) => handleFieldChange('nombre_sn', value)}
                                                 isDisabled
                                             />
                                             <Input 
                                                 label="RUC" 
-                                                value={formData.RUC || ''} 
-                                                onValueChange={(value) => handleFieldChange('RUC', value)}
+                                                value={formData.ruc || ''} 
+                                                onValueChange={(value) => handleFieldChange('ruc', value)}
                                                 isDisabled
                                             />
                                             <Input 
                                                 label="Tipo de Persona" 
-                                                value={getPersonTypeLabel(formData.TipoPersona || '')} 
-                                                onValueChange={(value) => handleFieldChange('TipoPersona', value)}
+                                                value={getPersonTypeLabel(formData.tipo_persona || '')} 
+                                                onValueChange={(value) => handleFieldChange('tipo_persona', value)}
                                                 isReadOnly
                                                 isDisabled
-                                                description={formData.TipoPersona ? `Código: ${formData.TipoPersona}` : undefined}
+                                                description={formData.tipo_persona ? `Código: ${formData.tipo_persona}` : undefined}
                                             />
                                             <Input 
                                                 label="Tipo de Documento" 
-                                                value={getDocumentTypeLabel(formData.TipoDocumento || '')} 
-                                                onValueChange={(value) => handleFieldChange('TipoDocumento', value)}
+                                                value={getDocumentTypeLabel(formData.tipo_documento || '')} 
+                                                onValueChange={(value) => handleFieldChange('tipo_documento', value)}
                                                 isReadOnly
                                                 isDisabled
-                                                description={formData.TipoDocumento ? `Código: ${formData.TipoDocumento}` : undefined}
+                                                description={formData.tipo_documento ? `Código: ${formData.tipo_documento}` : undefined}
                                             />
                                             <Input 
                                                 label="Moneda"
                                                 isDisabled
-                                                value={getMonedaLabel(formData.Moneda || '')}
-                                                onValueChange={(value) => handleFieldChange('Moneda', value)} 
+                                                value={getMonedaLabel(formData.moneda || '')}
+                                                onValueChange={(value) => handleFieldChange('moneda', value)} 
                                             />
                                             <Input 
                                                 label="Teléfono 1" 
-                                                value={formData.Telefono1 || ''} 
-                                                onValueChange={(value) => handleFieldChange('Telefono1', value)} 
+                                                value={formData.telefono1 || ''} 
+                                                onValueChange={(value) => handleFieldChange('telefono1', value)} 
                                             />
                                             <Input 
                                                 label="Teléfono 2" 
-                                                value={formData.Telefono2 || ''} 
-                                                onValueChange={(value) => handleFieldChange('Telefono2', value)} 
+                                                value={formData.telefono2 || ''} 
+                                                onValueChange={(value) => handleFieldChange('telefono2', value)} 
                                             />
                                             <Input 
                                                 label="Teléfono Móvil" 
-                                                value={formData.TelefonoMovil || ''} 
-                                                onValueChange={(value) => handleFieldChange('TelefonoMovil', value)} 
+                                                value={formData.telefono_movil || ''} 
+                                                onValueChange={(value) => handleFieldChange('telefono_movil', value)} 
                                             />
                                             <Input 
                                                 label="Correo" 
-                                                value={formData.Correo || ''} 
-                                                onValueChange={(value) => handleFieldChange('Correo', value)} 
+                                                value={formData.correo || ''} 
+                                                onValueChange={(value) => handleFieldChange('correo', value)} 
                                             />
                                             <Input 
                                                 label="Sitio Web" 
@@ -1113,20 +1117,20 @@ const SupplierProfileCard = () => {
                                             <Select
                                                 label="Condición de Pago"
                                                 placeholder={isLoadingCondicionesPago ? "Cargando..." : "Seleccione una condición"}
-                                                selectedKeys={formData.CondicionPago ? [formData.CondicionPago] : []}
+                                                selectedKeys={formData.condicion_pago ? [formData.condicion_pago] : []}
                                                 onSelectionChange={(keys) => {
                                                     if (keys === 'all') return;
                                                     const selectedKey = Array.from(keys)[0] as string | undefined;
                                                     if (selectedKey) {
-                                                        handleFieldChange('CondicionPago', selectedKey);
+                                                        handleFieldChange('condicion_pago', selectedKey);
                                                     }
                                                 }}
                                                 isDisabled={true}
                                             >
                                                 {condicionesPago.length > 0 
                                                     ? condicionesPago.map((condicion) => (
-                                                        <SelectItem key={condicion.GroupNum}>
-                                                            {condicion.PymntGroup}
+                                                        <SelectItem key={condicion.group_num}>
+                                                            {condicion.pymnt_group}
                                                         </SelectItem>
                                                     ))
                                                     : terminosPago.map((termino) => (
@@ -1138,7 +1142,7 @@ const SupplierProfileCard = () => {
                                         <Divider />
                                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                                             <Switch 
-                                                isSelected={formData.agenteRetencion === 'Y'} 
+                                                isSelected={formData.agente_retencion === 'Y'} 
                                                 onValueChange={handleToggleField('agenteRetencion')} 
                                                 size="sm"
                                                 isDisabled={true}
@@ -1146,7 +1150,7 @@ const SupplierProfileCard = () => {
                                                 Agente de Retención
                                             </Switch>
                                             <Switch 
-                                                isSelected={formData.agentePercepcion === 'Y'} 
+                                                isSelected={formData.agente_percepcion === 'Y'} 
                                                 onValueChange={handleToggleField('agentePercepcion')} 
                                                 size="sm"isDisabled={true}
 
@@ -1154,7 +1158,7 @@ const SupplierProfileCard = () => {
                                                 Agente de Percepción
                                             </Switch>
                                             <Switch 
-                                                isSelected={formData.exoPercepcion === 'Y'} 
+                                                isSelected={formData.exo_percepcion === 'Y'} 
                                                 onValueChange={handleToggleField('exoPercepcion')} 
                                                 size="sm"
                                                 isDisabled={true}
@@ -1162,7 +1166,7 @@ const SupplierProfileCard = () => {
                                                 Exonerado Percepción
                                             </Switch>
                                             <Switch 
-                                                isSelected={formData.goodContributor === 'Y'} 
+                                                isSelected={formData.good_contributor === 'Y'} 
                                                 onValueChange={handleToggleField('goodContributor')} 
                                                 size="sm"
                                                 isDisabled={true}
@@ -1175,7 +1179,7 @@ const SupplierProfileCard = () => {
                                 
                                 <Tab key="addresses" title="Direcciones">
                                     <div className="p-6 space-y-4">
-                                        {(formData.Direcciones ?? []).length === 0 ? (
+                                        {(formData.direcciones ?? []).length === 0 ? (
                                             <div className="text-center py-8">
                                                 <p className="text-gray-500 mb-4">No hay direcciones registradas</p>
                                                 <Button variant="bordered" onPress={addAddress}>
@@ -1184,7 +1188,7 @@ const SupplierProfileCard = () => {
                                             </div>
                                         ) : (
                                             <>
-                                                {(formData.Direcciones ?? []).map((direccion, index) => (
+                                                {(formData.direcciones ?? []).map((direccion, index) => (
                                                     <Card key={`address-${index}`} className="border border-gray-200">
                                                         <CardBody className="space-y-4">
                                                             <div className="flex justify-between items-center">
@@ -1200,61 +1204,61 @@ const SupplierProfileCard = () => {
                                                             </div>
                                                             <Input
                                                                 label="Código Dirección"
-                                                                value={direccion.CodDireccion || ''}
+                                                                value={direccion.cod_direccion || ''}
                                                                 isDisabled={true}
                                                                 onValueChange={(value) => {
                                                                     setFormData((prev) => {
                                                                         if (!prev) return prev;
-                                                                        const updated = [...(prev.Direcciones ?? [])];
-                                                                        updated[index] = { ...updated[index], CodDireccion: value };
-                                                                        return { ...prev, Direcciones: updated };
+                                                                        const updated = [...(prev.direcciones ?? [])];
+                                                                        updated[index] = { ...updated[index], cod_direccion: value };
+                                                                        return { ...prev, direcciones: updated };
                                                                     });
                                                                 }}
                                                             />
                                                             <Input
                                                                 label="Dirección"
-                                                                value={direccion.Direccion || ''}
+                                                                value={direccion.direccion || ''}
                                                                 isDisabled={true}
                                                                 onValueChange={(value) => {
                                                                     setFormData((prev) => {
                                                                         if (!prev) return prev;
-                                                                        const updated = [...(prev.Direcciones ?? [])];
-                                                                        updated[index] = { ...updated[index], Direccion: value };
-                                                                        return { ...prev, Direcciones: updated };
+                                                                        const updated = [...(prev.direcciones ?? [])];
+                                                                        updated[index] = { ...updated[index], direccion: value };
+                                                                        return { ...prev, direcciones: updated };
                                                                     });
                                                                 }}
                                                             />
                                                             <UbigeoSelector
-                                                                value={direccion.Ubigeo || ''}
+                                                                value={direccion.ubigeo || ''}
                                                                 onChange={(ubigeoCode) => {
                                                                     setFormData((prev) => {
                                                                         if (!prev) return prev;
-                                                                        const updated = [...(prev.Direcciones ?? [])];
-                                                                        updated[index] = { ...updated[index], Ubigeo: ubigeoCode };
-                                                                        return { ...prev, Direcciones: updated };
+                                                                        const updated = [...(prev.direcciones ?? [])];
+                                                                        updated[index] = { ...updated[index], ubigeo: ubigeoCode };
+                                                                        return { ...prev, direcciones: updated };
                                                                     });
                                                                 }}
                                                                 onDepartmentChange={(department) => {
                                                                     setFormData((prev) => {
                                                                         if (!prev) return prev;
-                                                                        const updated = [...(prev.Direcciones ?? [])];
-                                                                        updated[index] = { ...updated[index], Departamento: department };
-                                                                        return { ...prev, Direcciones: updated };
+                                                                        const updated = [...(prev.direcciones ?? [])];
+                                                                        updated[index] = { ...updated[index], departamento: department };
+                                                                        return { ...prev, direcciones: updated };
                                                                     });
                                                                 }}
                                                                 onProvinceChange={(province) => {
                                                                     setFormData((prev) => {
                                                                         if (!prev) return prev;
-                                                                        const updated = [...(prev.Direcciones ?? [])];
-                                                                        updated[index] = { ...updated[index], Provincia: province };
-                                                                        return { ...prev, Direcciones: updated };
+                                                                        const updated = [...(prev.direcciones ?? [])];
+                                                                        updated[index] = { ...updated[index], provincia: province };
+                                                                        return { ...prev, direcciones: updated };
                                                                     });
                                                                 }}
                                                                 onDistrictChange={(district) => {
                                                                     setFormData((prev) => {
                                                                         if (!prev) return prev;
-                                                                        const updated = [...(prev.Direcciones ?? [])];
-                                                                        updated[index] = { ...updated[index], Distrito: district };
+                                                                        const updated = [...(prev.direcciones ?? [])];
+                                                                        updated[index] = { ...updated[index], distrito: district };
                                                                         return { ...prev, Direcciones: updated };
                                                                     });
                                                                 }}
@@ -1274,7 +1278,7 @@ const SupplierProfileCard = () => {
                                 
                                 <Tab key="contacts" title="Contactos">
                                     <div className="p-6 space-y-4">
-                                        {(formData.Contactos ?? []).length === 0 ? (
+                                        {(formData.contactos ?? []).length === 0 ? (
                                             <div className="text-center py-8">
                                                 <p className="text-gray-500 mb-4">No hay contactos registrados</p>
                                                 <Button variant="bordered" onPress={addContact}>
@@ -1283,7 +1287,7 @@ const SupplierProfileCard = () => {
                                             </div>
                                         ) : (
                                             <>
-                                                {(formData.Contactos ?? []).map((contacto, index) => (
+                                                {(formData.contactos ?? []).map((contacto, index) => (
                                                     <Card key={`contact-${index}`} className="border border-gray-200">
                                                         <CardBody className="space-y-4">
                                                             <div className="flex justify-between items-center">
@@ -1300,28 +1304,28 @@ const SupplierProfileCard = () => {
                                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                                                 <Input 
                                                                     label="Nombre" 
-                                                                    value={contacto.Name || ''} 
-                                                                    onValueChange={(value) => handleContactChange(index, 'Name', value)} 
+                                                                    value={contacto.name || ''} 
+                                                                    onValueChange={(value) => handleContactChange(index, 'name', value)} 
                                                                 />
                                                                 <Input 
                                                                     label="Correo" 
-                                                                    value={contacto.E_MailL || ''} 
-                                                                    onValueChange={(value) => handleContactChange(index, 'E_MailL', value)} 
+                                                                    value={contacto.e_mail_l || ''} 
+                                                                    onValueChange={(value) => handleContactChange(index, 'e_mail_l', value)} 
                                                                 />
                                                                 <Input 
                                                                     label="Profesión / Cargo" 
-                                                                    value={contacto.Profesion || ''} 
-                                                                    onValueChange={(value) => handleContactChange(index, 'Profesion', value)} 
+                                                                    value={contacto.profesion || ''} 
+                                                                    onValueChange={(value) => handleContactChange(index, 'profesion', value)} 
                                                                 />
                                                                 <Input 
                                                                     label="Teléfono" 
-                                                                    value={contacto.Telefono || ''} 
-                                                                    onValueChange={(value) => handleContactChange(index, 'Telefono', value)} 
+                                                                    value={contacto.telefono || ''} 
+                                                                    onValueChange={(value) => handleContactChange(index, 'telefono', value)} 
                                                                 />
                                                             </div>
                                                             <Switch 
-                                                                isSelected={contacto.Active === 'Y'} 
-                                                                onValueChange={(value) => handleContactChange(index, 'Active', value)} 
+                                                                isSelected={contacto.active === 'Y'} 
+                                                                onValueChange={(value) => handleContactChange(index, 'active', value)} 
                                                                 size="sm"
                                                             >
                                                                 Activo
@@ -1339,7 +1343,7 @@ const SupplierProfileCard = () => {
                                 
                                 <Tab key="banks" title="Bancos">
                                     <div className="p-6 space-y-4">
-                                        {(formData.Bancos ?? []).length === 0 ? (
+                                        {(formData.bancos ?? []).length === 0 ? (
                                             <div className="text-center py-8">
                                                 <p className="text-gray-500 mb-4">No hay bancos registrados</p>
                                                 <Button variant="bordered" onPress={addBank}>
@@ -1348,7 +1352,7 @@ const SupplierProfileCard = () => {
                                             </div>
                                         ) : (
                                             <>
-                                                {(formData.Bancos ?? []).map((banco, index) => (
+                                                {(formData.bancos ?? []).map((banco, index) => (
                                                     <Card key={`bank-${index}`} className="border border-gray-200">
                                                         <CardBody className="space-y-4">
                                                             <div className="flex justify-between items-center">
@@ -1365,18 +1369,18 @@ const SupplierProfileCard = () => {
                                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                                                 <Input 
                                                                     label="Banco" 
-                                                                    value={banco.Banco || ''} 
-                                                                    onValueChange={(value) => handleBankChange(index, 'Banco', value)} 
+                                                                    value={banco.banco || ''} 
+                                                                    onValueChange={(value) => handleBankChange(index, 'banco', value)} 
                                                                 />
                                                                 <Input 
                                                                     label="Número de Cuenta" 
-                                                                    value={banco.Cuenta || ''} 
-                                                                    onValueChange={(value) => handleBankChange(index, 'Cuenta', value)} 
+                                                                    value={banco.cuenta || ''} 
+                                                                    onValueChange={(value) => handleBankChange(index, 'cuenta', value)} 
                                                                 />
                                                                 <Input 
                                                                     label="Sectorista" 
-                                                                    value={banco.Sectorista || ''} 
-                                                                    onValueChange={(value) => handleBankChange(index, 'Sectorista', value)} 
+                                                                    value={banco.sectorista || ''} 
+                                                                    onValueChange={(value) => handleBankChange(index, 'sectorista', value)} 
                                                                 />
                                                             </div>
                                                         </CardBody>
@@ -1392,7 +1396,7 @@ const SupplierProfileCard = () => {
                                 
                                 <Tab key="documents" title="Documentos">
                                     <div className="p-6 space-y-4">
-                                        {(formData.DocumentoEvaluacion ?? []).length === 0 ? (
+                                        {(formData.documento_evaluacion ?? []).length === 0 ? (
                                             <div className="text-center py-8">
                                                 <p className="text-gray-500 mb-4">No hay documentos registrados</p>
                                                 <Button variant="bordered" onPress={addDocument}>
@@ -1401,14 +1405,14 @@ const SupplierProfileCard = () => {
                                             </div>
                                         ) : (
                                             <>
-                                                {(formData.DocumentoEvaluacion ?? []).map((documento, index) => {
+                                                {(formData.documento_evaluacion ?? []).map((documento, index) => {
                                                     const usedDocumentKeys = new Set(
-                                                        (formData.DocumentoEvaluacion ?? [])
-                                                            .map((doc) => normaliseDocumentKey(doc.U_DocumentoEvaluacion))
+                                                        (formData.documento_evaluacion ?? [])
+                                                            .map((doc) => normaliseDocumentKey(doc.u_documento_evaluacion))
                                                             .filter((value): value is string => Boolean(value))
                                                     );
                                                     const availableDocumentOptions = DOCUMENT_OPTIONS.filter(
-                                                        ({ value }) => !usedDocumentKeys.has(value) || documento.U_DocumentoEvaluacion === value
+                                                        ({ value }) => !usedDocumentKeys.has(value) || documento.u_documento_evaluacion === value
                                                     );
                                                     
                                                     return (
@@ -1429,18 +1433,18 @@ const SupplierProfileCard = () => {
                                                                     <Select
                                                                         label="Tipo de Documento"
                                                                         selectedKeys={
-                                                                            normaliseDocumentKey(documento.U_DocumentoEvaluacion)
-                                                                                ? [normaliseDocumentKey(documento.U_DocumentoEvaluacion)!]
+                                                                            normaliseDocumentKey(documento.u_documento_evaluacion)
+                                                                                ? [normaliseDocumentKey(documento.u_documento_evaluacion)!]
                                                                                 : []
                                                                         }
-                                                                        isDisabled={Boolean(documento.U_DocumentoEvaluacion)}
+                                                                        isDisabled={Boolean(documento.u_documento_evaluacion)}
                                                                         placeholder="Selecciona un documento"
                                                                         onSelectionChange={(keys: Selection) => {
                                                                             if (keys === 'all') return;
                                                                             const selectedKey = [...keys][0] as string | undefined;
                                                                             if (selectedKey) {
                                                                                 const normalizedKey = normaliseDocumentKey(selectedKey) ?? selectedKey;
-                                                                                handleDocumentChange(index, 'U_DocumentoEvaluacion', normalizedKey);
+                                                                                handleDocumentChange(index, 'u_documento_evaluacion', normalizedKey);
                                                                             }
                                                                         }}
                                                                     >
@@ -1450,21 +1454,21 @@ const SupplierProfileCard = () => {
                                                                     </Select>
                                                                     <Input 
                                                                         label="Nombre de Archivo" 
-                                                                        value={documento.U_NombDocu || ''}
+                                                                        value={documento.u_nomb_docu || ''}
                                                                         isDisabled={true}
-                                                                        onValueChange={(value) => handleDocumentChange(index, 'U_NombDocu', value)} 
+                                                                        onValueChange={(value) => handleDocumentChange(index, 'u_nomb_docu', value)} 
                                                                     />
                                                                     <Input 
                                                                         label="Estado" 
-                                                                        value={documento.U_Status || ''}
+                                                                        value={documento.u_status || ''}
                                                                         isDisabled={true}
-                                                                        onValueChange={(value) => handleDocumentChange(index, 'U_Status', value)} 
+                                                                        onValueChange={(value) => handleDocumentChange(index, 'u_status', value)} 
                                                                     />
                                                                     <Input 
                                                                         label="Tipo de Archivo" 
-                                                                        value={documento.U_typeArchiv || ''}
+                                                                        value={documento.u_type_archiv || ''}
                                                                         isDisabled={true}
-                                                                        onValueChange={(value) => handleDocumentChange(index, 'U_typeArchiv', value)} 
+                                                                        onValueChange={(value) => handleDocumentChange(index, 'u_type_archiv', value)} 
                                                                     />
                                                                 </div>
                                                                 <div className="flex flex-col gap-2">
@@ -1480,7 +1484,7 @@ const SupplierProfileCard = () => {
                                                                             await handleDocumentFileChange(index, file);
                                                                         }}
                                                                     />
-                                                                    {documento.U_LinkDocumento && (
+                                                                    {documento.u_link_documento && (
                                                                         <Chip size="sm" variant="flat" color="primary">
                                                                             Archivo cargado
                                                                         </Chip>
@@ -1512,13 +1516,13 @@ const SupplierProfileCard = () => {
                                                                 className="h-full w-full object-cover"
                                                                 src={coverPreview}
                                                             />
-                                                        ) : (formData.coverImage && formData.coverImage.trim()) ? (
+                                                        ) : (formData.cover_image && formData.cover_image.trim()) ? (
                                                             <img
                                                                 alt="Imagen de portada"
                                                                 className="h-full w-full object-cover"
-                                                                src={formData.coverImage.startsWith('data:') || formData.coverImage.startsWith('http') 
-                                                                    ? formData.coverImage 
-                                                                    : `data:image/jpeg;base64,${formData.coverImage}`}
+                                                                src={formData.cover_image.startsWith('data:') || formData.cover_image.startsWith('http') 
+                                                                    ? formData.cover_image 
+                                                                    : `data:image/jpeg;base64,${formData.cover_image}`}
                                                             />
                                                         ) : (
                                                             <div className="flex h-full w-full items-center justify-center text-sm text-gray-400">
@@ -1579,13 +1583,13 @@ const SupplierProfileCard = () => {
                                                             className="h-full w-full object-cover"
                                                             src={avatarPreview}
                                                         />
-                                                    ) : (formData.Avatar && formData.Avatar.trim()) ? (
+                                                    ) : (formData.avatar && formData.avatar.trim()) ? (
                                                         <img
                                                             alt="Logo de empresa"
                                                             className="h-full w-full object-cover"
-                                                            src={formData.Avatar.startsWith('data:') || formData.Avatar.startsWith('http') 
-                                                                ? formData.Avatar 
-                                                                : `data:image/jpeg;base64,${formData.Avatar}`}
+                                                            src={formData.avatar.startsWith('data:') || formData.avatar.startsWith('http') 
+                                                                ? formData.avatar 
+                                                                : `data:image/jpeg;base64,${formData.avatar}`}
                                                         />
                                                     ) : (
                                                         <span className="text-sm text-gray-400">Sin logo</span>

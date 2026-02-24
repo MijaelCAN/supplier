@@ -56,6 +56,7 @@ const ProveedorHome = () => {
                 setIsLoading(true);
                 if (currentUser?.userCode) {
                     const result = await fetchSupplierByCardCode(currentUser.userCode);
+                    console.log("RESULT API: ", result?.record)
                     if (result?.supplier) {
                         // Guardar los datos raw de la API para mostrar toda la información
                         setApiSupplierData(result.record);
@@ -371,26 +372,26 @@ const ProveedorHome = () => {
                                                         <div className="space-y-1">
                                                             <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Tipo de Persona</p>
                                                             <p className="text-base font-bold text-gray-900 dark:text-white">
-                                                                {apiSupplierData.TipoPersona ? getPersonTypeLabel(apiSupplierData.TipoPersona) : 'N/A'}
+                                                                {apiSupplierData.tipo_persona ? getPersonTypeLabel(apiSupplierData.tipo_persona) : 'N/A'}
                                                             </p>
                                                         </div>
                                                         <div className="space-y-1">
                                                             <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Tipo de Documento</p>
                                                             <p className="text-base font-bold text-gray-900 dark:text-white">
-                                                                {apiSupplierData.TipoDocumento ? getDocumentTypeLabel(apiSupplierData.TipoDocumento) : 'N/A'}
+                                                                {apiSupplierData.tipo_documento ? getDocumentTypeLabel(apiSupplierData.tipo_documento) : 'N/A'}
                                                             </p>
                                                         </div>
-                                                        {apiSupplierData.Moneda && apiSupplierData.Moneda !== '##' && (
+                                                        {apiSupplierData.moneda && apiSupplierData.moneda !== '##' && (
                                                             <div className="space-y-1">
                                                                 <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Moneda</p>
-                                                                <p className="text-base font-bold text-gray-900 dark:text-white">{apiSupplierData.Moneda}</p>
+                                                                <p className="text-base font-bold text-gray-900 dark:text-white">{apiSupplierData.moneda}</p>
                                                             </div>
                                                         )}
-                                                        {apiSupplierData.CondicionPago && apiSupplierData.CondicionPago !== '-1' && (
+                                                        {apiSupplierData.condicion_pago && apiSupplierData.condicion_pago !== '-1' && (
                                                             <div className="space-y-1">
                                                                 <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Condición de Pago</p>
                                                                 <p className="text-base font-bold text-gray-900 dark:text-white">
-                                                                    {condicionPagoDescripcion || apiSupplierData.CondicionPago}
+                                                                    {condicionPagoDescripcion || apiSupplierData.condicion_pago}
                                                                 </p>
                                                             </div>
                                                         )}
@@ -405,30 +406,30 @@ const ProveedorHome = () => {
                                                         Información de Contacto
                                                     </h5>
                                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                        {apiSupplierData.Correo && (
+                                                        {apiSupplierData.correo && (
                                                             <div className="space-y-1">
                                                                 <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Email</p>
-                                                                <a href={`mailto:${apiSupplierData.Correo}`} className="text-base font-semibold text-blue-600 dark:text-blue-400 hover:underline break-all">
-                                                                    {apiSupplierData.Correo}
+                                                                <a href={`mailto:${apiSupplierData.correo}`} className="text-base font-semibold text-blue-600 dark:text-blue-400 hover:underline break-all">
+                                                                    {apiSupplierData.correo}
                                                                 </a>
                                                             </div>
                                                         )}
-                                                        {apiSupplierData.Telefono1 && (
+                                                        {apiSupplierData.telefono1 && (
                                                             <div className="space-y-1">
                                                                 <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Teléfono Principal</p>
-                                                                <p className="text-base font-bold text-gray-900 dark:text-white">{apiSupplierData.Telefono1}</p>
+                                                                <p className="text-base font-bold text-gray-900 dark:text-white">{apiSupplierData.telefono1}</p>
                                                             </div>
                                                         )}
-                                                        {apiSupplierData.Telefono2 && (
+                                                        {apiSupplierData.telefono2 && (
                                                             <div className="space-y-1">
                                                                 <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Teléfono Secundario</p>
-                                                                <p className="text-base font-bold text-gray-900 dark:text-white">{apiSupplierData.Telefono2}</p>
+                                                                <p className="text-base font-bold text-gray-900 dark:text-white">{apiSupplierData.telefono2}</p>
                                                             </div>
                                                         )}
-                                                        {apiSupplierData.TelefonoMovil && (
+                                                        {apiSupplierData.telefono_movil && (
                                                             <div className="space-y-1">
                                                                 <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Móvil</p>
-                                                                <p className="text-base font-bold text-gray-900 dark:text-white">{apiSupplierData.TelefonoMovil}</p>
+                                                                <p className="text-base font-bold text-gray-900 dark:text-white">{apiSupplierData.telefono_movil}</p>
                                                             </div>
                                                         )}
                                                         {apiSupplierData.website && (
@@ -445,94 +446,94 @@ const ProveedorHome = () => {
                                                 <Divider />
 
                                                 {/* Información Tributaria */}
-                                                {(apiSupplierData.agenteRetencion || apiSupplierData.agentePercepcion || apiSupplierData.exoPercepcion || apiSupplierData.goodContributor || apiSupplierData.statusContributer || apiSupplierData.statusDomicilio) && (
+                                                {(apiSupplierData.agente_retencion || apiSupplierData.agente_percepcion || apiSupplierData.exo_percepcion || apiSupplierData.good_contributor || apiSupplierData.status_contributer || apiSupplierData.status_domicilio) && (
                                                     <div>
                                                         <h5 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                                                             Información Tributaria
                                                         </h5>
                                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                                            {apiSupplierData.statusContributer && (
+                                                            {apiSupplierData.status_contributer && (
                                                                 <div className="space-y-1">
                                                                     <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Estado Contribuyente</p>
                                                                     <Chip size="sm" variant="flat" color="default">
-                                                                        {apiSupplierData.statusContributer}
+                                                                        {apiSupplierData.status_contributer}
                                                                     </Chip>
                                                                 </div>
                                                             )}
-                                                            {apiSupplierData.statusDomicilio && (
+                                                            {apiSupplierData.status_domicilio && (
                                                                 <div className="space-y-1">
                                                                     <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Estado Domicilio</p>
                                                                     <Chip size="sm" variant="flat" color="default">
-                                                                        {apiSupplierData.statusDomicilio}
+                                                                        {apiSupplierData.status_domicilio}
                                                                     </Chip>
                                                                 </div>
                                                             )}
-                                                            {apiSupplierData.agenteRetencion && (
+                                                            {apiSupplierData.agente_retencion && (
                                                                 <div className="space-y-2">
                                                                     <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Agente Retención</p>
                                                                     <div className="flex items-center gap-2">
                                                                         <Switch 
-                                                                            isSelected={apiSupplierData.agenteRetencion === 'Y'}
+                                                                            isSelected={apiSupplierData.agente_retencion === 'Y'}
                                                                             isDisabled
                                                                             size="sm"
                                                                         />
                                                                         <span className="text-sm font-semibold text-gray-900 dark:text-white">
-                                                                            {apiSupplierData.agenteRetencion === 'Y' ? 'Sí' : 'No'}
+                                                                            {apiSupplierData.agente_retencion === 'Y' ? 'Sí' : 'No'}
                                                                         </span>
                                                                     </div>
-                                                                    {apiSupplierData.ResolucionAgenteRetencion && (
+                                                                    {apiSupplierData.resolucion_agente_retencion && (
                                                                         <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                                                                            {apiSupplierData.ResolucionAgenteRetencion}
+                                                                            {apiSupplierData.resolucion_agente_retencion}
                                                                         </p>
                                                                     )}
                                                                 </div>
                                                             )}
-                                                            {apiSupplierData.agentePercepcion && (
+                                                            {apiSupplierData.agente_percepcion && (
                                                                 <div className="space-y-2">
                                                                     <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Agente Percepción</p>
                                                                     <div className="flex items-center gap-2">
                                                                         <Switch 
-                                                                            isSelected={apiSupplierData.agentePercepcion === 'Y'}
+                                                                            isSelected={apiSupplierData.agente_percepcion === 'Y'}
                                                                             isDisabled
                                                                             size="sm"
                                                                         />
                                                                         <span className="text-sm font-semibold text-gray-900 dark:text-white">
-                                                                            {apiSupplierData.agentePercepcion === 'Y' ? 'Sí' : 'No'}
+                                                                            {apiSupplierData.agente_percepcion === 'Y' ? 'Sí' : 'No'}
                                                                         </span>
                                                                     </div>
-                                                                    {apiSupplierData.ResolucionAgentePercepcion && (
+                                                                    {apiSupplierData.resolucion_agente_percepcion && (
                                                                         <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                                                                            {apiSupplierData.ResolucionAgentePercepcion}
+                                                                            {apiSupplierData.resolucion_agente_percepcion}
                                                                         </p>
                                                                     )}
                                                                 </div>
                                                             )}
-                                                            {apiSupplierData.exoPercepcion && (
+                                                            {apiSupplierData.exo_percepcion && (
                                                                 <div className="space-y-2">
                                                                     <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Exonerado Percepción</p>
                                                                     <div className="flex items-center gap-2">
                                                                         <Switch 
-                                                                            isSelected={apiSupplierData.exoPercepcion === 'Y'}
+                                                                            isSelected={apiSupplierData.exo_percepcion === 'Y'}
                                                                             isDisabled
                                                                             size="sm"
                                                                         />
                                                                         <span className="text-sm font-semibold text-gray-900 dark:text-white">
-                                                                            {apiSupplierData.exoPercepcion === 'Y' ? 'Sí' : 'No'}
+                                                                            {apiSupplierData.exo_percepcion === 'Y' ? 'Sí' : 'No'}
                                                                         </span>
                                                                     </div>
                                                                 </div>
                                                             )}
-                                                            {apiSupplierData.goodContributor && (
+                                                            {apiSupplierData.good_contributor && (
                                                                 <div className="space-y-2">
                                                                     <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Buen Contribuyente</p>
                                                                     <div className="flex items-center gap-2">
                                                                         <Switch 
-                                                                            isSelected={apiSupplierData.goodContributor === 'Y'}
+                                                                            isSelected={apiSupplierData.good_contributor === 'Y'}
                                                                             isDisabled
                                                                             size="sm"
                                                                         />
                                                                         <span className="text-sm font-semibold text-gray-900 dark:text-white">
-                                                                            {apiSupplierData.goodContributor === 'Y' ? 'Sí' : 'No'}
+                                                                            {apiSupplierData.good_contributor === 'Y' ? 'Sí' : 'No'}
                                                                         </span>
                                                                     </div>
                                                                 </div>
@@ -542,7 +543,7 @@ const ProveedorHome = () => {
                                                 )}
 
                                                 {/* Fechas */}
-                                                {(apiSupplierData.createDate || apiSupplierData.updateDate || apiSupplierData.approvalDate) && (
+                                                {(apiSupplierData.create_date || apiSupplierData.update_date || apiSupplierData.approval_date) && (
                                                     <>
                                                         <Divider />
                                                         <div>
@@ -551,19 +552,19 @@ const ProveedorHome = () => {
                                                                 Fechas Importantes
                                                             </h5>
                                                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                                                {apiSupplierData.createDate && (
+                                                                {apiSupplierData.create_date && (
                                                                     <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700">
                                                                         <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Fecha de Creación</p>
-                                                                        <p className="text-base font-bold text-gray-900 dark:text-white">{apiSupplierData.createDate}</p>
+                                                                        <p className="text-base font-bold text-gray-900 dark:text-white">{apiSupplierData.create_date}</p>
                                                                     </div>
                                                                 )}
-                                                                {apiSupplierData.updateDate && (
+                                                                {apiSupplierData.update_date && (
                                                                     <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700">
                                                                         <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Última Actualización</p>
-                                                                        <p className="text-base font-bold text-gray-900 dark:text-white">{apiSupplierData.updateDate}</p>
+                                                                        <p className="text-base font-bold text-gray-900 dark:text-white">{apiSupplierData.update_date}</p>
                                                                     </div>
                                                                 )}
-                                                                {apiSupplierData.approvalDate && (
+                                                                {apiSupplierData.approval_date && (
                                                                     <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700">
                                                                         <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Fecha de Aprobación</p>
                                                                         <p className="text-base font-bold text-gray-900 dark:text-white">{apiSupplierData.approvalDate}</p>
@@ -605,7 +606,7 @@ const ProveedorHome = () => {
                                                     </Alert>
                                                 )}
 
-                                                {apiSupplierData.Direcciones && apiSupplierData.Direcciones.length > 0 ? (
+                                                {apiSupplierData.direcciones && apiSupplierData.direcciones.length > 0 ? (
                                                     <div>
                                                         <h5 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Direcciones Registradas</h5>
                                                         <Table 
@@ -623,24 +624,24 @@ const ProveedorHome = () => {
                                                                 <TableColumn>UBIGEO</TableColumn>
                                                             </TableHeader>
                                                             <TableBody>
-                                                                {apiSupplierData.Direcciones.map((dir: any, idx: number) => (
+                                                                {apiSupplierData.direcciones.map((dir: any, idx: number) => (
                                                                     <TableRow key={idx}>
                                                                         <TableCell>
                                                                             <Chip size="sm" variant="flat" color="primary">
-                                                                                {dir.CodDireccion || `Dirección ${idx + 1}`}
+                                                                                {dir.cod_direccion || `Dirección ${idx + 1}`}
                                                                             </Chip>
                                                                         </TableCell>
                                                                         <TableCell>
-                                                                            <p className="font-semibold">{dir.Direccion || 'N/A'}</p>
+                                                                            <p className="font-semibold">{dir.direccion || 'N/A'}</p>
                                                                         </TableCell>
                                                                         <TableCell>
                                                                             <p className="text-sm text-gray-600 dark:text-gray-400">
-                                                                                {[dir.Departamento, dir.Provincia, dir.Distrito].filter(Boolean).join(', ') || 'N/A'}
+                                                                                {[dir.departamento, dir.provincia, dir.distrito].filter(Boolean).join(', ') || 'N/A'}
                                                                             </p>
                                                                         </TableCell>
                                                                         <TableCell>
                                                                             <code className="text-xs bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">
-                                                                                {dir.Ubigeo || 'N/A'}
+                                                                                {dir.ubigeo || 'N/A'}
                                                                             </code>
                                                                         </TableCell>
                                                                     </TableRow>
@@ -670,7 +671,7 @@ const ProveedorHome = () => {
                                             }
                                         >
                                             <div className="mt-6">
-                                                {apiSupplierData.Contactos && apiSupplierData.Contactos.length > 0 ? (
+                                                {apiSupplierData.contactos && apiSupplierData.contactos.length > 0 ? (
                                                     <Table 
                                                         aria-label="Tabla de contactos"
                                                         removeWrapper
@@ -687,38 +688,38 @@ const ProveedorHome = () => {
                                                             <TableColumn>ESTADO</TableColumn>
                                                         </TableHeader>
                                                         <TableBody>
-                                                            {apiSupplierData.Contactos.map((contacto: any, idx: number) => (
+                                                            {apiSupplierData.contactos.map((contacto: any, idx: number) => (
                                                                 <TableRow key={idx}>
                                                                     <TableCell>
                                                                         <div className="flex items-center gap-2">
                                                                             <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
                                                                                 <UserIcon className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                                                                             </div>
-                                                                            <p className="font-semibold">{contacto.Name || 'N/A'}</p>
+                                                                            <p className="font-semibold">{contacto.name || 'N/A'}</p>
                                                                         </div>
                                                                     </TableCell>
                                                                     <TableCell>
-                                                                        <p className="text-sm">{contacto.Profesion || '-'}</p>
+                                                                        <p className="text-sm">{contacto.profesion || '-'}</p>
                                                                     </TableCell>
                                                                     <TableCell>
-                                                                        {contacto.E_MailL ? (
-                                                                            <a href={`mailto:${contacto.E_MailL}`} className="text-sm text-blue-600 dark:text-blue-400 hover:underline break-all">
-                                                                                {contacto.E_MailL}
+                                                                        {contacto.e_mail_l ? (
+                                                                            <a href={`mailto:${contacto.e_mail_l}`} className="text-sm text-blue-600 dark:text-blue-400 hover:underline break-all">
+                                                                                {contacto.e_mail_l}
                                                                             </a>
                                                                         ) : (
                                                                             <span className="text-sm text-gray-400">-</span>
                                                                         )}
                                                                     </TableCell>
                                                                     <TableCell>
-                                                                        <p className="text-sm">{contacto.Telefono || '-'}</p>
+                                                                        <p className="text-sm">{contacto.telefono || '-'}</p>
                                                                     </TableCell>
                                                                     <TableCell>
                                                                         <Chip 
                                                                             size="sm" 
                                                                             variant="flat"
-                                                                            color={contacto.Active === 'Y' ? 'success' : 'default'}
+                                                                            color={contacto.active === 'Y' ? 'success' : 'default'}
                                                                         >
-                                                                            {contacto.Active === 'Y' ? 'Activo' : 'Inactivo'}
+                                                                            {contacto.active === 'Y' ? 'Activo' : 'Inactivo'}
                                                                         </Chip>
                                                                     </TableCell>
                                                                 </TableRow>
@@ -747,7 +748,7 @@ const ProveedorHome = () => {
                                             }
                                         >
                                             <div className="mt-6">
-                                                {apiSupplierData.Bancos && apiSupplierData.Bancos.length > 0 ? (
+                                                {apiSupplierData.bancos && apiSupplierData.bancos.length > 0 ? (
                                                     <Table 
                                                         aria-label="Tabla de bancos"
                                                         removeWrapper
@@ -762,23 +763,23 @@ const ProveedorHome = () => {
                                                             <TableColumn>SECTORISTA</TableColumn>
                                                         </TableHeader>
                                                         <TableBody>
-                                                            {apiSupplierData.Bancos.map((banco: any, idx: number) => (
+                                                            {apiSupplierData.bancos.map((banco: any, idx: number) => (
                                                                 <TableRow key={idx}>
                                                                     <TableCell>
                                                                         <div className="flex items-center gap-2">
                                                                             <div className="w-8 h-8 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
                                                                                 <BuildingLibraryIcon className="h-4 w-4 text-green-600 dark:text-green-400" />
                                                                             </div>
-                                                                            <p className="font-semibold">{banco.Banco || 'N/A'}</p>
+                                                                            <p className="font-semibold">{banco.banco || 'N/A'}</p>
                                                                         </div>
                                                                     </TableCell>
                                                                     <TableCell>
                                                                         <code className="text-sm bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded font-mono">
-                                                                            {banco.Cuenta || 'N/A'}
+                                                                            {banco.cuenta || 'N/A'}
                                                                         </code>
                                                                     </TableCell>
                                                                     <TableCell>
-                                                                        <p className="text-sm">{banco.Sectorista || '-'}</p>
+                                                                        <p className="text-sm">{banco.sectorista || '-'}</p>
                                                                     </TableCell>
                                                                 </TableRow>
                                                             ))}
@@ -806,7 +807,7 @@ const ProveedorHome = () => {
                                             }
                                         >
                                             <div className="mt-6 space-y-6">
-                                                {apiSupplierData.DocumentoEvaluacion && apiSupplierData.DocumentoEvaluacion.length > 0 ? (
+                                                {apiSupplierData.documento_evaluacion && apiSupplierData.documento_evaluacion.length > 0 ? (
                                                     <>
                                                         <div>
                                                             <h5 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Documentos de Evaluación</h5>
@@ -825,15 +826,15 @@ const ProveedorHome = () => {
                                                                     <TableColumn>ACCIÓN</TableColumn>
                                                                 </TableHeader>
                                                                 <TableBody>
-                                                                    {apiSupplierData.DocumentoEvaluacion.map((doc: any, idx: number) => (
+                                                                    {apiSupplierData.documento_evaluacion.map((doc: any, idx: number) => (
                                                                         <TableRow key={idx}>
                                                                             <TableCell>
                                                                                 <div className="flex items-center gap-2">
                                                                                     <DocumentTextIcon className="h-5 w-5 text-gray-400" />
                                                                                     <div>
-                                                                                        <p className="font-semibold">{doc.U_NombDocu || 'Sin nombre'}</p>
+                                                                                        <p className="font-semibold">{doc.u_nomb_docu || 'Sin nombre'}</p>
                                                                                         <p className="text-xs text-gray-500 dark:text-gray-400">
-                                                                                            {doc.U_DocumentoEvaluacion || 'N/A'}
+                                                                                            {doc.u_documento_evaluacion || 'N/A'}
                                                                                         </p>
                                                                                     </div>
                                                                                 </div>
@@ -843,27 +844,27 @@ const ProveedorHome = () => {
                                                                                     size="sm" 
                                                                                     variant="flat"
                                                                                     color={
-                                                                                        doc.U_Status === 'Aprobado' ? 'success' : 
-                                                                                        doc.U_Status === 'Pendiente' ? 'warning' : 
-                                                                                        doc.U_Status === 'Observado' ? 'danger' : 'default'
+                                                                                        doc.u_status === 'Aprobado' ? 'success' : 
+                                                                                        doc.u_status === 'Pendiente' ? 'warning' : 
+                                                                                        doc.u_status === 'Observado' ? 'danger' : 'default'
                                                                                     }
                                                                                 >
-                                                                                    {doc.U_Status || 'Pendiente'}
+                                                                                    {doc.u_status || 'Pendiente'}
                                                                                 </Chip>
                                                                             </TableCell>
                                                                             <TableCell>
                                                                                 <Chip size="sm" variant="flat" color="default">
-                                                                                    {doc.U_typeArchiv || 'N/A'}
+                                                                                    {doc.u_type_archiv || 'N/A'}
                                                                                 </Chip>
                                                                             </TableCell>
                                                                             <TableCell>
-                                                                                {doc.U_LinkDocumento && (
+                                                                                {doc.u_link_documento && (
                                                                                     <Button
                                                                                         size="sm"
                                                                                         variant="flat"
                                                                                         color="primary"
                                                                                         startContent={<EyeIcon className="h-4 w-4" />}
-                                                                                        onPress={() => window.open(doc.U_LinkDocumento.trim(), '_blank')}
+                                                                                        onPress={() => window.open(doc.u_link_documento.trim(), '_blank')}
                                                                                     >
                                                                                         Ver
                                                                                     </Button>
@@ -875,7 +876,7 @@ const ProveedorHome = () => {
                                                             </Table>
                                                         </div>
 
-                                                        {apiSupplierData.ReferenciasComerciales && apiSupplierData.ReferenciasComerciales.length > 0 && (
+                                                        {apiSupplierData.referencias_comerciales && apiSupplierData.referencias_comerciales.length > 0 && (
                                                             <>
                                                                 <Divider />
                                                                 <div>
@@ -894,16 +895,16 @@ const ProveedorHome = () => {
                                                                             <TableColumn>TELÉFONO</TableColumn>
                                                                         </TableHeader>
                                                                         <TableBody>
-                                                                            {apiSupplierData.ReferenciasComerciales.map((ref: any, idx: number) => (
+                                                                            {apiSupplierData.referencias_comerciales.map((ref: any, idx: number) => (
                                                                                 <TableRow key={idx}>
                                                                                     <TableCell>
-                                                                                        <p className="font-semibold">{ref.U_RazonSocial || 'N/A'}</p>
+                                                                                        <p className="font-semibold">{ref.u_razon_social || 'N/A'}</p>
                                                                                     </TableCell>
                                                                                     <TableCell>
-                                                                                        <p className="text-sm">{ref.U_Contacto || '-'}</p>
+                                                                                        <p className="text-sm">{ref.u_contacto || '-'}</p>
                                                                                     </TableCell>
                                                                                     <TableCell>
-                                                                                        <p className="text-sm">{ref.U_Telefonos || '-'}</p>
+                                                                                        <p className="text-sm">{ref.u_telefonos || '-'}</p>
                                                                                     </TableCell>
                                                                                 </TableRow>
                                                                             ))}

@@ -97,12 +97,12 @@ export interface ReferenciaBancaria {
 }
 
 export interface ReferenciaComercial {
-    DocEntry: string;
-    U_CardCode: string;
-    U_RazonSocial: string,
-    U_Contacto: string,
-    U_Telefonos: string,
-    registrationDate?: string;
+    doc_entry: string;
+    u_card_code: string;
+    u_razon_social: string,
+    u_contacto: string,
+    u_telefonos: string,
+    registration_date?: string;
 }
 export interface ServiciosOfrecidos {
     principalActivity: string;
@@ -147,8 +147,11 @@ export interface OrderItem {
 }
 
 export interface InvoiceDetail {
+    docEntry: string;
     description: string;
+    itemCode: string;
     lineTotal: number;
+    quantity: number;
 }
 
 export interface InvoicePayment {
@@ -158,8 +161,11 @@ export interface InvoicePayment {
 }
 
 export interface ReceptionDetail {
+    docEntry: string;
     description: string;
+    itemCode: string;
     lineTotal: number;
+    quantity: number;
 }
 
 export interface Reception {
@@ -390,7 +396,7 @@ export interface DeliveryAppointment {
     deliveryTimeEnd: string; // Time string (HH:MM) - Hora de fin
     scheduledDateTime: string; // Combined ISO datetime
     scheduledDateTimeEnd: string; // Combined ISO datetime - Fecha/hora de fin
-    status: 'Pendiente' | 'PackingListCompletado' | 'TransporteCompletado' | 'DocumentosCompletados' | 'ListaParaEntrega' | 'Completada' | 'Cancelada';
+    status: AppointmentStatus;
     createdBy: string;
     createdDate: string;
     notes?: string;
@@ -399,6 +405,7 @@ export interface DeliveryAppointment {
     transportData?: TransportData;
     documents?: DeliveryDocuments;
     notificationSent: boolean;
+    evaluation?: DeliveryEvaluation; // Calificación de la entrega
 }
 
 export interface PackingList {
@@ -465,9 +472,162 @@ export interface DocumentFile {
     uploadedBy: string;
 }
 
+// Estados del flujo completo de entrega
+export type AppointmentStatus = 
+    // Fase 1: Registro inicial
+    | 'REGISTRADA'
+    // Fase 2: Programación
+    | 'PROGRAMADA'
+    | 'REPROGRAMADA'
+    // Fase 3: Preparación del proveedor
+    | 'TRANSPORTE_COMPLETO'
+    | 'DOCUMENTOS_COMPLETOS'
+    // Fase 4: Recepción física
+    | 'EN_EXPLANADA'
+    | 'EN_ENTREGA'
+    // Fase 5: Control de Calidad
+    | 'CALIDAD_ACEPTADO'
+    | 'CALIDAD_OBSERVADO'
+    | 'CALIDAD_RECHAZADO'
+    // Fase 6: Almacén
+    | 'ALMACEN_ACEPTADO'
+    | 'ALMACEN_OBSERVADO'
+    | 'ALMACEN_RECHAZADO'
+    // Fase 7: Cierre
+    | 'PARTE_DE_INGRESO_GENERADO'
+    | 'ENTREGADO'
+    // Estados de cancelación/error
+    | 'Cancelada';
+
 export type statusConfig = {
     key: string;
     color: 'default' | 'primary' | 'secondary' | 'success' | 'warning' | 'danger';
     label: string;
 }
 
+// Calificación de Entrega (Cita)
+export interface DeliveryEvaluation {
+    id?: string;
+    codCita: string; // DocEntry de la cita
+    // Evaluaciones por sección (1-5)
+    puntualidad?: EvaluationScore; // Seguridad
+    documentacion?: EvaluationScore; // Seguridad
+    estadoMercaderia?: EvaluationScore; // Calidad
+    cantidadCorrecta?: EvaluationScore; // Almacén
+    // Puntaje total calculado
+    puntajeTotal?: number;
+    // Badge según puntaje
+    badge?: 'Excelente' | 'Bueno' | 'Regular' | 'Deficiente';
+    // Estado de la evaluación
+    estado?: 'BORRADOR' | 'COMPLETADO' | 'CERRADO';
+    // Evaluador y fecha
+    evaluador?: string;
+    fechaEvaluacion?: string;
+    // Comentario general
+    comentario?: string;
+    // Archivos adjuntos (solo Calidad y Almacén)
+    archivos?: EvaluationFile[];
+    // Metadatos
+    createdBy?: string;
+    createdDate?: string;
+    updatedBy?: string;
+    updatedDate?: string;
+}
+
+export interface EvaluationScore {
+    // Para puntualidad y documentación: 0 = No, 1 = Sí (binario)
+    // Para estadoMercaderia y cantidadCorrecta: 1-5 (escala)
+    puntaje: number; 
+    comentario?: string;
+    evaluadoPor?: string; // Rol que evaluó
+    fechaEvaluacion?: string;
+    peso?: number; // Peso de esta sección en el cálculo total
+    // Campos específicos para estadoMercaderia y cantidadCorrecta
+    estado?: 'ACEPTADO' | 'OBSERVADO' | 'RECHAZADO'; // Para estadoMercaderia y cantidadCorrecta
+    // Nota: comentario se usa como motivo cuando estado es OBSERVADO o RECHAZADO
+}
+
+export interface EvaluationFile {
+    id?: string;
+    nombre: string;
+    url: string;
+    tipo: string; // 'calidad' | 'almacen'
+    uploadedBy?: string;
+    uploadDate?: string;
+}
+
+// Pesos de cada sección
+export const EVALUATION_WEIGHTS = {
+    puntualidad: 0.25,      // 25%
+    documentacion: 0.25,    // 25%
+    estadoMercaderia: 0.30, // 30%
+    cantidadCorrecta: 0.20, // 20%
+};
+
+// Rangos de calificación para badges (escala 1-10)
+export const EVALUATION_RANGES = {
+    Excelente: { min: 9.0, max: 10.0 },
+    Bueno: { min: 7.0, max: 8.99 },
+    Regular: { min: 5.0, max: 6.99 },
+    Deficiente: { min: 1.0, max: 4.99 },
+};
+
+// Reclamo a Proveedor
+export interface SupplierClaim {
+    id?: string;
+    codCita: string; // DocEntry de la cita
+    numeroReclamo: string; // Número único del reclamo
+    fechaReclamo: string; // Fecha de creación del reclamo
+    areaEmite: string; // Área que emite el reclamo (ej: Calidad)
+    responsable: string; // Responsable que emite el reclamo
+    // Datos de la cabecera
+    nLote?: string;
+    cantidad?: string;
+    proveedor: string; // Nombre del proveedor
+    ordenCompra?: string;
+    factura?: string;
+    insumoMaterial?: string;
+    fechaArribo?: string;
+    // Sección 1: Datos del registro de inspección o análisis
+    datosRegistroInspeccion?: string;
+    // Sección 2: Motivo del reclamo e impacto
+    motivoReclamo: string; // Requerido
+    impacto?: string;
+    // Sección 3: Respuesta inmediata del proveedor
+    respuestaInmediata?: {
+        fechaRespuesta?: string;
+        responsable?: string;
+        respuesta?: string;
+    };
+    // Sección 4: Evaluación del reclamo (por el proveedor)
+    evaluacionReclamo?: {
+        fechaEvaluacion?: string;
+        evaluadoPor?: string;
+        reclamoProcede?: 'SI' | 'NO';
+        descripcion?: string;
+    };
+    // Sección 5: Plan de acciones
+    planAcciones?: ClaimAction[];
+    // Sección 6: Cierre del reclamo
+    cierreReclamo?: {
+        accionesEfectivas?: 'SI' | 'NO';
+        fechaCierre?: string;
+        responsableCierre?: string;
+        observacion?: string;
+    };
+    // Metadatos
+    createdBy?: string;
+    createdDate?: string;
+    updatedBy?: string;
+    updatedDate?: string;
+    status?: 'Abierto' | 'En Respuesta' | 'Cerrado';
+}
+
+export interface ClaimAction {
+    id?: string;
+    accion: string;
+    fecha: string;
+    estado?: 'Abierto' | 'Cerrado'; // Para verificación
+    verificadoPor?: string;
+    fechaVerificacion?: string;
+}

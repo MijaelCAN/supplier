@@ -3,7 +3,7 @@ import {DocumentTextIcon, PlusIcon} from "@heroicons/react/24/outline";
 import {FC} from "react";
 import {HeaderCompProps} from "@/components/OrdenCompra/Types/headerTyps.ts";
 
-const HeaderComponent: FC<HeaderCompProps> = ({title, subtitle, isOptions, onRegisterOpen}) => {
+const HeaderComponent: FC<HeaderCompProps> = ({title, subtitle, isOptions, onRegisterOpen, canCreate = true}) => {
     return (
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center">
             <div>
@@ -15,9 +15,11 @@ const HeaderComponent: FC<HeaderCompProps> = ({title, subtitle, isOptions, onReg
                     <Button variant="bordered" startContent={<DocumentTextIcon className="h-4 w-4"/>}>
                         Exportar
                     </Button>
-                    <Button color="primary" startContent={<PlusIcon className="h-4 w-4"/>} onPress={onRegisterOpen}>
-                        Nuevo Proveedor
-                    </Button>
+                    {canCreate && (
+                        <Button color="primary" startContent={<PlusIcon className="h-4 w-4"/>} onPress={onRegisterOpen}>
+                            Nuevo Proveedor
+                        </Button>
+                    )}
                 </div>
             )}
         </div>

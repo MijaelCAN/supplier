@@ -1,21 +1,22 @@
 import { httpClient } from "@/services/http/httpClient";
+import { getApiBaseUrl } from "@/config/api.ts";
 
-const DEFAULT_API_BASE_URL = 'http://192.168.254.27:8082';
+const DEFAULT_API_BASE_URL = getApiBaseUrl();
 const CHOFERES_ENDPOINT = '/api/Documentos/Choferes';
 
 /**
  * Interfaz para la petición de crear un chofer
  */
 export interface CreateChoferRequest {
-    u_EmpresaTranspote: string;
-    u_NombreConductor: string;
-    u_LicenciaConducir: string;
-    u_PlacaVehiculo: string;
-    u_TipoVehiculo: string;
-    u_TelefonoContacto: string;
-    u_HoraLlegada: string;
-    u_Notas: string;
-    u_CodCita: string;
+    u_empresa_transporte: string;
+    u_nombre_conductor: string;
+    u_licencia_conducir: string;
+    u_placa_vehiculo: string;
+    u_tipo_vehiculo: string;
+    u_telefono_contacto: string;
+    u_hora_llegada: string;
+    u_notas: string;
+    u_cod_cita: string;
 }
 
 /**
@@ -37,7 +38,7 @@ export interface CreateChoferResponse {
  * Interfaz para la respuesta del API
  */
 interface ChoferApiResponse {
-    statusCode: number;
+    status_code: number;
     success: boolean;
     message: string;
     data: null;
@@ -55,15 +56,15 @@ export const createChoferInApi = async (
     
     // Preparar el request body
     const requestBody: CreateChoferRequest = {
-        u_EmpresaTranspote: choferData.u_EmpresaTranspote || '',
-        u_NombreConductor: choferData.u_NombreConductor || '',
-        u_LicenciaConducir: choferData.u_LicenciaConducir || '',
-        u_PlacaVehiculo: choferData.u_PlacaVehiculo || '',
-        u_TipoVehiculo: choferData.u_TipoVehiculo || '',
-        u_TelefonoContacto: choferData.u_TelefonoContacto || '',
-        u_HoraLlegada: choferData.u_HoraLlegada || '',
-        u_Notas: choferData.u_Notas || '',
-        u_CodCita: choferData.u_CodCita || ''
+        u_empresa_transporte: choferData.u_empresa_transporte || '',
+        u_nombre_conductor: choferData.u_nombre_conductor || '',
+        u_licencia_conducir: choferData.u_licencia_conducir || '',
+        u_placa_vehiculo: choferData.u_placa_vehiculo || '',
+        u_tipo_vehiculo: choferData.u_tipo_vehiculo || '',
+        u_telefono_contacto: choferData.u_telefono_contacto || '',
+        u_hora_llegada: choferData.u_hora_llegada || '',
+        u_notas: choferData.u_notas || '',
+        u_cod_cita: choferData.u_cod_cita || ''
     };
     
     const response = await httpClient(url, {
@@ -73,6 +74,8 @@ export const createChoferInApi = async (
         },
         body: JSON.stringify(requestBody),
     });
+
+    console.log("DCR-RESPONSE", response);
     
     if (!response.ok) {
         const errorText = await response.text().catch(() => 'Error desconocido');
@@ -87,7 +90,7 @@ export const createChoferInApi = async (
     }
     
     // Validar que la operación fue exitosa
-    if (!json.success || (json.statusCode !== 200 && json.statusCode !== 201)) {
+    if (!json.success || (json.status_code !== 200 && json.status_code !== 201)) {
         throw new Error(json.message || 'Error al crear el chofer');
     }
     

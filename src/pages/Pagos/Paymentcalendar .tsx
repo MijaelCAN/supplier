@@ -6,7 +6,8 @@ import {
   CheckCircleIcon, 
   ClockIcon, 
   ExclamationTriangleIcon,
-  CalendarIcon
+  CalendarIcon,
+  DocumentTextIcon
 } from '@heroicons/react/24/outline';
 import { parseDate, CalendarDate, getLocalTimeZone, today, startOfMonth, endOfMonth, DateValue } from '@internationalized/date';
 import {
@@ -69,6 +70,15 @@ const PaymentCalendar: React.FC = () => {
   const { invoices } = useInvoices();
   const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
   const { isOpen: isDetailOpen, onOpen: onDetailOpen, onOpenChange: onDetailOpenChange } = useDisclosure();
+  
+  // Estado para visualizar documentos
+  const [selectedDocument, setSelectedDocument] = useState<{ name: string; url: string; type: string } | null>(null);
+  const { isOpen: isDocumentViewerOpen, onOpen: onDocumentViewerOpen, onClose: onDocumentViewerClose } = useDisclosure();
+  
+  const handleDocumentClick = (doc: { name: string; url: string; type: string }) => {
+    setSelectedDocument(doc);
+    onDocumentViewerOpen();
+  };
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [paymentData, setPaymentData] = useState<PaymentData>({});
   const [isLoadingPayments, setIsLoadingPayments] = useState(false);
@@ -179,6 +189,8 @@ const PaymentCalendar: React.FC = () => {
       
       const scheduledInvoices = await fetchScheduledInvoices(startDateStr, endDateStr, codigoProveedor);
       
+      console.log('Facturas programadas recibidas:', scheduledInvoices);
+      
       if (scheduledInvoices && scheduledInvoices.length > 0) {
         // Guardar las facturas programadas para usar en el modal
         setScheduledInvoices(scheduledInvoices);
@@ -190,14 +202,28 @@ const PaymentCalendar: React.FC = () => {
           const payment = invoiceToPayment(invoice);
           const dateKey = payment.date;
           
+          const invoiceWithScheduled = invoice as Invoice & { scheduledPaymentDate?: string; importePagar?: number };
+          console.log('Agrupando pago - Factura:', {
+            invoiceId: invoice.id,
+            invoiceNumber: invoice.invoiceNumber,
+            supplierId: invoice.supplierId,
+            scheduledPaymentDate: invoiceWithScheduled.scheduledPaymentDate,
+            paymentDate: payment.date,
+            dateKey: dateKey,
+            currentMonth: currentMonth.toString()
+          });
+          
           if (dateKey) {
             if (!groupedPayments[dateKey]) {
               groupedPayments[dateKey] = [];
             }
             groupedPayments[dateKey].push(payment);
+          } else {
+            console.warn('Payment sin fecha:', payment);
           }
         });
         
+        console.log('PaymentData agrupado (total de fechas):', Object.keys(groupedPayments).length, groupedPayments);
         setPaymentData(groupedPayments);
       } else {
         setPaymentData({});
@@ -416,16 +442,28 @@ const PaymentCalendar: React.FC = () => {
     const monthEnd = endOfMonth(currentMonth);
     const dates: string[] = [];
     
+    console.log('datesWithPayments - paymentData:', paymentData);
+    console.log('datesWithPayments - scheduledInvoices:', scheduledInvoices);
+    console.log('datesWithPayments - isProvider:', isProvider, 'providerId:', providerId);
+    
     for (let date = monthStart; date.compare(monthEnd) <= 0; date = date.add({ days: 1 })) {
       const dateKey = getDateKey(date);
       if (paymentData[dateKey] && paymentData[dateKey].length > 0) {
         let filteredPayments = paymentData[dateKey];
         
         // Filter by provider if is provider
+        // Como las facturas ya vienen filtradas del API cuando es proveedor, 
+        // solo necesitamos verificar que las facturas programadas pertenezcan al proveedor
         if (isProvider && providerId) {
           filteredPayments = filteredPayments.filter(p => {
             // If payment has invoiceId, check if invoice belongs to provider
             if (p.invoiceId) {
+              // Primero buscar en scheduledInvoices (ya filtradas del API)
+              const scheduledInvoice = scheduledInvoices.find(inv => inv.id === p.invoiceId);
+              if (scheduledInvoice) {
+                return scheduledInvoice.supplierId === providerId;
+              }
+              // Si no está en scheduledInvoices, buscar en el store general
               const invoice = invoices.find(inv => inv.id === p.invoiceId);
               return invoice && invoice.supplierId === providerId;
             }
@@ -439,6 +477,8 @@ const PaymentCalendar: React.FC = () => {
           filteredPayments = filteredPayments.filter(p => p.status === statusFilter);
         }
         
+        console.log(`datesWithPayments - ${dateKey}:`, filteredPayments.length, 'payments after filtering');
+        
         // Only add date if there are payments after filtering
         if (filteredPayments.length > 0) {
           dates.push(dateKey);
@@ -446,8 +486,9 @@ const PaymentCalendar: React.FC = () => {
       }
     }
     
+    console.log('datesWithPayments - final dates:', dates);
     return dates;
-  }, [currentMonth, statusFilter, paymentData, isProvider, providerId, invoices]);
+  }, [currentMonth, statusFilter, paymentData, isProvider, providerId, invoices, scheduledInvoices]);
 
 
   const handleCalendarChange = (value: DateValue) => {
@@ -487,7 +528,7 @@ const PaymentCalendar: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-8rem)]">
+    <div className="flex flex-col h-[calc(100vh-1rem)]">
       <div className="flex-shrink-0 mb-6">
         {/* Header */}
         <div className="flex justify-between items-center">
@@ -631,10 +672,18 @@ const PaymentCalendar: React.FC = () => {
                     let allPayments = paymentData[dateKey];
                     
                     // Filter by provider if is provider
+                    // Como las facturas ya vienen filtradas del API cuando es proveedor,
+                    // solo verificamos por seguridad
                     if (isProvider && providerId) {
                       allPayments = allPayments.filter(p => {
                         // If payment has invoiceId, check if invoice belongs to provider
                         if (p.invoiceId) {
+                          // Primero buscar en scheduledInvoices (ya filtradas del API)
+                          const scheduledInvoice = scheduledInvoices.find(inv => inv.id === p.invoiceId);
+                          if (scheduledInvoice) {
+                            return scheduledInvoice.supplierId === providerId;
+                          }
+                          // Si no está en scheduledInvoices, buscar en el store general
                           const invoice = invoices.find(inv => inv.id === p.invoiceId);
                           return invoice && invoice.supplierId === providerId;
                         }
@@ -914,6 +963,67 @@ const PaymentCalendar: React.FC = () => {
         </Card>
       )}
 
+      {/* Modal para visualizar documentos */}
+      <Modal 
+        isOpen={isDocumentViewerOpen} 
+        onClose={onDocumentViewerClose}
+        size="5xl"
+        scrollBehavior="inside"
+      >
+        <ModalContent>
+          <ModalHeader className="flex flex-col gap-1">
+            <div className="flex items-center gap-3">
+              <DocumentTextIcon className="w-6 h-6 text-blue-600" />
+              <h3 className="text-xl font-bold">
+                {selectedDocument?.name || 'Documento'}
+              </h3>
+            </div>
+          </ModalHeader>
+          <ModalBody className="pb-6">
+            {selectedDocument && (() => {
+              const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].includes(selectedDocument.type.toLowerCase());
+              const isPdf = selectedDocument.type.toLowerCase() === 'pdf';
+              
+              return (
+                <div className="w-full h-[70vh] flex items-center justify-center bg-gray-100 rounded-lg">
+                  {isImage ? (
+                    <img 
+                      src={selectedDocument.url} 
+                      alt={selectedDocument.name}
+                      className="max-w-full max-h-full object-contain rounded-lg shadow-lg"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" dy=".3em" fill="%23999"%3EError al cargar imagen%3C/text%3E%3C/svg%3E';
+                      }}
+                    />
+                  ) : isPdf ? (
+                    <iframe
+                      src={selectedDocument.url}
+                      className="w-full h-full border-0 rounded-lg"
+                      title={selectedDocument.name}
+                    />
+                  ) : (
+                    <div className="text-center p-8">
+                      <DocumentTextIcon className="w-16 h-16 mx-auto mb-4 text-gray-400" />
+                      <p className="text-gray-600 mb-4">
+                        Tipo de archivo: {selectedDocument.type.toUpperCase()}
+                      </p>
+                      <Button
+                        color="primary"
+                        variant="flat"
+                        onPress={() => window.open(selectedDocument.url, '_blank')}
+                        startContent={<DocumentTextIcon className="w-5 h-5" />}
+                      >
+                        Abrir en nueva ventana
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+          </ModalBody>
+        </ModalContent>
+      </Modal>
+
       {/* Modal de Detalle de Pago/Factura */}
       <Modal 
         isOpen={isDetailOpen} 
@@ -925,12 +1035,12 @@ const PaymentCalendar: React.FC = () => {
           {(onClose) => (
             <>
               <ModalHeader className="flex flex-col gap-1">
-                <div className="flex items-baseline justify-between w-full">
+                <div className="flex items-baseline justify-left w-full">
                   <div>
                     <h3 className="text-xl font-semibold">Detalle de Pago Programado</h3>
                     {selectedPayment && (
                       <p className="text-sm text-gray-500 mt-1">
-                        {selectedPayment.title} • {formatDate(selectedPayment.date)}
+                        {selectedPayment.title}
                       </p>
                     )}
                   </div>
@@ -1068,18 +1178,78 @@ const PaymentCalendar: React.FC = () => {
                           {selectedInvoice.detalle && selectedInvoice.detalle.length > 0 && (
                             <div className="mt-4 pt-4 border-t border-slate-200">
                               <p className="text-xs text-gray-500 mb-3 font-semibold">Detalle de Factura</p>
-                              <div className="space-y-2">
-                                {selectedInvoice.detalle.map((item, index) => (
-                                  <div key={index} className="flex justify-between items-start gap-4 pb-2 border-b border-slate-200 last:border-b-0">
-                                    <p className="text-sm flex-1">{item.description}</p>
-                                    <p className="text-sm font-medium text-right whitespace-nowrap">
-                                      {formatCurrency(item.lineTotal, selectedInvoice.currency)}
-                                    </p>
-                                  </div>
-                                ))}
-                              </div>
+                              <Table aria-label="Detalle de factura" removeWrapper>
+                                <TableHeader>
+                                  <TableColumn>DOC. ENTRY</TableColumn>
+                                  <TableColumn>CÓDIGO</TableColumn>
+                                  <TableColumn>DESCRIPCIÓN</TableColumn>
+                                  <TableColumn className="text-right">CANTIDAD</TableColumn>
+                                  <TableColumn className="text-right">TOTAL</TableColumn>
+                                </TableHeader>
+                                <TableBody>
+                                  {selectedInvoice.detalle.map((item, index) => (
+                                    <TableRow key={index}>
+                                      <TableCell>{item.docEntry || '-'}</TableCell>
+                                      <TableCell>{item.itemCode || '-'}</TableCell>
+                                      <TableCell>
+                                        <div className="max-w-[300px] truncate" title={item.description}>
+                                          {item.description}
+                                        </div>
+                                      </TableCell>
+                                      <TableCell className="text-right">{item.quantity || '0'}</TableCell>
+                                      <TableCell className="text-right font-medium">
+                                        {formatCurrency(item.lineTotal, selectedInvoice.currency)}
+                                      </TableCell>
+                                    </TableRow>
+                                  ))}
+                                </TableBody>
+                              </Table>
                             </div>
                           )}
+
+                          {/* Sección de Documentos - Solo para Proveedores */}
+                          {isProvider && selectedInvoice && (() => {
+                            // Obtener documentos si existen (pueden venir en diferentes formatos)
+                            const invoiceDocs = (selectedInvoice as any).documents || [];
+                            const hasDocuments = invoiceDocs && invoiceDocs.length > 0;
+                            
+                            if (!hasDocuments) return null;
+                            
+                            return (
+                              <div className="mt-4 pt-4 border-t border-slate-200">
+                                <h4 className="text-sm font-semibold text-gray-700 mb-3">Documentos de la Factura</h4>
+                                <div className="space-y-2">
+                                  {invoiceDocs.map((doc: any, index: number) => {
+                                    // Manejar diferentes formatos de documentos
+                                    const docName = doc.name || doc.U_nameFile || doc.fileName || `Documento ${index + 1}`;
+                                    const docUrl = doc.url || doc.U_LinkDocumento || doc.link || '';
+                                    const docType = doc.type || docName.split('.').pop()?.toLowerCase() || 'unknown';
+                                    
+                                    if (!docUrl) return null;
+                                    
+                                    return (
+                                      <div
+                                        key={index}
+                                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100 hover:bg-blue-50 hover:border-blue-300 cursor-pointer transition-colors"
+                                        onClick={() => handleDocumentClick({ name: docName, url: docUrl, type: docType })}
+                                      >
+                                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                                          <DocumentTextIcon className="w-5 h-5 text-gray-600 flex-shrink-0" />
+                                          <span className="text-sm font-medium text-gray-900 truncate" title={docName}>
+                                            {docName}
+                                          </span>
+                                        </div>
+                                        <div className="flex items-center gap-2 flex-shrink-0">
+                                          <span className="text-xs text-gray-500 uppercase">{docType}</span>
+                                          <CheckCircleIcon className="w-5 h-5 text-emerald-500" />
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
+                          })()}
                         </CardBody>
                       </Card>
                     ) : (

@@ -28,7 +28,12 @@ import {
 import {
     PlusIcon,
     ArrowLeftIcon,
-    ArrowRightIcon
+    ArrowRightIcon,
+    CalendarDaysIcon,
+    Squares2X2Icon,
+    ListBulletIcon,
+    ArrowDownTrayIcon,
+    PrinterIcon
 } from "@heroicons/react/24/outline";
 import Dashboard from "@/layouts/Dashboard";
 import { useAgendaStore } from "@/store/agendaStore";
@@ -37,10 +42,14 @@ import { UserRole } from "@/routes/menuTypes";
 import { DeliveryAppointment, PackingListItem } from "@/store/types";
 import { useNavigate, useLocation } from 'react-router-dom';
 import ScheduleAppointmentModal from './Scheduleappointmentmodal';
-import { fetchPackingListFromApi, createPackingListInApi, PackingListApiRecord, fetchWarehousesFromApi, WarehouseApiRecord, fetchDocumentsFromApi, DocumentApiRecord, fetchDocumentDetailFromApi, uploadFileToPackingList } from "@/services/agenda/packingListApi";
+import { fetchPackingListFromApi, createPackingListInApi, fetchWarehousesFromApi, WarehouseApiRecord, fetchDocumentsFromApi, DocumentApiRecord, fetchDocumentDetailFromApi, uploadFileToPackingList, fetchProductsFromApi, ProductApiRecord } from "@/services/agenda/packingListApi";
 import { formatDateForAPI } from "@/services/agenda/appointmentsApi";
+
 import { createChoferInApi } from "@/services/agenda/choferesApi";
 import DocumentsModal from './DocumentsModal';
+import * as XLSX from 'xlsx';
+import { saveAs } from 'file-saver';
+import { STATUS_CONFIG } from '@/services/agenda/appointmentStatus';
 
 const Agenda: React.FC = () => {
     const navigate = useNavigate();
@@ -62,7 +71,6 @@ const Agenda: React.FC = () => {
         updateAppointmentFromApi
     } = useAgendaStore();
 
-    console.log("SELECTED APPOINTMENT INDEX: ", selectedAppointment);
 
     // State
     const [currentWeek, setCurrentWeek] = useState(new Date());
@@ -74,6 +82,29 @@ const Agenda: React.FC = () => {
     const [packingListItems, setPackingListItems] = useState<PackingListItem[]>([]);
     const [filterStatus, setFilterStatus] = useState<string>('all');
     const [scrollbarWidth, setScrollbarWidth] = useState<number>(0);
+    const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar'); // Toggle entre calendario y lista
+    
+    // Estado para vista ampliada
+    const [extendedViewAppointments, setExtendedViewAppointments] = useState<DeliveryAppointment[]>([]);
+    const [isLoadingExtendedView, setIsLoadingExtendedView] = useState(false);
+    const [selectedMonth, setSelectedMonth] = useState<string>(() => {
+        // Mes actual en formato YYYY-MM
+        const now = new Date();
+        return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    });
+    
+    // Estado para datos de lista (productos)
+    const [listViewData, setListViewData] = useState<ProductApiRecord[]>([]);
+    const [isLoadingListView, setIsLoadingListView] = useState(false);
+    
+    // Estados para filtros de búsqueda por columna
+    const [filterFecha, setFilterFecha] = useState<string>('');
+    const [filterNumber, setFilterNumber] = useState<string>('');
+    const [filterItemCode, setFilterItemCode] = useState<string>('');
+    const [filterItemName, setFilterItemName] = useState<string>('');
+    const [filterRazonSocial, setFilterRazonSocial] = useState<string>('');
+    const [filterQuantity, setFilterQuantity] = useState<string>('');
+    const [filterHorario, setFilterHorario] = useState<string>('');
 
     // Modals
     const { isOpen: isScheduleOpen, onOpen: onScheduleOpen, onOpenChange: onScheduleOpenChange } = useDisclosure();
@@ -101,6 +132,7 @@ const Agenda: React.FC = () => {
     const { isOpen: isPackingListOpen, onOpen: onPackingListOpen, onOpenChange: onPackingListOpenChange } = useDisclosure();
     const { isOpen: isTransportOpen, onOpen: onTransportOpen, onOpenChange: onTransportOpenChange } = useDisclosure();
     const { isOpen: isDocumentsOpen, onOpen: onDocumentsOpen, onOpenChange: onDocumentsOpenChange } = useDisclosure();
+    const { isOpen: isExtendedViewOpen, onOpen: onExtendedViewOpen, onOpenChange: onExtendedViewOpenChange } = useDisclosure();
 
     // Form state
     const [scheduleForm, setScheduleForm] = useState({
@@ -121,27 +153,28 @@ const Agenda: React.FC = () => {
         warehouse: '',
         comment: '',
         commentWms: '',
-        number: '', // Número de PackingList (debe venir de orden de compra)
+        number: '', // Número de PackingList generado (ej: 251047379_1)
+        orderNumber: '', // Número de orden de compra (ej: 251047379)
         inboundType: 'OCNAC', // Tipo de entrada
         ticket: '', // Ticket WMS
         items: [] as PackingListItem[]
     });
-    const [packingListsFromApi, setPackingListsFromApi] = useState<PackingListApiRecord[]>([]);
-    const [isLoadingPackingLists, setIsLoadingPackingLists] = useState(false);
+    //const [packingListsFromApi, setPackingListsFromApi] = useState<PackingListApiRecord[]>([]);
+    //const [isLoadingPackingLists, setIsLoadingPackingLists] = useState(false);
     const [warehouses, setWarehouses] = useState<WarehouseApiRecord[]>([]);
     const [isLoadingWarehouses, setIsLoadingWarehouses] = useState(false);
     const [documents, setDocuments] = useState<DocumentApiRecord[]>([]);
     const [isLoadingDocuments, setIsLoadingDocuments] = useState(false);
     const [selectedInboundType, setSelectedInboundType] = useState<'OCNAC' | 'OCINT' | ''>('');
     const [documentSearchFilter, setDocumentSearchFilter] = useState<string>('');
-    const [isLoadingDocumentDetail, setIsLoadingDocumentDetail] = useState(false);
+    //const [isLoadingDocumentDetail, setIsLoadingDocumentDetail] = useState(false);
     const documentSearchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     
     // Filtros por columna
-    const [docNumFilter, setDocNumFilter] = useState<string>('');
-    const [cardCodeFilter, setCardCodeFilter] = useState<string>('');
-    const [cardNameFilter, setCardNameFilter] = useState<string>('');
-    const [taxDateFilter, setTaxDateFilter] = useState<string>('');
+    const [docNumFilter, ] = useState<string>('');
+    const [cardCodeFilter, ] = useState<string>('');
+    const [cardNameFilter, ] = useState<string>('');
+    const [taxDateFilter, ] = useState<string>('');
     const { isOpen: isDocumentsSelectOpen, onOpen: onDocumentsSelectOpen, onOpenChange: onDocumentsSelectOpenChange } = useDisclosure();
 
     // Función para convertir fecha de formato DD-MM-YYYY a Date para ordenamiento
@@ -268,6 +301,311 @@ const Agenda: React.FC = () => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentWeek.getTime(), currentUser?.id, currentUser?.role, currentUser?.username]);
 
+    // Cargar datos para vista de lista (fusionar citas y packing lists)
+    useEffect(() => {
+        const loadListViewData = async () => {
+            if (viewMode !== 'list') return;
+            
+            setIsLoadingListView(true);
+            try {
+                const fechaInicio = formatDateForAPI(weekStart);
+                const fechaFin = formatDateForAPI(weekEnd);
+                
+                // Llamar al nuevo endpoint de productos
+                const products = await fetchProductsFromApi(fechaInicio, fechaFin);
+                
+                setListViewData(products);
+            } catch (error) {
+                console.error('Error al cargar datos de lista:', error);
+                setListViewData([]);
+            } finally {
+                setIsLoadingListView(false);
+            }
+        };
+        
+        loadListViewData();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [viewMode, weekStart, weekEnd]);
+
+    // Función para formatear fecha desde formato "19/01/2026 00:00:00" a formato legible
+    const formatDateFromAPI = (dateStr: string): string => {
+        try {
+            // Formato: "19/01/2026 00:00:00"
+            const datePart = dateStr.split(' ')[0]; // "19/01/2026"
+            const [day, month, year] = datePart.split('/');
+            if (day && month && year) {
+                return `${day}/${month}/${year}`;
+            }
+        } catch (error) {
+            console.error('Error al formatear fecha:', error);
+        }
+        return dateStr;
+    };
+
+    // Función para formatear horario desde formato "1100 - 1200" o "800 - 1100" a formato legible "11:00 - 12:00" o "08:00 - 11:00"
+    const formatHorario = (horario: string): string => {
+        try {
+            if (!horario) return '-';
+            // Formato: "1100 - 1200" o "800 - 1100"
+            const parts = horario.split(' - ');
+            if (parts.length === 2) {
+                const formatTime = (time: string) => {
+                    // Limpiar espacios
+                    const cleanTime = time.trim();
+                    // Si tiene 3 caracteres, agregar un cero al inicio (ej: "800" -> "0800")
+                    let paddedTime = cleanTime;
+                    if (cleanTime.length === 3) {
+                        paddedTime = `0${cleanTime}`;
+                    }
+                    // Si tiene 4 caracteres, formatear como HH:MM
+                    if (paddedTime.length === 4) {
+                        return `${paddedTime.substring(0, 2)}:${paddedTime.substring(2, 4)}`;
+                    }
+                    // Si tiene otro formato, devolverlo tal cual
+                    return cleanTime;
+                };
+                return `${formatTime(parts[0])} - ${formatTime(parts[1])}`;
+            }
+        } catch (error) {
+            console.error('Error al formatear horario:', error);
+        }
+        return horario;
+    };
+
+    // Filtrar datos según los filtros de búsqueda
+    const filteredListViewData = useMemo(() => {
+        return listViewData.filter(product => {
+            // Filtrar por fecha
+            if (filterFecha && !formatDateFromAPI(product.u_fecha).toLowerCase().includes(filterFecha.toLowerCase())) {
+                return false;
+            }
+            // Filtrar por Number
+            if (filterNumber && !product.number.toLowerCase().includes(filterNumber.toLowerCase())) {
+                return false;
+            }
+            // Filtrar por ItemCode
+            if (filterItemCode && !product.item_code.toLowerCase().includes(filterItemCode.toLowerCase())) {
+                return false;
+            }
+            // Filtrar por ItemName
+            if (filterItemName && !product.item_name.toLowerCase().includes(filterItemName.toLowerCase())) {
+                return false;
+            }
+            // Filtrar por U_RazonSocial
+            if (filterRazonSocial && !product.u_razon_social.toLowerCase().includes(filterRazonSocial.toLowerCase())) {
+                return false;
+            }
+            // Filtrar por Quantity
+            if (filterQuantity && !product.quantity.toLowerCase().includes(filterQuantity.toLowerCase())) {
+                return false;
+            }
+            // Filtrar por Horario
+            if (filterHorario && !formatHorario(product.horario).toLowerCase().includes(filterHorario.toLowerCase())) {
+                return false;
+            }
+            return true;
+        });
+    }, [listViewData, filterFecha, filterNumber, filterItemCode, filterItemName, filterRazonSocial, filterQuantity, filterHorario]);
+
+    // Función para exportar a Excel
+    const handleExportToExcel = () => {
+        try {
+            // Preparar los datos para exportar
+            const dataToExport = filteredListViewData.map(product => ({
+                'Fecha': formatDateFromAPI(product.u_fecha),
+                'Número': product.number,
+                'Código': product.item_code,
+                'Descripción': product.item_name,
+                'Proveedor': product.u_razon_social,
+                'Cantidad': product.quantity,
+                'Horario': formatHorario(product.horario)
+            }));
+
+            // Crear un libro de trabajo
+            const wb = XLSX.utils.book_new();
+            
+            // Crear una hoja de trabajo con los datos
+            const ws = XLSX.utils.json_to_sheet(dataToExport);
+
+            // Ajustar el ancho de las columnas
+            const colWidths = [
+                { wch: 12 }, // Fecha
+                { wch: 15 }, // Número
+                { wch: 15 }, // Código
+                { wch: 50 }, // Descripción
+                { wch: 40 }, // Proveedor
+                { wch: 12 }, // Cantidad
+                { wch: 15 }  // Horario
+            ];
+            ws['!cols'] = colWidths;
+
+            // Agregar la hoja al libro
+            XLSX.utils.book_append_sheet(wb, ws, 'Productos');
+
+            // Generar el nombre del archivo con fecha
+            const fechaInicio = formatDateForAPI(weekStart);
+            const fechaFin = formatDateForAPI(weekEnd);
+            const fechaActual = new Date().toISOString().split('T')[0].replace(/-/g, '');
+            const fileName = `Productos_${fechaInicio}_${fechaFin}_${fechaActual}.xlsx`;
+
+            // Escribir el archivo y descargarlo
+            const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+            const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+            saveAs(blob, fileName);
+        } catch (error) {
+            console.error('Error al exportar a Excel:', error);
+            alert('Error al exportar a Excel. Por favor, intente nuevamente.');
+        }
+    };
+
+    // Función para imprimir la tabla
+    const handlePrint = () => {
+        try {
+            // Crear una ventana nueva para imprimir
+            const printWindow = window.open('', '_blank');
+            if (!printWindow) {
+                alert('Por favor, permita ventanas emergentes para imprimir.');
+                return;
+            }
+
+            // Obtener el rango de fechas formateado
+            const fechaInicioFormatted = weekStart.toLocaleDateString('es-PE', { 
+                day: '2-digit', 
+                month: 'long', 
+                year: 'numeric' 
+            });
+            const fechaFinFormatted = weekEnd.toLocaleDateString('es-PE', { 
+                day: '2-digit', 
+                month: 'long', 
+                year: 'numeric' 
+            });
+
+            // Crear el contenido HTML para imprimir
+            const printContent = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Lista de Productos - ${fechaInicioFormatted} a ${fechaFinFormatted}</title>
+                    <style>
+                        @media print {
+                            @page {
+                                margin: 1cm;
+                                size: A4 landscape;
+                            }
+                            body {
+                                margin: 0;
+                                padding: 0;
+                            }
+                        }
+                        body {
+                            font-family: Arial, sans-serif;
+                            font-size: 10pt;
+                            margin: 20px;
+                        }
+                        .header {
+                            text-align: center;
+                            margin-bottom: 20px;
+                            border-bottom: 2px solid #000;
+                            padding-bottom: 10px;
+                        }
+                        .header h1 {
+                            margin: 0;
+                            font-size: 18pt;
+                            font-weight: bold;
+                        }
+                        .header p {
+                            margin: 5px 0;
+                            font-size: 12pt;
+                        }
+                        table {
+                            width: 100%;
+                            border-collapse: collapse;
+                            margin-top: 20px;
+                        }
+                        th {
+                            background-color: #f0f0f0;
+                            border: 1px solid #000;
+                            padding: 8px;
+                            text-align: left;
+                            font-weight: bold;
+                            font-size: 9pt;
+                        }
+                        td {
+                            border: 1px solid #000;
+                            padding: 6px;
+                            font-size: 9pt;
+                        }
+                        .footer {
+                            margin-top: 20px;
+                            text-align: center;
+                            font-size: 8pt;
+                            color: #666;
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="header">
+                        <h1>Lista de Productos</h1>
+                        <p>Período: ${fechaInicioFormatted} a ${fechaFinFormatted}</p>
+                        <p>Total de registros: ${filteredListViewData.length}</p>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Número</th>
+                                <th>Código</th>
+                                <th>Descripción</th>
+                                <th>Proveedor</th>
+                                <th>Cantidad</th>
+                                <th>Horario</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${filteredListViewData.map(product => `
+                                <tr>
+                                    <td>${formatDateFromAPI(product.u_fecha)}</td>
+                                    <td>${product.number}</td>
+                                    <td>${product.item_code}</td>
+                                    <td>${product.item_name}</td>
+                                    <td>${product.u_razon_social}</td>
+                                    <td>${product.quantity}</td>
+                                    <td>${formatHorario(product.horario)}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                    <div class="footer">
+                        <p>Generado el ${new Date().toLocaleDateString('es-PE', { 
+                            day: '2-digit', 
+                            month: 'long', 
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                        })}</p>
+                    </div>
+                </body>
+                </html>
+            `;
+
+            // Escribir el contenido y abrir el diálogo de impresión
+            printWindow.document.write(printContent);
+            printWindow.document.close();
+            
+            // Esperar a que se cargue el contenido antes de imprimir
+            printWindow.onload = () => {
+                setTimeout(() => {
+                    printWindow.print();
+                    // Cerrar la ventana después de imprimir (opcional)
+                    // printWindow.close();
+                }, 250);
+            };
+            } catch (error) {
+            console.error('Error al imprimir:', error);
+            alert('Error al imprimir. Por favor, intente nuevamente.');
+        }
+    };
+
     // Get days of the week
     const weekDays = useMemo(() => {
         const days = [];
@@ -317,16 +655,6 @@ const Agenda: React.FC = () => {
             return aptDate >= weekStartDate && aptDate <= weekEndDate;
         });
 
-        // Debug: Log filtered appointments
-        if (filtered.length > 0) {
-            console.log('Citas filtradas:', filtered.map(apt => ({
-                id: apt.id,
-                fecha: apt.deliveryDate,
-                horaInicio: apt.deliveryTime,
-                horaFin: apt.deliveryTimeEnd,
-                proveedor: apt.supplierName
-            })));
-        }
 
         return filtered;
     }, [appointments, currentUser, filterStatus, weekStart, weekEnd]);
@@ -337,6 +665,150 @@ const Agenda: React.FC = () => {
         if (!timeStr) return 0;
         const [hours, minutes] = timeStr.split(':').map(Number);
         return hours * 60 + minutes;
+    };
+
+    /**
+     * Calcula el posicionamiento horizontal de citas solapadas
+     * Retorna un mapa con el índice de columna y el ancho para cada cita
+     */
+    const calculateOverlappingAppointmentsLayout = (
+        appointments: typeof filteredAppointments
+    ): Map<string, { column: number; width: number; totalColumns: number }> => {
+        const layout = new Map<string, { column: number; width: number; totalColumns: number }>();
+        
+        if (appointments.length === 0) return layout;
+
+        // Agrupar citas por día
+        const appointmentsByDay = new Map<string, typeof appointments>();
+        appointments.forEach(apt => {
+            const dayKey = apt.deliveryDate;
+            if (!appointmentsByDay.has(dayKey)) {
+                appointmentsByDay.set(dayKey, []);
+            }
+            appointmentsByDay.get(dayKey)!.push(apt);
+        });
+
+        // Para cada día, calcular el layout de citas solapadas
+        appointmentsByDay.forEach((dayAppointments) => {
+            // Ordenar citas por hora de inicio
+            const sortedAppointments = [...dayAppointments].sort((a, b) => {
+                const aStart = timeToMinutes(a.deliveryTime || '00:00');
+                const bStart = timeToMinutes(b.deliveryTime || '00:00');
+                return aStart - bStart;
+            });
+
+            // Crear grupos de citas solapadas
+            const groups: typeof appointments[] = [];
+            
+            sortedAppointments.forEach(apt => {
+                const aptStart = timeToMinutes(apt.deliveryTime || '00:00');
+                const aptEnd = timeToMinutes(apt.deliveryTimeEnd || apt.deliveryTime || '00:00') || aptStart + 60;
+                
+                // Buscar un grupo donde esta cita se solape
+                let addedToGroup = false;
+                for (const group of groups) {
+                    // Verificar si se solapa con alguna cita del grupo
+                    const overlaps = group.some(groupApt => {
+                        const groupStart = timeToMinutes(groupApt.deliveryTime || '00:00');
+                        const groupEnd = timeToMinutes(groupApt.deliveryTimeEnd || groupApt.deliveryTime || '00:00') || groupStart + 60;
+                        return aptStart < groupEnd && aptEnd > groupStart;
+                    });
+                    
+                    if (overlaps) {
+                        group.push(apt);
+                        addedToGroup = true;
+                        break;
+                    }
+                }
+                
+                if (!addedToGroup) {
+                    groups.push([apt]);
+                }
+            });
+
+            // Para cada grupo, calcular columnas
+            groups.forEach(group => {
+                if (group.length === 1) {
+                    // Una sola cita, ocupa todo el ancho
+                    layout.set(group[0].id, { column: 0, width: 1, totalColumns: 1 });
+                } else {
+                    // Múltiples citas solapadas - necesitamos calcular columnas
+                    // Usar un algoritmo simple: asignar columnas secuencialmente
+                    // y calcular el número máximo de columnas necesarias
+                    
+                    // Ordenar por hora de inicio
+                    const sortedGroup = [...group].sort((a, b) => {
+                        const aStart = timeToMinutes(a.deliveryTime || '00:00');
+                        const bStart = timeToMinutes(b.deliveryTime || '00:00');
+                        return aStart - bStart;
+                    });
+
+                    // Calcular el número máximo de columnas necesarias
+                    // Esto requiere verificar cuántas citas se solapan simultáneamente en cada punto
+                    let maxColumns = 1;
+                    const timePoints = new Set<number>();
+                    
+                    sortedGroup.forEach(apt => {
+                        const start = timeToMinutes(apt.deliveryTime || '00:00');
+                        const end = timeToMinutes(apt.deliveryTimeEnd || apt.deliveryTime || '00:00') || start + 60;
+                        timePoints.add(start);
+                        timePoints.add(end);
+                    });
+
+                    // Para cada punto de tiempo, contar cuántas citas están activas
+                    Array.from(timePoints).sort((a, b) => a - b).forEach(timePoint => {
+                        const activeCount = sortedGroup.filter(apt => {
+                            const start = timeToMinutes(apt.deliveryTime || '00:00');
+                            const end = timeToMinutes(apt.deliveryTimeEnd || apt.deliveryTime || '00:00') || start + 60;
+                            return timePoint >= start && timePoint < end;
+                        }).length;
+                        maxColumns = Math.max(maxColumns, activeCount);
+                    });
+
+                    // Asignar columnas usando un algoritmo greedy
+                    const columns: number[] = new Array(sortedGroup.length).fill(-1);
+                    
+                    sortedGroup.forEach((apt, index) => {
+                        const aptStart = timeToMinutes(apt.deliveryTime || '00:00');
+                        const aptEnd = timeToMinutes(apt.deliveryTimeEnd || apt.deliveryTime || '00:00') || aptStart + 60;
+                        
+                        // Encontrar la primera columna disponible que no esté ocupada por citas que se solapan
+                        for (let col = 0; col < maxColumns; col++) {
+                            let canUseColumn = true;
+                            
+                            // Verificar si esta columna está ocupada por otra cita que se solapa
+                            for (let i = 0; i < index; i++) {
+                                if (columns[i] === col) {
+                                    const otherStart = timeToMinutes(sortedGroup[i].deliveryTime || '00:00');
+                                    const otherEnd = timeToMinutes(sortedGroup[i].deliveryTimeEnd || sortedGroup[i].deliveryTime || '00:00') || otherStart + 60;
+                                    
+                                    if (aptStart < otherEnd && aptEnd > otherStart) {
+                                        canUseColumn = false;
+                                        break;
+                                    }
+                                }
+                            }
+                            
+                            if (canUseColumn) {
+                                columns[index] = col;
+                                break;
+                            }
+                        }
+                    });
+
+                    // Asignar layout a cada cita
+                    sortedGroup.forEach((apt, index) => {
+                        layout.set(apt.id, {
+                            column: columns[index],
+                            width: 1,
+                            totalColumns: maxColumns
+                        });
+                    });
+                }
+            });
+        });
+
+        return layout;
     };
 
     // Get appointments for a specific day and time slot
@@ -365,34 +837,6 @@ const Agenda: React.FC = () => {
         });
     };*/
 
-    // Check if a time slot is available (no conflicts)
-    const isTimeSlotAvailable = (date: Date, startTime: string, endTime: string, excludeAppointmentId?: string, excludeSupplierRUC?: string): boolean => {
-        const startMinutes = timeToMinutes(startTime);
-        const endMinutes = timeToMinutes(endTime);
-        
-        if (endMinutes <= startMinutes) return false;
-
-        const conflictingAppointments = filteredAppointments.filter(apt => {
-            // Skip the appointment being edited
-            if (excludeAppointmentId && apt.id === excludeAppointmentId) return false;
-            
-            // Skip appointments from the same supplier (RUC) when editing
-            if (excludeSupplierRUC && apt.supplierRUC === excludeSupplierRUC) return false;
-
-            const aptDate = new Date(apt.deliveryDate);
-            const isSameDay = aptDate.toDateString() === date.toDateString();
-            
-            if (!isSameDay || !apt.deliveryTime) return false;
-            
-            const aptStartMinutes = timeToMinutes(apt.deliveryTime);
-            const aptEndMinutes = apt.deliveryTimeEnd ? timeToMinutes(apt.deliveryTimeEnd) : aptStartMinutes + 60;
-            
-            // Check for overlap: new appointment overlaps if it starts before existing ends and ends after existing starts
-            return (startMinutes < aptEndMinutes && endMinutes > aptStartMinutes);
-        });
-
-        return conflictingAppointments.length === 0;
-    };
 
     // Get conflicting appointments for a time slot
     const getConflictingAppointments = (date: Date, startTime: string, endTime: string, excludeAppointmentId?: string, excludeSupplierRUC?: string): Array<{
@@ -525,18 +969,15 @@ const Agenda: React.FC = () => {
             return;
         }
 
-        // Check for time slot conflicts (excluir la cita actual si está en modo edición)
-        const deliveryDate = new Date(data.deliveryDate);
-        const excludeAppointmentId = editingAppointment ? selectedAppointment?.id : undefined;
-        if (!isTimeSlotAvailable(deliveryDate, data.deliveryTime, data.deliveryTimeEnd, excludeAppointmentId)) {
-            alert('El horario seleccionado ya está ocupado. Por favor seleccione otro horario.');
-            return;
-        }
-
+        // Ya no validamos horarios ocupados - se permiten citas solapadas
         setIsCreatingAppointment(true);
         try {
             if (editingAppointment) {
                 // Modo edición: actualizar la cita
+                // Obtener el estado actual de la cita que se está editando
+                const currentAppointment = appointments.find(apt => apt.docEntry === editingAppointment.docEntry);
+                const currentStatus = currentAppointment?.status || 'REGISTRADA';
+                
                 await updateAppointmentFromApi(editingAppointment.docEntry, {
                     supplierRUC: data.supplierRUC,
                     supplierName: data.supplierName,
@@ -545,7 +986,8 @@ const Agenda: React.FC = () => {
                     deliveryTimeEnd: data.deliveryTimeEnd,
                     description: data.notes,
                     warehouse: data.warehouse,
-                    active: 'Y'
+                    active: 'Y',
+                    estado: currentStatus // Incluir el estado actual de la cita
                 });
 
                 alert('Cita actualizada exitosamente');
@@ -656,6 +1098,92 @@ const Agenda: React.FC = () => {
         navigate(`/agenda/detail/${appointmentId}`);
     };
 
+    // Función para buscar cita relacionada con un producto y navegar al detalle
+    const handleProductRowClick = (product: ProductApiRecord) => {
+        try {
+            // Convertir fecha del producto a formato YYYY-MM-DD para comparar
+            const parseProductDate = (dateStr: string): string | null => {
+                try {
+                    const datePart = dateStr.split(' ')[0]; // "19/01/2026"
+                    const [day, month, year] = datePart.split('/');
+                    if (day && month && year) {
+                        return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+                    }
+                } catch (error) {
+                    console.error('Error al parsear fecha:', error);
+                }
+                return null;
+            };
+
+            const productDate = parseProductDate(product.u_fecha);
+            if (!productDate) {
+                console.warn('No se pudo parsear la fecha del producto');
+                return;
+            }
+
+            // Buscar cita que coincida con:
+            // 1. Fecha de entrega
+            // 2. Nombre del proveedor (U_RazonSocial)
+            // 3. Horario (comparar el horario formateado)
+            const matchingAppointment = appointments.find(apt => {
+                // Comparar fecha
+                if (apt.deliveryDate !== productDate) {
+                    return false;
+                }
+
+                // Comparar proveedor (normalizar para comparación)
+                const aptSupplierName = apt.supplierName?.toLowerCase().trim() || '';
+                const productSupplierName = product.u_razon_social?.toLowerCase().trim() || '';
+                if (aptSupplierName && productSupplierName && !aptSupplierName.includes(productSupplierName) && !productSupplierName.includes(aptSupplierName)) {
+                    return false;
+                }
+
+                // Comparar horario (extraer hora inicial del rango)
+                if (product.horario && apt.deliveryTime) {
+                    const productHorarioParts = product.horario.split(' - ');
+                    if (productHorarioParts.length > 0) {
+                        const productHoraInicio = productHorarioParts[0].trim();
+                        // Normalizar hora (agregar cero si tiene 3 dígitos)
+                        const normalizedHora = productHoraInicio.length === 3 ? `0${productHoraInicio}` : productHoraInicio;
+                        const horaFormateada = normalizedHora.length === 4 
+                            ? `${normalizedHora.substring(0, 2)}:${normalizedHora.substring(2, 4)}`
+                            : productHoraInicio;
+                        
+                        // Comparar con el horario de la cita (formato HH:MM)
+                        if (apt.deliveryTime && !apt.deliveryTime.includes(horaFormateada.substring(0, 2))) {
+                            return false;
+                        }
+                    }
+                }
+
+                return true;
+            });
+
+            if (matchingAppointment) {
+                handleViewAppointment(matchingAppointment);
+            } else {
+                // Si no se encuentra una cita exacta, intentar buscar solo por fecha y proveedor
+                const fallbackAppointment = appointments.find(apt => {
+                    if (apt.deliveryDate !== productDate) return false;
+                    const aptSupplierName = apt.supplierName?.toLowerCase().trim() || '';
+                    const productSupplierName = product.u_razon_social?.toLowerCase().trim() || '';
+                    return aptSupplierName && productSupplierName && 
+                           (aptSupplierName.includes(productSupplierName) || productSupplierName.includes(aptSupplierName));
+                });
+
+                if (fallbackAppointment) {
+                    handleViewAppointment(fallbackAppointment);
+                } else {
+                    console.warn('No se encontró una cita relacionada para el producto:', product);
+                    alert('No se encontró una cita relacionada con este producto.');
+                }
+            }
+        } catch (error) {
+            console.error('Error al buscar cita relacionada:', error);
+            alert('Error al buscar la cita relacionada. Por favor, intente nuevamente.');
+        }
+    };
+
     // Detectar navegación desde la página de detalle para abrir modales
     useEffect(() => {
         const state = location.state as { openPackingList?: boolean; openTransport?: boolean; openDocuments?: boolean; openEdit?: boolean } | null;
@@ -675,7 +1203,7 @@ const Agenda: React.FC = () => {
     }, [location.state, selectedAppointment]);
 
     // Load PackingList from API when modal opens
-    useEffect(() => {
+    /*useEffect(() => {
         if (isPackingListOpen && selectedAppointment) {
             const loadPackingLists = async () => {
                 setIsLoadingPackingLists(true);
@@ -701,7 +1229,7 @@ const Agenda: React.FC = () => {
         } else {
             setPackingListsFromApi([]);
         }
-    }, [isPackingListOpen, selectedAppointment, weekStart, weekEnd]);
+    }, [isPackingListOpen, selectedAppointment, weekStart, weekEnd]);*/
 
     // Load warehouses from API when modal opens
     useEffect(() => {
@@ -742,6 +1270,94 @@ const Agenda: React.FC = () => {
     }, [isPackingListOpen, selectedAppointment?.deliveryDate]);
 
 
+    /**
+     * Genera el siguiente número de PackingList basándose en los existentes
+     * Formato: {DocNum}_{correlativo}
+     * Ejemplo: Si hay 251047379_1, 251047379_2, 251047379_3, genera 251047379_4
+     * @param docNum - Número de orden de compra
+     * @param codCita - Código de la cita (DocEntry) - requerido para buscar PackingList
+     */
+    const generateNextPackingListNumber = async (docNum: string, codCita: string): Promise<string> => {
+        try {
+            if (!codCita) {
+                console.warn('⚠️ No se proporcionó CodCita, retornando número por defecto');
+                return `${docNum}_1`;
+            }
+            
+            // Buscar todos los PackingList existentes para esta cita
+            // Usar un rango amplio de fechas para asegurar que encontremos todos los PackingList
+            const now = new Date();
+            const startDate = new Date(now.getFullYear() - 2, 0, 1); // 2 años atrás para asegurar que encontremos todos
+            const endDate = new Date(now.getFullYear() + 2, 11, 31); // 2 años adelante
+            
+            const fechaInicio = formatDateForAPI(startDate);
+            const fechaFin = formatDateForAPI(endDate);
+            
+            console.log('🔍 Buscando PackingList existentes para:', docNum);
+            console.log('📋 CodCita:', codCita);
+            console.log('📅 Rango de fechas:', fechaInicio, 'a', fechaFin);
+            
+            // Buscar PackingList usando CodCita (requerido por el API)
+            const allPackingLists = await fetchPackingListFromApi(fechaInicio, fechaFin, codCita);
+            
+            console.log('📦 Total de PackingList encontrados:', allPackingLists.length);
+            if (allPackingLists.length > 0) {
+                console.log('📦 Primeros 10 PackingList encontrados:', allPackingLists.slice(0, 10).map(pl => pl.number));
+            }
+            
+            // Filtrar PackingList que empiecen con el número de orden
+            // El número puede venir como string o number, normalizarlo
+            const matchingPackingLists = allPackingLists.filter(pl => {
+                if (!pl.number) return false;
+                // Normalizar el número a string
+                const numberStr = String(pl.number).trim();
+                // El número de PackingList tiene formato: {DocNum}_{correlativo}
+                const matches = numberStr.startsWith(`${docNum}_`);
+                if (matches) {
+                    console.log('✅ PackingList que coincide:', numberStr);
+                }
+                return matches;
+            });
+            
+            console.log('🎯 PackingList que coinciden con', docNum, ':', matchingPackingLists.length);
+            if (matchingPackingLists.length > 0) {
+                console.log('🎯 Números encontrados:', matchingPackingLists.map(pl => String(pl.number)));
+            }
+            
+            // Extraer correlativos y encontrar el máximo
+            let maxCorrelative = 0;
+            matchingPackingLists.forEach(pl => {
+                if (pl.number) {
+                    // Normalizar el número a string
+                    const numberStr = String(pl.number).trim();
+                    // Extraer el correlativo después del guion bajo
+                    const parts = numberStr.split('_');
+                    if (parts.length >= 2) {
+                        // Tomar la última parte como correlativo (por si hay múltiples guiones bajos)
+                        const correlativeStr = parts[parts.length - 1];
+                        const correlative = parseInt(correlativeStr, 10);
+                        if (!isNaN(correlative) && correlative > maxCorrelative) {
+                            maxCorrelative = correlative;
+                            console.log('📊 Nuevo máximo correlativo encontrado:', maxCorrelative, 'de', numberStr);
+                        }
+                    }
+                }
+            });
+            
+            // Generar el siguiente número
+            const nextCorrelative = maxCorrelative + 1;
+            const nextNumber = `${docNum}_${nextCorrelative}`;
+            console.log('✨ Siguiente número generado:', nextNumber, '(correlativo máximo encontrado:', maxCorrelative, ')');
+            
+            return nextNumber;
+        } catch (error) {
+            console.error('❌ Error al generar número de PackingList:', error);
+            // Si hay error, retornar el número base con correlativo 1
+            console.log('⚠️ Retornando número por defecto:', `${docNum}_1`);
+            return `${docNum}_1`;
+        }
+    };
+
     // Handle create packing list
     const handleCreatePackingList = async () => {
         if (!selectedAppointment || !selectedAppointment.docEntry || !packingListForm.warehouse || packingListItems.length === 0) {
@@ -765,6 +1381,17 @@ const Agenda: React.FC = () => {
         }
         
         try {
+            // Filtrar solo los items seleccionados (marca = true) y con cantidad > 0
+            const selectedItems = packingListItems.filter(item => 
+                item.marca === true && item.quantity > 0
+            );
+            
+            // Validar que haya al menos un item seleccionado
+            if (selectedItems.length === 0) {
+                alert('Debe seleccionar al menos un item con cantidad mayor a 0');
+                return;
+            }
+            
             const data = {
                 vendorId: vendorId,
                 whsCode: packingListForm.warehouse,
@@ -775,9 +1402,9 @@ const Agenda: React.FC = () => {
                 ticket: "0", // Ticket WMS
                 wmsResponse: packingListForm.commentWms || '',
                 codCita: selectedAppointment.docEntry,
-                _detallePackinList: packingListItems.map((item, index) => ({
+                _detallePackinList: selectedItems.map((item, index) => ({
                     document: (item as any).document || 0, // Número de documento de orden de compra (debe venir del item)
-                    lineNumber: index + 1,
+                    lineNumber: index + 1, // LineNumber secuencial desde 1 para los items seleccionados
                     itemCode: item.productCode,
                     itemName: item.productName,
                     quantity: item.quantity
@@ -792,41 +1419,48 @@ const Agenda: React.FC = () => {
                 inboundType: packingListForm.inboundType || 'OCNAC',
                 comments: packingListForm.comment || '',
                 dateExpected: packingListForm.date || new Date().toISOString().split('T')[0], // Formato YYYY-MM-DD
-                ticket: packingListForm.ticket || '', // Ticket WMS
+                ticket: "0", // Ticket WMS
                 wmsResponse: packingListForm.commentWms || '',
                 codCita: selectedAppointment.docEntry,
-                _detallePackinList: packingListItems.map((item, index) => ({
+                _detallePackinList: selectedItems.map((item, index) => ({
                     document: (item as any).document || 0, // Número de documento de orden de compra (debe venir del item)
-                    lineNumber: index + 1,
+                    lineNumber: index + 1, // LineNumber secuencial desde 1 para los items seleccionados
                     itemCode: item.productCode,
                     itemName: item.productName,
                     quantity: item.quantity
                 }))
             });
 
-            // Actualizar estado local
+            // Actualizar estado local (solo con los items seleccionados)
             addPackingList(selectedAppointment.id, {
                 appointmentId: selectedAppointment.id,
                 supplierId: selectedAppointment.supplierId,
                 date: packingListForm.date || new Date().toISOString().split('T')[0],
                 warehouse: packingListForm.warehouse,
-                items: packingListItems,
+                items: selectedItems, // Solo los items seleccionados
                 comment: packingListForm.comment,
                 commentWms: packingListForm.commentWms,
                 createdBy: currentUser?.id || 'system'
             });
 
-            // Update appointment status
-            updateAppointment(selectedAppointment.id, { status: 'PackingListCompletado' });
+            // Actualizar estado de la cita a PROGRAMADA cuando se crea el packing list
+            if (selectedAppointment.docEntry && currentUser) {
+                const { updateAppointmentStatus } = await import('@/services/agenda/appointmentStatus');
+                const userId = currentUser.userCode || currentUser.id || currentUser.username || 'system';
+                await updateAppointmentStatus(selectedAppointment.docEntry, 'PROGRAMADA', userId);
+            }
             
-            alert('PackingList creado exitosamente en el sistema.');
+            // Update appointment status local
+            updateAppointment(selectedAppointment.id, { status: 'PROGRAMADA' });
+            
+            alert('PackingList creado exitosamente. Estado actualizado a PROGRAMADA.');
 
             // Recargar PackingList del API
-            const fechaInicio = formatDateForAPI(weekStart);
+            /*const fechaInicio = formatDateForAPI(weekStart);
             const fechaFin = formatDateForAPI(weekEnd);
             const codCita = selectedAppointment.docEntry;
             const packingLists = await fetchPackingListFromApi(fechaInicio, fechaFin, codCita);
-            setPackingListsFromApi(packingLists);
+            setPackingListsFromApi(packingLists);*/
 
             // Reset and close
             setPackingListForm({
@@ -835,6 +1469,7 @@ const Agenda: React.FC = () => {
                 comment: '',
                 commentWms: '',
                 number: '',
+                orderNumber: '',
                 inboundType: 'OCNAC',
                 ticket: '',
                 items: [] as PackingListItem[]
@@ -863,25 +1498,35 @@ const Agenda: React.FC = () => {
         try {
             // Preparar los datos para el API
             const choferData = {
-                u_EmpresaTranspote: transportForm.transportCompany || '',
-                u_NombreConductor: transportForm.driverName || '',
-                u_LicenciaConducir: transportForm.driverLicense || '',
-                u_PlacaVehiculo: transportForm.vehiclePlate || '',
-                u_TipoVehiculo: transportForm.vehicleType || '',
-                u_TelefonoContacto: transportForm.contactPhone || '',
-                u_HoraLlegada: transportForm.estimatedArrival || '',
-                u_Notas: transportForm.notes || '',
-                u_CodCita: selectedAppointment.docEntry
+                U_EmpresaTransporte: transportForm.transportCompany || '',
+                U_NombreConductor: transportForm.driverName || '',
+                U_LicenciaConducir: transportForm.driverLicense || '',
+                U_PlacaVehiculo: transportForm.vehiclePlate || '',
+                U_TipoVehiculo: transportForm.vehicleType || '',
+                U_TelefonoContacto: transportForm.contactPhone || '',
+                U_HoraLlegada: transportForm.estimatedArrival || '',
+                U_Notas: transportForm.notes || '',
+                U_CodCita: selectedAppointment.docEntry
             };
 
             // Llamar al API para crear el chofer
             await createChoferInApi(choferData);
+
+            // Actualizar estado de la cita a TRANSPORTE_COMPLETO
+            if (selectedAppointment.docEntry && currentUser) {
+                const { updateAppointmentStatus } = await import('@/services/agenda/appointmentStatus');
+                const userId = currentUser.userCode || currentUser.id || currentUser.username || 'system';
+                await updateAppointmentStatus(selectedAppointment.docEntry, 'TRANSPORTE_COMPLETO', userId);
+            }
 
             // Guardar también en el store local
             addTransportData(selectedAppointment.id, {
                 appointmentId: selectedAppointment.id,
                 ...transportForm
             });
+            
+            // Actualizar estado local
+            updateAppointment(selectedAppointment.id, { status: 'TRANSPORTE_COMPLETO' });
 
             alert('Datos de transporte guardados exitosamente');
             setTransportForm({
@@ -930,6 +1575,37 @@ const Agenda: React.FC = () => {
             };
 
             addDocument(selectedAppointment.id, documentType, document);
+            
+            // Verificar si todos los documentos están completos y actualizar estado
+            // Recargar appointment para verificar documentos completos
+            const { loadAppointmentsFromApi } = useAgendaStore.getState();
+            const ruc = currentUser?.role === UserRole.PROVEEDOR && currentUser.username ? currentUser.username : undefined;
+            const today = new Date();
+            const weekStart = new Date(today.setDate(today.getDate() - today.getDay()));
+            const weekEnd = new Date(today.setDate(today.getDate() - today.getDay() + 6));
+            const fechaInicio = formatDateForAPI(weekStart);
+            const fechaFin = formatDateForAPI(weekEnd);
+            await loadAppointmentsFromApi(ruc, fechaInicio, fechaFin);
+            
+            // Verificar si todos los documentos están completos
+            const updatedAppointment = useAgendaStore.getState().appointments.find(
+                apt => apt.docEntry === selectedAppointment.docEntry
+            );
+            
+            if (updatedAppointment) {
+                const hasAllDocs = updatedAppointment.documents?.invoice && 
+                                  updatedAppointment.documents?.purchaseOrder && 
+                                  updatedAppointment.documents?.deliveryGuide && 
+                                  updatedAppointment.documents?.cdr && 
+                                  updatedAppointment.documents?.xml;
+                
+                if (hasAllDocs && updatedAppointment.status !== 'DOCUMENTOS_COMPLETOS' && updatedAppointment.docEntry && currentUser) {
+                    const { updateAppointmentStatus } = await import('@/services/agenda/appointmentStatus');
+                    const userId = currentUser.userCode || currentUser.id || currentUser.username || 'system';
+                    await updateAppointmentStatus(updatedAppointment.docEntry, 'DOCUMENTOS_COMPLETOS', userId);
+                    updateAppointment(selectedAppointment.id, { status: 'DOCUMENTOS_COMPLETOS' });
+                }
+            }
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Error desconocido al subir archivo';
             throw new Error(errorMessage);
@@ -961,6 +1637,92 @@ const Agenda: React.FC = () => {
         return <ClockIcon className="w-4 h-4" />;
     };*/
 
+    // Load extended view appointments
+    const loadExtendedViewAppointments = async (month: string) => {
+        setIsLoadingExtendedView(true);
+        try {
+            // Parsear mes (YYYY-MM)
+            const [year, monthNum] = month.split('-').map(Number);
+            
+            // Calcular inicio y fin del mes
+            const startDate = new Date(year, monthNum - 1, 1);
+            const endDate = new Date(year, monthNum, 0, 23, 59, 59);
+            
+            // Obtener RUC del usuario si es proveedor
+            const ruc = currentUser?.role === UserRole.PROVEEDOR && currentUser.username 
+                ? currentUser.username 
+                : undefined;
+            
+            // Cargar citas del mes directamente desde el API
+            await loadAppointmentsFromApi(ruc, startDate, endDate);
+            
+            // Filtrar citas del mes seleccionado desde el store actualizado
+            const monthAppointments = appointments.filter(apt => {
+                const [aptYear, aptMonth] = apt.deliveryDate.split('-').map(Number);
+                return aptYear === year && aptMonth === monthNum;
+            });
+            
+            setExtendedViewAppointments(monthAppointments);
+        } catch (error) {
+            console.error('Error al cargar citas del mes:', error);
+            alert('Error al cargar citas del mes seleccionado');
+            setExtendedViewAppointments([]);
+        } finally {
+            setIsLoadingExtendedView(false);
+        }
+    };
+
+    // Cargar citas cuando se abre el modal o cambia el mes
+    useEffect(() => {
+        if (isExtendedViewOpen) {
+            loadExtendedViewAppointments(selectedMonth);
+        }
+    }, [isExtendedViewOpen, selectedMonth, currentUser?.id, currentUser?.role, currentUser?.username]);
+    
+    // Actualizar citas de vista ampliada cuando cambian las citas del store
+    useEffect(() => {
+        if (isExtendedViewOpen && !isLoadingExtendedView) {
+            const [year, monthNum] = selectedMonth.split('-').map(Number);
+            const monthAppointments = appointments.filter(apt => {
+                const [aptYear, aptMonth] = apt.deliveryDate.split('-').map(Number);
+                return aptYear === year && aptMonth === monthNum;
+            });
+            setExtendedViewAppointments(monthAppointments);
+        }
+    }, [appointments, isExtendedViewOpen, selectedMonth, isLoadingExtendedView]);
+
+    // Generar opciones de meses (3 meses antes, mes actual, 3 meses después)
+    const getMonthOptions = () => {
+        const options: string[] = [];
+        const now = new Date();
+        
+        for (let i = -3; i <= 3; i++) {
+            const date = new Date(now.getFullYear(), now.getMonth() + i, 1);
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const monthKey = `${year}-${month}`;
+            options.push(monthKey);
+        }
+        
+        return options;
+    };
+
+    // Agrupar citas por día
+    const groupAppointmentsByDay = (appointments: DeliveryAppointment[]) => {
+        const grouped = new Map<string, DeliveryAppointment[]>();
+        
+        appointments.forEach(apt => {
+            const dayKey = apt.deliveryDate;
+            if (!grouped.has(dayKey)) {
+                grouped.set(dayKey, []);
+            }
+            grouped.get(dayKey)!.push(apt);
+        });
+        
+        // Ordenar por fecha
+        return Array.from(grouped.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+    };
+
     // Check if user can create appointments
     const canCreateAppointment = currentUser?.role === UserRole.ADMIN || 
                                  currentUser?.role === UserRole.COMPRAS ||
@@ -975,25 +1737,236 @@ const Agenda: React.FC = () => {
                         <h1 className="text-3xl font-bold text-gray-900">Agenda de Entregas</h1>
                         <p className="text-gray-600 mt-1">Gestiona las entregas programadas de proveedores</p>
                     </div>
-                    {canCreateAppointment && (
+                    <div className="flex items-center gap-2">
+                        {/* Toggle entre vista calendario y lista */}
                         <Button
+                            isIconOnly
+                            variant="flat"
                             color="primary"
-                            startContent={<PlusIcon className="w-5 h-5" />}
-                            onPress={onScheduleOpen}
+                            onPress={() => setViewMode(prev => prev === 'calendar' ? 'list' : 'calendar')}
+                            title={viewMode === 'calendar' ? 'Ver como Lista' : 'Ver como Calendario'}
                         >
-                            Programar Entrega
+                            {viewMode === 'calendar' ? (
+                                <ListBulletIcon className="w-5 h-5" />
+                            ) : (
+                                <Squares2X2Icon className="w-5 h-5" />
+                            )}
                         </Button>
-                    )}
+                        {canCreateAppointment && (
+                            <Button
+                                color="primary"
+                                startContent={<PlusIcon className="w-5 h-5" />}
+                                onPress={onScheduleOpen}
+                            >
+                                Programar Entrega
+                            </Button>
+                        )}
+                    </div>
                 </div>
 
-                {/* Weekly Calendar - Modern Design */}
-                <Card
-                    className="shadow-lg border-r-0 rounded-none flex flex-col"
-                    style={{
-                        minHeight: 'calc(100vh - 100px)', // Ajusta '100px' si tu header/márgenes superiores ocupan más/menos
-                        height: 'calc(100vh - 100px)',   // Opcional, asegura altura mínima y fija
-                    }}
-                >
+                {/* Vista de Lista o Calendario */}
+                {viewMode === 'list' ? (
+                    <>
+                        {/* Controles de navegación y filtros - Fuera del Card */}
+                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4 bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                                <Button
+                                    isIconOnly
+                                    variant="light"
+                                    size="sm"
+                                    onPress={goToPreviousWeek}
+                                    className="hover:bg-gray-200"
+                                    isDisabled={isLoadingListView}
+                                >
+                                    <ArrowLeftIcon className="w-5 h-5" />
+                                </Button>
+                                <span className="block min-w-[160px] px-2 text-center">
+                                    <h2 className="text-xl font-bold text-gray-900 whitespace-nowrap leading-none">
+                                        {weekStart.toLocaleDateString('es-PE', { month: 'long', year: 'numeric' })}
+                                    </h2>
+                                </span>
+                                <Button
+                                    isIconOnly
+                                    variant="light"
+                                    size="sm"
+                                    onPress={goToNextWeek}
+                                    className="hover:bg-gray-200"
+                                    isDisabled={isLoadingListView}
+                                >
+                                    <ArrowRightIcon className="w-5 h-5" />
+                                </Button>
+                                <Button
+                                    variant="light"
+                                    size="sm"
+                                    onPress={goToToday}
+                                    className="ml-2"
+                                    isDisabled={isLoadingListView}
+                                >
+                                    Hoy
+                                </Button>
+                            </div>
+                            <div className="flex items-center gap-2 flex-shrink-0 justify-end min-w-[150px]">
+                                {isLoadingListView && (
+                                    <Chip color="primary" variant="flat" size="sm">
+                                        Cargando...
+                                    </Chip>
+                                )}
+                                <Chip color="primary" variant="flat" size="md">
+                                    {filteredListViewData.length} {filteredListViewData.length === 1 ? 'producto' : 'productos'}
+                                </Chip>
+                                <Button
+                                    color="default"
+                                    variant="flat"
+                                    size="sm"
+                                    startContent={<PrinterIcon className="w-4 h-4" />}
+                                    onPress={handlePrint}
+                                    isDisabled={isLoadingListView || filteredListViewData.length === 0}
+                                >
+                                    Imprimir
+                                </Button>
+                                <Button
+                                    color="success"
+                                    variant="flat"
+                                    size="sm"
+                                    startContent={<ArrowDownTrayIcon className="w-4 h-4" />}
+                                    onPress={handleExportToExcel}
+                                    isDisabled={isLoadingListView || filteredListViewData.length === 0}
+                                >
+                                    Exportar Excel
+                                </Button>
+                            </div>
+                        </div>
+
+                        {/* Card de Lista - Filtros y tabla */}
+                        <Card className="shadow-lg border-r-0 rounded-none flex flex-col" style={{ minHeight: 'calc(100vh - 200px)', height: 'calc(100vh - 200px)' }}>
+                            <CardBody className="p-4 rounded-none flex-1 flex flex-col" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+                                {/* Filtros de búsqueda fuera de la tabla */}
+                                <div className="flex-shrink-0 mb-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-4">
+                                        <Input
+                                            size="sm"
+                                            label="Fecha"
+                                            placeholder="Buscar fecha..."
+                                            value={filterFecha}
+                                            onValueChange={setFilterFecha}
+                                            classNames={{ base: "w-full" }}
+                                        />
+                                        <Input
+                                            size="sm"
+                                            label="Número"
+                                            placeholder="Buscar número..."
+                                            value={filterNumber}
+                                            onValueChange={setFilterNumber}
+                                            classNames={{ base: "w-full" }}
+                                        />
+                                        <Input
+                                            size="sm"
+                                            label="Código"
+                                            placeholder="Buscar código..."
+                                            value={filterItemCode}
+                                            onValueChange={setFilterItemCode}
+                                            classNames={{ base: "w-full" }}
+                                        />
+                                        <Input
+                                            size="sm"
+                                            label="Descripción"
+                                            placeholder="Buscar descripción..."
+                                            value={filterItemName}
+                                            onValueChange={setFilterItemName}
+                                            classNames={{ base: "w-full" }}
+                                        />
+                                        <Input
+                                            size="sm"
+                                            label="Proveedor"
+                                            placeholder="Buscar proveedor..."
+                                            value={filterRazonSocial}
+                                            onValueChange={setFilterRazonSocial}
+                                            classNames={{ base: "w-full" }}
+                                        />
+                                        <Input
+                                            size="sm"
+                                            label="Cantidad"
+                                            placeholder="Buscar cantidad..."
+                                            value={filterQuantity}
+                                            onValueChange={setFilterQuantity}
+                                            classNames={{ base: "w-full" }}
+                                        />
+                                        <Input
+                                            size="sm"
+                                            label="Horario"
+                                            placeholder="Buscar horario..."
+                                            value={filterHorario}
+                                            onValueChange={setFilterHorario}
+                                            classNames={{ base: "w-full" }}
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Tabla */}
+                            {isLoadingListView ? (
+                                    <div className="p-8 text-center rounded-none flex-1 flex items-center justify-center">
+                                    <p className="text-gray-500">Cargando datos...</p>
+                                </div>
+                                ) : filteredListViewData.length === 0 ? (
+                                    <div className="p-8 text-center rounded-none flex-1 flex items-center justify-center">
+                                    <p className="text-gray-500">No hay datos para mostrar</p>
+                                </div>
+                            ) : (
+                                <div className="overflow-auto flex-1">
+                                        <Table aria-label="Tabla de productos" classNames={{
+                                            wrapper: "min-h-[222px]",
+                                        }}>
+                                        <TableHeader>
+                                                <TableColumn className="w-[100px] min-w-[100px]">FECHA</TableColumn>
+                                                <TableColumn className="w-[120px] min-w-[120px]">NÚMERO</TableColumn>
+                                                <TableColumn className="w-[120px] min-w-[120px]">CÓDIGO</TableColumn>
+                                                <TableColumn>DESCRIPCIÓN</TableColumn>
+                                            <TableColumn>PROVEEDOR</TableColumn>
+                                                <TableColumn className="w-[100px] min-w-[100px]">CANTIDAD</TableColumn>
+                                                <TableColumn className="w-[120px] min-w-[120px]">HORARIO</TableColumn>
+                                        </TableHeader>
+                                        <TableBody>
+                                                {filteredListViewData.map((row, index) => (
+                                                <TableRow 
+                                                        key={`${row.number}-${row.item_code}-${index}`}
+                                                        className="hover:bg-gray-50 cursor-pointer"
+                                                        onClick={() => handleProductRowClick(row)}
+                                                    >
+                                                        <TableCell className="whitespace-nowrap">
+                                                            {formatDateFromAPI(row.u_fecha)}
+                                                        </TableCell>
+                                                        <TableCell className="whitespace-nowrap">{row.number}</TableCell>
+                                                        <TableCell className="whitespace-nowrap">{row.item_code}</TableCell>
+                                                    <TableCell>
+                                                            <div className="truncate max-w-full" title={row.item_name}>
+                                                                {row.item_name}
+                                                            </div>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                            <div className="truncate max-w-full" title={row.u_razon_social}>
+                                                                {row.u_razon_social}
+                                                        </div>
+                                                    </TableCell>
+                                                        <TableCell className="whitespace-nowrap">{row.quantity}</TableCell>
+                                                        <TableCell className="whitespace-nowrap">{formatHorario(row.horario)}</TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </div>
+                            )}
+                        </CardBody>
+                    </Card>
+                    </>
+                ) : (
+                    /* Vista de Calendario */
+                    <Card
+                        className="shadow-lg border-r-0 rounded-none flex flex-col"
+                        style={{
+                            minHeight: 'calc(100vh - 100px)', // Ajusta '100px' si tu header/márgenes superiores ocupan más/menos
+                            height: 'calc(100vh - 100px)',   // Opcional, asegura altura mínima y fija
+                        }}
+                    >
                     <CardHeader className="border-b border-gray-200 bg-gray-50 py-2 px-4 rounded-none">
                         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 w-full">
                             {/* Left section: Navigation and Title */}
@@ -1034,7 +2007,7 @@ const Agenda: React.FC = () => {
                                 </Button>
                             </div>
                             {/* Center section: Status Filter */}
-                            <div className="flex items-center flex-1 min-w-[180px] justify-center">
+                            <div className="flex items-center flex-1 min-w-[180px] justify-center gap-2">
                                 <Select
                                     label="Estado"
                                     selectedKeys={[filterStatus]}
@@ -1042,13 +2015,31 @@ const Agenda: React.FC = () => {
                                     className="max-w-xs min-w-[170px]"
                                     size="sm"
                                 >
-                                    <SelectItem key="all" >Todos</SelectItem>
-                                    <SelectItem key="Pendiente" >Pendiente</SelectItem>
-                                    <SelectItem key="PackingListCompletado" >PackingList Completado</SelectItem>
-                                    <SelectItem key="TransporteCompletado" >Transporte Completado</SelectItem>
-                                    <SelectItem key="ListaParaEntrega" >Lista para Entrega</SelectItem>
-                                    <SelectItem key="Completada" >Completada</SelectItem>
+                                    <SelectItem key="all">Todos</SelectItem>
+                                    <SelectItem key="REGISTRADA">Registrada</SelectItem>
+                                    <SelectItem key="PROGRAMADA">Programada</SelectItem>
+                                    <SelectItem key="REPROGRAMADA">Reprogramada</SelectItem>
+                                    <SelectItem key="TRANSPORTE_COMPLETO">Transporte Completo</SelectItem>
+                                    <SelectItem key="DOCUMENTOS_COMPLETOS">Documentos Completos</SelectItem>
+                                    <SelectItem key="EN_EXPLANADA">En Explanada</SelectItem>
+                                    <SelectItem key="CALIDAD_ACEPTADO">Calidad Aceptado</SelectItem>
+                                    <SelectItem key="CALIDAD_OBSERVADO">Calidad Observado</SelectItem>
+                                    <SelectItem key="ALMACEN_ACEPTADO">Almacén Aceptado</SelectItem>
+                                    <SelectItem key="ALMACEN_OBSERVADO">Almacén Observado</SelectItem>
+                                    <SelectItem key="PARTE_DE_INGRESO_GENERADO">Parte de Ingreso Generado</SelectItem>
+                                    <SelectItem key="ENTREGADO">Entregado</SelectItem>
+                                    <SelectItem key="Cancelada">Cancelada</SelectItem>
                                 </Select>
+                                <Button
+                                    size="sm"
+                                    variant="flat"
+                                    color="primary"
+                                    startContent={<CalendarDaysIcon className="w-4 h-4" />}
+                                    onPress={onExtendedViewOpen}
+                                    className="min-w-[140px]"
+                                >
+                                    Ver Todas las Citas
+                                </Button>
                             </div>
                             {/* Right section: Info */}
                             <div className="flex items-center gap-2 flex-shrink-0 justify-end min-w-[150px]">
@@ -1057,7 +2048,7 @@ const Agenda: React.FC = () => {
                                         Cargando...
                                     </Chip>
                                 )}
-                                <Chip color="primary" variant="flat" size="lg">
+                                <Chip color="primary" variant="flat" size="md">
                                     {filteredAppointments.length} {filteredAppointments.length === 1 ? 'cita' : 'citas'} esta semana
                                 </Chip>
                             </div>
@@ -1154,6 +2145,11 @@ const Agenda: React.FC = () => {
                                                     // Obtener citas para este día específico
                                                     const dayAppointments = filteredAppointments.filter(apt => {
                                                         if (!apt.deliveryTime) return false;
+
+                                                        //console.log("APT1: ", apt);
+                                                        //console.log("DELIVERY DATE1: ", apt.deliveryDate);
+                                                        //console.log("DELIVERY TIME1: ", apt.deliveryTime);
+                                                        //console.log("DELIVERY TIME END1: ", apt.deliveryTimeEnd);
                                                         
                                                         // Comparar fecha parseando directamente desde string YYYY-MM-DD
                                                         const [aptYear, aptMonth, aptDay] = apt.deliveryDate.split('-').map(Number);
@@ -1163,6 +2159,9 @@ const Agenda: React.FC = () => {
                                                         
                                                         return aptDate.getTime() === dayDate.getTime();
                                                     });
+
+                                                    // Calcular layout de citas solapadas para este día
+                                                    const dayLayout = calculateOverlappingAppointmentsLayout(dayAppointments);
 
                                                     return (
                                                         <div
@@ -1208,37 +2207,49 @@ const Agenda: React.FC = () => {
                                                                     // Altura en píxeles: 1px por minuto de duración
                                                                     const heightPixels = durationMinutes;
                                                                     
+                                                                    // Obtener layout para esta cita (si hay solapamiento)
+                                                                    const layout = dayLayout.get(apt.id);
+                                                                    const column = layout?.column ?? 0;
+                                                                    const totalColumns = layout?.totalColumns ?? 1;
+                                                                    const widthPercent = layout ? (100 / totalColumns) : 100;
+                                                                    const leftPercent = layout ? (column * (100 / totalColumns)) : 0;
+                                                                    
                                                                     // Estilos según el estado de la cita
                                                                     const getStatusStyles = () => {
-                                                                        switch(apt.status) {
-                                                                            case 'ListaParaEntrega':
-                                                                                return 'bg-green-500 text-white border-green-600';
-                                                                            case 'Pendiente':
-                                                                                return 'bg-yellow-200 text-yellow-900 border-yellow-500';
-                                                                            case 'Completada':
-                                                                                return 'bg-gray-400 text-white border-gray-500';
-                                                                            case 'Cancelada':
-                                                                                return 'bg-red-400 text-white border-red-500';
-                                                                            default:
-                                                                                return 'bg-blue-300 text-white border-blue-500';
+                                                                        const statusConfig = STATUS_CONFIG[apt.status as keyof typeof STATUS_CONFIG];
+                                                                        if (statusConfig) {
+                                                                            const colorMap: Record<string, string> = {
+                                                                                'default': 'bg-gray-200 text-gray-900 border-gray-500',
+                                                                                'primary': 'bg-blue-200 text-blue-900 border-blue-500',
+                                                                                'success': 'bg-green-200 text-green-900 border-green-500',
+                                                                                'warning': 'bg-yellow-200 text-yellow-900 border-yellow-500',
+                                                                                'danger': 'bg-red-200 text-red-900 border-red-500'
+                                                                            };
+                                                                            return colorMap[statusConfig.color] || 'bg-blue-300 text-white border-blue-500';
                                                                         }
+                                                                        return 'bg-blue-300 text-white border-blue-500';
                                                                     };
 
                                                                     return (
                                                                         <div
                                                                             key={apt.id}
-                                                                            className={`absolute left-1 right-1 p-1.5 text-xs shadow-sm border-l-2 ${getStatusStyles()}`}
+                                                                            className={`absolute p-1.5 text-xs shadow-sm border-l-2 ${getStatusStyles()}`}
                                                                             style={{
                                                                                 borderRadius: 0,
                                                                                 top: `${topOffset + 2}px`,
                                                                                 height: `${heightPixels - 4}px`,
-                                                                                zIndex: 10
+                                                                                left: `${leftPercent + 0.5}%`,
+                                                                                width: `${widthPercent - 1}%`,
+                                                                                zIndex: 10 + column, // Citas más a la derecha tienen mayor z-index
+                                                                                marginLeft: column === 0 ? '2px' : '0',
+                                                                                marginRight: column === totalColumns - 1 ? '2px' : '0'
                                                                             }}
                                                                             onClick={(e) => {
                                                                                 e.stopPropagation();
                                                                                 handleViewAppointment(apt);
                                                                             }}
                                                                         >
+                                                                            
                                                                             <div className="font-semibold truncate text-[10px] leading-tight">
                                                                                 {apt.supplierName}
                                                                             </div>
@@ -1247,7 +2258,7 @@ const Agenda: React.FC = () => {
                                                                             </div>
                                                                             {slotsToSpan > 1 && (
                                                                                 <div className="text-[9px] opacity-75 mt-0.5 truncate">
-                                                                                    {apt.appointmentNumber}
+                                                                                    {apt.docEntry}
                                                                                 </div>
                                                                             )}
                                                                         </div>
@@ -1264,6 +2275,7 @@ const Agenda: React.FC = () => {
                         )}
                     </CardBody>
                 </Card>
+                )}
 
                 {/* Schedule Appointment Modal */}
                 <ScheduleAppointmentModal
@@ -1275,14 +2287,13 @@ const Agenda: React.FC = () => {
                     }}
                     onSchedule={handleScheduleAppointment}
                     onLookupRUC={handleRUCLookup}
-                    timeSlots={timeSlots}
                     isCreating={isCreatingAppointment}
                     isLookingUp={isLookingUp}
-                    isTimeSlotAvailable={isTimeSlotAvailable}
                     getConflictingAppointments={getConflictingAppointments}
                     prefilledDate={scheduleForm.deliveryDate}
                     prefilledTime={scheduleForm.deliveryTime}
                     editingAppointment={editingAppointment}
+                    currentUserRole={currentUser?.role}
                 />
 
 
@@ -1293,7 +2304,11 @@ const Agenda: React.FC = () => {
                             <>
                                 <ModalHeader>
                                     <div className="flex items-center justify-between w-full">
-                                        <span>PackingList</span>
+                                        {selectedAppointment?.docEntry && (
+                                                <div className="mb-3 py-2 px-8 bg-blue-50 border border-blue-200 rounded-full text-sm text-blue-700">
+                                                    <strong>Código de Cita:</strong> {selectedAppointment.docEntry} (se usará automáticamente)
+                                                </div>
+                                            )}
                                         <div className="flex gap-2 px-6 items-center">
                                             <Select
                                                 label="Tipo de Entrada"
@@ -1360,48 +2375,21 @@ const Agenda: React.FC = () => {
                                 </ModalHeader>
                                 <ModalBody>
                                     <div className="space-y-6">
-                                        {/* Listado de PackingList existentes - Se muestra en el Modal de Detalle de Cita */}
-
-                                        {isLoadingPackingLists && (
-                                            <div className="text-center py-4">
-                                                <p className="text-sm text-gray-500">Cargando PackingList...</p>
-                                            </div>
-                                        )}
-
-                                        {!isLoadingPackingLists && packingListsFromApi.length === 0 && (
-                                            <div className="text-center py-4">
-                                                <p className="text-sm text-gray-500">No se encontraron PackingList para el rango de fechas seleccionado.</p>
-                                            </div>
-                                        )}
-
+                                        
                                         <Divider />
 
                                         {/* Formulario para crear nuevo PackingList */}
                                         <div className='py-2 flex flex-col gap-4'>
-                                            <h4 className="text-md font-semibold mb-3">Crear Nuevo PackingList</h4>
-                                            {selectedAppointment?.docEntry && (
-                                                <div className="mb-3 p-2 bg-blue-50 border border-blue-200 rounded text-sm text-blue-700">
-                                                    <strong>Código de Cita:</strong> {selectedAppointment.docEntry} (se usará automáticamente)
-                                                </div>
-                                            )}
+                                            <h4 className="text-lg font-semibold mb-3">Crear Nuevo PackingList</h4>
                                             
                                             <div className="grid grid-cols-2 gap-4">
                                                 <Input
                                                     label="N° Orden de Compra"
                                                     size='sm'
-                                                    value={packingListForm.number}
-                                                    onValueChange={(value) => setPackingListForm(prev => ({ ...prev, date: value }))}
+                                                    value={packingListForm.orderNumber}
+                                                    onValueChange={(value) => setPackingListForm(prev => ({ ...prev, orderNumber: value }))}
                                                     isRequired
-                                                    isReadOnly
-                                                />
-                                                <Input
-                                                    label="Número de PackingList"
-                                                    placeholder="Ej: 251047379_1"
-                                                    size='sm'
-                                                    value={packingListForm.number}
-                                                    onValueChange={(value) => setPackingListForm(prev => ({ ...prev, number: value }))}
-                                                    isRequired
-                                                    description="Número de PackingList (se completa al seleccionar un documento)"
+                                                    description="Número de orden de compra"
                                                     isReadOnly
                                                     endContent={
                                                         <Button
@@ -1418,6 +2406,16 @@ const Agenda: React.FC = () => {
                                                             Seleccionar
                                                         </Button>
                                                     }
+                                                />
+                                                <Input
+                                                    label="Número de PackingList"
+                                                    placeholder="Ej: 251047379_1"
+                                                    size='sm'
+                                                    value={packingListForm.number}
+                                                    onValueChange={(value) => setPackingListForm(prev => ({ ...prev, number: value }))}
+                                                    isRequired
+                                                    description="Número de PackingList (se genera automáticamente al seleccionar un documento)"
+                                                    isReadOnly
                                                 />
                                                 <Input
                                                     label="Fecha Entrega"
@@ -1446,8 +2444,8 @@ const Agenda: React.FC = () => {
                                                     selectionMode="single"
                                                 >
                                                     {warehouses.map((warehouse) => (
-                                                        <SelectItem key={warehouse.Codigo} textValue={`${warehouse.Almacen} (${warehouse.Codigo})`}>
-                                                            {warehouse.Almacen} ({warehouse.Codigo})
+                                                        <SelectItem key={warehouse.codigo} textValue={`${warehouse.almacen} (${warehouse.codigo})`}>
+                                                            {warehouse.almacen} ({warehouse.codigo})
                                                         </SelectItem>
                                                     ))}
                                                 </Select>
@@ -1562,11 +2560,19 @@ const Agenda: React.FC = () => {
                                         color="primary"
                                         onPress={handleCreatePackingList}
                                         isDisabled={
-                                            !packingListForm.warehouse || 
-                                            !packingListForm.number || 
+                                            !packingListForm.warehouse ||
+                                            !packingListForm.number ||
                                             !packingListForm.date ||
-                                            //packingListItems.some(item => item.quantity < item.pendingQuantity) ||
-                                            packingListItems.length === 0
+                                            packingListItems.length === 0 ||
+                                            // Si ningún item está seleccionado (marca = true) y con cantidad > 0, desactivar el botón
+                                            packingListItems.filter(item => item.marca === true && item.quantity > 0).length === 0 ||
+                                            // Si algún item seleccionado tiene cantidad inválida (mayor a pendiente), desactivar
+                                            packingListItems.some(
+                                                item =>
+                                                    item.marca === true &&
+                                                    item.quantity > 0 &&
+                                                    item.quantity > item.pendingQuantity
+                                            )
                                         }
                                     >
                                         Crear PackingList
@@ -1674,7 +2680,7 @@ const Agenda: React.FC = () => {
                                                                         return;
                                                                     }
                                                                     
-                                                                    setIsLoadingDocumentDetail(true);
+                                                                    //setIsLoadingDocumentDetail(true);
                                                                     try {
                                                                         // Obtener el detalle del documento
                                                                         const detailItems = await fetchDocumentDetailFromApi(doc.DocNum, selectedInboundType);
@@ -1682,32 +2688,41 @@ const Agenda: React.FC = () => {
                                                                         // Validar si el detalle está vacío
                                                                         if (!detailItems || detailItems.length === 0) {
                                                                             alert('El documento seleccionado no tiene detalles. No se puede crear el PackingList sin items.');
-                                                                            setIsLoadingDocumentDetail(false);
+                                                                            //setIsLoadingDocumentDetail(false);
                                                                             return;
                                                                         }
+                                                                        
+                                                                        // Generar el siguiente número de PackingList basado en el número de orden
+                                                                        // Necesitamos el CodCita de la cita seleccionada
+                                                                        if (!selectedAppointment?.docEntry) {
+                                                                            alert('La cita no tiene código (DocEntry). No se puede generar el número de PackingList.');
+                                                                            return;
+                                                                        }
+                                                                        const nextPackingListNumber = await generateNextPackingListNumber(doc.DocNum, selectedAppointment.docEntry);
                                                                         
                                                                         // Completar el formulario con los datos del documento
                                                                         setPackingListForm(prev => ({
                                                                             ...prev,
-                                                                            number: doc.DocNum,
+                                                                            orderNumber: doc.DocNum, // Mantener el número de orden
+                                                                            number: nextPackingListNumber, // Asignar el número de PackingList generado
                                                                             inboundType: selectedInboundType || 'OCNAC'
                                                                         }));
                                                                         
                                                                         // Llenar la tabla de items
                                                                         const items: PackingListItem[] = detailItems.map((item, index: number) => {
                                                                             // Convertir Marca de string a boolean (puede ser "True", "False", "true", "false", etc.)
-                                                                            const marca = item.Marca?.toLowerCase() === 'true' || item.Marca === '1';
+                                                                            const marca = item.marca?.toLowerCase() === 'true' || item.marca === '1';
                                                                             
                                                                             // Parsear Cantidad OC (puede venir como "Cantidad OC" o "CantidadOC")
-                                                                            const cantidadOC = parseFloat(item["Cantidad OC"] || item.CantidadOC || "0");
+                                                                            const cantidadOC = parseFloat(item["cantidad oc"] || item.cantidad_oc || "0");
                                                                             
                                                                             // Parsear Pendiente
-                                                                            const pendiente = parseFloat(item.Pendiente || "0");
+                                                                            const pendiente = parseFloat(item.pendiente || "0");
                                                                             
                                                                             return {
-                                                                                id: `${doc.DocNum}-${item.Artículo}-${index}`,
-                                                                                productCode: item.Artículo,
-                                                                                productName: item.Descripción,
+                                                                                id: `${doc.DocNum}-${item.artículo}-${index}`,
+                                                                                productCode: item.artículo,
+                                                                                productName: item.descripción,
                                                                                 quantity: 0,
                                                                                 pendingQuantity: pendiente,
                                                                                 cantidadOC: cantidadOC,
@@ -1722,7 +2737,7 @@ const Agenda: React.FC = () => {
                                                                         console.error('Error al obtener detalle del documento:', error);
                                                                         alert('Error al obtener detalle del documento');
                                                                     } finally {
-                                                                        setIsLoadingDocumentDetail(false);
+                                                                        //setIsLoadingDocumentDetail(false);
                                                                     }
                                                                 }}
                                                             >
@@ -1778,6 +2793,7 @@ const Agenda: React.FC = () => {
                                             placeholder="Número de licencia"
                                             value={transportForm.driverLicense}
                                             onValueChange={(value) => setTransportForm(prev => ({ ...prev, driverLicense: value }))}
+                                            isRequired
                                         />
                                         <div className="grid grid-cols-2 gap-4">
                                             <Input
@@ -1806,6 +2822,7 @@ const Agenda: React.FC = () => {
                                             type="time"
                                             value={transportForm.estimatedArrival}
                                             onValueChange={(value) => setTransportForm(prev => ({ ...prev, estimatedArrival: value }))}
+                                            isRequired
                                         />
                                         <Textarea
                                             label="Notas"
@@ -1822,7 +2839,13 @@ const Agenda: React.FC = () => {
                                     <Button
                                         color="primary"
                                         onPress={handleSaveTransportData}
-                                        isDisabled={!transportForm.driverName || !transportForm.vehiclePlate}
+                                        isDisabled={
+                                            !transportForm.driverName ||
+                                             !transportForm.vehiclePlate ||
+                                             !transportForm.driverLicense ||
+                                             !transportForm.contactPhone ||
+                                             !transportForm.estimatedArrival
+                                            }
                                     >
                                         Guardar
                                     </Button>
@@ -1839,6 +2862,164 @@ const Agenda: React.FC = () => {
                     selectedAppointment={selectedAppointment}
                     handleUploadDocument={handleUploadDocument}
                 />
+
+                {/* Extended View Modal - Vista ampliada de citas */}
+                <Modal 
+                    isOpen={isExtendedViewOpen} 
+                    onOpenChange={onExtendedViewOpenChange} 
+                    size="5xl" 
+                    scrollBehavior="inside"
+                >
+                    <ModalContent>
+                        {(onClose) => (
+                            <>
+                                <ModalHeader className="flex flex-col gap-4">
+                                    <div className="flex items-center justify-left gap-2 w-full">
+                                        <h2 className="text-2xl font-bold text-gray-900">
+                                            {currentUser?.role === UserRole.PROVEEDOR
+                                                ? 'Todas mis Citas'
+                                                : 'Listado total de Citas'}
+                                        </h2>
+                                        <Chip color="primary" variant="flat" size="sm">
+                                            {extendedViewAppointments.length} {extendedViewAppointments.length === 1 ? 'cita' : 'citas'}
+                                        </Chip>
+                                    </div>
+                                    <div className="flex items-center gap-4">
+                                        <Select
+                                            label="Seleccionar Mes"
+                                            selectedKeys={[selectedMonth]}
+                                            onSelectionChange={(keys) => {
+                                                const month = Array.from(keys)[0] as string;
+                                                if (month) setSelectedMonth(month);
+                                            }}
+                                            className="min-w-[250px]"
+                                            size="sm"
+                                        >
+                                            {getMonthOptions().map(monthKey => {
+                                                const [year, monthNum] = monthKey.split('-').map(Number);
+                                                const date = new Date(year, monthNum - 1, 1);
+                                                const label = date.toLocaleDateString('es-PE', { month: 'long', year: 'numeric' });
+                                                return (
+                                                    <SelectItem 
+                                                        key={monthKey} 
+                                                        textValue={label}
+                                                    >
+                                                        {label}
+                                                    </SelectItem>
+                                                );
+                                            })}
+                                        </Select>
+                                        <Button
+                                            size="sm"
+                                            variant="flat"
+                                            onPress={() => {
+                                                const now = new Date();
+                                                const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+                                                setSelectedMonth(currentMonth);
+                                            }}
+                                        >
+                                            Mes Actual
+                                        </Button>
+                                    </div>
+                                </ModalHeader>
+                                <ModalBody>
+                                    {isLoadingExtendedView ? (
+                                        <div className="text-center py-8">
+                                            <p className="text-sm text-gray-500">Cargando citas...</p>
+                                        </div>
+                                    ) : extendedViewAppointments.length === 0 ? (
+                                        <div className="text-center py-8">
+                                            <p className="text-sm text-gray-500">No hay citas programadas para el mes seleccionado.</p>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-2">
+                                            {groupAppointmentsByDay(extendedViewAppointments).map(([dayKey, dayAppointments]) => {
+                                                const [,,day] = dayKey.split('-').map(Number);
+                                                const isToday = dayKey === new Date().toISOString().split('T')[0];
+                                                
+
+                                                return (
+                                                    <div key={dayKey} className="border border-gray-200 rounded-lg overflow-hidden">
+                                                        
+                                                        <div className="divide-y divide-gray-200">
+                                                            {dayAppointments.map(apt => {
+                                                                
+                                                                return (
+                                                                    <div
+                                                                        key={apt.id}
+                                                                        className={`p-1 hover:bg-gray-50 cursor-pointer transition-colors`}
+                                                                        onClick={() => {
+                                                                            handleViewAppointment(apt);
+                                                                            onClose();
+                                                                        }}
+                                                                    >
+                                                                        <div className="flex items-center gap-4">
+                                                                            {/* Date Number */}
+                                                                            <div className={`flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-lg font-bold text-lg ${
+                                                                                isToday ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'
+                                                                            }`}>
+                                                                                {day}
+                                                                            </div>
+                                                
+                                                                            {/* Supplier Name */}
+                                                                            <div className="flex-1 min-w-0">
+                                                                                <span className="font-light text-sm text-gray-500 truncate block">
+                                                                                    {apt.supplierName}
+                                                                                </span>
+                                                                            </div>
+                                                
+                                                                            {/* Turno (Mañana/Tarde) */}
+                                                                            {(() => {
+                                                                                // Determinar turno (mañana o tarde) en base a deliveryTime
+                                                                                let turno = '';
+                                                                                if (apt.deliveryTime) {
+                                                                                    const [hourStr] = apt.deliveryTime.split(':');
+                                                                                    const hour = parseInt(hourStr, 10);
+                                                                                    if (!isNaN(hour)) {
+                                                                                        turno = hour < 12 ? 'Mañana' : 'Tarde';
+                                                                                    }
+                                                                                }
+                                                                                if (turno) {
+                                                                                    return (
+                                                                                        <span className={`inline-block px-2 py-0.5 mr-2 rounded-full text-xs font-medium ${turno === 'Mañana' ? 'bg-blue-100 text-blue-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                                                                                            {turno}
+                                                                                        </span>
+                                                                                    );
+                                                                                }
+                                                                                return null;
+                                                                            })()}
+                                                                            {/* Time */}
+                                                                            <div className="flex-shrink-0 text-sm text-gray-600">
+                                                                                {apt.deliveryTime ? `${apt.deliveryTime}am` : '-'} - {apt.deliveryTimeEnd ? `${apt.deliveryTimeEnd}pm` : 'N/A'}
+                                                                            </div>
+                                                
+                                                                            {/* Appointment Number */}
+                                                                            {apt.docEntry && (
+                                                                                <div className="flex-shrink-0 text-sm font-semibold text-gray-700 pr-2">
+                                                                                    #{apt.docEntry}
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </div>
+                                                );
+
+                                            })}
+                                        </div>
+                                    )}
+                                </ModalBody>
+                                <ModalFooter>
+                                    <Button variant="light" onPress={onClose}>
+                                        Cerrar
+                                    </Button>
+                                </ModalFooter>
+                            </>
+                        )}
+                    </ModalContent>
+                </Modal>
             </div>
         </Dashboard>
     );

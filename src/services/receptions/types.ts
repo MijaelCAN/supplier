@@ -1,22 +1,27 @@
 export interface ReceptionItem {
-    Dscription: string;
-    LineTotal: string;
+    doc_entry: string;
+    dscription: string;
+    item_code: string;
+    line_total: string;
+    quantity: string;
 }
 
 export interface Reception {
-    DocEntry: string;
-    CardCode: string;
-    CardName: string;
-    Direccion_Destino: string;
-    Direccion_Facturacion: string;
-    DocDate: string;
-    DocCur: string;
-    Total: string;
-    Detalle: ReceptionItem[];
+    doc_entry: string;
+    card_code: string;
+    card_name: string;
+    direccion_destino: string;
+    direccion_facturacion: string;
+    doc_date: string;
+    doc_cur: string;
+    estado: string;
+    fecha_entrega: string;
+    total: string;
+    detalle: ReceptionItem[];
 }
 
 export interface ReceptionApiResponse {
-    statusCode: number;
+    status_code: number;
     success: boolean;
     message: string;
     data: Reception[];

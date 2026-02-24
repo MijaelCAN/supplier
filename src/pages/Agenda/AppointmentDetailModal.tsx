@@ -479,7 +479,7 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
                                                                     <TableRow 
                                                                         className={`cursor-pointer hover:bg-gray-50 transition-colors ${isExpanded ? 'bg-blue-50' : ''}`}
                                                                         onClick={() => {
-                                                                            setExpandedPackingListId(isExpanded ? null : pl.Id);
+                                                                            setExpandedPackingListId(isExpanded ? null : pl.Id.toString());
                                                                         }}
                                                                     >
                                                                         <TableCell className="whitespace-nowrap font-medium">

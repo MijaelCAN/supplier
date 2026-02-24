@@ -64,25 +64,24 @@ const supplierRegisterSchema = z.object({
 
 type SupplierRegisterFormData = z.infer<typeof supplierRegisterSchema>
 
-// Interface para los datos de SUNAT
+// Interface para los datos de SUNAT (nuevo formato apiperu.dev)
 interface SunatData {
     ruc: string;
-    razon_social: string;
-    tipo_contribuyente: string;
-    nombre_comercial: string;
-    fecha_inscripcion: string;
-    fecha_inicio_actividades: string;
+    nombre_o_razon_social: string;
     estado: string;
     condicion: string;
-    domicilio_fiscal: {
-        direccion: string;
-        distrito: string;
-        provincia: string;
-        departamento: string;
-    };
-    actividades_economicas?: string[];
-    agente_retencion?: string;
-    agente_percepcion?: string;
+    direccion: string;
+    direccion_completa: string;
+    departamento: string;
+    provincia: string;
+    distrito: string;
+    ubigeo_sunat: string;
+    ubigeo: string[];
+    actividades_economicas: string[];
+    es_agente_de_retencion: string;
+    es_agente_de_percepcion: string;
+    es_agente_de_percepcion_combustible: string;
+    es_buen_contribuyente: string;
 }
 
 interface ModalRegisterProps {
@@ -213,23 +212,46 @@ const ModalRegister: FC<ModalRegisterProps> = ({
             setBlackListRecord(blackListData)
 
             // Procesar respuesta de SUNAT
-            if (!sunatResponse.success || !sunatResponse.datos) {
+            if (!sunatResponse.success || !sunatResponse.data) {
                 throw new Error('La consulta a SUNAT no devolvió información válida.')
             }
 
-            const data = sunatResponse.datos
-            setSunatData(data)
+            const data = sunatResponse.data
+            setSunatData({
+                ruc: data.ruc,
+                nombre_o_razon_social: data.nombre_o_razon_social,
+                estado: data.estado,
+                condicion: data.condicion,
+                direccion: data.direccion,
+                direccion_completa: data.direccion_completa,
+                departamento: data.departamento,
+                provincia: data.provincia,
+                distrito: data.distrito,
+                ubigeo_sunat: data.ubigeo_sunat,
+                ubigeo: data.ubigeo,
+                actividades_economicas: data.actividades_economicas || [],
+                es_agente_de_retencion: data.es_agente_de_retencion || 'NO',
+                es_agente_de_percepcion: data.es_agente_de_percepcion || 'NO',
+                es_agente_de_percepcion_combustible: data.es_agente_de_percepcion_combustible || 'NO',
+                es_buen_contribuyente: data.es_buen_contribuyente || 'NO'
+            })
 
-            const isValidStatus = data.estado === 'ACTIVO' && data.condicion === 'HABIDO'
-            setIsRucValid(isValidStatus)
+            // Validar estado y condición (la nueva API puede tener diferentes valores)
+            const isValidStatus = data.estado && !data.estado.includes('BAJA') && !data.estado.includes('SUSPENSION') && data.condicion && data.condicion.includes('HABIDO')
+            setIsRucValid(isValidStatus as boolean)
 
             if (isValidStatus) {
-                setValue('cardName', data.razon_social ?? '')
-                setValue('address', data.domicilio_fiscal?.direccion ?? '')
-                setValue('businessType', data.actividades_economicas?.[0] ?? '')
-                setValue('ubigeo', '')
+                setValue('cardName', data.nombre_o_razon_social ?? '')
+                setValue('address', data.direccion ?? '')
+                // Extraer la actividad económica principal (formato: "Principal - 1030 - DESCRIPCION")
+                const actividadPrincipal = data.actividades_economicas?.find(act => act.includes('Principal')) || ''
+                const actividadDescripcion = actividadPrincipal.split(' - ').slice(2).join(' - ') || actividadPrincipal
+                setValue('businessType', actividadDescripcion || '')
+                setValue('ubigeo', data.ubigeo_sunat || '')
                 setValue('paymentTerms', '')
-                setValue('personType', data.tipo_contribuyente?.includes('NATURAL') ? 'TPN' : 'TPJ')
+                // Determinar tipo de persona basado en el RUC (10 = natural, 20 = jurídica)
+                const tipoPersona = data.ruc.startsWith('10') ? 'TPN' : 'TPJ'
+                setValue('personType', tipoPersona)
             }
         } catch (error) {
             console.error('Error consultando RUC:', error)
@@ -251,8 +273,13 @@ const ModalRegister: FC<ModalRegisterProps> = ({
 
     const onSubmit = async (data: SupplierRegisterFormData) => {
 
-        if(sunatData?.estado !== "ACTIVO" && sunatData?.condicion !== "HABIDO"){
-            alert('debe ser activo y Habido')
+        // Validar estado y condición (la nueva API puede tener diferentes valores)
+        const estadoValido = sunatData?.estado && !sunatData.estado.includes('BAJA') && !sunatData.estado.includes('SUSPENSION')
+        const condicionValida = sunatData?.condicion && sunatData.condicion.includes('HABIDO')
+        
+        if (!estadoValido || !condicionValida) {
+            alert('El RUC debe estar activo y habido para poder registrarse.')
+            return
         }
 
         if (!isRucValid || !sunatData) {
@@ -267,75 +294,82 @@ const ModalRegister: FC<ModalRegisterProps> = ({
 
         try {
             const nowIso = new Date().toISOString()
-            const domicilioFiscal = sunatData.domicilio_fiscal?.direccion ?? data.address
-            const distrito = sunatData.domicilio_fiscal?.distrito ?? ''
-            const provincia = sunatData.domicilio_fiscal?.provincia ?? ''
-            const departamento = sunatData.domicilio_fiscal?.departamento ?? ''
-            //const economicActivity = sunatData.actividades_economicas?.[0] ?? data.businessType ?? ''
-            const ubigeoValue = data.ubigeo ?? ''
+            const domicilioFiscal = sunatData.direccion ?? data.address
+            const distrito = sunatData.distrito ?? ''
+            const provincia = sunatData.provincia ?? ''
+            const departamento = sunatData.departamento ?? ''
+            // Extraer actividad económica principal
+            //const actividadPrincipal = sunatData.actividades_economicas?.find(act => act.includes('Principal')) || ''
+            //const economicActivity = actividadPrincipal.split(' - ').slice(2).join(' - ') || data.businessType ?? ''
+            //const economicActivity = (actividadPrincipal.split(' - ').slice(2).join(' - ') || data.businessType) ?? '';
+
+            const ubigeoValue = data.ubigeo || sunatData.ubigeo_sunat || ''
             const supplierId = `P${data.cardCode}`
 
             const payload: SupplierApiRecord = {
-                CodigoSN: supplierId,
-                NombreSN: data.cardName,
-                RUC: data.cardCode,
-                TipoPersona: data.personType ?? 'TPJ',
-                Moneda: 'S/',
-                Telefono1: data.phone ?? '',
-                Telefono2: '',
-                TelefonoMovil: data.contactPhone ?? '',
-                Correo: data.email ?? '',
-                TipoDocumento: '6',
-                Direccion: data.address,
-                Distrito: distrito,
-                Provincia: provincia,
-                Departamento: departamento,
-                Ubigeo: ubigeoValue,
-                CondicionPago: data.paymentTerms ?? '',
-                DireccionSUNAT: domicilioFiscal,
-                ResolucionAgenteRetencion: '',
-                ResolucionAgentePercepcion: '',
+                codigo_sn: supplierId,
+                nombre_sn: data.cardName,
+                ruc: data.cardCode,
+                tipo_persona: data.personType ?? 'TPJ',
+                moneda: 'S/',
+                telefono1: data.phone ?? '',
+                telefono2: '',
+                telefono_movil: data.contactPhone ?? '',
+                correo: data.email ?? '',
+                tipo_documento: '6',
+                direccion: data.address,
+                distrito: distrito,
+                provincia: provincia,
+                departamento: departamento,
+                ubigeo: ubigeoValue,
+                condicion_pago: data.paymentTerms ?? '',
+                direccion_sunat: domicilioFiscal,
+                resolucion_agente_retencion: '',
+                resolucion_agente_percepcion: '',
                 website: data.website ?? '',
-                createDate: nowIso,
-                updateDate: nowIso,
-                statusContributer: sunatData.estado === "ACTIVO" ? '00' :'10',
-                statusDomicilio: sunatData.condicion === "HABIDO" ? '00' :'12',
-                agentePercepcion: sunatData.agente_percepcion === 'SI' ? 'Y' : 'N',
-                exoPercepcion: 'N',
-                agenteRetencion: sunatData.agente_retencion === 'SI' ? 'Y' : 'N',
-                goodContributor: 'N',
-                economiActivitySunat: "007", // CAMBIAR AL CODIGO DE SAP de momento duro - 007
+                create_date: nowIso,
+                update_date: nowIso,
+                status_contributer: estadoValido ? '00' : '10',
+                status_domicilio: condicionValida ? '00' : '12',
+                agente_percepcion: sunatData.es_agente_de_percepcion === 'SI' ? 'Y' : 'N',
+                exo_percepcion: 'N',
+                agente_retencion: sunatData.es_agente_de_retencion === 'SI' ? 'Y' : 'N',
+                good_contributor: sunatData.es_buen_contribuyente === 'SI' ? 'Y' : 'N',
+                economi_activity_sunat: "007", // CAMBIAR AL CODIGO DE SAP de momento duro - 007
                 status: data.status ?? (sunatData.estado === 'ACTIVO' ? 'Pendiente' : 'Pendiente'),
-                approvalDate: '',
-                coverImage: '',
-                Avatar: '',
-                generalManager: data.generalManager ?? '',
-                adminManager: data.adminManager ?? '',
-                salesManager: data.salesManager ?? '',
-                Contactos: [
+                approval_date: '',
+                cover_image: '',
+                avatar: '',
+                general_manager: data.generalManager ?? '',
+                admin_manager: data.adminManager ?? '',
+                sales_manager: data.salesManager ?? '',
+                contactos: [
                     {
-                        DocEntry: '',
-                        Active: 'Y',
-                        Name: data.contactPerson,
-                        Profesion: '',
-                        Telefono: data.contactPhone ?? '',
-                        E_MailL: data.contactEmail ?? '',
+                        doc_entry: '',
+                        active: 'Y',
+                        name: data.contactPerson,
+                        nombre: '',
+                        segundo_nombre: '',
+                        apellido: '',
+                        profesion: '',
+                        telefono: data.contactPhone ?? '',
+                        e_mail_l: data.contactEmail ?? '',
                     }
                 ],
-                Bancos: [],
-                Direcciones: [
+                bancos: [],
+                direcciones: [
                     {
-                        CodDireccion: '01',
-                        Departamento: departamento,
-                        Direccion: domicilioFiscal,
-                        Distrito: distrito,
-                        Provincia: provincia,
-                        NroLinea: '0',
-                        Ubigeo: ubigeoValue
+                        cod_direccion: '01',
+                        departamento: departamento,
+                        direccion: domicilioFiscal,
+                        distrito: distrito,
+                        provincia: provincia,
+                        nro_linea: '0',
+                        ubigeo: ubigeoValue
                     }
                 ],
-                DocumentoEvaluacion: [],
-                ReferenciasComerciales: [],
+                documento_evaluacion: [],
+                referencias_comerciales: [],
                 ServiciosOfrecidos: [],
             }
 
@@ -343,7 +377,7 @@ const ModalRegister: FC<ModalRegisterProps> = ({
             const result = await createSupplierProfile(payload)
             
             // Si llegamos aquí, SAP fue exitoso. Ahora crear en Firestore
-            const docEntryCode = result.record.DocEntry?.toString() ?? `USR-${Math.floor(Math.random() * 1_000_000)
+            const docEntryCode = result.record.doc_entry?.toString() ?? `USR-${Math.floor(Math.random() * 1_000_000)
                 .toString()
                 .padStart(6, '0')}`
             const username = data.cardCode.trim()
@@ -591,31 +625,35 @@ const ModalRegister: FC<ModalRegisterProps> = ({
                                                 </div>
                                                 <div className="flex justify-between">
                                                     <span className="text-gray-500">Razón Social</span>
-                                                    <span className="font-medium text-right">{sunatData.razon_social}</span>
+                                                    <span className="font-medium text-right">{sunatData.nombre_o_razon_social}</span>
                                                 </div>
                                                 <div className="flex justify-between">
-                                                    <span className="text-gray-500">Nombre Comercial</span>
-                                                    <span className="text-right">{sunatData.nombre_comercial || '-'}</span>
+                                                    <span className="text-gray-500">Dirección Completa</span>
+                                                    <span className="text-right text-sm">{sunatData.direccion_completa || '-'}</span>
                                                 </div>
                                                 <div className="flex justify-between">
-                                                    <span className="text-gray-500">Tipo Contribuyente</span>
-                                                    <span className="text-right">{sunatData.tipo_contribuyente}</span>
+                                                    <span className="text-gray-500">Ubigeo</span>
+                                                    <span className="text-right">{sunatData.ubigeo_sunat || '-'}</span>
                                                 </div>
                                                 <div className="flex justify-between">
-                                                    <span className="text-gray-500">Fec. Inscripción</span>
-                                                    <span className="text-right">{sunatData.fecha_inscripcion}</span>
+                                                    <span className="text-gray-500">Buen Contribuyente</span>
+                                                    <span className="text-right">{sunatData.es_buen_contribuyente || 'NO'}</span>
                                                 </div>
                                                 <div className="flex justify-between">
-                                                    <span className="text-gray-500">Inicio Actividades</span>
-                                                    <span className="text-right">{sunatData.fecha_inicio_actividades}</span>
+                                                    <span className="text-gray-500">Agente Retención</span>
+                                                    <span className="text-right">{sunatData.es_agente_de_retencion || 'NO'}</span>
+                                                </div>
+                                                <div className="flex justify-between">
+                                                    <span className="text-gray-500">Agente Percepción</span>
+                                                    <span className="text-right">{sunatData.es_agente_de_percepcion || 'NO'}</span>
                                                 </div>
                                             </div>
                                             <div className="mt-3 grid grid-cols-1 lg:grid-cols-2 gap-3">
                                                 <div className="rounded border border-primary-100 bg-white/70 p-2">
                                                     <p className="text-xs text-gray-500 mb-1">Domicilio Fiscal</p>
-                                                    <p className="text-sm">{sunatData.domicilio_fiscal?.direccion}</p>
+                                                    <p className="text-sm">{sunatData.direccion}</p>
                                                     <p className="text-xs text-gray-500">
-                                                        {sunatData.domicilio_fiscal?.distrito} • {sunatData.domicilio_fiscal?.provincia} • {sunatData.domicilio_fiscal?.departamento}
+                                                        {sunatData.distrito} • {sunatData.provincia} • {sunatData.departamento}
                                                     </p>
                                                 </div>
                                                 <div className="rounded border border-primary-100 bg-white/70 p-2">
@@ -637,9 +675,9 @@ const ModalRegister: FC<ModalRegisterProps> = ({
                                                     <Chip
                                                         size="sm"
                                                         variant="flat"
-                                                        color={sunatData.agente_retencion === 'SI' ? 'warning' : 'default'}
+                                                        color={sunatData.es_agente_de_retencion === 'SI' ? 'warning' : 'default'}
                                                     >
-                                                        {sunatData.agente_retencion === 'SI' ? 'SI' : 'NO'}
+                                                        {sunatData.es_agente_de_retencion === 'SI' ? 'SI' : 'NO'}
                                                     </Chip>
                                                 </div>
                                                 <div className="flex items-center justify-between text-sm">
@@ -647,9 +685,9 @@ const ModalRegister: FC<ModalRegisterProps> = ({
                                                     <Chip
                                                         size="sm"
                                                         variant="flat"
-                                                        color={sunatData.agente_percepcion === 'SI' ? 'warning' : 'default'}
+                                                        color={sunatData.es_agente_de_percepcion === 'SI' ? 'warning' : 'default'}
                                                     >
-                                                        {sunatData.agente_percepcion === 'SI' ? 'SI' : 'NO'}
+                                                        {sunatData.es_agente_de_percepcion === 'SI' ? 'SI' : 'NO'}
                                                     </Chip>
                                                 </div>
                                             </div>
@@ -897,8 +935,8 @@ const ModalRegister: FC<ModalRegisterProps> = ({
                                                     >
                                                         {condicionesPago.length > 0 
                                                             ? condicionesPago.map((condicion) => (
-                                                                <SelectItem key={condicion.GroupNum}>
-                                                                    {condicion.PymntGroup}
+                                                                <SelectItem key={condicion.group_num}>
+                                                                    {condicion.pymnt_group}
                                                                 </SelectItem>
                                                             ))
                                                             : terminosPago.map((termino) => (

@@ -59,23 +59,26 @@ const mapRecordReceptionToReception = (record: ReceptionApi): Reception => {
     const parseAmount = (value: string) => parseFloat((value || "0").replace(",", ".")) || 0;
     const parseDate = (dateStr: string) => dateStr || "";
     
-    const total = parseAmount(record.Total);
+    const total = parseAmount(record.total);
 
     // Mapear detalle
-    const detalle = record.Detalle?.map(item => ({
-        description: item.Dscription || '',
-        lineTotal: parseAmount(item.LineTotal)
+    const detalle = record.detalle?.map(item => ({
+        docEntry: item.doc_entry?.toString() || '',
+        description: item.dscription || '',
+        itemCode: item.item_code || '',
+        lineTotal: parseAmount(item.line_total),
+        quantity: parseAmount(item.quantity)
     })) || [];
 
     return {
-        id: record.DocEntry?.toString() || '',
-        docEntry: record.DocEntry?.toString() || '',
-        supplierId: record.CardCode || '',
-        supplierName: record.CardName || '',
-        addressDestination: record.Direccion_Destino || '',
-        addressBilling: record.Direccion_Facturacion || '',
-        docDate: parseDate(record.DocDate),
-        currency: record.DocCur === 'S/' ? 'PEN' : 'USD',
+        id: record.doc_entry?.toString() || '',
+        docEntry: record.doc_entry?.toString() || '',
+        supplierId: record.card_code || '',
+        supplierName: record.card_name || '',
+        addressDestination: record.direccion_destino || '',
+        addressBilling: record.direccion_facturacion || '',
+        docDate: parseDate(record.doc_date),
+        currency: record.doc_cur === 'S/' ? 'PEN' : 'USD',
         total: total,
         detalle: detalle.length > 0 ? detalle : undefined,
     }
