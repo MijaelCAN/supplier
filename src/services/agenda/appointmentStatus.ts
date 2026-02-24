@@ -195,19 +195,19 @@ export const canTransitionTo = (
  * Interfaz para la petición de actualización de estado
  */
 export interface UpdateStatusRequest {
-    U_Estado: AppointmentStatus; // Formato: "PROGRAMADA", "REPROGRAMADA", etc. (coherente con ActualizarCita)
-    U_FechaModificacion: string; // Formato ISO: "2026-02-10T11:27:00-05:00"
-    U_Usuario: string; // ID del usuario
+    u_estado: AppointmentStatus; // Formato: "PROGRAMADA", "REPROGRAMADA", etc. (coherente con ActualizarCita)
+    u_fecha_modificacion: string; // Formato ISO: "2026-02-10T11:27:00-05:00"
+    u_usuario: string; // ID del usuario
 }
 
 /**
  * Interfaz para la respuesta de actualización de estado
  */
 export interface UpdateStatusResponse {
-    StatusCode: number;
-    Success: boolean;
-    Message: string;
-    Data: string; // DocEntry
+    status_code: number;
+    success: boolean;
+    message: string;
+    data: string; // DocEntry
 }
 
 /**
@@ -238,9 +238,9 @@ export const updateAppointmentStatus = async (
     const fechaModificacion = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}T${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}${timezoneString}`;
     
     const requestBody: UpdateStatusRequest = {
-        U_Estado: newStatus, // Coherente con el formato del endpoint ActualizarCita
-        U_FechaModificacion: fechaModificacion,
-        U_Usuario: userId
+        u_estado: newStatus, // Coherente con el formato del endpoint ActualizarCita
+        u_fecha_modificacion: fechaModificacion,
+        u_usuario: userId
     };
     
     const response = await httpClient(url, {
@@ -263,12 +263,12 @@ export const updateAppointmentStatus = async (
     
     const json = (await response.json()) as UpdateStatusResponse;
     
-    if (!json || (json.StatusCode !== 204 && json.StatusCode !== 200)) {
-        throw new Error(json.Message || 'Error al actualizar el estado de la cita');
+    if (!json || (json.status_code !== 204 && json.status_code !== 200)) {
+        throw new Error(json.message || 'Error al actualizar el estado de la cita');
     }
     
     // Retornar el DocEntry de la cita actualizada
-    return json.Data || docEntry;
+    return json.data || docEntry;
 };
 
 /**

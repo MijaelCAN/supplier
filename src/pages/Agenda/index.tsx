@@ -376,31 +376,31 @@ const Agenda: React.FC = () => {
     const filteredListViewData = useMemo(() => {
         return listViewData.filter(product => {
             // Filtrar por fecha
-            if (filterFecha && !formatDateFromAPI(product.U_Fecha).toLowerCase().includes(filterFecha.toLowerCase())) {
+            if (filterFecha && !formatDateFromAPI(product.u_fecha).toLowerCase().includes(filterFecha.toLowerCase())) {
                 return false;
             }
             // Filtrar por Number
-            if (filterNumber && !product.Number.toLowerCase().includes(filterNumber.toLowerCase())) {
+            if (filterNumber && !product.number.toLowerCase().includes(filterNumber.toLowerCase())) {
                 return false;
             }
             // Filtrar por ItemCode
-            if (filterItemCode && !product.ItemCode.toLowerCase().includes(filterItemCode.toLowerCase())) {
+            if (filterItemCode && !product.item_code.toLowerCase().includes(filterItemCode.toLowerCase())) {
                 return false;
             }
             // Filtrar por ItemName
-            if (filterItemName && !product.ItemName.toLowerCase().includes(filterItemName.toLowerCase())) {
+            if (filterItemName && !product.item_name.toLowerCase().includes(filterItemName.toLowerCase())) {
                 return false;
             }
             // Filtrar por U_RazonSocial
-            if (filterRazonSocial && !product.U_RazonSocial.toLowerCase().includes(filterRazonSocial.toLowerCase())) {
+            if (filterRazonSocial && !product.u_razon_social.toLowerCase().includes(filterRazonSocial.toLowerCase())) {
                 return false;
             }
             // Filtrar por Quantity
-            if (filterQuantity && !product.Quantity.toLowerCase().includes(filterQuantity.toLowerCase())) {
+            if (filterQuantity && !product.quantity.toLowerCase().includes(filterQuantity.toLowerCase())) {
                 return false;
             }
             // Filtrar por Horario
-            if (filterHorario && !formatHorario(product.Horario).toLowerCase().includes(filterHorario.toLowerCase())) {
+            if (filterHorario && !formatHorario(product.horario).toLowerCase().includes(filterHorario.toLowerCase())) {
                 return false;
             }
             return true;
@@ -412,13 +412,13 @@ const Agenda: React.FC = () => {
         try {
             // Preparar los datos para exportar
             const dataToExport = filteredListViewData.map(product => ({
-                'Fecha': formatDateFromAPI(product.U_Fecha),
-                'Número': product.Number,
-                'Código': product.ItemCode,
-                'Descripción': product.ItemName,
-                'Proveedor': product.U_RazonSocial,
-                'Cantidad': product.Quantity,
-                'Horario': formatHorario(product.Horario)
+                'Fecha': formatDateFromAPI(product.u_fecha),
+                'Número': product.number,
+                'Código': product.item_code,
+                'Descripción': product.item_name,
+                'Proveedor': product.u_razon_social,
+                'Cantidad': product.quantity,
+                'Horario': formatHorario(product.horario)
             }));
 
             // Crear un libro de trabajo
@@ -564,13 +564,13 @@ const Agenda: React.FC = () => {
                         <tbody>
                             ${filteredListViewData.map(product => `
                                 <tr>
-                                    <td>${formatDateFromAPI(product.U_Fecha)}</td>
-                                    <td>${product.Number}</td>
-                                    <td>${product.ItemCode}</td>
-                                    <td>${product.ItemName}</td>
-                                    <td>${product.U_RazonSocial}</td>
-                                    <td>${product.Quantity}</td>
-                                    <td>${formatHorario(product.Horario)}</td>
+                                    <td>${formatDateFromAPI(product.u_fecha)}</td>
+                                    <td>${product.number}</td>
+                                    <td>${product.item_code}</td>
+                                    <td>${product.item_name}</td>
+                                    <td>${product.u_razon_social}</td>
+                                    <td>${product.quantity}</td>
+                                    <td>${formatHorario(product.horario)}</td>
                                 </tr>
                             `).join('')}
                         </tbody>
@@ -1115,7 +1115,7 @@ const Agenda: React.FC = () => {
                 return null;
             };
 
-            const productDate = parseProductDate(product.U_Fecha);
+            const productDate = parseProductDate(product.u_fecha);
             if (!productDate) {
                 console.warn('No se pudo parsear la fecha del producto');
                 return;
@@ -1133,14 +1133,14 @@ const Agenda: React.FC = () => {
 
                 // Comparar proveedor (normalizar para comparación)
                 const aptSupplierName = apt.supplierName?.toLowerCase().trim() || '';
-                const productSupplierName = product.U_RazonSocial?.toLowerCase().trim() || '';
+                const productSupplierName = product.u_razon_social?.toLowerCase().trim() || '';
                 if (aptSupplierName && productSupplierName && !aptSupplierName.includes(productSupplierName) && !productSupplierName.includes(aptSupplierName)) {
                     return false;
                 }
 
                 // Comparar horario (extraer hora inicial del rango)
-                if (product.Horario && apt.deliveryTime) {
-                    const productHorarioParts = product.Horario.split(' - ');
+                if (product.horario && apt.deliveryTime) {
+                    const productHorarioParts = product.horario.split(' - ');
                     if (productHorarioParts.length > 0) {
                         const productHoraInicio = productHorarioParts[0].trim();
                         // Normalizar hora (agregar cero si tiene 3 dígitos)
@@ -1166,7 +1166,7 @@ const Agenda: React.FC = () => {
                 const fallbackAppointment = appointments.find(apt => {
                     if (apt.deliveryDate !== productDate) return false;
                     const aptSupplierName = apt.supplierName?.toLowerCase().trim() || '';
-                    const productSupplierName = product.U_RazonSocial?.toLowerCase().trim() || '';
+                    const productSupplierName = product.u_razon_social?.toLowerCase().trim() || '';
                     return aptSupplierName && productSupplierName && 
                            (aptSupplierName.includes(productSupplierName) || productSupplierName.includes(aptSupplierName));
                 });
@@ -1302,15 +1302,15 @@ const Agenda: React.FC = () => {
             
             console.log('📦 Total de PackingList encontrados:', allPackingLists.length);
             if (allPackingLists.length > 0) {
-                console.log('📦 Primeros 10 PackingList encontrados:', allPackingLists.slice(0, 10).map(pl => pl.Number));
+                console.log('📦 Primeros 10 PackingList encontrados:', allPackingLists.slice(0, 10).map(pl => pl.number));
             }
             
             // Filtrar PackingList que empiecen con el número de orden
             // El número puede venir como string o number, normalizarlo
             const matchingPackingLists = allPackingLists.filter(pl => {
-                if (!pl.Number) return false;
+                if (!pl.number) return false;
                 // Normalizar el número a string
-                const numberStr = String(pl.Number).trim();
+                const numberStr = String(pl.number).trim();
                 // El número de PackingList tiene formato: {DocNum}_{correlativo}
                 const matches = numberStr.startsWith(`${docNum}_`);
                 if (matches) {
@@ -1321,15 +1321,15 @@ const Agenda: React.FC = () => {
             
             console.log('🎯 PackingList que coinciden con', docNum, ':', matchingPackingLists.length);
             if (matchingPackingLists.length > 0) {
-                console.log('🎯 Números encontrados:', matchingPackingLists.map(pl => String(pl.Number)));
+                console.log('🎯 Números encontrados:', matchingPackingLists.map(pl => String(pl.number)));
             }
             
             // Extraer correlativos y encontrar el máximo
             let maxCorrelative = 0;
             matchingPackingLists.forEach(pl => {
-                if (pl.Number) {
+                if (pl.number) {
                     // Normalizar el número a string
-                    const numberStr = String(pl.Number).trim();
+                    const numberStr = String(pl.number).trim();
                     // Extraer el correlativo después del guion bajo
                     const parts = numberStr.split('_');
                     if (parts.length >= 2) {
@@ -1928,27 +1928,27 @@ const Agenda: React.FC = () => {
                                         <TableBody>
                                                 {filteredListViewData.map((row, index) => (
                                                 <TableRow 
-                                                        key={`${row.Number}-${row.ItemCode}-${index}`}
+                                                        key={`${row.number}-${row.item_code}-${index}`}
                                                         className="hover:bg-gray-50 cursor-pointer"
                                                         onClick={() => handleProductRowClick(row)}
                                                     >
                                                         <TableCell className="whitespace-nowrap">
-                                                            {formatDateFromAPI(row.U_Fecha)}
+                                                            {formatDateFromAPI(row.u_fecha)}
                                                         </TableCell>
-                                                        <TableCell className="whitespace-nowrap">{row.Number}</TableCell>
-                                                        <TableCell className="whitespace-nowrap">{row.ItemCode}</TableCell>
+                                                        <TableCell className="whitespace-nowrap">{row.number}</TableCell>
+                                                        <TableCell className="whitespace-nowrap">{row.item_code}</TableCell>
                                                     <TableCell>
-                                                            <div className="truncate max-w-full" title={row.ItemName}>
-                                                                {row.ItemName}
+                                                            <div className="truncate max-w-full" title={row.item_name}>
+                                                                {row.item_name}
                                                             </div>
                                                     </TableCell>
                                                     <TableCell>
-                                                            <div className="truncate max-w-full" title={row.U_RazonSocial}>
-                                                                {row.U_RazonSocial}
+                                                            <div className="truncate max-w-full" title={row.u_razon_social}>
+                                                                {row.u_razon_social}
                                                         </div>
                                                     </TableCell>
-                                                        <TableCell className="whitespace-nowrap">{row.Quantity}</TableCell>
-                                                        <TableCell className="whitespace-nowrap">{formatHorario(row.Horario)}</TableCell>
+                                                        <TableCell className="whitespace-nowrap">{row.quantity}</TableCell>
+                                                        <TableCell className="whitespace-nowrap">{formatHorario(row.horario)}</TableCell>
                                                 </TableRow>
                                             ))}
                                         </TableBody>
@@ -2444,8 +2444,8 @@ const Agenda: React.FC = () => {
                                                     selectionMode="single"
                                                 >
                                                     {warehouses.map((warehouse) => (
-                                                        <SelectItem key={warehouse.Codigo} textValue={`${warehouse.Almacen} (${warehouse.Codigo})`}>
-                                                            {warehouse.Almacen} ({warehouse.Codigo})
+                                                        <SelectItem key={warehouse.codigo} textValue={`${warehouse.almacen} (${warehouse.codigo})`}>
+                                                            {warehouse.almacen} ({warehouse.codigo})
                                                         </SelectItem>
                                                     ))}
                                                 </Select>
@@ -2711,18 +2711,18 @@ const Agenda: React.FC = () => {
                                                                         // Llenar la tabla de items
                                                                         const items: PackingListItem[] = detailItems.map((item, index: number) => {
                                                                             // Convertir Marca de string a boolean (puede ser "True", "False", "true", "false", etc.)
-                                                                            const marca = item.Marca?.toLowerCase() === 'true' || item.Marca === '1';
+                                                                            const marca = item.marca?.toLowerCase() === 'true' || item.marca === '1';
                                                                             
                                                                             // Parsear Cantidad OC (puede venir como "Cantidad OC" o "CantidadOC")
-                                                                            const cantidadOC = parseFloat(item["Cantidad OC"] || item.CantidadOC || "0");
+                                                                            const cantidadOC = parseFloat(item["cantidad oc"] || item.cantidad_oc || "0");
                                                                             
                                                                             // Parsear Pendiente
-                                                                            const pendiente = parseFloat(item.Pendiente || "0");
+                                                                            const pendiente = parseFloat(item.pendiente || "0");
                                                                             
                                                                             return {
-                                                                                id: `${doc.DocNum}-${item.Artículo}-${index}`,
-                                                                                productCode: item.Artículo,
-                                                                                productName: item.Descripción,
+                                                                                id: `${doc.DocNum}-${item.artículo}-${index}`,
+                                                                                productCode: item.artículo,
+                                                                                productName: item.descripción,
                                                                                 quantity: 0,
                                                                                 pendingQuantity: pendiente,
                                                                                 cantidadOC: cantidadOC,

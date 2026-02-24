@@ -109,7 +109,7 @@ export const useAgendaStore = create<AgendaState>()(
                     appointmentNumber: generateAppointmentNumber(appointments.length),
                     createdDate: new Date().toISOString(),
                     notificationSent: false,
-                    status: 'Pendiente',
+                    status: 'REGISTRADA',
                     scheduledDateTime,
                     scheduledDateTimeEnd
                 };
@@ -244,14 +244,15 @@ export const useAgendaStore = create<AgendaState>()(
                     // Crear la cita en el API
                     // Formatear la fecha a YYYYMMDD para evitar problemas de zona horaria
                     const appointmentId = await createAppointmentInApi({
-                        u_Ruc: appointmentData.supplierRUC,
-                        u_RazonSocial: appointmentData.supplierName,
-                        u_Fecha: formatDateForAPI(appointmentData.deliveryDate),
-                        u_HoraInicio: appointmentData.deliveryTime,
-                        u_HoraFin: appointmentData.deliveryTimeEnd,
-                        u_Descripcion: appointmentData.description || '',
-                        u_Almacen: appointmentData.warehouse || '',
-                        U_Active: appointmentData.active || 'Y'
+                        u_ruc: appointmentData.supplierRUC,
+                        u_razon_social: appointmentData.supplierName,
+                        u_fecha: formatDateForAPI(appointmentData.deliveryDate),
+                        u_hora_inicio: appointmentData.deliveryTime,
+                        u_hora_fin: appointmentData.deliveryTimeEnd,
+                        u_descripcion: appointmentData.description || '',
+                        u_almacen: appointmentData.warehouse || '',
+                        u_active: appointmentData.active || 'Y',
+                        u_estado: 'REGISTRADA'
                     });
 
                     // Crear un objeto de cita temporal para retornar
@@ -299,15 +300,15 @@ export const useAgendaStore = create<AgendaState>()(
                     
                     // Actualizar la cita en el API
                     await updateAppointmentInApi(docEntry, {
-                        u_Ruc: appointmentData.supplierRUC,
-                        u_RazonSocial: appointmentData.supplierName,
-                        u_Fecha: formatDateForAPI(appointmentData.deliveryDate),
-                        u_HoraInicio: appointmentData.deliveryTime,
-                        u_HoraFin: appointmentData.deliveryTimeEnd,
-                        u_Descripcion: appointmentData.description || '',
-                        u_Almacen: appointmentData.warehouse || '',
-                        u_Active: appointmentData.active || 'Y',
-                        U_Estado: estadoToSend // Siempre enviar el estado actual
+                        u_ruc: appointmentData.supplierRUC,
+                        u_razon_social: appointmentData.supplierName,
+                        u_fecha: formatDateForAPI(appointmentData.deliveryDate),
+                        u_hora_inicio: appointmentData.deliveryTime,
+                        u_hora_fin: appointmentData.deliveryTimeEnd,
+                        u_descripcion: appointmentData.description || '',
+                        u_almacen: appointmentData.warehouse || '',
+                        u_active: appointmentData.active || 'Y',
+                        u_estado: estadoToSend // Siempre enviar el estado actual
                     });
 
                     // Actualizar la cita en el store local
@@ -360,7 +361,7 @@ export const useAgendaStore = create<AgendaState>()(
                             return {
                                 ...apt,
                                 packingList: newPackingList,
-                                status: apt.status === 'Pendiente' ? 'PackingListCompletado' : apt.status
+                                status: apt.status === 'REGISTRADA' ? 'PROGRAMADA' : apt.status
                             };
                         }
                         return apt;
@@ -396,10 +397,10 @@ export const useAgendaStore = create<AgendaState>()(
                             const currentStatus = apt.status;
                             let newStatus = currentStatus;
                             
-                            if (currentStatus === 'PackingListCompletado') {
-                                newStatus = 'TransporteCompletado';
-                            } else if (currentStatus === 'Pendiente' && apt.packingList) {
-                                newStatus = 'TransporteCompletado';
+                            if (currentStatus === 'PROGRAMADA') {
+                                newStatus = 'TRANSPORTE_COMPLETO';
+                            } else if (currentStatus === 'REGISTRADA' && apt.packingList) {
+                                newStatus = 'TRANSPORTE_COMPLETO';
                             }
                             
                             return {
@@ -454,9 +455,9 @@ export const useAgendaStore = create<AgendaState>()(
 
                             let newStatus = apt.status;
                             if (updatedDocs.completed && apt.transportData) {
-                                newStatus = 'ListaParaEntrega';
+                                newStatus = 'EN_ENTREGA';
                             } else if (updatedDocs.completed) {
-                                newStatus = 'DocumentosCompletados';
+                                newStatus = 'DOCUMENTOS_COMPLETOS';
                             }
 
                             return {

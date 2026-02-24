@@ -10,52 +10,48 @@ const DOCUMENT_DETAIL_ENDPOINT = '/api/PackingList/Documentos/Detalle';
 const FILES_ENDPOINT = '/api/PackingList/Archivos';
 
 export interface DatosTransporte {
-    U_EmpresaTransporte?: string;
-    U_NombreConductor?: string;
-    U_LicenciaConducir?: string;
-    U_PlacaVehiculo?: string;
-    U_TipoVehiculo?: string;
-    U_TelefonoContacto?: string;
-    U_HoraLlegada?: string;
-    U_Notas?: string;
-    U_CodCita?: string;
+    u_empresa_transporte?: string;
+    u_nombre_conductor?: string;
+    u_licencia_conducir?: string;
+    u_placa_vehiculo?: string;
+    u_tipo_vehiculo?: string;
+    u_telefono_contacto?: string;
+    u_hora_llegada?: string;
+    u_notas?: string;
+    u_cod_cita?: string;
 }
 
 export interface PackingListApiRecord {
-    Id: string | number;
-    VendorId: string;
-    WhsCode: string;
-    Number: string;
-    InboundType: string;
-    Comments: string;
-    DateExpected: string; // Formato: "26/12/2025 00:00:00" o "2026-01-19T00:00:00"
-    Ticket: string | number;
-    WmsResponse: string;
-    EmissionDate?: string;
-    ExpirationDate?: string;
-    CreateAt?: string;
-    UpdateAt?: string;
-    AppointmentCode?: string;
+    id: string | number;
+    vendor_id: string;
+    whs_code: string;
+    number: string;
+    inbound_type: string;
+    comments: string;
+    date_expected: string; // Formato: "26/12/2025 00:00:00" o "2026-01-19T00:00:00"
+    ticket: string | number;
+    wms_response: string;
+    emission_date?: string;
+    expiration_date?: string;
+    create_at?: string;
+    update_at?: string;
+    appointment_code?: string;
     DatosTransporte?: DatosTransporte;
-    _detallePackinList?: PackingListDetailApiRecord[]; // Detalle de items del PackingList
+    detalle_packin_list?: PackingListDetailApiRecord[]; // Detalle de items del PackingList
     DetallePackinList?: PackingListDetailApiRecord[]; // Detalle de items del PackingList (alternativo)
 }
 
 export interface PackingListDetailApiRecord {
-    Id_Document?: number;
+    id_document?: number;
     document?: number;
-    LineNumber?: number;
-    lineNumber?: number;
-    ItemCode?: string;
-    itemCode: string;
-    ItemName?: string;
-    itemName: string;
-    Quantity?: number;
+    line_number?: number;
+    item_code?: string;
+    item_name?: string;
     quantity: number;
 }
 
 interface PackingListApiResponse {
-    statusCode: number;
+    status_code: number;
     success: boolean;
     message: string;
     data: PackingListApiRecord | PackingListApiRecord[];
@@ -83,30 +79,30 @@ const formatDateFromAPI = (dateStr: string): string => {
  */
 export const mapApiRecordToPackingList = (record: PackingListApiRecord, appointmentId?: string): any => {
     // Mapear items si existen
-    const items = record._detallePackinList?.map((detalle, index) => ({
-        id: `${record.Number}-${detalle.lineNumber}-${index}`,
-        productCode: detalle.itemCode,
-        productName: detalle.itemName,
+    const items = record.detalle_packin_list?.map((detalle, index) => ({
+        id: `${record.number}-${detalle.line_number}-${index}`,
+        productCode: detalle.item_code,
+        productName: detalle.item_name,
         quantity: detalle.quantity,
         pendingQuantity: detalle.quantity, // Asumimos que la cantidad pendiente es la misma
         unit: 'UN', // Por defecto, se puede ajustar si el API lo proporciona
         document: detalle.document,
-        lineNumber: detalle.lineNumber
+        lineNumber: detalle.line_number
     })) || [];
 
     return {
-        id: record.Number,
+        id: record.number,
         appointmentId: appointmentId || '',
-        supplierId: record.VendorId,
-        date: formatDateFromAPI(record.DateExpected),
-        warehouse: record.WhsCode,
+        supplierId: record.vendor_id,
+        date: formatDateFromAPI(record.date_expected),
+        warehouse: record.whs_code,
         items: items,
-        comment: record.Comments || '',
-        commentWms: record.WmsResponse || '',
-        number: record.Number,
-        inboundType: record.InboundType,
-        ticket: record.Ticket,
-        createdDate: record.CreateAt ? formatDateFromAPI(record.CreateAt) : new Date().toISOString().split('T')[0],
+        comment: record.comments || '',
+        commentWms: record.wms_response || '',
+        number: record.number,
+        inboundType: record.inbound_type,
+        ticket: record.ticket,
+        createdDate: record.create_at ? formatDateFromAPI(record.create_at) : new Date().toISOString().split('T')[0],
         completed: true // Si viene del API, está completado
     };
 };
@@ -262,8 +258,8 @@ export const createPackingListInApi = async (
  * Interfaz para un almacén del API
  */
 export interface WarehouseApiRecord {
-    Codigo: string;
-    Almacen: string;
+    codigo: string;
+    almacen: string;
 }
 
 /**
@@ -307,7 +303,20 @@ export const fetchWarehousesFromApi = async (): Promise<WarehouseApiRecord[]> =>
 };
 
 /**
- * Interfaz para un documento de orden de compra del API
+ * Interfaz RAW para un documento de orden de compra del API (snake_case)
+ * Esta es la estructura exacta que viene del API
+ */
+interface DocumentApiRecordRaw {
+    doc_entry: string;
+    doc_num: string;
+    card_code: string;
+    card_name: string;
+    tax_date: string;
+}
+
+/**
+ * Interfaz para un documento de orden de compra en formato interno (PascalCase)
+ * Esta es la estructura que usa la aplicación internamente
  */
 export interface DocumentApiRecord {
     DocEntry: string;
@@ -318,14 +327,38 @@ export interface DocumentApiRecord {
 }
 
 /**
- * Interfaz para la respuesta del API de documentos
+ * Interfaz RAW para la respuesta del API de documentos (snake_case)
  */
-interface DocumentListApiResponse {
-    statusCode: number;
+interface DocumentListApiResponseRaw {
+    status_code: number;
     success: boolean;
     message: string;
-    data: DocumentApiRecord[];
+    data: DocumentApiRecordRaw[];
 }
+
+/**
+ * Interfaz para la respuesta del API de documentos en formato interno (camelCase)
+ */
+
+
+/**
+ * Mapea la respuesta RAW del API (snake_case) al formato interno (PascalCase)
+ * Este es el único lugar donde se debe modificar si cambia la estructura del API
+ * 
+ * @param rawRecord - Respuesta raw del API con snake_case
+ * @returns Record en formato PascalCase para uso interno
+ */
+const mapDocumentApiRecordRaw = (
+    rawRecord: DocumentApiRecordRaw
+): DocumentApiRecord => {
+    return {
+        DocEntry: rawRecord.doc_entry,
+        DocNum: rawRecord.doc_num,
+        CardCode: rawRecord.card_code,
+        CardName: rawRecord.card_name,
+        TaxDate: rawRecord.tax_date,
+    };
+};
 
 /**
  * Obtiene el listado de documentos (órdenes de compra) desde el API
@@ -356,22 +389,26 @@ export const fetchDocumentsFromApi = async (typeDoc: 'OCNAC' | 'OCINT', searchTe
         throw new Error(`Error al consultar documentos (${response.status})`);
     }
     
-    const json = (await response.json()) as DocumentListApiResponse;
+    // Mapear la respuesta RAW del API (snake_case) al formato interno (PascalCase)
+    const rawResponse = (await response.json()) as DocumentListApiResponseRaw;
     
-    if (!json || typeof json !== 'object') {
+    if (!rawResponse || typeof rawResponse !== 'object') {
         throw new Error('Respuesta del servicio de documentos inválida.');
     }
     
-    if (!json.success) {
-        throw new Error(json.message || 'Error al obtener documentos');
+    if (!rawResponse.success) {
+        throw new Error(rawResponse.message || 'Error al obtener documentos');
     }
     
     // Manejar ambos casos: objeto único o array
-    const documents: DocumentApiRecord[] = Array.isArray(json.data) 
-        ? json.data 
-        : json.data 
-            ? [json.data] 
+    const rawData = Array.isArray(rawResponse.data) 
+        ? rawResponse.data 
+        : rawResponse.data 
+            ? [rawResponse.data] 
             : [];
+    
+    // Mapear cada documento de snake_case a PascalCase
+    const documents: DocumentApiRecord[] = rawData.map(mapDocumentApiRecordRaw);
     
     return documents;
 };
@@ -380,20 +417,20 @@ export const fetchDocumentsFromApi = async (typeDoc: 'OCNAC' | 'OCINT', searchTe
  * Interfaz para el detalle de un item del documento
  */
 export interface DocumentDetailItem {
-    Marca: string;
-    Artículo: string;
-    Descripción: string;
-    "Cantidad OC": string;
-    CantidadOC: string;
-    Pendiente: string;
-    Cantidad: string;
+    marca: string;
+    artículo: string;
+    descripción: string;
+    "cantidad oc": string;
+    cantidad_oc: string;
+    pendiente: string;
+    cantidad: string;
 }
 
 /**
  * Interfaz para la respuesta del API de detalle del documento
  */
 interface DocumentDetailApiResponse {
-    statusCode: number;
+    status_code: number;
     success: boolean;
     message: string;
     data: DocumentDetailItem | DocumentDetailItem[];
@@ -577,23 +614,23 @@ export const uploadFileToPackingList = async (
 };
 
 /**
- * Interfaz para un producto del endpoint de productos
+ * INTERFAZ PARA LAS CITAS POR PRODUCTO
  */
 export interface ProductApiRecord {
-    U_Fecha: string; // Formato: "19/01/2026 00:00:00"
-    Number: string;
-    ItemCode: string;
-    ItemName: string;
-    U_RazonSocial: string;
-    Quantity: string;
-    Horario: string; // Formato: "1100 - 1200"
+    u_fecha: string; // Formato: "19/01/2026 00:00:00"
+    number: string;
+    item_code: string;
+    item_name: string;
+    u_razon_social: string;
+    quantity: string;
+    horario: string; // Formato: "1100 - 1200"
 }
 
 /**
- * Interfaz para la respuesta del API de productos
+ * INTERFAZ PARA LA RESPUESTA DEL API de CITAS POR PRODUCTO
  */
 interface ProductListApiResponse {
-    statusCode: number;
+    status_code: number;
     success: boolean;
     message: string;
     data: ProductApiRecord[];

@@ -5,14 +5,14 @@ const DEFAULT_UBIGEO_API_BASE_URL = getApiBaseUrl();
 const UBIGEO_ENDPOINT = '/api/Proveedores/Ubigeo';
 
 export interface UbigeoRecord {
-    Code: string;
-    U_SYP_DEPA: string | null;
-    U_SYP_PROV: string | null;
-    U_SYP_DIST: string | null;
+    code: string;
+    u_syp_depa: string | null;
+    u_syp_prov: string | null;
+    u_syp_dist: string | null;
 }
 
 interface UbigeoApiResponse {
-    statusCode: number;
+    status_code: number;
     success: boolean;
     message: string;
     data: UbigeoRecord[];
@@ -43,9 +43,9 @@ export const fetchUbigeos = async (): Promise<UbigeoRecord[]> => {
     // Filtrar solo los registros que tienen valores válidos (no null)
     return json.data.filter(
         (record) => 
-            record.U_SYP_DEPA !== null && 
-            record.U_SYP_PROV !== null && 
-            record.U_SYP_DIST !== null
+            record.u_syp_depa !== null &&
+            record.u_syp_prov !== null &&
+            record.u_syp_dist !== null
     );
 };
 

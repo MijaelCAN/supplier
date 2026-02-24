@@ -4,12 +4,13 @@ import {httpClient, buildSecureUrl} from "@/services/http/httpClient.ts";
 import { getApiBaseUrl } from "@/config/api.ts";
 
 export interface CondicionPago {
-    GroupNum: string;
-    PymntGroup: string;
+    group_num: string;
+    pymnt_group: string;
 }
 
 interface CondicionesPagoApiResponse {
-    statusCode: number;
+    status_code: number;
+    success: boolean;
     message: string;
     data: CondicionPago[];
 }
@@ -35,7 +36,7 @@ export const fetchCondicionesPago = async (): Promise<CondicionPago[]> => {
 
         const result: CondicionesPagoApiResponse = await response.json();
 
-        if (result.statusCode !== 200) {
+        if (result.status_code !== 200) {
             throw new Error(result.message || 'Error al obtener condiciones de pago');
         }
 
@@ -52,8 +53,8 @@ export const fetchCondicionesPago = async (): Promise<CondicionPago[]> => {
 export const getCondicionPagoDescripcion = async (codigo: string): Promise<string | null> => {
     try {
         const condiciones = await fetchCondicionesPago();
-        const condicion = condiciones.find(c => c.GroupNum === codigo);
-        return condicion?.PymntGroup || null;
+        const condicion = condiciones.find(c => c.group_num === codigo);
+        return condicion?.pymnt_group || null;
     } catch (error) {
         console.error('Error al obtener descripción de condición de pago:', error);
         return null;

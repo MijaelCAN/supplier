@@ -238,7 +238,7 @@ const ModalRegister: FC<ModalRegisterProps> = ({
 
             // Validar estado y condición (la nueva API puede tener diferentes valores)
             const isValidStatus = data.estado && !data.estado.includes('BAJA') && !data.estado.includes('SUSPENSION') && data.condicion && data.condicion.includes('HABIDO')
-            setIsRucValid(isValidStatus)
+            setIsRucValid(isValidStatus as boolean)
 
             if (isValidStatus) {
                 setValue('cardName', data.nombre_o_razon_social ?? '')
@@ -299,74 +299,77 @@ const ModalRegister: FC<ModalRegisterProps> = ({
             const provincia = sunatData.provincia ?? ''
             const departamento = sunatData.departamento ?? ''
             // Extraer actividad económica principal
-            const actividadPrincipal = sunatData.actividades_economicas?.find(act => act.includes('Principal')) || ''
+            //const actividadPrincipal = sunatData.actividades_economicas?.find(act => act.includes('Principal')) || ''
             //const economicActivity = actividadPrincipal.split(' - ').slice(2).join(' - ') || data.businessType ?? ''
-            const economicActivity = (actividadPrincipal.split(' - ').slice(2).join(' - ') || data.businessType) ?? '';
+            //const economicActivity = (actividadPrincipal.split(' - ').slice(2).join(' - ') || data.businessType) ?? '';
 
             const ubigeoValue = data.ubigeo || sunatData.ubigeo_sunat || ''
             const supplierId = `P${data.cardCode}`
 
             const payload: SupplierApiRecord = {
-                CodigoSN: supplierId,
-                NombreSN: data.cardName,
-                RUC: data.cardCode,
-                TipoPersona: data.personType ?? 'TPJ',
-                Moneda: 'S/',
-                Telefono1: data.phone ?? '',
-                Telefono2: '',
-                TelefonoMovil: data.contactPhone ?? '',
-                Correo: data.email ?? '',
-                TipoDocumento: '6',
-                Direccion: data.address,
-                Distrito: distrito,
-                Provincia: provincia,
-                Departamento: departamento,
-                Ubigeo: ubigeoValue,
-                CondicionPago: data.paymentTerms ?? '',
-                DireccionSUNAT: domicilioFiscal,
-                ResolucionAgenteRetencion: '',
-                ResolucionAgentePercepcion: '',
+                codigo_sn: supplierId,
+                nombre_sn: data.cardName,
+                ruc: data.cardCode,
+                tipo_persona: data.personType ?? 'TPJ',
+                moneda: 'S/',
+                telefono1: data.phone ?? '',
+                telefono2: '',
+                telefono_movil: data.contactPhone ?? '',
+                correo: data.email ?? '',
+                tipo_documento: '6',
+                direccion: data.address,
+                distrito: distrito,
+                provincia: provincia,
+                departamento: departamento,
+                ubigeo: ubigeoValue,
+                condicion_pago: data.paymentTerms ?? '',
+                direccion_sunat: domicilioFiscal,
+                resolucion_agente_retencion: '',
+                resolucion_agente_percepcion: '',
                 website: data.website ?? '',
-                createDate: nowIso,
-                updateDate: nowIso,
-                statusContributer: estadoValido ? '00' : '10',
-                statusDomicilio: condicionValida ? '00' : '12',
-                agentePercepcion: sunatData.es_agente_de_percepcion === 'SI' ? 'Y' : 'N',
-                exoPercepcion: 'N',
-                agenteRetencion: sunatData.es_agente_de_retencion === 'SI' ? 'Y' : 'N',
-                goodContributor: sunatData.es_buen_contribuyente === 'SI' ? 'Y' : 'N',
-                economiActivitySunat: "007", // CAMBIAR AL CODIGO DE SAP de momento duro - 007
+                create_date: nowIso,
+                update_date: nowIso,
+                status_contributer: estadoValido ? '00' : '10',
+                status_domicilio: condicionValida ? '00' : '12',
+                agente_percepcion: sunatData.es_agente_de_percepcion === 'SI' ? 'Y' : 'N',
+                exo_percepcion: 'N',
+                agente_retencion: sunatData.es_agente_de_retencion === 'SI' ? 'Y' : 'N',
+                good_contributor: sunatData.es_buen_contribuyente === 'SI' ? 'Y' : 'N',
+                economi_activity_sunat: "007", // CAMBIAR AL CODIGO DE SAP de momento duro - 007
                 status: data.status ?? (sunatData.estado === 'ACTIVO' ? 'Pendiente' : 'Pendiente'),
-                approvalDate: '',
-                coverImage: '',
-                Avatar: '',
-                generalManager: data.generalManager ?? '',
-                adminManager: data.adminManager ?? '',
-                salesManager: data.salesManager ?? '',
-                Contactos: [
+                approval_date: '',
+                cover_image: '',
+                avatar: '',
+                general_manager: data.generalManager ?? '',
+                admin_manager: data.adminManager ?? '',
+                sales_manager: data.salesManager ?? '',
+                contactos: [
                     {
-                        DocEntry: '',
-                        Active: 'Y',
-                        Name: data.contactPerson,
-                        Profesion: '',
-                        Telefono: data.contactPhone ?? '',
-                        E_MailL: data.contactEmail ?? '',
+                        doc_entry: '',
+                        active: 'Y',
+                        name: data.contactPerson,
+                        nombre: '',
+                        segundo_nombre: '',
+                        apellido: '',
+                        profesion: '',
+                        telefono: data.contactPhone ?? '',
+                        e_mail_l: data.contactEmail ?? '',
                     }
                 ],
-                Bancos: [],
-                Direcciones: [
+                bancos: [],
+                direcciones: [
                     {
-                        CodDireccion: '01',
-                        Departamento: departamento,
-                        Direccion: domicilioFiscal,
-                        Distrito: distrito,
-                        Provincia: provincia,
-                        NroLinea: '0',
-                        Ubigeo: ubigeoValue
+                        cod_direccion: '01',
+                        departamento: departamento,
+                        direccion: domicilioFiscal,
+                        distrito: distrito,
+                        provincia: provincia,
+                        nro_linea: '0',
+                        ubigeo: ubigeoValue
                     }
                 ],
-                DocumentoEvaluacion: [],
-                ReferenciasComerciales: [],
+                documento_evaluacion: [],
+                referencias_comerciales: [],
                 ServiciosOfrecidos: [],
             }
 
@@ -374,7 +377,7 @@ const ModalRegister: FC<ModalRegisterProps> = ({
             const result = await createSupplierProfile(payload)
             
             // Si llegamos aquí, SAP fue exitoso. Ahora crear en Firestore
-            const docEntryCode = result.record.DocEntry?.toString() ?? `USR-${Math.floor(Math.random() * 1_000_000)
+            const docEntryCode = result.record.doc_entry?.toString() ?? `USR-${Math.floor(Math.random() * 1_000_000)
                 .toString()
                 .padStart(6, '0')}`
             const username = data.cardCode.trim()
@@ -648,9 +651,9 @@ const ModalRegister: FC<ModalRegisterProps> = ({
                                             <div className="mt-3 grid grid-cols-1 lg:grid-cols-2 gap-3">
                                                 <div className="rounded border border-primary-100 bg-white/70 p-2">
                                                     <p className="text-xs text-gray-500 mb-1">Domicilio Fiscal</p>
-                                                    <p className="text-sm">{sunatData.domicilio_fiscal?.direccion}</p>
+                                                    <p className="text-sm">{sunatData.direccion}</p>
                                                     <p className="text-xs text-gray-500">
-                                                        {sunatData.domicilio_fiscal?.distrito} • {sunatData.domicilio_fiscal?.provincia} • {sunatData.domicilio_fiscal?.departamento}
+                                                        {sunatData.distrito} • {sunatData.provincia} • {sunatData.departamento}
                                                     </p>
                                                 </div>
                                                 <div className="rounded border border-primary-100 bg-white/70 p-2">
@@ -672,9 +675,9 @@ const ModalRegister: FC<ModalRegisterProps> = ({
                                                     <Chip
                                                         size="sm"
                                                         variant="flat"
-                                                        color={sunatData.agente_retencion === 'SI' ? 'warning' : 'default'}
+                                                        color={sunatData.es_agente_de_retencion === 'SI' ? 'warning' : 'default'}
                                                     >
-                                                        {sunatData.agente_retencion === 'SI' ? 'SI' : 'NO'}
+                                                        {sunatData.es_agente_de_retencion === 'SI' ? 'SI' : 'NO'}
                                                     </Chip>
                                                 </div>
                                                 <div className="flex items-center justify-between text-sm">
@@ -682,9 +685,9 @@ const ModalRegister: FC<ModalRegisterProps> = ({
                                                     <Chip
                                                         size="sm"
                                                         variant="flat"
-                                                        color={sunatData.agente_percepcion === 'SI' ? 'warning' : 'default'}
+                                                        color={sunatData.es_agente_de_percepcion === 'SI' ? 'warning' : 'default'}
                                                     >
-                                                        {sunatData.agente_percepcion === 'SI' ? 'SI' : 'NO'}
+                                                        {sunatData.es_agente_de_percepcion === 'SI' ? 'SI' : 'NO'}
                                                     </Chip>
                                                 </div>
                                             </div>
@@ -932,8 +935,8 @@ const ModalRegister: FC<ModalRegisterProps> = ({
                                                     >
                                                         {condicionesPago.length > 0 
                                                             ? condicionesPago.map((condicion) => (
-                                                                <SelectItem key={condicion.GroupNum}>
-                                                                    {condicion.PymntGroup}
+                                                                <SelectItem key={condicion.group_num}>
+                                                                    {condicion.pymnt_group}
                                                                 </SelectItem>
                                                             ))
                                                             : terminosPago.map((termino) => (

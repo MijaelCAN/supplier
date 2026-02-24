@@ -53,8 +53,8 @@ export const UbigeoSelector: FC<UbigeoSelectorProps> = ({
     const departments = useMemo(() => {
         const deps = new Set<string>();
         ubigeos.forEach((ubigeo) => {
-            if (ubigeo.U_SYP_DEPA) {
-                deps.add(ubigeo.U_SYP_DEPA);
+            if (ubigeo.u_syp_depa) {
+                deps.add(ubigeo.u_syp_depa);
             }
         });
         return Array.from(deps).sort();
@@ -66,10 +66,10 @@ export const UbigeoSelector: FC<UbigeoSelectorProps> = ({
         const provs = new Set<string>();
         ubigeos.forEach((ubigeo) => {
             if (
-                ubigeo.U_SYP_DEPA === selectedDepartment &&
-                ubigeo.U_SYP_PROV
+                ubigeo.u_syp_depa === selectedDepartment &&
+                ubigeo.u_syp_prov
             ) {
-                provs.add(ubigeo.U_SYP_PROV);
+                provs.add(ubigeo.u_syp_prov);
             }
         });
         return Array.from(provs).sort();
@@ -81,11 +81,11 @@ export const UbigeoSelector: FC<UbigeoSelectorProps> = ({
         const dists = new Set<string>();
         ubigeos.forEach((ubigeo) => {
             if (
-                ubigeo.U_SYP_DEPA === selectedDepartment &&
-                ubigeo.U_SYP_PROV === selectedProvince &&
-                ubigeo.U_SYP_DIST
+                ubigeo.u_syp_depa === selectedDepartment &&
+                ubigeo.u_syp_prov === selectedProvince &&
+                ubigeo.u_syp_dist
             ) {
-                dists.add(ubigeo.U_SYP_DIST);
+                dists.add(ubigeo.u_syp_dist);
             }
         });
         return Array.from(dists).sort();
@@ -94,12 +94,12 @@ export const UbigeoSelector: FC<UbigeoSelectorProps> = ({
     // Encontrar el ubigeo seleccionado basado en el código
     useEffect(() => {
         if (value && ubigeos.length > 0) {
-            const ubigeo = ubigeos.find((u) => u.Code === value);
-            if (ubigeo && ubigeo.U_SYP_DEPA && ubigeo.U_SYP_PROV && ubigeo.U_SYP_DIST) {
+            const ubigeo = ubigeos.find((u) => u.code === value);
+            if (ubigeo && ubigeo.u_syp_depa && ubigeo.u_syp_prov && ubigeo.u_syp_dist) {
                 // Actualizar solo si los valores son diferentes
-                const dept = ubigeo.U_SYP_DEPA;
-                const prov = ubigeo.U_SYP_PROV;
-                const dist = ubigeo.U_SYP_DIST;
+                const dept = ubigeo.u_syp_depa;
+                const prov = ubigeo.u_syp_prov;
+                const dist = ubigeo.u_syp_dist;
                 setSelectedDepartment((prev) => prev !== dept ? dept : prev);
                 setSelectedProvince((prev) => prev !== prov ? prov : prev);
                 setSelectedDistrict((prev) => prev !== dist ? dist : prev);
@@ -142,13 +142,13 @@ export const UbigeoSelector: FC<UbigeoSelectorProps> = ({
         // Buscar el código de ubigeo correspondiente
         const ubigeo = ubigeos.find(
             (u) =>
-                u.U_SYP_DEPA === selectedDepartment &&
-                u.U_SYP_PROV === selectedProvince &&
-                u.U_SYP_DIST === district
+                u.u_syp_depa === selectedDepartment &&
+                u.u_syp_prov === selectedProvince &&
+                u.u_syp_dist === district
         );
         
         if (ubigeo) {
-            onChange?.(ubigeo.Code);
+            onChange?.(ubigeo.code);
         }
     };
 

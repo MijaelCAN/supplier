@@ -54,49 +54,49 @@ const mapRecordInvoicesToInvoice = (record: InvoiceApi): Invoice => {
     
     // Mapear el estado del documento
     let status: 'Recibida' | 'En Revisión' | 'Aprobada' | 'Pagada' | 'Rechazada' = 'Recibida';
-    if (record.EstadoDocumento === 'Abierto') {
+    if (record.estado_documento === 'Abierto') {
         status = 'Recibida';
-    } else if (record.EstadoDocumento === 'Cerrado') {
+    } else if (record.estado_documento === 'Cerrado') {
         status = 'Pagada';
     }
 
-    const total = parseAmount(record.Total);
-    const subtotal = parseAmount(record.SubTotal);
-    const taxAmount = parseAmount(record.Impuesto);
-    const retention = parseAmount(record.Retencion);
-    const saldo = parseAmount(record.Saldo);
+    const total = parseAmount(record.total);
+    const subtotal = parseAmount(record.sub_total);
+    const taxAmount = parseAmount(record.impuesto);
+    const retention = parseAmount(record.retencion);
+    const saldo = parseAmount(record.saldo);
 
     // Mapear detalle
-    const detalle = record.Detalle?.map(item => ({
-        docEntry: item.DocEntry?.toString() || '',
-        description: item.Dscription || '',
-        itemCode: item.ItemCode || '',
-        lineTotal: parseAmount(item.LineTotal),
-        quantity: parseAmount(item.Quantity)
+    const detalle = record.detalle?.map(item => ({
+        docEntry: item.doc_entry?.toString() || '',
+        description: item.dscription || '',
+        itemCode: item.item_code || '',
+        lineTotal: parseAmount(item.line_total),
+        quantity: parseAmount(item.quantity)
     })) || [];
 
     // Mapear pagos
-    const pagos = record.Pagos?.map(pago => ({
-        docDate: parseDate(pago.DocDate),
-        docEntry: pago.DocEntry?.toString() || '',
-        sumApplied: parseAmount(pago.SumApplied)
+    const pagos = record.pagos?.map(pago => ({
+        docDate: parseDate(pago.doc_date),
+        docEntry: pago.doc_entry?.toString() || '',
+        sumApplied: parseAmount(pago.sum_applied)
     })) || null;
 
     return {
-        id: record.DocEntry?.toString() || '',
-        invoiceNumber: record.NumAtCard || `FAC-${record.DocNum}`,
-        purchaseOrderId: record.DocNum?.toString() || '',
-        supplierId: record.CardCode || '',
-        supplierName: record.CardName || '',
+        id: record.doc_entry?.toString() || '',
+        invoiceNumber: record.num_at_card || `FAC-${record.doc_num}`,
+        purchaseOrderId: record.doc_num?.toString() || '',
+        supplierId: record.card_code || '',
+        supplierName: record.card_name || '',
         amount: total,
-        currency: record.DocCur === 'S/' ? 'PEN' : 'USD',
+        currency: record.doc_cur === 'S/' ? 'PEN' : 'USD',
         status: status,
-        receivedDate: parseDate(record.DocDate),
-        dueDate: parseDate(record.DocDueDate),
-        approvedDate: record.EstadoDocumento === 'Cerrado' ? parseDate(record.TaxDate) : undefined,
-        paidDate: record.EstadoDocumento === 'Cerrado' ? parseDate(record.TaxDate) : undefined,
+        receivedDate: parseDate(record.doc_date),
+        dueDate: parseDate(record.doc_due_date),
+        approvedDate: record.estado_documento === 'Cerrado' ? parseDate(record.tax_date) : undefined,
+        paidDate: record.estado_documento === 'Cerrado' ? parseDate(record.tax_date) : undefined,
         rejectedDate: undefined,
-        paymentTerm: record.CondicionPago,
+        paymentTerm: record.condicion_pago,
         taxAmount: taxAmount,
         subtotal: subtotal,
         retention: retention,
@@ -127,23 +127,23 @@ export const fetchInvoicesByCardCode = async (
 
 // Nueva interfaz para la respuesta del endpoint de programación de pagos
 interface PaymentScheduleInvoiceApi {
-    DocEntry: string;
-    CardCode: string;
-    DocNum: string;
-    LicTradNum: string;
-    CardName: string;
-    TaxDate: string;
-    DocDate: string;
-    DocDueDate: string;
-    NumAtCard: string;
-    DocTotal: string;
+    doc_entry: string;
+    card_code: string;
+    doc_num: string;
+    lic_trad_num: string;
+    card_name: string;
+    tax_date: string;
+    doc_date: string;
+    doc_due_date: string;
+    num_at_card: string;
+    doc_total: string;
     retencion: string;
-    importePagar: string;
-    totalPagar: string;
+    importe_pagar: string;
+    total_pagar: string;
 }
 
 interface PaymentScheduleInvoiceApiResponse {
-    statusCode: number;
+    status_code: number;
     success: boolean;
     message: string;
     data: PaymentScheduleInvoiceApi[];
@@ -200,20 +200,20 @@ export const fetchInvoicesForPaymentSchedule = async (
                 }
             };
             
-            const docTotal = parseAmount(record.DocTotal);
+            const docTotal = parseAmount(record.doc_total);
             const retention = parseAmount(record.retencion);
             
             return {
-                id: record.DocEntry,
-                invoiceNumber: record.NumAtCard || `FAC-${record.DocNum}`,
-                purchaseOrderId: record.DocNum,
-                supplierId: record.CardCode,
-                supplierName: record.CardName,
+                id: record.doc_entry,
+                invoiceNumber: record.num_at_card || `FAC-${record.doc_num}`,
+                purchaseOrderId: record.doc_num,
+                supplierId: record.card_code,
+                supplierName: record.card_name,
                 amount: docTotal,
                 currency: 'PEN', // Por defecto PEN, ajustar si hay campo de moneda
                 status: 'Recibida' as const,
-                receivedDate: parseDate(record.DocDate),
-                dueDate: parseDate(record.DocDueDate),
+                receivedDate: parseDate(record.doc_date),
+                dueDate: parseDate(record.doc_due_date),
                 approvedDate: undefined,
                 paidDate: undefined,
                 rejectedDate: undefined,
@@ -221,7 +221,7 @@ export const fetchInvoicesForPaymentSchedule = async (
                 taxAmount: 0, // No viene en el response
                 subtotal: docTotal - retention,
                 retention: retention,
-                saldo: parseAmount(record.totalPagar) || docTotal,
+                saldo: parseAmount(record.total_pagar) || docTotal,
                 documentUrl: undefined,
                 notes: undefined,
                 reviewedBy: undefined,
@@ -229,9 +229,9 @@ export const fetchInvoicesForPaymentSchedule = async (
                 detalle: undefined,
                 pagos: null,
                 // Campos adicionales del API de programación
-                supplierRUC: record.LicTradNum,
-                taxDate: parseDate(record.TaxDate),
-                importePagar: parseAmount(record.importePagar)
+                supplierRUC: record.lic_trad_num,
+                taxDate: parseDate(record.tax_date),
+                importePagar: parseAmount(record.importe_pagar)
             } as Invoice & { supplierRUC?: string; taxDate?: string; importePagar?: number };
         });
     } catch (error) {
@@ -352,20 +352,20 @@ const parseDecimal = (value: string | number): number => {
 
 // Tipo para la respuesta del API de facturas programadas
 interface ScheduledInvoiceApiResponse {
-    U_CodProveedor: string;
-    U_FechaCompromisoPago: string;
-    U_NFactura: string;
-    U_NombreProveedor: string;
-    U_Ruc: string;
-    U_FechaEmision: string;
-    U_FechaVencimiento: string;
-    U_Retencion: string;
-    U_FechaContabilicacion: string;
-    U_ImporteFactura: string;
-    U_ImportePagar: string;
-    U_TotalPagar: string;
-    U_Estado: string;
-    U_Comentario: string;
+    u_cod_proveedor: string;
+    u_fecha_compromiso_pago: string;
+    u_n_factura: string;
+    u_nombre_proveedor: string;
+    u_ruc: string;
+    u_fecha_emision: string;
+    u_fecha_vencimiento: string;
+    u_retencion: string;
+    u_fecha_contabilicacion: string;
+    u_importe_factura: string;
+    u_importe_pagar: string;
+    u_total_pagar: string;
+    u_estado: string;
+    u_comentario: string;
 }
 
 // Función para obtener facturas programadas
@@ -416,34 +416,34 @@ export const fetchScheduledInvoices = async (
         // También incluimos facturas sin U_Estado si tienen U_FechaCompromisoPago
         const invoices: Invoice[] = dataArray
             .filter(item => {
-                const estado = String(item.U_Estado || '').trim().toUpperCase();
+                const estado = String(item.u_estado || '').trim().toUpperCase();
                 // Incluir si el estado es "Y" o si no tiene estado pero tiene fecha de compromiso
-                return estado === 'Y' || (!estado && item.U_FechaCompromisoPago);
+                return estado === 'Y' || (!estado && item.u_fecha_compromiso_pago);
             })
             .map((item): Invoice & { supplierRUC?: string; taxDate?: string; importePagar?: number; scheduledPaymentDate?: string } => {
-                const supplierId = item.U_CodProveedor ? `P${item.U_CodProveedor}` : '';
+                const supplierId = item.u_cod_proveedor ? `P${item.u_cod_proveedor}` : '';
                 
                 return {
-                    id: `${item.U_NFactura}_${item.U_CodProveedor}_${item.U_FechaCompromisoPago}`.replace(/\s+/g, '_'),
-                    invoiceNumber: item.U_NFactura || '',
-                    purchaseOrderId: item.U_NFactura || '',
+                    id: `${item.u_n_factura}_${item.u_cod_proveedor}_${item.u_fecha_compromiso_pago}`.replace(/\s+/g, '_'),
+                    invoiceNumber: item.u_n_factura || '',
+                    purchaseOrderId: item.u_n_factura || '',
                     supplierId: supplierId,
-                    supplierName: item.U_NombreProveedor || '',
-                    amount: parseDecimal(item.U_ImporteFactura),
+                    supplierName: item.u_nombre_proveedor || '',
+                    amount: parseDecimal(item.u_importe_factura),
                     currency: 'PEN', // Por defecto PEN, ajustar si el API proporciona moneda
                     status: 'Aprobada', // Las facturas programadas se consideran aprobadas
-                    receivedDate: parseScheduledDate(item.U_FechaEmision),
-                    dueDate: parseScheduledDate(item.U_FechaVencimiento),
+                    receivedDate: parseScheduledDate(item.u_fecha_emision),
+                    dueDate: parseScheduledDate(item.u_fecha_vencimiento),
                     taxAmount: 0, // No disponible en la respuesta del API
-                    subtotal: parseDecimal(item.U_ImporteFactura),
-                    saldo: parseDecimal(item.U_TotalPagar),
-                    retention: parseDecimal(item.U_Retencion),
-                    notes: item.U_Comentario || '',
+                    subtotal: parseDecimal(item.u_importe_factura),
+                    saldo: parseDecimal(item.u_total_pagar),
+                    retention: parseDecimal(item.u_retencion),
+                    notes: item.u_comentario || '',
                     // Campos adicionales
-                    supplierRUC: item.U_Ruc || item.U_CodProveedor || '',
-                    taxDate: parseScheduledDate(item.U_FechaContabilicacion),
-                    importePagar: parseDecimal(item.U_ImportePagar),
-                    scheduledPaymentDate: parseScheduledDate(item.U_FechaCompromisoPago)
+                    supplierRUC: item.u_ruc || item.u_cod_proveedor || '',
+                    taxDate: parseScheduledDate(item.u_fecha_contabilicacion),
+                    importePagar: parseDecimal(item.u_importe_pagar),
+                    scheduledPaymentDate: parseScheduledDate(item.u_fecha_compromiso_pago)
                 } as Invoice & { supplierRUC?: string; taxDate?: string; importePagar?: number; scheduledPaymentDate?: string };
             });
         

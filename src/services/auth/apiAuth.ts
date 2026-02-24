@@ -62,8 +62,8 @@ interface ApiLoginRequest {
 }
 
 interface ApiSetting {
-    U_Acceso: string;
-    U_Active: 'Y' | 'N';
+    u_acceso: string;
+    u_active: 'Y' | 'N';
 }
 
 interface ApiLoginResponseData {
@@ -76,11 +76,11 @@ interface ApiLoginResponseData {
     role_type: 'internal' | 'provider';
     nombre: string;
     token: string;
-    Setting: ApiSetting[];
+    setting: ApiSetting[];
 }
 
 interface ApiLoginResponse {
-    statusCode: number;
+    status_code: number;
     success: boolean;
     message: string;
     data: ApiLoginResponseData;
@@ -149,7 +149,7 @@ const mapRole = (role: string): UserRole => {
 const mapSettings = (settings: ApiSetting[]): Record<string, boolean> => {
     const mappedSettings: Record<string, boolean> = {};
     settings.forEach((setting) => {
-        mappedSettings[setting.U_Acceso] = setting.U_Active === 'Y';
+        mappedSettings[setting.u_acceso] = setting.u_active === 'Y';
     });
     return mappedSettings;
 };
@@ -170,7 +170,7 @@ const sanitizeUser = (data: ApiLoginResponseData): PortalUser => {
         avatar: data.avatar || undefined,
         accountStatus: mapAccountStatus(data.account_status),
         useSupplierPortal: data.role_type === 'provider',
-        settings: mapSettings(data.Setting || []),
+        settings: mapSettings(data.setting || []),
     };
 };
 
@@ -236,7 +236,7 @@ export const loginWithAPI = async (
 
         const apiResponse: ApiLoginResponse = await response.json();
 
-        if (apiResponse.statusCode !== 200 || !apiResponse.success) {
+        if (apiResponse.status_code !== 200 || !apiResponse.success) {
             throw new AuthError(
                 'INVALID_CREDENTIALS',
                 apiResponse.message || 'Credenciales de acceso incorrectas.',
@@ -373,15 +373,40 @@ export const updatePasswordWithAPI = async (
 };
 
 /**
- * Get provider email by RUC
+ * Interfaz RAW para la respuesta del API (snake_case)
+ * Esta es la estructura exacta que viene del API
  */
-interface ApiProviderEmailResponseData {
-    CodUsuario: string;
-    NumIdentidad: string;
-    NombreCompleto: string;
-    Correo: string;
+interface ApiProviderEmailResponseDataRaw {
+    cod_usuario: string;
+    num_identidad: string;
+    nombre_completo: string;
+    correo: string;
 }
 
+/**
+ * Interfaz RAW para la respuesta completa del API (snake_case)
+ */
+interface ApiProviderEmailResponseRaw {
+    status_code: number;
+    success: boolean;
+    message: string;
+    data: ApiProviderEmailResponseDataRaw;
+}
+
+/**
+ * Interfaz para los datos en formato interno (camelCase)
+ * Esta es la estructura que usa la aplicación internamente
+ */
+interface ApiProviderEmailResponseData {
+    codUsuario: string;
+    numIdentidad: string;
+    nombreCompleto: string;
+    correo: string;
+}
+
+/**
+ * Interfaz para la respuesta completa en formato interno (camelCase)
+ */
 interface ApiProviderEmailResponse {
     statusCode: number;
     success: boolean;
@@ -389,12 +414,38 @@ interface ApiProviderEmailResponse {
     data: ApiProviderEmailResponseData;
 }
 
+/**
+ * Interfaz pública para la información del proveedor
+ */
 export interface ProviderEmailInfo {
     codUsuario: string;
     ruc: string;
     nombreCompleto: string;
     email: string;
 }
+
+/**
+ * Mapea la respuesta RAW del API (snake_case) al formato interno (camelCase)
+ * Este es el único lugar donde se debe modificar si cambia la estructura del API
+ * 
+ * @param rawResponse - Respuesta raw del API con snake_case
+ * @returns Response en formato camelCase para uso interno
+ */
+const mapApiProviderEmailResponse = (
+    rawResponse: ApiProviderEmailResponseRaw
+): ApiProviderEmailResponse => {
+    return {
+        statusCode: rawResponse.status_code,
+        success: rawResponse.success,
+        message: rawResponse.message,
+        data: {
+            codUsuario: rawResponse.data.cod_usuario,
+            numIdentidad: rawResponse.data.num_identidad,
+            nombreCompleto: rawResponse.data.nombre_completo,
+            correo: rawResponse.data.correo,
+        },
+    };
+};
 
 /**
  * Get provider email by RUC
@@ -433,7 +484,9 @@ export const getProviderEmailByRuc = async (
             );
         }
 
-        const apiResponse: ApiProviderEmailResponse = await response.json();
+        // Mapear la respuesta RAW del API (snake_case) al formato interno (camelCase)
+        const rawResponse: ApiProviderEmailResponseRaw = await response.json();
+        const apiResponse = mapApiProviderEmailResponse(rawResponse);
 
         if (apiResponse.statusCode !== 200) {
             throw new AuthError(
@@ -445,10 +498,10 @@ export const getProviderEmailByRuc = async (
         const data = apiResponse.data;
 
         return {
-            codUsuario: data.CodUsuario,
-            ruc: data.NumIdentidad,
-            nombreCompleto: data.NombreCompleto,
-            email: data.Correo,
+            codUsuario: data.codUsuario,
+            ruc: data.numIdentidad,
+            nombreCompleto: data.nombreCompleto,
+            email: data.correo,
         };
     } catch (error) {
         if (error instanceof AuthError) {

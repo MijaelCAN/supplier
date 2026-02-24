@@ -40,30 +40,57 @@ export interface CreateEvaluationRequest {
  * Interfaz para la respuesta del API (nuevo formato)
  */
 interface EvaluationApiResponse {
-    statusCode: number;
+    status_code: number;
     success: boolean;
     message: string;
     data?: any;
 }
 
 /**
- * Interfaz para un criterio de evaluación en la respuesta del GET
+ * Interfaz RAW para un criterio de evaluación en la respuesta del API (snake_case)
+ * Esta es la estructura exacta que viene del API
+ */
+export interface EvaluationCriterioResponseRaw {
+    criterio_codigo: string;
+    calificacion: number | string;
+    comentario?: string;
+    archivo_url?: string;
+}
+
+/**
+ * Interfaz RAW para obtener evaluación desde el API (snake_case)
+ * Esta es la estructura exacta que viene del API
+ */
+export interface EvaluationApiRecordRaw {
+    cod_cita: string;
+    estado: EvaluationEstado;
+    puntaje_total: number | string;
+    nivel: EvaluationNivel | string;
+    criterios: EvaluationCriterioResponseRaw[];
+    evaluador?: string;
+    fecha_evaluacion?: string;
+}
+
+/**
+ * Interfaz para un criterio de evaluación en formato interno (camelCase)
+ * Esta es la estructura que usa la aplicación internamente
  */
 export interface EvaluationCriterioResponse {
     criterioCodigo: string;
-    calificacion: number | string; // Puede venir como string desde el API
+    calificacion: number | string;
     comentario?: string;
     archivoUrl?: string;
 }
 
 /**
- * Interfaz para obtener evaluación desde el API (nuevo formato)
+ * Interfaz para obtener evaluación en formato interno (camelCase)
+ * Esta es la estructura que usa la aplicación internamente
  */
 export interface EvaluationApiRecord {
     codCita: string;
     estado: EvaluationEstado;
-    puntajeTotal: number | string; // Puede venir como string desde el API
-    nivel: EvaluationNivel | string; // Puede venir como "Regular" en lugar de "REGULAR"
+    puntajeTotal: number | string;
+    nivel: EvaluationNivel | string;
     criterios: EvaluationCriterioResponse[];
     evaluador?: string;
     fechaEvaluacion?: string;
@@ -117,6 +144,32 @@ const toNumber = (value: number | string | undefined): number => {
 };
 
 /**
+ * Mapea la respuesta RAW del API (snake_case) al formato interno (camelCase)
+ * Este es el único lugar donde se debe modificar si cambia la estructura del API
+ * 
+ * @param rawRecord - Respuesta raw del API con snake_case
+ * @returns Record en formato camelCase para uso interno
+ */
+export const mapApiResponseToEvaluationApiRecord = (
+    rawRecord: EvaluationApiRecordRaw
+): EvaluationApiRecord => {
+    return {
+        codCita: rawRecord.cod_cita,
+        estado: rawRecord.estado,
+        puntajeTotal: rawRecord.puntaje_total,
+        nivel: rawRecord.nivel,
+        evaluador: rawRecord.evaluador,
+        fechaEvaluacion: rawRecord.fecha_evaluacion,
+        criterios: rawRecord.criterios.map((criterioRaw): EvaluationCriterioResponse => ({
+            criterioCodigo: criterioRaw.criterio_codigo,
+            calificacion: criterioRaw.calificacion,
+            comentario: criterioRaw.comentario,
+            archivoUrl: criterioRaw.archivo_url,
+        })),
+    };
+};
+
+/**
  * Convierte EvaluationApiRecord (nuevo formato) a DeliveryEvaluation
  */
 export const mapApiRecordToEvaluation = (record: EvaluationApiRecord): DeliveryEvaluation => {
@@ -141,10 +194,19 @@ export const mapApiRecordToEvaluation = (record: EvaluationApiRecord): DeliveryE
             peso: getWeightForCriterio(criterio.criterioCodigo),
         };
 
-        // Manejar tanto "CANTIDAD" como "CANTIDAD_CORRECTA"
-        const criterioCodigo = criterio.criterioCodigo === 'CANTIDAD' 
-            ? EVALUATION_CRITERIA_CODES.CANTIDAD_CORRECTA 
-            : criterio.criterioCodigo;
+        // Normalizar el código del criterio (puede venir en diferentes formatos)
+        let criterioCodigo = criterio.criterioCodigo.toUpperCase().trim();
+        
+        // Manejar variaciones de nomenclatura
+        if (criterioCodigo === 'CANTIDAD' || criterioCodigo === 'CANTIDAD_CORRECTA') {
+            criterioCodigo = EVALUATION_CRITERIA_CODES.CANTIDAD_CORRECTA;
+        } else if (criterioCodigo === 'PUNTUALIDAD') {
+            criterioCodigo = EVALUATION_CRITERIA_CODES.PUNTUALIDAD;
+        } else if (criterioCodigo === 'DOCUMENTACION' || criterioCodigo === 'DOCUMENTACIÓN') {
+            criterioCodigo = EVALUATION_CRITERIA_CODES.DOCUMENTACION;
+        } else if (criterioCodigo === 'ESTADO_MERCADERIA' || criterioCodigo === 'ESTADO_MERCADERÍA') {
+            criterioCodigo = EVALUATION_CRITERIA_CODES.ESTADO_MERCADERIA;
+        }
 
         switch (criterioCodigo) {
             case EVALUATION_CRITERIA_CODES.PUNTUALIDAD:
@@ -191,10 +253,12 @@ export const mapApiRecordToEvaluation = (record: EvaluationApiRecord): DeliveryE
 };
 
 /**
- * Mapea el nivel del API al badge (maneja tanto mayúsculas como capitalizado)
+ * Mapea el nivel del API al badge (maneja diferentes formatos: mayúsculas, capitalizado, etc.)
  */
 const mapNivelToBadge = (nivel: EvaluationNivel | string): 'Excelente' | 'Bueno' | 'Regular' | 'Deficiente' => {
-    const nivelUpper = String(nivel).toUpperCase();
+    const nivelStr = String(nivel).trim();
+    const nivelUpper = nivelStr.toUpperCase();
+    
     switch (nivelUpper) {
         case 'EXCELENTE':
             return 'Excelente';
@@ -203,13 +267,15 @@ const mapNivelToBadge = (nivel: EvaluationNivel | string): 'Excelente' | 'Bueno'
         case 'REGULAR':
             return 'Regular';
         case 'DEFICIENTE':
+        case 'MALO': // Manejar "Malo" como "Deficiente"
             return 'Deficiente';
         default:
-            // Si viene capitalizado como "Regular", también funciona
-            if (String(nivel) === 'Regular') return 'Regular';
-            if (String(nivel) === 'Bueno') return 'Bueno';
-            if (String(nivel) === 'Excelente') return 'Excelente';
-            if (String(nivel) === 'Deficiente') return 'Deficiente';
+            // Si viene capitalizado
+            if (nivelStr === 'Regular') return 'Regular';
+            if (nivelStr === 'Bueno') return 'Bueno';
+            if (nivelStr === 'Excelente') return 'Excelente';
+            if (nivelStr === 'Deficiente' || nivelStr === 'Malo') return 'Deficiente';
+            // Por defecto retornar "Regular"
             return 'Regular';
     }
 };
@@ -286,7 +352,11 @@ export const fetchEvaluationByCodCita = async (codCita: string): Promise<Deliver
         return null;
     }
 
-    const record = json.data as EvaluationApiRecord;
+    // Mapear la respuesta RAW del API (snake_case) al formato interno (camelCase)
+    const rawRecord = json.data as EvaluationApiRecordRaw;
+    const record = mapApiResponseToEvaluationApiRecord(rawRecord);
+    
+    // Convertir el record interno a DeliveryEvaluation
     return mapApiRecordToEvaluation(record);
 };
 

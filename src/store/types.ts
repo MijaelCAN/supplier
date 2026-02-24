@@ -97,12 +97,12 @@ export interface ReferenciaBancaria {
 }
 
 export interface ReferenciaComercial {
-    DocEntry: string;
-    U_CardCode: string;
-    U_RazonSocial: string,
-    U_Contacto: string,
-    U_Telefonos: string,
-    registrationDate?: string;
+    doc_entry: string;
+    u_card_code: string;
+    u_razon_social: string,
+    u_contacto: string,
+    u_telefonos: string,
+    registration_date?: string;
 }
 export interface ServiciosOfrecidos {
     principalActivity: string;

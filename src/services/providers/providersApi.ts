@@ -10,87 +10,92 @@ import type { Supplier as SupplierStore } from '@/store/index';
 import {httpClient, buildSecureUrl} from "@/services/http/httpClient.ts";
 
 interface Direccion {
-    CodDireccion: string;
-    Departamento: string;
-    Direccion: string;
-    Distrito: string;
-    NroLinea: string;
-    Provincia: string;
-    Ubigeo: string;
+    cod_direccion: string;
+    departamento: string;
+    direccion: string;
+    distrito: string;
+    nro_linea: string;
+    provincia: string;
+    ubigeo  : string;
 }
 
 export interface Contacto {
-    Active: string;
-    DocEntry: string;
-    E_MailL: string;
-    Name: string;
-    Profesion: string;
-    Telefono: string;
+    active: string;
+    apellido: string;
+    doc_entry: string;
+    e_mail_l: string;
+    name: string;
+    nombre: string;
+    profesion: string;
+    segundo_nombre: string;
+    telefono: string;
 }
 
 export interface Banco {
-    Banco: string;
-    Cuenta: string;
-    Sectorista: string;
+    banco: string;
+    cuenta: string;
+    sectorista: string;
 }
 
 export interface DocumentoEvaluacion {
-    DocEntry: string;
-    U_CardCode: string;
-    U_DocumentoEvaluacion: string;
-    U_LinkDocumento: string;
-    U_NombDocu: string;
-    U_Status: string;
-    U_typeArchiv: string;
+    doc_entry: string;
+    u_card_code: string;
+    u_documento_evaluacion: string;
+    u_link_documento: string;
+    u_nomb_docu: string;
+    u_observacion: string;
+    u_status: string;
+    u_type_archiv: string;
 }
 export interface SupplierApiRecord {
-    DocEntry?: string;
-    CodigoSN: string;
-    NombreSN: string;
-    RUC: string;
-    TipoPersona: string;
-    Moneda: string;
-    Telefono1: string;
-    Telefono2: string;
-    TelefonoMovil: string;
-    Correo: string;
-    TipoDocumento: string;
-    Direccion: string;
-    Distrito: string;
-    Provincia: string;
-    Departamento: string;
-    Ubigeo: string;
-    CondicionPago: string;
-    DireccionSUNAT: string;
-    ResolucionAgenteRetencion: string;
-    ResolucionAgentePercepcion: string;
+    doc_entry?: string;
+    codigo_sn: string;
+    nombre_sn: string;
+    ruc: string;
+    tipo_persona: string;
+    moneda: string;
+    telefono1: string;
+    telefono2: string;
+    telefono_movil: string;
+    correo: string;
+    tipo_documento: string;
+    direccion: string; // falta
+    distrito: string;
+    provincia: string;
+    departamento: string;
+    ubigeo: string;
+    condicion_pago: string;
+    direccion_sunat: string;
+    resolucion_agente_retencion: string;
+    resolucion_agente_percepcion: string;
     website: string | null;
-    createDate: string;
-    updateDate: string;
-    statusContributer: string | null;
-    statusDomicilio: string | null;
-    agentePercepcion: string;
-    exoPercepcion: string;
-    agenteRetencion: string;
-    goodContributor: string;
-    economiActivitySunat: string;
+    create_date: string;
+    update_date: string;
+    status_contributer: string | null;
+    status_domicilio: string | null;
+    agente_percepcion: string;
+    exo_percepcion: string;
+    agente_retencion: string;
+    good_contributor: string;
+    economi_activity_sunat: string;
     status: string;
-    approvalDate: string;
-    coverImage: string;
-    Avatar: string;
-    generalManager: string;
-    adminManager: string;
-    salesManager: string,
-    Contactos: Contacto[];
-    Bancos: Banco[];
-    Direcciones: Direccion[];
-    DocumentoEvaluacion: DocumentoEvaluacion[];
-    ReferenciasComerciales?: ReferenciaComercial[];
+    approval_date: string;
+    cover_image: string;
+    avatar: string;
+    general_manager: string;
+    admin_manager: string;
+    sales_manager: string,
+    contactos: Contacto[];
+    bancos: Banco[];
+    direcciones: Direccion[];
+    documento_evaluacion: DocumentoEvaluacion[];
+    referencias_comerciales?: ReferenciaComercial[];
     ServiciosOfrecidos?: ServiciosOfrecidos[];
 }
 
 interface SuppliersApiResponse {
-    statusCode: number;
+    status_code: number;
+    success: boolean;
     message: string;
     data: SupplierApiRecord;
 }
@@ -140,9 +145,9 @@ const normaliseDocumentoEvaluacionKey = (key?: string): string | undefined => {
 
 const normaliseSupplierRecord = (record: SupplierApiRecord): SupplierApiRecord => ({
     ...record,
-    DocumentoEvaluacion: (record.DocumentoEvaluacion ?? []).map((doc) => ({
+    documento_evaluacion: (record.documento_evaluacion ?? []).map((doc) => ({
         ...doc,
-        U_DocumentoEvaluacion: normaliseDocumentoEvaluacionKey(doc.U_DocumentoEvaluacion) ?? '',
+        u_documento_evaluacion: normaliseDocumentoEvaluacionKey(doc.u_documento_evaluacion) ?? '',
     })),
 });
 
@@ -186,42 +191,42 @@ const generateSupplierId = () => {
 const mapApiRecordToSupplier = (record: SupplierApiRecord): Supplier => {
     const normalizedRecord = normaliseSupplierRecord(record);
     const cardCode =
-        normaliseString(normalizedRecord['CodigoSN']) ||
-        normaliseString(normalizedRecord.CodigoSN) ||
-        normaliseString(normalizedRecord.NombreSN) ||
-        normaliseString(normalizedRecord.RUC);
-    const cardName = normaliseString(normalizedRecord.NombreSN);
-    const email = normaliseString(normalizedRecord.Correo);
-    const phone = normaliseString(normalizedRecord.Telefono1) +"-"+ normaliseString(normalizedRecord.Telefono2);
-    const mobile = normaliseString(normalizedRecord.TelefonoMovil);
-    const currency = normaliseString(normalizedRecord.Moneda);
+        normaliseString(normalizedRecord['codigo_sn']) ||
+        normaliseString(normalizedRecord.codigo_sn) ||
+        normaliseString(normalizedRecord.nombre_sn) ||
+        normaliseString(normalizedRecord.ruc);
+    const cardName = normaliseString(normalizedRecord.nombre_sn);
+    const email = normaliseString(normalizedRecord.correo);
+    const phone = normaliseString(normalizedRecord.telefono1) +"-"+ normaliseString(normalizedRecord.telefono2);
+    const mobile = normaliseString(normalizedRecord.telefono_movil);
+    const currency = normaliseString(normalizedRecord.moneda);
     const website = normaliseString(normalizedRecord.website);
-    const address = normaliseString(normalizedRecord.Direccion) || normaliseString(normalizedRecord.DireccionSUNAT);
-    const paymentTerms = normaliseString(normalizedRecord.CondicionPago);
-    const personType = normaliseString(normalizedRecord.TipoPersona);
-    const documentType = normaliseString(normalizedRecord.TipoDocumento);
-    const frontPage = normalizedRecord.coverImage && normalizedRecord.coverImage.trim() !== '' ? normalizedRecord.coverImage : 'https://static.vecteezy.com/system/resources/thumbnails/019/023/718/small/robotic-arm-industrial-png.png';
+    const address = normaliseString(normalizedRecord.direccion) || normaliseString(normalizedRecord.direccion_sunat);
+    const paymentTerms = normaliseString(normalizedRecord.condicion_pago);
+    const personType = normaliseString(normalizedRecord.tipo_persona);
+    const documentType = normaliseString(normalizedRecord.tipo_documento);
+    const frontPage = normalizedRecord.cover_image && normalizedRecord.cover_image.trim() !== '' ? normalizedRecord.cover_image : 'https://static.vecteezy.com/system/resources/thumbnails/019/023/718/small/robotic-arm-industrial-png.png';
 
-    const directions: Direction[] = (normalizedRecord.Direcciones || []).map(direction =>({
-        address: direction.Direccion,
-        type: direction.CodDireccion,
-        departament: direction.Departamento,
-        province: direction.Provincia,
-        city: direction.Distrito,
-        ubigeo: normalizedRecord.Ubigeo
+    const directions: Direction[] = (normalizedRecord.direcciones || []).map(direction =>({
+        address: direction.direccion,
+        type: direction.cod_direccion,
+        departament: direction.departamento,
+        province: direction.provincia,
+        city: direction.distrito,
+        ubigeo: normalizedRecord.ubigeo
     }))
-    const persons: contactPerson[] = (normalizedRecord.Contactos || []).map(contacto =>({
-        name: contacto.Name,
-        email: contacto.E_MailL,
+    const persons: contactPerson[] = (normalizedRecord.contactos || []).map(contacto =>({
+        name: contacto.nombre,
+        email: contacto.e_mail_l,
         phone: '', // No viene de API
-        active: contacto.Active === 'Y',
-        position: contacto.Profesion
+        active: contacto.active === 'Y',
+        position: contacto.profesion
     }));
-    const bankReferences: ReferenciaBancaria[] = (normalizedRecord.Bancos || []).map(banco => ({
-        bankName: banco.Banco,
-        accountNumber: banco.Cuenta,
+    const bankReferences: ReferenciaBancaria[] = (normalizedRecord.bancos || []).map(banco => ({
+        bankName: banco.banco,
+        accountNumber: banco.cuenta,
         phoneNumber: '',     // No viene en la API, asi que valor por defecto
-        sectorista: banco.Sectorista || '',
+        sectorista: banco.sectorista || '',
         address: '',         // No viene en la API
         swiftCode: '',       // No viene en la API
         iban: '',            // No viene en la API
@@ -229,12 +234,12 @@ const mapApiRecordToSupplier = (record: SupplierApiRecord): Supplier => {
         currency: '',        // No viene en la API
         registrationDate: undefined,
     }));
-    const commercialReferences: ReferenciaComercial[] = (normalizedRecord.ReferenciasComerciales || []).map((ref) => ({
-        DocEntry: ref.DocEntry || '',
-        U_CardCode: ref.U_CardCode || '',
-        U_RazonSocial: ref.U_RazonSocial || '',
-        U_Contacto: ref.U_Contacto || '',
-        U_Telefonos: ref.U_Telefonos || '',
+    const commercialReferences: ReferenciaComercial[] = (normalizedRecord.referencias_comerciales || []).map((ref) => ({
+        doc_entry: ref.doc_entry || '',
+        u_card_code: ref.u_card_code || '',
+        u_razon_social: ref.u_razon_social || '',
+        u_contacto: ref.u_contacto || '',
+        u_telefonos: ref.u_telefonos || '',
         registrationDate: undefined,
     }));
     const serviciosOfrecidos: ServiciosOfrecidos[] = (normalizedRecord.ServiciosOfrecidos || []).map((serv) => ({
@@ -244,23 +249,23 @@ const mapApiRecordToSupplier = (record: SupplierApiRecord): Supplier => {
     }));
 
     const documents = createDefaultDocuments({
-        certificaciones: normalizedRecord.DocumentoEvaluacion?.some(doc => doc.U_DocumentoEvaluacion === 'certificaciones') ?? false,
-        referenciasBancarias: normalizedRecord.DocumentoEvaluacion?.some(doc => doc.U_DocumentoEvaluacion === 'referenciasBancarias') ?? false,
-        vigenciaPoder: normalizedRecord.DocumentoEvaluacion?.some(doc => doc.U_DocumentoEvaluacion === 'vigenciaPoder') ?? false,
-        matrizIperc: normalizedRecord.DocumentoEvaluacion?.some(doc => doc.U_DocumentoEvaluacion === 'matrizIperc') ?? false,
-        licenciaMunicipal: normalizedRecord.DocumentoEvaluacion?.some(doc => doc.U_DocumentoEvaluacion === 'licenciaMunicipal') ?? false,
-        historialPrecios: normalizedRecord.DocumentoEvaluacion?.some(doc => doc.U_DocumentoEvaluacion === 'historialPrecios') ?? false,
-        fichaRuc: normalizedRecord.DocumentoEvaluacion?.some(doc => doc.U_DocumentoEvaluacion === 'fichaRuc') ?? false,
-        referenciasComerciales: normalizedRecord.DocumentoEvaluacion?.some(doc => doc.U_DocumentoEvaluacion === 'referenciasComerciales') ?? false,
-        condicionesPago: normalizedRecord.DocumentoEvaluacion?.some(doc => doc.U_DocumentoEvaluacion === 'condicionesPago') ?? false,
-        matrizAmbiental: normalizedRecord.DocumentoEvaluacion?.some(doc => doc.U_DocumentoEvaluacion === 'matrizAmbiental') ?? false,
+        certificaciones: normalizedRecord.documento_evaluacion?.some(doc => doc.u_documento_evaluacion === 'certificaciones') ?? false,
+        referenciasBancarias: normalizedRecord.documento_evaluacion?.some(doc => doc.u_documento_evaluacion === 'referenciasBancarias') ?? false,
+        vigenciaPoder: normalizedRecord.documento_evaluacion?.some(doc => doc.u_documento_evaluacion === 'vigenciaPoder') ?? false,
+        matrizIperc: normalizedRecord.documento_evaluacion?.some(doc => doc.u_documento_evaluacion === 'matrizIperc') ?? false,
+        licenciaMunicipal: normalizedRecord.documento_evaluacion?.some(doc => doc.u_documento_evaluacion === 'licenciaMunicipal') ?? false,
+        historialPrecios: normalizedRecord.documento_evaluacion?.some(doc => doc.u_documento_evaluacion === 'historialPrecios') ?? false,
+        fichaRuc: normalizedRecord.documento_evaluacion?.some(doc => doc.u_documento_evaluacion === 'fichaRuc') ?? false,
+        referenciasComerciales: normalizedRecord.documento_evaluacion?.some(doc => doc.u_documento_evaluacion === 'referenciasComerciales') ?? false,
+        condicionesPago: normalizedRecord.documento_evaluacion?.some(doc => doc.u_documento_evaluacion === 'condicionesPago') ?? false,
+        matrizAmbiental: normalizedRecord.documento_evaluacion?.some(doc => doc.u_documento_evaluacion === 'matrizAmbiental') ?? false,
     });
 
-    const createdAt = normaliseString(normalizedRecord.createDate);
-    const updatedAt = normaliseString(normalizedRecord.updateDate);
+    const createdAt = normaliseString(normalizedRecord.create_date);
+    const updatedAt = normaliseString(normalizedRecord.update_date);
     const supplier: Supplier = {
         docEntry: cardCode || generateSupplierId(),
-        RUC: normalizedRecord.RUC,
+        RUC: normalizedRecord.ruc,
         cardCode,
         cardName,
         email,
@@ -269,17 +274,17 @@ const mapApiRecordToSupplier = (record: SupplierApiRecord): Supplier => {
         currency,
         website,
         address,
-        taxPayerCategory: normaliseString(normalizedRecord.statusContributer),
+        taxPayerCategory: normaliseString(normalizedRecord.status_contributer),
         businessType: personType || 'Proveedor',
         personType,
         documentType,
-        agenteRetencion: toBooleanFlag(normalizedRecord.agenteRetencion),
-        agentePercepcion: toBooleanFlag(normalizedRecord.agentePercepcion),
-        exoneradoPercepcion: toBooleanFlag(normalizedRecord.exoPercepcion),
-        goodContributor: normalizedRecord.goodContributor === "Y",
+        agenteRetencion: toBooleanFlag(normalizedRecord.agente_retencion),
+        agentePercepcion: toBooleanFlag(normalizedRecord.agente_percepcion),
+        exoneradoPercepcion: toBooleanFlag(normalizedRecord.exo_percepcion),
+        goodContributor: normalizedRecord.good_contributor === "Y",
         emisorFacElectronica: true,
-        estado: normaliseString(normalizedRecord.statusDomicilio),
-        condicion: normaliseString(normalizedRecord.statusContributer),
+        estado: normaliseString(normalizedRecord.status_domicilio),
+        condicion: normaliseString(normalizedRecord.status_contributer),
         status: normaliseSupplierStatus(normalizedRecord.status),
         approvalDate: updatedAt || '',
         rejectionReason: [],
@@ -292,7 +297,7 @@ const mapApiRecordToSupplier = (record: SupplierApiRecord): Supplier => {
         lastProfileUpdate: updatedAt || createdAt || '',
         coverImage: frontPage,
         //avatar: email ? `https://i.pravatar.cc/150?u=${encodeURIComponent(email)}` : '',
-        avatar: normalizedRecord.Avatar,
+        avatar: normalizedRecord.avatar,
         generalManager: '',
         adminManager: '',
         salesManager: '',
@@ -574,7 +579,7 @@ export const createSupplierProfile = async (
     let record = Array.isArray(json.data) ? json.data[0] : json.data;
 
     if (!record || typeof record === 'string') {
-        const supplierId = typeof json.data === 'string' && json.data ? json.data : payload.CodigoSN;
+        const supplierId = typeof json.data === 'string' && json.data ? json.data : payload.codigo_sn;
         const refreshed = await fetchSupplierByCardCode(supplierId);
 
         if (!refreshed || !refreshed.record) {

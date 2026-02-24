@@ -7,40 +7,40 @@ const APPOINTMENTS_ENDPOINT = '/api/Proveedores/CitasProveedor';
 const CREATE_APPOINTMENT_ENDPOINT = '/api/Proveedores/Cita';
 
 export interface AppointmentDatosTransporte {
-    U_EmpresaTransporte?: string;
-    U_NombreConductor?: string;
-    U_LicenciaConducir?: string;
-    U_PlacaVehiculo?: string;
-    U_TipoVehiculo?: string;
-    U_TelefonoContacto?: string;
-    U_HoraLlegada?: string;
-    U_Notas?: string;
+    u_empresa_transporte?: string;
+    u_nombre_conductor?: string;
+    u_licencia_conducir?: string;
+    u_placa_vehiculo?: string;
+    u_tipo_vehiculo?: string;
+    u_telefono_contacto?: string;
+    u_hora_llegada?: string;
+    u_notas?: string;
 }
 
 export interface AppointmentDocument {
-    DocumentDocEntry: string;
-    U_CodCita: string;
-    U_nameFile: string;
-    U_LinkDocumento: string;
+    document_doc_entry: string;
+    u_cod_cita: string;
+    u_name_file: string;
+    u_link_documento: string;
 }
 
 export interface AppointmentApiRecord {
-    DocEntry?: string; // ID de la cita en el sistema
-    U_Ruc: string;
-    U_RazonSocial: string;
-    U_Fecha: string; // Formato: "06-01-2026" o "19-01-2026"
-    U_HoraInicio: string; // Formato: "147" (minutos desde medianoche) o "1100" (HHMM)
-    U_HoraFin: string; // Formato: "1540" (minutos desde medianoche) o "1200" (HHMM)
-    U_Descripcion: string;
-    U_Almacen: string;
-    U_Active: string; // "Y" o "N"
-    U_Estado:  'Pendiente' | 'PackingListCompletado' | 'TransporteCompletado' | 'DocumentosCompletados' | 'ListaParaEntrega' | 'Completada' | 'Cancelada' | 'Programado';
-    DatosTransporte?: AppointmentDatosTransporte;
-    Documents?: AppointmentDocument[];
+    doc_entry?: string; // ID de la cita en el sistema
+    u_ruc: string;
+    u_razon_social: string;
+    u_fecha: string; // Formato: "06-01-2026" o "19-01-2026"
+    u_hora_inicio: string; // Formato: "147" (minutos desde medianoche) o "1100" (HHMM)
+    u_hora_fin: string; // Formato: "1540" (minutos desde medianoche) o "1200" (HHMM)
+    u_descripcion: string;
+    u_almacen: string;
+    u_active: string; // "Y" o "N"
+    u_estado:  'Pendiente' | 'PackingListCompletado' | 'TransporteCompletado' | 'DocumentosCompletados' | 'ListaParaEntrega' | 'Completada' | 'Cancelada' | 'Programado';
+    datos_transporte?: AppointmentDatosTransporte;
+    documents?: AppointmentDocument[];
 }
 
 interface AppointmentsApiResponse {
-    statusCode: number;
+    status_code: number;
     success: boolean;
     message: string;
     data: AppointmentApiRecord | AppointmentApiRecord[]; // Puede ser objeto único o array
@@ -103,9 +103,9 @@ const formatDateToISO = (dateStr: string): string => {
  * Convierte un registro de la API a DeliveryAppointment
  */
 const mapApiRecordToAppointment = (record: AppointmentApiRecord, index: number): DeliveryAppointment => {
-    const deliveryDate = formatDateToISO(record.U_Fecha);
-    const deliveryTime = minutesToTime(record.U_HoraInicio);
-    const deliveryTimeEnd = minutesToTime(record.U_HoraFin);
+    const deliveryDate = formatDateToISO(record.u_fecha);
+    const deliveryTime = minutesToTime(record.u_hora_inicio);
+    const deliveryTimeEnd = minutesToTime(record.u_hora_fin);
 
     // Tratamos la hora como UTC (lo más común y menos sorpresas)
     const startUTC = `${deliveryDate}T${deliveryTime}:00Z`;
@@ -114,108 +114,108 @@ const mapApiRecordToAppointment = (record: AppointmentApiRecord, index: number):
     const scheduledDateTime = new Date(startUTC).toISOString();
     const scheduledDateTimeEnd = new Date(endUTC).toISOString();
     // Determinar status basado en U_Estado, con fallback a REGISTRADA si no viene
-    const status: DeliveryAppointment['status'] = (record.U_Estado as DeliveryAppointment['status']) || 'REGISTRADA';
+    const status: DeliveryAppointment['status'] = (record.u_estado as DeliveryAppointment['status']) || 'REGISTRADA';
 
     // Generar ID único
-    const id = `apt-api-${record.U_Ruc}-${record.U_Fecha}-${index}-${Date.now()}`;
+    const id = `apt-api-${record.u_ruc}-${record.u_fecha}-${index}-${Date.now()}`;
     
     // Generar número de cita
-    const appointmentNumber = `CITA-${record.U_Ruc.substring(0, 4)}-${record.U_Fecha.replace(/-/g, '')}`;
+    const appointmentNumber = `CITA-${record.u_ruc.substring(0, 4)}-${record.u_fecha.replace(/-/g, '')}`;
     
     // Mapear datos de transporte si existen
-    const transportData = record.DatosTransporte && Object.keys(record.DatosTransporte).length > 0 ? {
+    const transportData = record.datos_transporte && Object.keys(record.datos_transporte).length > 0 ? {
         id: `transport-${id}`,
         appointmentId: id,
-        transportCompany: record.DatosTransporte.U_EmpresaTransporte || '',
-        driverName: record.DatosTransporte.U_NombreConductor || '',
-        driverLicense: record.DatosTransporte.U_LicenciaConducir || '',
-        vehiclePlate: record.DatosTransporte.U_PlacaVehiculo || '',
-        vehicleType: record.DatosTransporte.U_TipoVehiculo || '',
-        contactPhone: record.DatosTransporte.U_TelefonoContacto || '',
-        estimatedArrival: record.DatosTransporte.U_HoraLlegada || '',
-        notes: record.DatosTransporte.U_Notas || '',
+        transportCompany: record.datos_transporte.u_empresa_transporte || '',
+        driverName: record.datos_transporte.u_nombre_conductor || '',
+        driverLicense: record.datos_transporte.u_licencia_conducir || '',
+        vehiclePlate: record.datos_transporte.u_placa_vehiculo || '',
+        vehicleType: record.datos_transporte.u_tipo_vehiculo || '',
+        contactPhone: record.datos_transporte.u_telefono_contacto || '',
+        estimatedArrival: record.datos_transporte.u_hora_llegada || '',
+        notes: record.datos_transporte.u_notas || '',
         completed: true,
         completedDate: new Date().toISOString(),
     } : undefined;
 
     // Mapear documentos si existen
-    const documents = record.Documents && record.Documents.length > 0 ? {
+    const documents = record.documents && record.documents.length > 0 ? {
         invoice: (() => {
-            const doc = record.Documents.find(d => {
-                const name = d.U_nameFile.toLowerCase();
+            const doc = record.documents.find(d => {
+                const name = d.u_name_file.toLowerCase();
                 return name.includes('fac') || name.includes('invoice');
             });
             return doc ? {
-                id: doc.DocumentDocEntry,
-                name: doc.U_nameFile,
-                type: doc.U_nameFile.split('.').pop() || 'pdf',
-                url: doc.U_LinkDocumento,
+                id: doc.document_doc_entry,
+                name: doc.u_name_file,
+                type: doc.u_name_file.split('.').pop() || 'pdf',
+                url: doc.u_link_documento,
                 uploadDate: new Date().toISOString(),
                 uploadedBy: 'system'
             } : undefined;
         })(),
         purchaseOrder: (() => {
-            const doc = record.Documents.find(d => {
-                const name = d.U_nameFile.toLowerCase();
+            const doc = record.documents.find(d => {
+                const name = d.u_name_file.toLowerCase();
                 return name.includes('oc') || name.includes('order');
             });
             return doc ? {
-                id: doc.DocumentDocEntry,
-                name: doc.U_nameFile,
-                type: doc.U_nameFile.split('.').pop() || 'pdf',
-                url: doc.U_LinkDocumento,
+                id: doc.document_doc_entry,
+                name: doc.u_name_file,
+                type: doc.u_name_file.split('.').pop() || 'pdf',
+                url: doc.u_link_documento,
                 uploadDate: new Date().toISOString(),
                 uploadedBy: 'system'
             } : undefined;
         })(),
         deliveryGuide: (() => {
-            const doc = record.Documents.find(d => {
-                const name = d.U_nameFile.toLowerCase();
+            const doc = record.documents.find(d => {
+                const name = d.u_name_file.toLowerCase();
                 return name.includes('guia') || name.includes('guide');
             });
             return doc ? {
-                id: doc.DocumentDocEntry,
-                name: doc.U_nameFile,
-                type: doc.U_nameFile.split('.').pop() || 'pdf',
-                url: doc.U_LinkDocumento,
+                id: doc.document_doc_entry,
+                name: doc.u_name_file,
+                type: doc.u_name_file.split('.').pop() || 'pdf',
+                url: doc.u_link_documento,
                 uploadDate: new Date().toISOString(),
                 uploadedBy: 'system'
             } : undefined;
         })(),
         cdr: (() => {
-            const doc = record.Documents.find(d => d.U_nameFile.toLowerCase().includes('cdr'));
+            const doc = record.documents.find(d => d.u_name_file.toLowerCase().includes('cdr'));
             return doc ? {
-                id: doc.DocumentDocEntry,
-                name: doc.U_nameFile,
-                type: doc.U_nameFile.split('.').pop() || 'pdf',
-                url: doc.U_LinkDocumento,
+                id: doc.document_doc_entry,
+                name: doc.u_name_file,
+                type: doc.u_name_file.split('.').pop() || 'pdf',
+                url: doc.u_link_documento,
                 uploadDate: new Date().toISOString(),
                 uploadedBy: 'system'
             } : undefined;
         })(),
         xml: (() => {
-            const doc = record.Documents.find(d => d.U_nameFile.toLowerCase().includes('xml'));
+            const doc = record.documents.find(d => d.u_name_file.toLowerCase().includes('xml'));
             return doc ? {
-                id: doc.DocumentDocEntry,
-                name: doc.U_nameFile,
-                type: doc.U_nameFile.split('.').pop() || 'xml',
-                url: doc.U_LinkDocumento,
+                id: doc.document_doc_entry,
+                name: doc.u_name_file,
+                type: doc.u_name_file.split('.').pop() || 'xml',
+                url: doc.u_link_documento,
                 uploadDate: new Date().toISOString(),
                 uploadedBy: 'system'
             } : undefined;
         })(),
         id: `docs-${id}`,
         appointmentId: id,
-        otherDocuments: record.Documents.filter(doc => {
-            const name = doc.U_nameFile.toLowerCase();
+        otherDocuments: record.documents.filter(doc => {
+            const name = doc.u_name_file.toLowerCase();
             return !name.includes('fac') && !name.includes('invoice') && !name.includes('oc') && 
                    !name.includes('order') && !name.includes('guia') && !name.includes('guide') && 
                    !name.includes('cdr') && !name.includes('xml');
         }).map(doc => ({
-            id: doc.DocumentDocEntry,
-            name: doc.U_nameFile,
-            type: doc.U_nameFile.split('.').pop() || 'unknown',
-            url: doc.U_LinkDocumento,
+            id: doc.document_doc_entry,
+            name: doc.u_name_file,
+            type: doc.u_name_file.split('.').pop() || 'unknown',
+            url: doc.u_link_documento,
             uploadDate: new Date().toISOString(),
             uploadedBy: 'system'
         })),
@@ -226,10 +226,10 @@ const mapApiRecordToAppointment = (record: AppointmentApiRecord, index: number):
     return {
         id,
         appointmentNumber,
-        docEntry: record.DocEntry || id, // Usar DocEntry del API (viene del listado)
-        supplierId: record.U_Ruc, // Usar RUC como supplierId temporalmente
-        supplierRUC: record.U_Ruc,
-        supplierName: record.U_RazonSocial,
+        docEntry: record.doc_entry || id, // Usar DocEntry del API (viene del listado)
+        supplierId: record.u_ruc, // Usar RUC como supplierId temporalmente
+        supplierRUC: record.u_ruc,
+        supplierName: record.u_razon_social,
         supplierEmail: '', // No viene en la API
         supplierPhone: '', // No viene en la API
         deliveryDate,
@@ -240,8 +240,8 @@ const mapApiRecordToAppointment = (record: AppointmentApiRecord, index: number):
         status,
         createdBy: 'system',
         createdDate: new Date().toISOString(),
-        notes: record.U_Descripcion,
-        warehouse: record.U_Almacen,
+        notes: record.u_descripcion,
+        warehouse: record.u_almacen,
         transportData,
         documents,
         notificationSent: false,
@@ -344,26 +344,30 @@ export const fetchAppointmentsFromApi = async (
     return records.map((record, index) => mapApiRecordToAppointment(record, index));
 };
 
+
+
+
+
 /**
- * Interfaz para crear una nueva cita
+ * INTERFAZ PARA CREAR UNA NUEVA CITA
  */
 export interface CreateAppointmentRequest {
-    u_Ruc: string;
-    u_RazonSocial: string;
-    u_Fecha: string; // Formato: "20260108" (YYYYMMDD)
-    u_HoraInicio: string; // Formato: "10:47:41" (HH:MM:SS)
-    u_HoraFin: string; // Formato: "12:40:41" (HH:MM:SS)
-    u_Descripcion: string;
-    u_Almacen: string;
-    U_Active: string; // "Y" o "N"
-    U_Estado: string; // Estado de la cita (ej: "PENDIENTE")
+    u_ruc: string;
+    u_razon_social: string;
+    u_fecha: string; // Formato: "20260108" (YYYYMMDD)
+    u_hora_inicio: string; // Formato: "10:47:41" (HH:MM:SS)
+    u_hora_fin: string; // Formato: "12:40:41" (HH:MM:SS)
+    u_descripcion: string;
+    u_almacen: string;
+    u_active: string; // "Y" o "N"
+    u_estado: string; // Estado de la cita (ej: "PENDIENTE")
 }
 
 /**
  * Respuesta al crear una cita
  */
 interface CreateAppointmentResponse {
-    statusCode: number;
+    status_code: number;
     success: boolean;
     message: string;
     data: string; // ID de la cita creada
@@ -392,15 +396,15 @@ export const createAppointmentInApi = async (
     
     // Preparar el request body con el formato correcto
     const requestBody: CreateAppointmentRequest = {
-        u_Ruc: appointmentData.u_Ruc,
-        u_RazonSocial: appointmentData.u_RazonSocial,
-        u_Fecha: appointmentData.u_Fecha,
-        u_HoraInicio: formatTimeToSeconds(appointmentData.u_HoraInicio),
-        u_HoraFin: formatTimeToSeconds(appointmentData.u_HoraFin),
-        u_Descripcion: appointmentData.u_Descripcion || '',
-        u_Almacen: appointmentData.u_Almacen || '',
-        U_Active: appointmentData.U_Active || 'Y',
-        U_Estado: appointmentData.U_Estado || 'REGISTRADA'
+        u_ruc: appointmentData.u_ruc,
+        u_razon_social: appointmentData.u_razon_social,
+        u_fecha: appointmentData.u_fecha,
+        u_hora_inicio: formatTimeToSeconds(appointmentData.u_hora_inicio),
+        u_hora_fin: formatTimeToSeconds(appointmentData.u_hora_fin),
+        u_descripcion: appointmentData.u_descripcion || '',
+        u_almacen: appointmentData.u_almacen || '',
+        u_active: appointmentData.u_active || 'Y',
+        u_estado: appointmentData.u_estado || 'REGISTRADA'
     };
     
     const response = await httpClient(url, {
@@ -418,7 +422,7 @@ export const createAppointmentInApi = async (
     
     const json = (await response.json()) as CreateAppointmentResponse;
     
-    if (!json || json.statusCode !== 201) {
+    if (!json || json.status_code !== 201) {
         throw new Error(json.message || 'Error al crear la cita');
     }
     
@@ -430,15 +434,15 @@ export const createAppointmentInApi = async (
  * Interfaz para actualizar una cita existente
  */
 export interface UpdateAppointmentRequest {
-    u_Ruc: string;
-    u_RazonSocial: string;
-    u_Fecha: string; // Formato: "20260108" (YYYYMMDD)
-    u_HoraInicio: string; // Formato: "10:00:00" (HH:MM:SS)
-    u_HoraFin: string; // Formato: "13:00:00" (HH:MM:SS)
-    u_Descripcion: string;
-    u_Almacen: string;
-    u_Active: string; // "Y" o "N"
-    U_Estado?: string; // Estado de la cita (ej: "Programado", "PENDIENTE")
+    u_ruc: string;
+    u_razon_social: string;
+    u_fecha: string; // Formato: "20260108" (YYYYMMDD)
+    u_hora_inicio: string; // Formato: "10:00:00" (HH:MM:SS)
+    u_hora_fin: string; // Formato: "13:00:00" (HH:MM:SS)
+    u_descripcion: string;
+    u_almacen: string;
+    u_active: string; // "Y" o "N"
+    u_estado?: string; // Estado de la cita (ej: "Programado", "PENDIENTE")
 }
 
 /**
@@ -465,15 +469,15 @@ export const updateAppointmentInApi = async (
     
     // Preparar el request body con el formato correcto
     const requestBody: UpdateAppointmentRequest = {
-        u_Ruc: appointmentData.u_Ruc,
-        u_RazonSocial: appointmentData.u_RazonSocial,
-        u_Fecha: appointmentData.u_Fecha,
-        u_HoraInicio: formatTimeToSeconds(appointmentData.u_HoraInicio),
-        u_HoraFin: formatTimeToSeconds(appointmentData.u_HoraFin),
-        u_Descripcion: appointmentData.u_Descripcion || '',
-        u_Almacen: appointmentData.u_Almacen || '',
-        u_Active: appointmentData.u_Active || 'Y',
-        U_Estado: appointmentData.U_Estado
+        u_ruc: appointmentData.u_ruc,
+        u_razon_social: appointmentData.u_razon_social,
+        u_fecha: appointmentData.u_fecha,
+        u_hora_inicio: formatTimeToSeconds(appointmentData.u_hora_inicio),
+        u_hora_fin: formatTimeToSeconds(appointmentData.u_hora_fin),
+        u_descripcion: appointmentData.u_descripcion || '',
+        u_almacen: appointmentData.u_almacen || '',
+        u_active: appointmentData.u_active || 'Y',
+        u_estado: appointmentData.u_estado || 'REGISTRADA'
     };
     
     const response = await httpClient(url, {

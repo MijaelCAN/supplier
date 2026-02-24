@@ -8,15 +8,15 @@ const CHOFERES_ENDPOINT = '/api/Documentos/Choferes';
  * Interfaz para la petición de crear un chofer
  */
 export interface CreateChoferRequest {
-    U_EmpresaTransporte: string;
-    U_NombreConductor: string;
-    U_LicenciaConducir: string;
-    U_PlacaVehiculo: string;
-    U_TipoVehiculo: string;
-    U_TelefonoContacto: string;
-    U_HoraLlegada: string;
-    U_Notas: string;
-    U_CodCita: string;
+    u_empresa_transporte: string;
+    u_nombre_conductor: string;
+    u_licencia_conducir: string;
+    u_placa_vehiculo: string;
+    u_tipo_vehiculo: string;
+    u_telefono_contacto: string;
+    u_hora_llegada: string;
+    u_notas: string;
+    u_cod_cita: string;
 }
 
 /**
@@ -38,7 +38,7 @@ export interface CreateChoferResponse {
  * Interfaz para la respuesta del API
  */
 interface ChoferApiResponse {
-    statusCode: number;
+    status_code: number;
     success: boolean;
     message: string;
     data: null;
@@ -56,15 +56,15 @@ export const createChoferInApi = async (
     
     // Preparar el request body
     const requestBody: CreateChoferRequest = {
-        U_EmpresaTransporte: choferData.U_EmpresaTransporte || '',
-        U_NombreConductor: choferData.U_NombreConductor || '',
-        U_LicenciaConducir: choferData.U_LicenciaConducir || '',
-        U_PlacaVehiculo: choferData.U_PlacaVehiculo || '',
-        U_TipoVehiculo: choferData.U_TipoVehiculo || '',
-        U_TelefonoContacto: choferData.U_TelefonoContacto || '',
-        U_HoraLlegada: choferData.U_HoraLlegada || '',
-        U_Notas: choferData.U_Notas || '',
-        U_CodCita: choferData.U_CodCita || ''
+        u_empresa_transporte: choferData.u_empresa_transporte || '',
+        u_nombre_conductor: choferData.u_nombre_conductor || '',
+        u_licencia_conducir: choferData.u_licencia_conducir || '',
+        u_placa_vehiculo: choferData.u_placa_vehiculo || '',
+        u_tipo_vehiculo: choferData.u_tipo_vehiculo || '',
+        u_telefono_contacto: choferData.u_telefono_contacto || '',
+        u_hora_llegada: choferData.u_hora_llegada || '',
+        u_notas: choferData.u_notas || '',
+        u_cod_cita: choferData.u_cod_cita || ''
     };
     
     const response = await httpClient(url, {
@@ -74,6 +74,8 @@ export const createChoferInApi = async (
         },
         body: JSON.stringify(requestBody),
     });
+
+    console.log("DCR-RESPONSE", response);
     
     if (!response.ok) {
         const errorText = await response.text().catch(() => 'Error desconocido');
@@ -88,7 +90,7 @@ export const createChoferInApi = async (
     }
     
     // Validar que la operación fue exitosa
-    if (!json.success || (json.statusCode !== 200 && json.statusCode !== 201)) {
+    if (!json.success || (json.status_code !== 200 && json.status_code !== 201)) {
         throw new Error(json.message || 'Error al crear el chofer');
     }
     

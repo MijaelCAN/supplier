@@ -61,15 +61,15 @@ const mapRecordDetalleToPurchaseItems = (recordItems: ItemsApi[]): OrderItem[] =
     return recordItems.map( item => ({
         ...item,
         id: '',
-        productCode: item.ItemCode,
-        productName: item.Description,
-        description: item.Description,
-        quantity: Number(item.Quantity),
-        unitPrice: Number(item.PrecioUnitario),
-        totalPrice: Number(item.LineTotal),
-        state: item.EstadoLinea,
+        productCode: item.item_code,
+        productName: item.description,
+        description: item.description,
+        quantity: Number(item.quantity),
+        unitPrice: Number(item.precio_unitario),
+        totalPrice: Number(item.line_total),
+        state: item.estado_linea,
         unit: '',
-        qtyPend: Number(item.QtyPend),
+        qtyPend: Number(item.qty_pend),
         category: '',
     }))
 }
@@ -77,25 +77,25 @@ const mapRecordDetalleToPurchaseItems = (recordItems: ItemsApi[]): OrderItem[] =
 
 const mapRecordOrdersToPurchaseOrders = (record: Order): PurchaseOrder => {
     return {
-        id: record.DocEntry?.toString() || '',
-        orderNumber:`OC-${record.DocNum}`,
-        supplierId: record.CardCode,
-        supplierName: record.CardName,
-        items: mapRecordDetalleToPurchaseItems(record.Detalle || []),
-        totalAmount: parseFloat((record.Total || "0").replace(",", ".")) || 0,
-        currency: record.DocCur === 'S/'? 'PEN' : 'USD',
-        status: record.EstadoDocumento == "Cerrado" ? 'Completada' : 'En Proceso', // | "Pendiente" | "Aprobada" | "En Proceso" | "Completada" | "Cancelada"
+        id: record.doc_entry?.toString() || '',
+        orderNumber:record.doc_num,
+        supplierId: record.card_code,
+        supplierName: record.card_name,
+        items: mapRecordDetalleToPurchaseItems(record.detalle || []),
+        totalAmount: parseFloat((record.total || "0").replace(",", ".")) || 0,
+        currency: record.doc_cur === 'S/'? 'PEN' : 'USD',
+        status: record.estado_documento == "Cerrado" ? 'Completada' : 'En Proceso', // | "Pendiente" | "Aprobada" | "En Proceso" | "Completada" | "Cancelada"
         priority: "Baja", //| "Media" | "Alta" | "Urgente"
-        createdDate: record.TaxDate,
-        approvedDate: record.TaxDate,
+        createdDate: record.tax_date,
+        approvedDate: record.tax_date,
         deliveryDate: "",
-        paymentTerms: record.CondicionPago,
+        paymentTerms: record.condicion_pago,
         notes: "",
         createdBy: "",
         approvedBy: "",
         department: "",
-        requestedBy: record.EncargadoCompras,
-        avance: Number(record.AvanceRecepcion)
+        requestedBy: record.encargado_compras,
+        avance: Number(record.avance_recepcion)
     }
 }
 

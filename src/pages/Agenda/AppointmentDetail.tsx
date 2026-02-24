@@ -231,9 +231,9 @@ const AppointmentDetail: React.FC = () => {
         // Si hay documentos del API, usarlos directamente
         if (appointmentDocuments.length > 0) {
             return appointmentDocuments.map(doc => ({
-                name: doc.U_nameFile,
-                url: doc.U_LinkDocumento,
-                type: doc.U_nameFile.split('.').pop()?.toLowerCase() || 'unknown'
+                name: doc.u_name_file,
+                url: doc.u_link_documento,
+                type: doc.u_name_file.split('.').pop()?.toLowerCase() || 'unknown'
             }));
         }
         
@@ -403,7 +403,7 @@ const AppointmentDetail: React.FC = () => {
             label: 'PackingList',
             icon: ClipboardDocumentListIcon,
             completed: packingListsFromApi.length > 0,
-            active: packingListsFromApi.length === 0 && appointment.status === 'Pendiente',
+            active: packingListsFromApi.length === 0 && appointment.status === 'REGISTRADA',
         },
         {
             label: 'Transporte',
@@ -501,15 +501,15 @@ const AppointmentDetail: React.FC = () => {
             const allPackingLists = await fetchPackingListFromApi(fechaInicio, fechaFin, codCita);
             
             const matchingPackingLists = allPackingLists.filter(pl => {
-                if (!pl.Number) return false;
-                const numberStr = String(pl.Number).trim();
+                if (!pl.number) return false;
+                const numberStr = String(pl.number).trim();
                 return numberStr.startsWith(`${docNum}_`);
             });
             
             let maxCorrelative = 0;
             matchingPackingLists.forEach(pl => {
-                if (pl.Number) {
-                    const numberStr = String(pl.Number).trim();
+                if (pl.number) {
+                    const numberStr = String(pl.number).trim();
                     const parts = numberStr.split('_');
                     if (parts.length >= 2) {
                         const correlativeStr = parts[parts.length - 1];
@@ -837,15 +837,15 @@ const AppointmentDetail: React.FC = () => {
         try {
             // Preparar los datos para el API
             const choferData = {
-                u_EmpresaTranspote: transportForm.transportCompany || '',
-                u_NombreConductor: transportForm.driverName || '',
-                u_LicenciaConducir: transportForm.driverLicense || '',
-                u_PlacaVehiculo: transportForm.vehiclePlate || '',
-                u_TipoVehiculo: transportForm.vehicleType || '',
-                u_TelefonoContacto: transportForm.contactPhone || '',
-                u_HoraLlegada: transportForm.estimatedArrival || '',
-                u_Notas: transportForm.notes || '',
-                u_CodCita: appointment.docEntry
+                u_empresa_transporte: transportForm.transportCompany || '',
+                u_nombre_conductor: transportForm.driverName || '',
+                u_licencia_conducir: transportForm.driverLicense || '',
+                u_placa_vehiculo: transportForm.vehiclePlate || '',
+                u_tipo_vehiculo: transportForm.vehicleType || '',
+                u_telefono_contacto: transportForm.contactPhone || '',
+                u_hora_llegada: transportForm.estimatedArrival || '',
+                u_notas: transportForm.notes || '',
+                u_cod_cita: appointment.docEntry
             };
 
             // Llamar al API para crear el chofer
@@ -1170,7 +1170,7 @@ const AppointmentDetail: React.FC = () => {
                                         variant="flat"
                                         size="lg"
                                         startContent={
-                                            appointment.status === 'Completada' ? (
+                                            appointment.status === 'ENTREGADO' ? (
                                                 <CheckCircleIcon className="w-4 h-4" />
                                             ) : appointment.status === 'Cancelada' ? (
                                                 <XCircleIcon className="w-4 h-4" />
@@ -1362,11 +1362,11 @@ const AppointmentDetail: React.FC = () => {
                                         <TableBody>
                                             {packingListsFromApi.map((pl) => {
                                                 // Obtener el detalle (puede venir en cualquiera de los dos campos)
-                                                const detalle = pl.DetallePackinList || pl._detallePackinList || [];
+                                                const detalle = pl.detalle_packin_list || pl.DetallePackinList || [];
                                                 
                                                 return (
                                                     <TableRow 
-                                                        key={pl.Id}
+                                                        key={pl.id}
                                                         className="cursor-pointer hover:bg-gray-50 transition-colors"
                                                         onClick={() => {
                                                             setSelectedPackingList(pl);
@@ -1375,30 +1375,30 @@ const AppointmentDetail: React.FC = () => {
                                                     >
                                                         <TableCell className="whitespace-nowrap font-medium">
                                                             <div className="flex items-center gap-2">
-                                                                {pl.Number}
+                                                                {pl.number}
                                                             </div>
                                                         </TableCell>
-                                                        <TableCell className="whitespace-nowrap">{pl.WhsCode}</TableCell>
-                                                        <TableCell className="whitespace-nowrap">{pl.Ticket || '-'}</TableCell>
+                                                        <TableCell className="whitespace-nowrap">{pl.whs_code}</TableCell>
+                                                        <TableCell className="whitespace-nowrap">{pl.ticket || '-'}</TableCell>
                                                         <TableCell className="whitespace-nowrap">
-                                                            {typeof pl.DateExpected === 'string' 
-                                                                ? pl.DateExpected.split('T')[0].split(' ')[0] 
-                                                                : pl.DateExpected
+                                                            {typeof pl.date_expected === 'string'
+                                                                ? pl.date_expected.split('T')[0].split(' ')[0]
+                                                                : pl.date_expected
                                                             }
                                                         </TableCell>
                                                         <TableCell className="whitespace-nowrap">
-                                                            {pl.EmissionDate 
-                                                                ? (typeof pl.EmissionDate === 'string' 
-                                                                    ? pl.EmissionDate.split('T')[0].split(' ')[0] 
-                                                                    : pl.EmissionDate
+                                                            {pl.emission_date
+                                                                ? (typeof pl.emission_date === 'string'
+                                                                    ? pl.emission_date.split('T')[0].split(' ')[0]
+                                                                    : pl.emission_date
                                                                 )
                                                                 : '-'
                                                             }
                                                         </TableCell>
                                                         <TableCell className="whitespace-nowrap">
-                                                            {pl.InboundType ? (
-                                                                <Chip size="sm" variant="flat" color={pl.InboundType === 'OCNAC' ? 'primary' : 'secondary'}>
-                                                                    {pl.InboundType}
+                                                            {pl.inbound_type ? (
+                                                                <Chip size="sm" variant="flat" color={pl.inbound_type === 'OCNAC' ? 'primary' : 'secondary'}>
+                                                                    {pl.inbound_type}
                                                                 </Chip>
                                                             ) : (
                                                                 '-'
@@ -1408,19 +1408,19 @@ const AppointmentDetail: React.FC = () => {
                                                             {detalle.length}
                                                         </TableCell>
                                                             <TableCell>
-                                                                <div className="max-w-[200px] truncate" title={pl.Comments || ''}>
-                                                                    {pl.Comments || '-'}
+                                                                <div className="max-w-[200px] truncate" title={pl.comments || ''}>
+                                                                    {pl.comments || '-'}
                                                                 </div>
                                                             </TableCell>
                                                             <TableCell>
-                                                                {pl.WmsResponse ? (
+                                                                {pl.wms_response ? (
                                                                     <Chip 
                                                                         size="sm" 
-                                                                        color={pl.WmsResponse.includes('Procesado') || pl.WmsResponse.includes('Transferido') ? 'success' : 'warning'}
+                                                                        color={pl.wms_response.includes('Procesado') || pl.wms_response.includes('Transferido') ? 'success' : 'warning'}
                                                                         variant="flat"
                                                                     >
-                                                                        <div className="max-w-[150px] truncate" title={pl.WmsResponse}>
-                                                                            {pl.WmsResponse}
+                                                                        <div className="max-w-[150px] truncate" title={pl.wms_response}>
+                                                                            {pl.wms_response}
                                                                         </div>
                                                                     </Chip>
                                                                 ) : (
@@ -1474,7 +1474,7 @@ const AppointmentDetail: React.FC = () => {
                             </ModalHeader>
                             <ModalBody className="pb-6">
                                 {selectedPackingList && (() => {
-                                    const detalle = selectedPackingList.DetallePackinList || selectedPackingList._detallePackinList || [];
+                                    const detalle = selectedPackingList.detalle_packin_list || selectedPackingList.DetallePackinList || [];
                                     
                                     return (
                                         <>
@@ -1489,9 +1489,9 @@ const AppointmentDetail: React.FC = () => {
                                                         </TableHeader>
                                                         <TableBody>
                                                             {detalle.map((item: any, index: number) => {
-                                                                const lineNumber = item.LineNumber || item.lineNumber || index + 1;
-                                                                const itemCode = item.ItemCode || item.itemCode || '';
-                                                                const itemName = item.ItemName || item.itemName || '';
+                                                                const lineNumber = item.LineNumber || item.line_number || index + 1;
+                                                                const itemCode = item.ItemCode || item.item_code || '';
+                                                                const itemName = item.ItemName || item.item_name || '';
                                                                 const quantity = item.Quantity || item.quantity || 0;
                                                                 return (
                                                                     <TableRow key={index}>
@@ -1888,8 +1888,8 @@ const AppointmentDetail: React.FC = () => {
                                                     selectionMode="single"
                                                 >
                                                     {warehouses.map((warehouse) => (
-                                                        <SelectItem key={warehouse.Codigo} textValue={`${warehouse.Almacen} (${warehouse.Codigo})`}>
-                                                            {warehouse.Almacen} ({warehouse.Codigo})
+                                                        <SelectItem key={warehouse.codigo} textValue={`${warehouse.almacen} (${warehouse.codigo})`}>
+                                                            {warehouse.almacen} ({warehouse.codigo})
                                                         </SelectItem>
                                                     ))}
                                                 </Select>
@@ -2111,14 +2111,14 @@ const AppointmentDetail: React.FC = () => {
                                                                         }));
                                                                         
                                                                         const items: PackingListItem[] = detailItems.map((item, index: number) => {
-                                                                            const marca = item.Marca?.toLowerCase() === 'true' || item.Marca === '1';
-                                                                            const cantidadOC = parseFloat(item["Cantidad OC"] || item.CantidadOC || "0");
-                                                                            const pendiente = parseFloat(item.Pendiente || "0");
+                                                                            const marca = item.marca?.toLowerCase() === 'true' || item.marca === '1';
+                                                                            const cantidadOC = parseFloat(item["cantidad oc"] || item.cantidad_oc || "0");
+                                                                            const pendiente = parseFloat(item.pendiente || "0");
                                                                             
                                                                             return {
-                                                                                id: `${doc.DocNum}-${item.Artículo}-${index}`,
-                                                                                productCode: item.Artículo,
-                                                                                productName: item.Descripción,
+                                                                                id: `${doc.DocNum}-${item.artículo}-${index}`,
+                                                                                productCode: item.artículo,
+                                                                                productName: item.descripción,
                                                                                 quantity: 0,
                                                                                 pendingQuantity: pendiente,
                                                                                 cantidadOC: cantidadOC,
