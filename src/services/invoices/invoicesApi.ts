@@ -259,7 +259,7 @@ type SchedulePaymentInvoice = {
 };
 
 interface SchedulePaymentResponse {
-    statusCode: number;
+    status_code: number;
     success: boolean;
     message: string;
     data: any;
@@ -285,20 +285,20 @@ export const schedulePaymentInvoices = async (
             : String((invoice as Invoice & { importePagar?: number }).importePagar || 0);
         
         return {
-            u_CodProveedor: supplierId,
-            u_FechaCompromisoPago: scheduleDate, // Formato: YYYY-MM-DD
-            u_NFactura: invoice.invoiceNumber || invoice.purchaseOrderId,
-            u_NombreProveedor: invoice.supplierName || '',
-            u_Ruc: supplierRUC,
-            u_FechaEmision: invoice.receivedDate || '',
-            u_FechaVencimiento: invoice.dueDate || '',
-            u_Retencion: String(invoice.retention || 0),
-            u_FechaContabilicacion: (invoice as Invoice & { taxDate?: string }).taxDate || invoice.receivedDate || '',
-            u_ImporteFactura: String(invoice.amount || 0),
-            u_ImportePagar: importePagar,
-            u_TotalPagar: String(invoice.saldo || invoice.amount || 0),
-            u_Estado: 'Y',
-            u_Comentario: '' // Campo de comentario, por ahora vacío
+            u_cod_proveedor: supplierId,
+            u_fecha_compromiso_pago: scheduleDate, // Formato: YYYY-MM-DD
+            u_n_factura: invoice.invoiceNumber || invoice.purchaseOrderId,
+            u_nombre_proveedor: invoice.supplierName || '',
+            u_ruc: supplierRUC,
+            u_fecha_emision: invoice.receivedDate || '',
+            u_fecha_vencimiento: invoice.dueDate || '',
+            u_retencion: String(invoice.retention || 0),
+            u_fecha_contabilicacion: (invoice as Invoice & { taxDate?: string }).taxDate || invoice.receivedDate || '',
+            u_importe_factura: String(invoice.amount || 0),
+            u_importe_pagar: importePagar,
+            u_total_pagar: String(invoice.saldo || invoice.amount || 0),
+            u_estado: 'Y',
+            u_comentario: '' // Campo de comentario, por ahora vacío
         };
     });
     

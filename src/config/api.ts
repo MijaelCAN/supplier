@@ -9,13 +9,11 @@
  */
 const resolveEnv = (key: string): string | undefined => {
     if (key in import.meta.env && typeof import.meta.env[key] === 'string') {
-        console.log("Key: ", import.meta.env[key] )
         return import.meta.env[key] as string;
     }
 
     const viteKey = `VITE_${key}`;
     if (viteKey in import.meta.env && typeof import.meta.env[viteKey] === 'string') {
-        console.log(`Vite key: ${viteKey}`);
         return import.meta.env[viteKey] as string;
     }
 
@@ -35,6 +33,5 @@ const resolveEnv = (key: string): string | undefined => {
  * @returns URL base del API (ej: http://192.168.254.27:8046)
  */
 export const getApiBaseUrl = (): string => {
-    console.log("BASE URL: ", resolveEnv('VITE_BASE_URL') || 'http://192.168.254.27:8046')
     return resolveEnv('VITE_BASE_URL') || 'http://192.168.254.27:8046';
 };

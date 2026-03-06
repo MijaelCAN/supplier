@@ -341,7 +341,7 @@ const buildEndpointUrl = (cardCode?: string) => {
     return json;
 };*/
 type SuppliersApiListResponse = {
-    statusCode: number;
+    status_code: number;
     message: string;
     data: SupplierApiRecord[];
     total?: number;
@@ -561,7 +561,7 @@ export const createSupplierProfile = async (
         body: JSON.stringify(payload),
     });
 
-    // Primero parsear el JSON para verificar el statusCode
+    // Primero parsear el JSON para verificar el status_code
     let json;
     try {
         json = await response.json();
@@ -569,9 +569,9 @@ export const createSupplierProfile = async (
         throw new Error('No se pudo parsear la respuesta del servidor.');
     }
 
-    // Verificar si hay un error en el statusCode (cualquier código >= 400 o statusCode en el JSON)
-    if (!response.ok || (json.statusCode && json.statusCode >= 400)) {
-        const errorMessage = json.message || `Error al crear el proveedor (${json.statusCode || response.status})`;
+    // Verificar si hay un error en el status_code (cualquier código >= 400 o status_code en el JSON)
+    if (!response.ok || (json.status_code && json.status_code >= 400)) {
+        const errorMessage = json.message || `Error al crear el proveedor (${json.status_code || response.status})`;
         throw new Error(errorMessage);
     }
 

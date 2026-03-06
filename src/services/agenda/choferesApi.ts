@@ -23,15 +23,15 @@ export interface CreateChoferRequest {
  * Interfaz para la respuesta al crear un chofer
  */
 export interface CreateChoferResponse {
-    u_EmpresaTransporte: string;
-    u_NombreConductor: string;
-    u_LicenciaConducir: string;
-    u_PlacaVehiculo: string;
-    u_TipoVehiculo: string;
-    u_TelefonoContacto: string;
-    u_HoraLlegada: string;
-    u_Notas: string;
-    u_CodCita: string;
+    u_empresa_transporte: string;
+    u_nombre_conductor: string;
+    u_licencia_conducir: string;
+    u_placa_vehiculo: string;
+    u_tipo_vehiculo: string;
+    u_telefono_contacto: string;
+    u_hora_llegada: string;
+    u_notas: string;
+    u_cod_cita: string;
 }
 
 /**

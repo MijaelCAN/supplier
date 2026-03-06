@@ -327,7 +327,6 @@ export const fetchAppointmentsFromApi = async (
     }
     
     const json = (await response.json()) as AppointmentsApiResponse;
-    console.log('json citas', json);
     
     if (!json || typeof json !== 'object') {
         throw new Error('Respuesta del servicio de citas inválida.');
@@ -449,7 +448,7 @@ export interface UpdateAppointmentRequest {
  * Respuesta al actualizar una cita
  */
 interface UpdateAppointmentResponse {
-    statusCode: number;
+    status_code: number;
     success: boolean;
     message: string;
     data: string; // DocEntry de la cita actualizada
@@ -500,7 +499,7 @@ export const updateAppointmentInApi = async (
     
     const json = (await response.json()) as UpdateAppointmentResponse;
     
-    if (!json || (json.statusCode !== 204 && json.statusCode !== 200)) {
+    if (!json || (json.status_code !== 204 && json.status_code !== 200)) {
         throw new Error(json.message || 'Error al actualizar la cita');
     }
     

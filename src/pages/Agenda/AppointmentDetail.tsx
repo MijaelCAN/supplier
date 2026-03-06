@@ -557,20 +557,20 @@ const AppointmentDetail: React.FC = () => {
             }
             
             await createPackingListInApi({
-                vendorId: vendorId,
-                whsCode: packingListForm.warehouse,
+                vendor_id: vendorId,
+                whs_code: packingListForm.warehouse,
                 number: packingListForm.number.trim(),
-                inboundType: packingListForm.inboundType || 'OCNAC',
+                inbound_type: packingListForm.inboundType || 'OCNAC',
                 comments: packingListForm.comment || '',
-                dateExpected: packingListForm.date || new Date().toISOString().split('T')[0],
+                date_expected: packingListForm.date || new Date().toISOString().split('T')[0],
                 ticket: "0",
-                wmsResponse: packingListForm.commentWms || '',
-                codCita: appointment.docEntry,
-                _detallePackinList: selectedItems.map((item, index) => ({
+                wms_response: packingListForm.commentWms || '',
+                cod_cita: appointment.docEntry,
+                _detalle_packin_list: selectedItems.map((item, index) => ({
                     document: (item as any).document || 0,
-                    lineNumber: index + 1,
-                    itemCode: item.productCode,
-                    itemName: item.productName,
+                    line_number: index + 1,
+                    item_code: item.productCode,
+                    item_name: item.productName,
                     quantity: item.quantity
                 }))
             });

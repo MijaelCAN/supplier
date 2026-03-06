@@ -23,10 +23,10 @@ export type EvaluationNivel = 'EXCELENTE' | 'BUENO' | 'REGULAR' | 'DEFICIENTE';
  * Interfaz para un criterio de evaluación en el request
  */
 export interface EvaluationCriterioRequest {
-    criterioCodigo: string; // 'PUNTUALIDAD', 'DOCUMENTACION', 'ESTADO_MERCADERIA', 'CANTIDAD_CORRECTA'
+    criterio_codigo: string; // 'PUNTUALIDAD', 'DOCUMENTACION', 'ESTADO_MERCADERIA', 'CANTIDAD_CORRECTA'
     calificacion: number; // 1-5 (o 0 si no se ha evaluado)
     comentario?: string;
-    archivoBase64?: string; // Base64 del archivo si aplica
+    archivo_base64?: string; // Base64 del archivo si aplica
 }
 
 /**
@@ -340,15 +340,12 @@ export const fetchEvaluationByCodCita = async (codCita: string): Promise<Deliver
     }
 
     const json = (await response.json()) as EvaluationApiResponse;
-    console.log('json', json);
 
     if (!json || !json.success) {
-        console.log('json no success1', json);
         return null;
     }
 
     if (!json.data) {
-        console.log('json no data2', json);
         return null;
     }
 
@@ -401,7 +398,7 @@ export const saveEvaluation = async (
     // Puntualidad
     if (evaluation.puntualidad?.puntaje !== undefined && evaluation.puntualidad.puntaje > 0) {
         criterios.push({
-            criterioCodigo: EVALUATION_CRITERIA_CODES.PUNTUALIDAD,
+            criterio_codigo: EVALUATION_CRITERIA_CODES.PUNTUALIDAD,
             calificacion: evaluation.puntualidad.puntaje,
             comentario: evaluation.puntualidad.comentario,
         });
@@ -410,7 +407,7 @@ export const saveEvaluation = async (
     // Documentación
     if (evaluation.documentacion?.puntaje !== undefined && evaluation.documentacion.puntaje > 0) {
         criterios.push({
-            criterioCodigo: EVALUATION_CRITERIA_CODES.DOCUMENTACION,
+            criterio_codigo: EVALUATION_CRITERIA_CODES.DOCUMENTACION,
             calificacion: evaluation.documentacion.puntaje,
             comentario: evaluation.documentacion.comentario,
         });
@@ -426,10 +423,10 @@ export const saveEvaluation = async (
         }
 
         criterios.push({
-            criterioCodigo: EVALUATION_CRITERIA_CODES.ESTADO_MERCADERIA,
+            criterio_codigo: EVALUATION_CRITERIA_CODES.ESTADO_MERCADERIA,
             calificacion: evaluation.estadoMercaderia.puntaje,
             comentario: evaluation.estadoMercaderia.comentario,
-            archivoBase64,
+            archivo_base64: archivoBase64,
         });
     }
 
@@ -443,10 +440,10 @@ export const saveEvaluation = async (
         }
 
         criterios.push({
-            criterioCodigo: EVALUATION_CRITERIA_CODES.CANTIDAD_CORRECTA,
+            criterio_codigo: EVALUATION_CRITERIA_CODES.CANTIDAD_CORRECTA,
             calificacion: evaluation.cantidadCorrecta.puntaje,
             comentario: evaluation.cantidadCorrecta.comentario,
-            archivoBase64,
+            archivo_base64: archivoBase64,
         });
     }
 
@@ -554,11 +551,11 @@ export const uploadEvaluationFile = async (
     });
 
     const requestBody = {
-        codCita: codCita.trim(),
-        nameFile: file.name,
+        cod_cita: codCita.trim(),
+        name_file: file.name,
         base64: base64,
         tipo: tipo,
-        rolEvaluador: rolEvaluador,
+        rol_evaluador: rolEvaluador,
     };
 
     const url = `${DEFAULT_API_BASE_URL}${EVALUATIONS_ENDPOINT}/Archivos`;

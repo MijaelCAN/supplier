@@ -93,7 +93,7 @@ interface ApiUpdatePasswordRequest {
 }
 
 interface ApiUpdatePasswordResponse {
-    statusCode: number;
+    status_code: number;
     message: string | null;
     data: string;
 }
@@ -343,7 +343,7 @@ export const updatePasswordWithAPI = async (
 
         const apiResponse: ApiUpdatePasswordResponse = await response.json();
 
-        if (apiResponse.statusCode !== 200) {
+        if (apiResponse.status_code !== 200) {
             throw new AuthError(
                 'UNKNOWN',
                 apiResponse.message || 'Error al actualizar la contraseña.',
@@ -408,7 +408,7 @@ interface ApiProviderEmailResponseData {
  * Interfaz para la respuesta completa en formato interno (camelCase)
  */
 interface ApiProviderEmailResponse {
-    statusCode: number;
+    status_code: number;
     success: boolean;
     message: string;
     data: ApiProviderEmailResponseData;
@@ -435,7 +435,7 @@ const mapApiProviderEmailResponse = (
     rawResponse: ApiProviderEmailResponseRaw
 ): ApiProviderEmailResponse => {
     return {
-        statusCode: rawResponse.status_code,
+        status_code: rawResponse.status_code,
         success: rawResponse.success,
         message: rawResponse.message,
         data: {
@@ -488,7 +488,7 @@ export const getProviderEmailByRuc = async (
         const rawResponse: ApiProviderEmailResponseRaw = await response.json();
         const apiResponse = mapApiProviderEmailResponse(rawResponse);
 
-        if (apiResponse.statusCode !== 200) {
+        if (apiResponse.status_code !== 200) {
             throw new AuthError(
                 'UNKNOWN',
                 apiResponse.message || 'Error al obtener el correo del proveedor.',
