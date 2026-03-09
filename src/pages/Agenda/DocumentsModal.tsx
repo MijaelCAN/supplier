@@ -14,7 +14,7 @@ import {
     COMMERCIAL_DOCUMENT_TYPES,
     CommercialDocumentType,
     mapFileNameToDocumentType
-} from "@/config/commercialDocuments.tsx";
+} from "@/config/commercialDocuments";
 
 interface DocumentFile {
     file: File | null;
@@ -170,7 +170,7 @@ const DocumentsModal: React.FC<DocumentsModalProps> = ({
                                             <div className="flex items-start justify-between gap-4">
                                                 <div className="flex items-start gap-3 flex-1">
                                                     <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400">
-                                                        {docType.icon()}
+                                                        {docType.icon}
                                                     </div>
                                                     <div className="flex-1 min-w-0">
                                                         <div className="flex items-center gap-2 mb-1">

@@ -460,6 +460,7 @@ const AppointmentDetail: React.FC = () => {
     };
 
     const statusConfig = getStatusConfig(appointment.status);
+    type EvaluationModalType = 'puntualidad' | 'documentacion' | 'estadoMercaderia' | 'cantidadCorrecta';
 
     // Verificar permisos según rol
     const canManagePackingList = [UserRole.ADMIN, UserRole.COMPRAS, UserRole.ALMACEN].includes(currentUser?.role || UserRole.ADMIN);
@@ -469,6 +470,25 @@ const AppointmentDetail: React.FC = () => {
     const canEvaluateQuality = [UserRole.CALIDAD, UserRole.ADMIN].includes(currentUser?.role || UserRole.ADMIN);
     const canEvaluateWarehouse = [UserRole.ALMACEN, UserRole.ADMIN].includes(currentUser?.role || UserRole.ADMIN);
     const canViewEvaluation = [UserRole.ADMIN, UserRole.COMPRAS, UserRole.PROVEEDOR, UserRole.ALMACEN, UserRole.CALIDAD, UserRole.SEGURIDAD].includes(currentUser?.role || UserRole.ADMIN);
+
+    const isCriterionEvaluated = (type: EvaluationModalType): boolean => {
+        if (!evaluation) return false;
+
+        switch (type) {
+            case 'puntualidad':
+                return evaluation.puntualidad?.puntaje !== undefined;
+            case 'documentacion':
+                return evaluation.documentacion?.puntaje !== undefined;
+            case 'estadoMercaderia':
+                return evaluation.estadoMercaderia?.puntaje !== undefined;
+            case 'cantidadCorrecta':
+                return evaluation.cantidadCorrecta?.puntaje !== undefined;
+            default:
+                return false;
+        }
+    };
+
+    const canOpenEvaluationModal = (type: EvaluationModalType): boolean => !isCriterionEvaluated(type);
 
     const handleOpenPackingList = () => {
         setSelectedAppointment(appointment);
@@ -653,7 +673,10 @@ const AppointmentDetail: React.FC = () => {
         }
     };
 
-    const handleOpenEvaluationModal = (type: 'puntualidad' | 'documentacion' | 'estadoMercaderia' | 'cantidadCorrecta') => {
+    const handleOpenEvaluationModal = (type: EvaluationModalType) => {
+        if (!canOpenEvaluationModal(type)) {
+            return;
+        }
         setEvaluationModalType(type);
         setIsEvaluationModalOpen(true);
     };
@@ -964,7 +987,7 @@ const AppointmentDetail: React.FC = () => {
                                             Ver Calificación
                                         </Button>
                                     )}
-                                    {canEvaluateSecurity && appointment?.docEntry && (
+                                    {canEvaluateSecurity && appointment?.docEntry && canOpenEvaluationModal('puntualidad') && (
                                         <>
                                             <Button
                                                 color="primary"
@@ -975,6 +998,10 @@ const AppointmentDetail: React.FC = () => {
                                             >
                                                 Evaluar Puntualidad
                                             </Button>
+                                        </>
+                                    )}
+                                    {canEvaluateSecurity && appointment?.docEntry && canOpenEvaluationModal('documentacion') && (
+                                        <>
                                             <Button
                                                 color="primary"
                                                 variant="flat"
@@ -986,7 +1013,7 @@ const AppointmentDetail: React.FC = () => {
                                             </Button>
                                         </>
                                     )}
-                                    {canEvaluateQuality && appointment?.docEntry && (
+                                    {canEvaluateQuality && appointment?.docEntry && canOpenEvaluationModal('estadoMercaderia') && (
                                         <Button
                                             color="success"
                                             variant="flat"
@@ -997,7 +1024,7 @@ const AppointmentDetail: React.FC = () => {
                                             Evaluar Estado Mercadería
                                         </Button>
                                     )}
-                                    {canEvaluateWarehouse && appointment?.docEntry && (
+                                    {canEvaluateWarehouse && appointment?.docEntry && canOpenEvaluationModal('cantidadCorrecta') && (
                                         <Button
                                             color="primary"
                                             variant="flat"

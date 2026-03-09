@@ -1,7 +1,7 @@
 import { httpClient, buildSecureUrl } from "@/services/http/httpClient";
 import { formatDateForAPI } from "./appointmentsApi";
 import { getApiBaseUrl } from "@/config/api.ts";
-import {DOCUMENT_TYPE_PREFIXES} from "@/config/commercialDocuments.tsx";
+import { DOCUMENT_TYPE_PREFIXES } from "@/config/commercialDocuments";
 
 const DEFAULT_API_BASE_URL = getApiBaseUrl();
 const PACKING_LIST_ENDPOINT = '/api/Documentos/PackinList';

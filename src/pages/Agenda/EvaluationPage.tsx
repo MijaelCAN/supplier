@@ -37,6 +37,24 @@ const EvaluationPage: React.FC = () => {
     const [modalType, setModalType] = useState<'puntualidad' | 'documentacion' | 'estadoMercaderia' | 'cantidadCorrecta'>('puntualidad');
 
     const canEdit = currentUser?.role === UserRole.COMPRAS || currentUser?.role === UserRole.ADMIN;
+    type EvaluationModalType = 'puntualidad' | 'documentacion' | 'estadoMercaderia' | 'cantidadCorrecta';
+
+    const isCriterionEvaluated = (type: EvaluationModalType): boolean => {
+        if (!evaluation) return false;
+
+        switch (type) {
+            case 'puntualidad':
+                return evaluation.puntualidad?.puntaje !== undefined;
+            case 'documentacion':
+                return evaluation.documentacion?.puntaje !== undefined;
+            case 'estadoMercaderia':
+                return evaluation.estadoMercaderia?.puntaje !== undefined;
+            case 'cantidadCorrecta':
+                return evaluation.cantidadCorrecta?.puntaje !== undefined;
+            default:
+                return false;
+        }
+    };
 
     useEffect(() => {
         const loadData = async () => {
@@ -104,7 +122,10 @@ const EvaluationPage: React.FC = () => {
         }
     };
 
-    const handleOpenModal = (type: 'puntualidad' | 'documentacion' | 'estadoMercaderia' | 'cantidadCorrecta') => {
+    const handleOpenModal = (type: EvaluationModalType) => {
+        if (isCriterionEvaluated(type)) {
+            return;
+        }
         setModalType(type);
         setIsModalOpen(true);
     };
@@ -302,14 +323,14 @@ const EvaluationPage: React.FC = () => {
                                     </h3>
                                     <p className="text-xs text-gray-500 mt-1">Peso: {(EVALUATION_WEIGHTS.puntualidad * 100).toFixed(0)}%</p>
                                 </div>
-                                {canEdit && (
+                                {canEdit && !isCriterionEvaluated('puntualidad') && (
                                     <Button
                                         size="sm"
                                         variant="flat"
                                         color="primary"
                                         onPress={() => handleOpenModal('puntualidad')}
                                     >
-                                        {evaluation?.puntualidad ? 'Editar' : 'Evaluar'}
+                                        Evaluar
                                     </Button>
                                 )}
                             </div>
@@ -330,6 +351,26 @@ const EvaluationPage: React.FC = () => {
                                     {evaluation.puntualidad.comentario && (
                                         <p className="text-sm text-gray-600 mt-2">{evaluation.puntualidad.comentario}</p>
                                     )}
+                                    {evaluation.archivos && evaluation.archivos.some(a => a.tipo === 'puntualidad') && (
+                                        <div className="mt-3">
+                                            <p className="text-xs font-semibold text-gray-600 mb-2">Archivos adjuntos:</p>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                {evaluation.archivos
+                                                    .filter(archivo => archivo.tipo === 'puntualidad')
+                                                    .map((archivo, index) => (
+                                                        <a
+                                                            key={index}
+                                                            href={archivo.url}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="text-xs text-blue-600 hover:underline"
+                                                        >
+                                                            {archivo.nombre}
+                                                        </a>
+                                                    ))}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             ) : (
                                 <p className="text-sm text-gray-400">No evaluado</p>
@@ -348,14 +389,14 @@ const EvaluationPage: React.FC = () => {
                                     </h3>
                                     <p className="text-xs text-gray-500 mt-1">Peso: {(EVALUATION_WEIGHTS.documentacion * 100).toFixed(0)}%</p>
                                 </div>
-                                {canEdit && (
+                                {canEdit && !isCriterionEvaluated('documentacion') && (
                                     <Button
                                         size="sm"
                                         variant="flat"
                                         color="primary"
                                         onPress={() => handleOpenModal('documentacion')}
                                     >
-                                        {evaluation?.documentacion ? 'Editar' : 'Evaluar'}
+                                        Evaluar
                                     </Button>
                                 )}
                             </div>
@@ -376,7 +417,7 @@ const EvaluationPage: React.FC = () => {
                                     {evaluation.documentacion.comentario && (
                                         <p className="text-sm text-gray-600 mt-2">{evaluation.documentacion.comentario}</p>
                                     )}
-                                    {/* Archivos si existen para documentación (aunque normalmente no debería tener) */}
+                                    {/* Archivos adjuntos de documentación */}
                                     {evaluation.archivos && evaluation.archivos.some(a => a.tipo === 'documentacion') && (
                                         <div className="mt-3">
                                             <p className="text-xs font-semibold text-gray-600 mb-2">Archivos adjuntos:</p>
@@ -415,14 +456,14 @@ const EvaluationPage: React.FC = () => {
                                     </h3>
                                     <p className="text-xs text-gray-500 mt-1">Peso: {(EVALUATION_WEIGHTS.estadoMercaderia * 100).toFixed(0)}%</p>
                                 </div>
-                                {canEdit && (
+                                {canEdit && !isCriterionEvaluated('estadoMercaderia') && (
                                     <Button
                                         size="sm"
                                         variant="flat"
                                         color="primary"
                                         onPress={() => handleOpenModal('estadoMercaderia')}
                                     >
-                                        {evaluation?.estadoMercaderia ? 'Editar' : 'Evaluar'}
+                                        Evaluar
                                     </Button>
                                 )}
                             </div>
@@ -540,14 +581,14 @@ const EvaluationPage: React.FC = () => {
                                     </h3>
                                     <p className="text-xs text-gray-500 mt-1">Peso: {(EVALUATION_WEIGHTS.cantidadCorrecta * 100).toFixed(0)}%</p>
                                 </div>
-                                {canEdit && (
+                                {canEdit && !isCriterionEvaluated('cantidadCorrecta') && (
                                     <Button
                                         size="sm"
                                         variant="flat"
                                         color="primary"
                                         onPress={() => handleOpenModal('cantidadCorrecta')}
                                     >
-                                        {evaluation?.cantidadCorrecta ? 'Editar' : 'Evaluar'}
+                                        Evaluar
                                     </Button>
                                 )}
                             </div>

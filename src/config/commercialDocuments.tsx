@@ -3,14 +3,14 @@
  * Esta configuración puede ser reemplazada en el futuro por datos de una API
  */
 
-import { ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { DocumentTextIcon } from '@heroicons/react/24/outline';
 
 export interface CommercialDocumentType {
     key: string;
     label: string;
     accept: string; // Formatos aceptados: .pdf,.xml,.cdr, etc.
-    icon: (props?: { className?: string }) => ReactNode; // Función que retorna el icono
+    icon: ReactNode;
     description: string; // Descripción de formatos aceptados
     prefix: string; // Prefijo para el nombre del archivo (ej: 'FAC', 'OC', 'GR')
     keywords: string[]; // Palabras clave para identificar el documento en archivos cargados
@@ -25,7 +25,7 @@ export const COMMERCIAL_DOCUMENT_TYPES: CommercialDocumentType[] = [
         key: 'invoice',
         label: 'Factura',
         accept: '.pdf,.xml,.cdr,.jpg,.jpeg,.png',
-        icon: (props) => <DocumentTextIcon className={props?.className || "w-5 h-5"} />,
+        icon: <DocumentTextIcon className="w-5 h-5" />,
         description: 'PDF, XML, CDR, JPG, PNG',
         prefix: 'FAC',
         keywords: ['fac', 'factura', 'invoice', 'fact']
@@ -34,7 +34,7 @@ export const COMMERCIAL_DOCUMENT_TYPES: CommercialDocumentType[] = [
         key: 'purchaseOrder',
         label: 'Orden de Compra',
         accept: '.pdf,.xml,.cdr,.jpg,.jpeg,.png',
-        icon: (props) => <DocumentTextIcon className={props?.className || "w-5 h-5"} />,
+        icon: <DocumentTextIcon className="w-5 h-5" />,
         description: 'PDF, XML, CDR, JPG, PNG',
         prefix: 'OC',
         keywords: ['oc', 'orden', 'compra', 'purchase', 'order']
@@ -43,7 +43,7 @@ export const COMMERCIAL_DOCUMENT_TYPES: CommercialDocumentType[] = [
         key: 'deliveryGuide',
         label: 'Guía de Remisión',
         accept: '.pdf,.xml,.cdr,.jpg,.jpeg,.png',
-        icon: (props) => <DocumentTextIcon className={props?.className || "w-5 h-5"} />,
+        icon: <DocumentTextIcon className="w-5 h-5" />,
         description: 'PDF, XML, CDR, JPG, PNG',
         prefix: 'GR',
         keywords: ['gr', 'guia', 'remision', 'delivery', 'guide']
@@ -52,7 +52,7 @@ export const COMMERCIAL_DOCUMENT_TYPES: CommercialDocumentType[] = [
         key: 'qualityCertificate',
         label: 'Certificado de Calidad',
         accept: '.pdf,.xml,.cdr,.jpg,.jpeg,.png',
-        icon: (props) => <DocumentTextIcon className={props?.className || "w-5 h-5"} />,
+        icon: <DocumentTextIcon className="w-5 h-5" />,
         description: 'PDF, XML, CDR, JPG, PNG',
         prefix: 'CC',
         keywords: ['certificado', 'calidad', 'quality', 'certificate']
@@ -61,7 +61,7 @@ export const COMMERCIAL_DOCUMENT_TYPES: CommercialDocumentType[] = [
         key: 'transportGuide',
         label: 'Guía de Transportista',
         accept: '.pdf,.xml,.cdr,.jpg,.jpeg,.png',
-        icon: (props) => <DocumentTextIcon className={props?.className || "w-5 h-5"} />,
+        icon: <DocumentTextIcon className="w-5 h-5" />,
         description: 'PDF, XML, CDR, JPG, PNG',
         prefix: 'GT',
         keywords: ['transportista', 'transport', 'guia transportista', 'transport guide']
@@ -70,7 +70,7 @@ export const COMMERCIAL_DOCUMENT_TYPES: CommercialDocumentType[] = [
         key: 'packingList',
         label: 'PackingList',
         accept: '.pdf,.xml,.cdr,.jpg,.jpeg,.png',
-        icon: (props) => <DocumentTextIcon className={props?.className || "w-5 h-5"} />,
+        icon: <DocumentTextIcon className="w-5 h-5" />,
         description: 'PDF, XML, CDR, JPG, PNG',
         prefix: 'PL',
         keywords: ['packing', 'list', 'packinglist', 'empaque']
@@ -79,7 +79,7 @@ export const COMMERCIAL_DOCUMENT_TYPES: CommercialDocumentType[] = [
         key: 'safetySheet',
         label: 'Hoja de Seguridad',
         accept: '.pdf,.xml,.cdr,.jpg,.jpeg,.png',
-        icon: (props) => <DocumentTextIcon className={props?.className || "w-5 h-5"} />,
+        icon: <DocumentTextIcon className="w-5 h-5" />,
         description: 'PDF, XML, CDR, JPG, PNG',
         prefix: 'HS',
         keywords: ['seguridad', 'safety', 'hoja seguridad', 'safety sheet', 'msds']
@@ -88,7 +88,7 @@ export const COMMERCIAL_DOCUMENT_TYPES: CommercialDocumentType[] = [
         key: 'analysisCertificate',
         label: 'Certificado de Análisis',
         accept: '.pdf,.xml,.cdr,.jpg,.jpeg,.png',
-        icon: (props) => <DocumentTextIcon className={props?.className || "w-5 h-5"} />,
+        icon: <DocumentTextIcon className="w-5 h-5" />,
         description: 'PDF, XML, CDR, JPG, PNG',
         prefix: 'CA',
         keywords: ['analisis', 'analysis', 'certificado analisis', 'analysis certificate', 'coa']

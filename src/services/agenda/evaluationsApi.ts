@@ -24,7 +24,7 @@ export type EvaluationNivel = 'EXCELENTE' | 'BUENO' | 'REGULAR' | 'DEFICIENTE';
  */
 export interface EvaluationCriterioRequest {
     criterio_codigo: string; // 'PUNTUALIDAD', 'DOCUMENTACION', 'ESTADO_MERCADERIA', 'CANTIDAD_CORRECTA'
-    calificacion: number; // 1-5 (o 0 si no se ha evaluado)
+    calificacion: number; // 0-10
     comentario?: string;
     archivo_base64?: string; // Base64 del archivo si aplica
 }
@@ -103,19 +103,19 @@ export const calculateTotalScore = (evaluation: Partial<DeliveryEvaluation>): nu
     let total = 0;
     let totalWeight = 0;
 
-    if (evaluation.puntualidad?.puntaje) {
+    if (evaluation.puntualidad?.puntaje !== undefined) {
         total += evaluation.puntualidad.puntaje * EVALUATION_WEIGHTS.puntualidad;
         totalWeight += EVALUATION_WEIGHTS.puntualidad;
     }
-    if (evaluation.documentacion?.puntaje) {
+    if (evaluation.documentacion?.puntaje !== undefined) {
         total += evaluation.documentacion.puntaje * EVALUATION_WEIGHTS.documentacion;
         totalWeight += EVALUATION_WEIGHTS.documentacion;
     }
-    if (evaluation.estadoMercaderia?.puntaje) {
+    if (evaluation.estadoMercaderia?.puntaje !== undefined) {
         total += evaluation.estadoMercaderia.puntaje * EVALUATION_WEIGHTS.estadoMercaderia;
         totalWeight += EVALUATION_WEIGHTS.estadoMercaderia;
     }
-    if (evaluation.cantidadCorrecta?.puntaje) {
+    if (evaluation.cantidadCorrecta?.puntaje !== undefined) {
         total += evaluation.cantidadCorrecta.puntaje * EVALUATION_WEIGHTS.cantidadCorrecta;
         totalWeight += EVALUATION_WEIGHTS.cantidadCorrecta;
     }
@@ -141,6 +141,10 @@ const toNumber = (value: number | string | undefined): number => {
     if (typeof value === 'number') return value;
     const parsed = parseFloat(String(value));
     return isNaN(parsed) ? 0 : parsed;
+};
+
+const normalizeBinaryScore = (value: number): number => {
+    return value > 0 ? 10 : 0;
 };
 
 /**
@@ -173,9 +177,6 @@ export const mapApiResponseToEvaluationApiRecord = (
  * Convierte EvaluationApiRecord (nuevo formato) a DeliveryEvaluation
  */
 export const mapApiRecordToEvaluation = (record: EvaluationApiRecord): DeliveryEvaluation => {
-
-    console.log('record', record);
-
     const evaluation: DeliveryEvaluation = {
         codCita: record.codCita,
         puntajeTotal: toNumber(record.puntajeTotal),
@@ -210,10 +211,18 @@ export const mapApiRecordToEvaluation = (record: EvaluationApiRecord): DeliveryE
 
         switch (criterioCodigo) {
             case EVALUATION_CRITERIA_CODES.PUNTUALIDAD:
-                evaluation.puntualidad = score;
+                evaluation.puntualidad = {
+                    ...score,
+                    puntaje: normalizeBinaryScore(puntaje),
+                };
+                appendEvaluationFile(evaluation, criterio.archivoUrl, 'puntualidad');
                 break;
             case EVALUATION_CRITERIA_CODES.DOCUMENTACION:
-                evaluation.documentacion = score;
+                evaluation.documentacion = {
+                    ...score,
+                    puntaje: normalizeBinaryScore(puntaje),
+                };
+                appendEvaluationFile(evaluation, criterio.archivoUrl, 'documentacion');
                 break;
             case EVALUATION_CRITERIA_CODES.ESTADO_MERCADERIA:
                 // Para estadoMercaderia, determinar el estado desde el puntaje
@@ -221,30 +230,15 @@ export const mapApiRecordToEvaluation = (record: EvaluationApiRecord): DeliveryE
                     ...score,
                     estado: determineEstadoMercaderia(puntaje, criterio.comentario),
                 };
-                // Agregar archivos si existen
-                if (criterio.archivoUrl && criterio.archivoUrl.trim() !== '') {
-                    if (!evaluation.archivos) evaluation.archivos = [];
-                    evaluation.archivos.push({
-                        nombre: criterio.archivoUrl.split('/').pop() || 'archivo',
-                        url: criterio.archivoUrl,
-                        tipo: 'calidad',
-                    });
-                }
+                appendEvaluationFile(evaluation, criterio.archivoUrl, 'calidad');
                 break;
             case EVALUATION_CRITERIA_CODES.CANTIDAD_CORRECTA:
-                evaluation.cantidadCorrecta = score;
-                // Agregar archivos si existen
-                if (criterio.archivoUrl && criterio.archivoUrl.trim() !== '') {
-                    if (!evaluation.archivos) evaluation.archivos = [];
-                    // Extraer el nombre del archivo de la URL
-                    const urlParts = criterio.archivoUrl.split('/');
-                    const fileName = urlParts[urlParts.length - 1] || `archivo_${Date.now()}`;
-                    evaluation.archivos.push({
-                        nombre: fileName.includes('?') ? fileName.split('?')[0] : fileName,
-                        url: criterio.archivoUrl,
-                        tipo: 'almacen',
-                    });
-                }
+                evaluation.cantidadCorrecta = {
+                    ...score,
+                    puntaje: normalizeBinaryScore(puntaje),
+                    estado: normalizeBinaryScore(puntaje) === 10 ? 'ACEPTADO' : 'RECHAZADO',
+                };
+                appendEvaluationFile(evaluation, criterio.archivoUrl, 'almacen');
                 break;
         }
     });
@@ -306,14 +300,34 @@ const getWeightForCriterio = (criterioCodigo: string): number => {
  */
 const determineEstadoMercaderia = (
     calificacion: number | string,
-    comentario?: string
+    _comentario?: string
 ): 'ACEPTADO' | 'OBSERVADO' | 'RECHAZADO' | undefined => {
-    console.log('comentario', comentario);
     const puntaje = toNumber(calificacion);
     if (puntaje >= 9.0) return 'ACEPTADO';
     if (puntaje >= 5.0) return 'OBSERVADO';
     if (puntaje >= 0) return 'RECHAZADO';
     return undefined;
+};
+
+const appendEvaluationFile = (
+    evaluation: DeliveryEvaluation,
+    archivoUrl: string | undefined,
+    tipo: EvaluationFile['tipo']
+): void => {
+    if (!archivoUrl || archivoUrl.trim() === '') return;
+
+    if (!evaluation.archivos) {
+        evaluation.archivos = [];
+    }
+
+    const urlParts = archivoUrl.split('/');
+    const fileName = urlParts[urlParts.length - 1] || `archivo_${Date.now()}`;
+
+    evaluation.archivos.push({
+        nombre: fileName.includes('?') ? fileName.split('?')[0] : fileName,
+        url: archivoUrl,
+        tipo,
+    });
 };
 
 /**
@@ -387,7 +401,6 @@ export const saveEvaluation = async (
     rolEvaluador: string,
     files?: { criterioCodigo: string; file: File }[]
 ): Promise<DeliveryEvaluation> => {
-    console.log('rolEvaluador', rolEvaluador);
     if (!evaluation.codCita) {
         throw new Error('El código de cita es requerido');
     }
@@ -396,20 +409,36 @@ export const saveEvaluation = async (
     const criterios: EvaluationCriterioRequest[] = [];
 
     // Puntualidad
-    if (evaluation.puntualidad?.puntaje !== undefined && evaluation.puntualidad.puntaje > 0) {
+    if (evaluation.puntualidad?.puntaje !== undefined) {
+        const fileForPuntualidad = files?.find(f => f.criterioCodigo === EVALUATION_CRITERIA_CODES.PUNTUALIDAD);
+        let archivoBase64: string | undefined;
+
+        if (fileForPuntualidad) {
+            archivoBase64 = await fileToBase64(fileForPuntualidad.file);
+        }
+
         criterios.push({
             criterio_codigo: EVALUATION_CRITERIA_CODES.PUNTUALIDAD,
             calificacion: evaluation.puntualidad.puntaje,
             comentario: evaluation.puntualidad.comentario,
+            archivo_base64: archivoBase64,
         });
     }
 
     // Documentación
-    if (evaluation.documentacion?.puntaje !== undefined && evaluation.documentacion.puntaje > 0) {
+    if (evaluation.documentacion?.puntaje !== undefined) {
+        const fileForDocumentacion = files?.find(f => f.criterioCodigo === EVALUATION_CRITERIA_CODES.DOCUMENTACION);
+        let archivoBase64: string | undefined;
+
+        if (fileForDocumentacion) {
+            archivoBase64 = await fileToBase64(fileForDocumentacion.file);
+        }
+
         criterios.push({
             criterio_codigo: EVALUATION_CRITERIA_CODES.DOCUMENTACION,
             calificacion: evaluation.documentacion.puntaje,
             comentario: evaluation.documentacion.comentario,
+            archivo_base64: archivoBase64,
         });
     }
 
@@ -431,7 +460,7 @@ export const saveEvaluation = async (
     }
 
     // Cantidad Correcta
-    if (evaluation.cantidadCorrecta?.puntaje !== undefined && evaluation.cantidadCorrecta.puntaje > 0) {
+    if (evaluation.cantidadCorrecta?.puntaje !== undefined) {
         const fileForCantidad = files?.find(f => f.criterioCodigo === EVALUATION_CRITERIA_CODES.CANTIDAD_CORRECTA);
         let archivoBase64: string | undefined;
         

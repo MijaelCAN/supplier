@@ -1,8 +1,7 @@
 import { httpClient, buildSecureUrl } from "@/services/http/httpClient";
 import { DeliveryAppointment } from "@/store/types";
 import { getApiBaseUrl } from "@/config/api.ts";
-import {mapFileNameToDocumentType} from "@/config/commercialDocuments.tsx";
-//import { mapFileNameToDocumentType } from "../../config/commercialDocuments";
+import { mapFileNameToDocumentType } from "@/config/commercialDocuments";
 
 const DEFAULT_APPOINTMENTS_API_BASE_URL = getApiBaseUrl();
 const APPOINTMENTS_ENDPOINT = '/api/Proveedores/CitasProveedor';
