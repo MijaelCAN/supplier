@@ -1557,7 +1557,8 @@ const Agenda: React.FC = () => {
             throw new Error('La cita no tiene código (DocEntry). No se puede subir el archivo.');
         }
 
-        const documentType = type as 'invoice' | 'purchaseOrder' | 'deliveryGuide' | 'cdr' | 'xml';
+        // El tipo de documento ahora es dinámico, puede ser cualquier string
+        const documentType = type;
         
         try {
             // Subir archivo al API
@@ -1593,11 +1594,10 @@ const Agenda: React.FC = () => {
             );
             
             if (updatedAppointment) {
+                // Verificar documentos principales (CDR y XML son formatos, no documentos separados)
                 const hasAllDocs = updatedAppointment.documents?.invoice && 
                                   updatedAppointment.documents?.purchaseOrder && 
-                                  updatedAppointment.documents?.deliveryGuide && 
-                                  updatedAppointment.documents?.cdr && 
-                                  updatedAppointment.documents?.xml;
+                                  updatedAppointment.documents?.deliveryGuide;
                 
                 if (hasAllDocs && updatedAppointment.status !== 'DOCUMENTOS_COMPLETOS' && updatedAppointment.docEntry && currentUser) {
                     const { updateAppointmentStatus } = await import('@/services/agenda/appointmentStatus');

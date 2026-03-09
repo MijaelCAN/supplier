@@ -60,7 +60,7 @@ interface AgendaState {
     updateTransportData: (appointmentId: string, updates: Partial<TransportData>) => void;
     
     // Documents actions
-    addDocument: (appointmentId: string, documentType: 'invoice' | 'purchaseOrder' | 'deliveryGuide' | 'cdr' | 'xml', document: DocumentFile) => void;
+    addDocument: (appointmentId: string, documentType: string, document: DocumentFile) => void;
     updateDocument: (appointmentId: string, documentType: string, documentId: string, updates: Partial<DocumentFile>) => void;
     
     // Simulate SAP RUC lookup

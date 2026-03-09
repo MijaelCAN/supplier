@@ -1,6 +1,7 @@
 import { httpClient, buildSecureUrl } from "@/services/http/httpClient";
 import { formatDateForAPI } from "./appointmentsApi";
 import { getApiBaseUrl } from "@/config/api.ts";
+import {DOCUMENT_TYPE_PREFIXES} from "@/config/commercialDocuments.tsx";
 
 const DEFAULT_API_BASE_URL = getApiBaseUrl();
 const PACKING_LIST_ENDPOINT = '/api/Documentos/PackinList';
@@ -503,16 +504,6 @@ export interface UploadFileResponse {
     };
 }
 
-/**
- * Mapeo de tipos de documento a prefijos de nombre de archivo
- */
-const DOCUMENT_TYPE_PREFIXES: Record<string, string> = {
-    invoice: 'FAC',
-    purchaseOrder: 'OC',
-    deliveryGuide: 'GR',
-    cdr: 'CDR',
-    xml: 'XML'
-};
 
 /**
  * Convierte un archivo File a base64
@@ -555,7 +546,7 @@ const generateFileName = (type: string, originalFileName: string): string => {
 /**
  * Sube un archivo a la cita en el API
  * @param file - Archivo a subir
- * @param type - Tipo de documento (invoice, purchaseOrder, deliveryGuide, cdr, xml)
+ * @param type - Tipo de documento (invoice, purchaseOrder, deliveryGuide, qualityCertificate, transportGuide, packingList, safetySheet, analysisCertificate, etc.)
  * @param codCita - Código de la cita (DocEntry)
  * @returns Promise con la respuesta del API
  */

@@ -809,31 +809,8 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
                                                         )}
                                                     </div>
 
-                                                    {/* CDR */}
-                                                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
-                                                        <div className="flex items-center gap-3">
-                                                            <DocumentTextIcon className="w-5 h-5 text-gray-600" />
-                                                            <span className="text-sm font-medium text-gray-900">CDR</span>
-                                                        </div>
-                                                        {appointment.documents.cdr ? (
-                                                            <CheckCircleIcon className="w-5 h-5 text-emerald-500" />
-                                                        ) : (
-                                                            <XCircleIcon className="w-5 h-5 text-amber-500" />
-                                                        )}
-                                                    </div>
-
-                                                    {/* XML */}
-                                                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100 col-span-2">
-                                                        <div className="flex items-center gap-3">
-                                                            <DocumentTextIcon className="w-5 h-5 text-gray-600" />
-                                                            <span className="text-sm font-medium text-gray-900">XML</span>
-                                                        </div>
-                                                        {appointment.documents.xml ? (
-                                                            <CheckCircleIcon className="w-5 h-5 text-emerald-500" />
-                                                        ) : (
-                                                            <XCircleIcon className="w-5 h-5 text-amber-500" />
-                                                        )}
-                                                    </div>
+                                                    {/* Nota: CDR y XML son formatos, no documentos separados.
+                                                        Los documentos pueden cargarse en formato CDR/XML según el tipo de documento */}
                                                 </div>
 
                                                 {!appointment.documents.completed && canManageDocuments && (

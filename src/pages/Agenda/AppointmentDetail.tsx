@@ -200,27 +200,25 @@ const AppointmentDetail: React.FC = () => {
     
     // Verificar si todos los documentos requeridos están completos
     const areAllDocumentsComplete = (): boolean => {
-        // Documentos requeridos: invoice, purchaseOrder, deliveryGuide, cdr, xml (5 documentos)
-        const REQUIRED_DOCUMENTS_COUNT = 5;
+        // Documentos requeridos principales: invoice, purchaseOrder, deliveryGuide
+        // Los formatos (CDR, XML) ahora son parte de los documentos, no documentos separados
+        const REQUIRED_DOCUMENTS_COUNT = 3;
         
-        // Prioridad 1: Si hay documentos del API, verificar que haya al menos 5 documentos
-        // (uno por cada tipo requerido: invoice, purchaseOrder, deliveryGuide, cdr, xml)
+        // Prioridad 1: Si hay documentos del API, verificar que haya al menos los documentos requeridos
         if (appointmentDocuments.length > 0) {
-            // Debe haber al menos 5 documentos del API para considerarse completo
+            // Debe haber al menos los documentos requeridos del API para considerarse completo
             return appointmentDocuments.length >= REQUIRED_DOCUMENTS_COUNT;
         }
         
         // Prioridad 2: Si no hay documentos del API, verificar documentos mapeados
-        // Todos los tipos requeridos deben estar presentes
+        // Los documentos principales deben estar presentes
         if (appointment?.documents) {
             const hasInvoice = !!appointment.documents.invoice?.url;
             const hasPurchaseOrder = !!appointment.documents.purchaseOrder?.url;
             const hasDeliveryGuide = !!appointment.documents.deliveryGuide?.url;
-            const hasCdr = !!appointment.documents.cdr?.url;
-            const hasXml = !!appointment.documents.xml?.url;
             
-            // Todos los documentos requeridos deben estar presentes
-            return hasInvoice && hasPurchaseOrder && hasDeliveryGuide && hasCdr && hasXml;
+            // Verificar documentos principales (CDR y XML ahora son formatos, no documentos separados)
+            return hasInvoice && hasPurchaseOrder && hasDeliveryGuide;
         }
         
         return false;
@@ -1680,31 +1678,8 @@ const AppointmentDetail: React.FC = () => {
                                                     )}
                                                 </div>
 
-                                                {/* CDR */}
-                                                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
-                                                    <div className="flex items-center gap-3">
-                                                        <DocumentTextIcon className="w-5 h-5 text-gray-600" />
-                                                        <span className="text-sm font-medium text-gray-900">CDR</span>
-                                                    </div>
-                                                    {appointment.documents?.cdr ? (
-                                                        <CheckCircleIcon className="w-5 h-5 text-emerald-500" />
-                                                    ) : (
-                                                        <XCircleIcon className="w-5 h-5 text-amber-500" />
-                                                    )}
-                                                </div>
-
-                                                {/* XML */}
-                                                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100 col-span-2">
-                                                    <div className="flex items-center gap-3">
-                                                        <DocumentTextIcon className="w-5 h-5 text-gray-600" />
-                                                        <span className="text-sm font-medium text-gray-900">XML</span>
-                                                    </div>
-                                                    {appointment.documents?.xml ? (
-                                                        <CheckCircleIcon className="w-5 h-5 text-emerald-500" />
-                                                    ) : (
-                                                        <XCircleIcon className="w-5 h-5 text-amber-500" />
-                                                    )}
-                                                </div>
+                                                {/* Nota: CDR y XML son formatos, no documentos separados.
+                                                    Los documentos pueden cargarse en formato CDR/XML según el tipo de documento */}
                                             </div>
                                         );
                                     })()}

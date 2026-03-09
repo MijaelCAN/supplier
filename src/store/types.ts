@@ -452,11 +452,19 @@ export interface TransportData {
 export interface DeliveryDocuments {
     id: string;
     appointmentId: string;
+    // Documentos comerciales dinámicos
     invoice?: DocumentFile;
     purchaseOrder?: DocumentFile;
     deliveryGuide?: DocumentFile;
+    qualityCertificate?: DocumentFile;
+    transportGuide?: DocumentFile;
+    packingList?: DocumentFile;
+    safetySheet?: DocumentFile;
+    analysisCertificate?: DocumentFile;
+    // Mantener compatibilidad con versiones anteriores (deprecated)
     cdr?: DocumentFile;
     xml?: DocumentFile;
+    // Otros documentos no categorizados
     otherDocuments?: DocumentFile[];
     completed: boolean;
     completedDate?: string;
