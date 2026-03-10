@@ -9,6 +9,7 @@ export enum UserRole {
     CALIDAD = 'calidad',
     ALMACEN = 'almacen',
     SEGURIDAD = 'seguridad',
+    PLANEAMIENTO = 'planeamiento'
 }
 
 export interface MenuItem {

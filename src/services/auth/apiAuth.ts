@@ -1,6 +1,6 @@
-import { UserRole } from '@/routes/menuTypes';
-import { httpClient } from '@/services/http/httpClient';
-import { getApiBaseUrl } from '@/config/api.ts';
+import {UserRole} from '@/routes/menuTypes';
+import {httpClient} from '@/services/http/httpClient';
+import {getApiBaseUrl} from '@/config/api.ts';
 
 export type RoleType = 'internal' | 'provider';
 
@@ -142,6 +142,7 @@ const mapRole = (role: string): UserRole => {
         'solicitante': UserRole.SOLICITANTE,
         'calidad': UserRole.CALIDAD,
         'seguridad': UserRole.SEGURIDAD,
+        'planeamiento': UserRole.PLANEAMIENTO
     };
     return roleMap[role.toLowerCase()] || UserRole.PROVEEDOR;
 };
@@ -254,6 +255,7 @@ export const loginWithAPI = async (
         }
 
         const user = sanitizeUser(userData);
+        console.log("User: ", user);
         const token = userData.token;
 
         return {

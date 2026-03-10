@@ -8,6 +8,7 @@ import UnauthorizedHome from "@/pages/Home/UnauthorizedHome.tsx";
 import AlmacenHome from "@/pages/Home/AlmacenHome.tsx";
 import SeguridadHome from "@/pages/Home/SeguridadHome.tsx";
 import CalidadHome from "@/pages/Home/CalidadHome.tsx";
+import PlaneamientoHome from "@/pages/Home/PlaneamientoHome.tsx";
 
 const Home = () => {
     const { currentUser, isAuthenticated } = useAuth();
@@ -33,6 +34,8 @@ const Home = () => {
             return <SeguridadHome />;
         case UserRole.CALIDAD:
             return <CalidadHome />;
+        case UserRole.PLANEAMIENTO:
+            return <PlaneamientoHome />;
         default:
             // Default to UnauthorizedHome if role is not recognized
             return <UnauthorizedHome />;

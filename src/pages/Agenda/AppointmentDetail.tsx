@@ -35,6 +35,7 @@ import {
     BuildingOfficeIcon,
     CalendarIcon,
     ClipboardDocumentListIcon,
+    ClipboardDocumentCheckIcon,
     ExclamationTriangleIcon,
     ArrowLeftIcon,
     StarIcon
@@ -51,6 +52,7 @@ import { DeliveryAppointment, PackingListItem, DeliveryEvaluation } from "@/stor
 import DocumentsModal from './DocumentsModal';
 import EvaluationModal from './EvaluationModal';
 import ClaimModal from './ClaimModal';
+import PCPValidationModal from './PCPValidationModal';
 import { SupplierClaim } from '@/store/types';
 import { generateClaimPDF, openClaimPDFInNewTab } from '@/utils/pdfGenerator';
 
@@ -164,6 +166,8 @@ const AppointmentDetail: React.FC = () => {
     const { isOpen: isTransportOpen, onOpen: onTransportOpen, onClose: onTransportClose } = useDisclosure();
     const { isOpen: isDocumentsOpen, onOpen: onDocumentsOpen, onClose: onDocumentsClose } = useDisclosure();
     const { isOpen: isDocumentsSelectOpen, onOpen: onDocumentsSelectOpen, onClose: onDocumentsSelectClose } = useDisclosure();
+    const { isOpen: isPCPValidationOpen, onOpen: onPCPValidationOpen, onClose: onPCPValidationClose } = useDisclosure();
+    const [selectedPackingListForPCP, setSelectedPackingListForPCP] = useState<PackingListApiRecord | null>(null);
     
     // Estado para formulario de transporte
     const [transportForm, setTransportForm] = useState({
@@ -469,7 +473,8 @@ const AppointmentDetail: React.FC = () => {
     const canEvaluateSecurity = [UserRole.SEGURIDAD, UserRole.ADMIN].includes(currentUser?.role || UserRole.ADMIN);
     const canEvaluateQuality = [UserRole.CALIDAD, UserRole.ADMIN].includes(currentUser?.role || UserRole.ADMIN);
     const canEvaluateWarehouse = [UserRole.ALMACEN, UserRole.ADMIN].includes(currentUser?.role || UserRole.ADMIN);
-    const canViewEvaluation = [UserRole.ADMIN, UserRole.COMPRAS, UserRole.PROVEEDOR, UserRole.ALMACEN, UserRole.CALIDAD, UserRole.SEGURIDAD].includes(currentUser?.role || UserRole.ADMIN);
+    const canValidatePCP = [UserRole.PLANEAMIENTO, UserRole.ADMIN].includes(currentUser?.role || UserRole.ADMIN);
+    const canViewEvaluation = [UserRole.ADMIN, UserRole.COMPRAS, UserRole.PROVEEDOR, UserRole.ALMACEN, UserRole.CALIDAD, UserRole.SEGURIDAD, UserRole.PLANEAMIENTO].includes(currentUser?.role || UserRole.ADMIN);
 
     const isCriterionEvaluated = (type: EvaluationModalType): boolean => {
         if (!evaluation) return false;
@@ -1383,6 +1388,7 @@ const AppointmentDetail: React.FC = () => {
                                             <TableColumn width={80}>ITEMS</TableColumn>
                                             <TableColumn>COMENTARIO</TableColumn>
                                             <TableColumn>RESP. WMS</TableColumn>
+                                            <TableColumn width={150}>ACCIONES</TableColumn>
                                         </TableHeader>
                                         <TableBody>
                                             {packingListsFromApi.map((pl) => {
@@ -1393,7 +1399,12 @@ const AppointmentDetail: React.FC = () => {
                                                     <TableRow 
                                                         key={pl.id}
                                                         className="cursor-pointer hover:bg-gray-50 transition-colors"
-                                                        onClick={() => {
+                                                        onClick={(e) => {
+                                                            // No abrir el modal de detalle si se hace clic en la celda de acciones
+                                                            const target = e.target as HTMLElement;
+                                                            if (target.closest('button') || target.closest('[data-action-cell]')) {
+                                                                return;
+                                                            }
                                                             setSelectedPackingList(pl);
                                                             onPackingListDetailOpen();
                                                         }}
@@ -1450,6 +1461,31 @@ const AppointmentDetail: React.FC = () => {
                                                                     </Chip>
                                                                 ) : (
                                                                     '-'
+                                                                )}
+                                                            </TableCell>
+                                                            <TableCell data-action-cell onClick={(e) => e.stopPropagation()}>
+                                                                {canValidatePCP ? (
+                                                                    <div onClick={(e) => e.stopPropagation()}>
+                                                                        <Button
+                                                                            size="sm"
+                                                                            color="secondary"
+                                                                            variant="flat"
+                                                                            startContent={<ClipboardDocumentCheckIcon className="w-4 h-4" />}
+                                                                            onPress={() => {
+                                                                                setSelectedPackingListForPCP(pl);
+                                                                                onPCPValidationOpen();
+                                                                            }}
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                setSelectedPackingListForPCP(pl);
+                                                                                onPCPValidationOpen();
+                                                                            }}
+                                                                        >
+                                                                            Validar PCP
+                                                                        </Button>
+                                                                    </div>
+                                                                ) : (
+                                                                    <span className="text-gray-400 text-sm">-</span>
                                                                 )}
                                                             </TableCell>
                                                         </TableRow>
@@ -2299,6 +2335,36 @@ const AppointmentDetail: React.FC = () => {
                             onGenerateClaim={handleGenerateClaim}
                         />
                     </>
+                )}
+
+                {/* Modal de Validación PCP */}
+                {appointment?.docEntry && canValidatePCP && (
+                    <PCPValidationModal
+                        isOpen={isPCPValidationOpen}
+                        onOpenChange={onPCPValidationClose}
+                        codCita={appointment.docEntry}
+                        packingList={selectedPackingListForPCP}
+                        onValidationSaved={async () => {
+                            // Recargar PackingList después de guardar validación
+                            if (appointment.docEntry) {
+                                try {
+                                    const today = new Date();
+                                    const startDate = new Date(today);
+                                    startDate.setDate(startDate.getDate() - 30);
+                                    const endDate = new Date(today);
+                                    endDate.setDate(endDate.getDate() + 30);
+                                    
+                                    const fechaInicio = formatDateForAPI(startDate);
+                                    const fechaFin = formatDateForAPI(endDate);
+                                    
+                                    const packingLists = await fetchPackingListFromApi(fechaInicio, fechaFin, appointment.docEntry);
+                                    setPackingListsFromApi(packingLists);
+                                } catch (error) {
+                                    console.error('Error al recargar PackingList:', error);
+                                }
+                            }
+                        }}
+                    />
                 )}
             </div>
         </Dashboard>
