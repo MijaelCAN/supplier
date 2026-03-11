@@ -9,6 +9,7 @@ const WAREHOUSE_LIST_ENDPOINT = '/api/PackingList/ListadoAlmacen';
 const DOCUMENTS_ENDPOINT = '/api/PackingList/Documentos';
 const DOCUMENT_DETAIL_ENDPOINT = '/api/PackingList/Documentos/Detalle';
 const FILES_ENDPOINT = '/api/PackingList/Archivos';
+const VALIDACION_PCP_ENDPOINT = '/api/ValidacionPCP';
 
 export interface DatosTransporte {
     u_empresa_transporte?: string;
@@ -615,6 +616,18 @@ export interface ProductApiRecord {
     u_razon_social: string;
     quantity: string;
     horario: string; // Formato: "1100 - 1200"
+    // Campos de identificación
+    cod_cita?: string;
+    packing_list_number?: string;
+    line_number?: number;
+    document?: number;
+    // Campos de validación PCP
+    confirmacion_pcp?: 'CONFORME' | 'NO_CONFORME' | null;
+    cobertura_actual?: number | null;
+    cobertura_ingreso?: number | null;
+    comentario?: string | null;
+    pcp_validado_por?: string | null;
+    pcp_fecha_validacion?: string | null;
 }
 
 /**
@@ -656,6 +669,7 @@ export const fetchProductsFromApi = async (
     }
     
     const json = (await response.json()) as ProductListApiResponse;
+    //console.log("JSON PRO: ", json);
     
     if (!json || typeof json !== 'object') {
         throw new Error('Respuesta del servicio de productos inválida.');
@@ -673,4 +687,182 @@ export const fetchProductsFromApi = async (
             : [];
     
     return products;
+};
+
+/**
+ * INTERFAZ PARA EL DETALLE DE VALIDACIÓN PCP
+ */
+export interface ValidacionPCPDetalle {
+    u_item_code: string;
+    u_item_name: string;
+    u_line_number: string;
+    u_document: string;
+    u_confirmacion_pcp: string;
+    u_cobertura_actual: number | string;
+    u_cobertura_ingreso: number | string;
+    u_comentario: string;
+}
+
+/**
+ * INTERFAZ PARA LA PETICIÓN DE VALIDACIÓN PCP
+ */
+export interface ValidacionPCPRequest {
+    u_cod_cita: string;
+    u_packing_list_numbre: string;
+    u_validado_por: string;
+    u_fecha_validacion: string; // Formato ISO: "2024-01-15T10:30:00Z"
+    detalles: ValidacionPCPDetalle[];
+}
+
+/**
+ * INTERFAZ PARA LA RESPUESTA DE VALIDACIÓN PCP
+ */
+export interface ValidacionPCPResponseItem {
+    u_item_code: string;
+    cantidad_lineas: number;
+}
+
+export interface ValidacionPCPResponse {
+    status_code: number;
+    success: boolean;
+    message: string;
+    data: ValidacionPCPResponseItem[];
+}
+
+/**
+ * INTERFAZ PARA LA RESPUESTA DE OBTENER VALIDACIÓN PCP (GET)
+ */
+export interface ValidacionPCPGetResponseData {
+    codigo_cita: string;
+    numero_de_packing_list: string;
+    validado_por: string;
+    fecha_de_validacion: string;
+    codigo_de_producto: string;
+    nombre_de_producto: string;
+    numero_de_linea: string;
+    documento: string;
+    confirmacion_pcp: string;
+    cobertura_actual: string;
+    cobertura_ingreso: string;
+    comentario: string;
+}
+
+export interface ValidacionPCPGetResponse {
+    status_code: number;
+    success: boolean;
+    message: string;
+    data: ValidacionPCPGetResponseData | null;
+}
+
+/**
+ * Envía la validación PCP al API
+ * @param validacionData - Datos de la validación PCP a enviar
+ * @returns Promise con la respuesta del API
+ */
+export const sendValidacionPCP = async (
+    validacionData: ValidacionPCPRequest
+): Promise<ValidacionPCPResponse> => {
+    const url = `${DEFAULT_API_BASE_URL}${VALIDACION_PCP_ENDPOINT}`;
+    
+    // Preparar el request body asegurando que los campos numéricos sean strings
+    const requestBody: ValidacionPCPRequest = {
+        u_cod_cita: validacionData.u_cod_cita,
+        u_packing_list_numbre: validacionData.u_packing_list_numbre,
+        u_validado_por: validacionData.u_validado_por,
+        u_fecha_validacion: validacionData.u_fecha_validacion,
+        detalles: (validacionData.detalles || []).map(detalle => ({
+            u_item_code: detalle.u_item_code,
+            u_item_name: detalle.u_item_name,
+            u_line_number: String(detalle.u_line_number),
+            u_document: String(detalle.u_document || ''),
+            u_confirmacion_pcp: detalle.u_confirmacion_pcp,
+            u_cobertura_actual: typeof detalle.u_cobertura_actual === 'number' 
+                ? String(detalle.u_cobertura_actual) 
+                : (detalle.u_cobertura_actual || ''),
+            u_cobertura_ingreso: typeof detalle.u_cobertura_ingreso === 'number' 
+                ? String(detalle.u_cobertura_ingreso) 
+                : (detalle.u_cobertura_ingreso || ''),
+            u_comentario: detalle.u_comentario || '',
+        }))
+    };
+    
+    const response = await httpClient(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+    });
+    
+    if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Error desconocido');
+        throw new Error(`Error al enviar validación PCP (${response.status}): ${errorText}`);
+    }
+    
+    const json = (await response.json()) as ValidacionPCPResponse;
+    
+    if (!json || typeof json !== 'object') {
+        throw new Error('Respuesta del servicio de validación PCP inválida.');
+    }
+    
+    if (!json.success || (json.status_code !== 200 && json.status_code !== 201)) {
+        throw new Error(json.message || 'Error al enviar la validación PCP');
+    }
+    
+    return json;
+};
+
+/**
+ * Obtiene la validación PCP de un producto específico
+ * @param codigoCita - Código de la cita
+ * @param numeroPackingList - Número del packing list
+ * @returns Promise con los datos de validación PCP o null si no existe
+ */
+export const getValidacionPCP = async (
+    codigoCita: string,
+    numeroPackingList: string
+): Promise<ValidacionPCPGetResponseData | null> => {
+    const params: Record<string, string> = {
+        CodigoCita: codigoCita,
+        NumeroPackingList: numeroPackingList
+    };
+    
+    const url = buildSecureUrl(
+        DEFAULT_API_BASE_URL,
+        `${VALIDACION_PCP_ENDPOINT}/ObtenerValidacion`,
+        params
+    );
+    
+    const response = await httpClient(url, {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+    });
+    
+    if (!response.ok) {
+        // Si el error es 404, significa que no existe validación, retornamos null
+        if (response.status === 404) {
+            return null;
+        }
+        const errorText = await response.text().catch(() => 'Error desconocido');
+        throw new Error(`Error al obtener validación PCP (${response.status}): ${errorText}`);
+    }
+    
+    const json = (await response.json()) as ValidacionPCPGetResponse;
+    
+    if (!json || typeof json !== 'object') {
+        throw new Error('Respuesta del servicio de validación PCP inválida.');
+    }
+    
+    if (!json.success) {
+        // Si no es exitoso pero el status_code es 200, puede que no haya datos
+        if (json.status_code === 200 && !json.data) {
+            return null;
+        }
+        throw new Error(json.message || 'Error al obtener la validación PCP');
+    }
+    
+    // Retornar los datos o null si no existen
+    return json.data || null;
 };

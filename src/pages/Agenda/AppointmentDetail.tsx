@@ -48,6 +48,7 @@ import { fetchPackingListFromApi, PackingListApiRecord, uploadFileToPackingList,
 import { formatDateForAPI, fetchAppointmentsFromApi, AppointmentDocument } from "@/services/agenda/appointmentsApi";
 import { createChoferInApi } from "@/services/agenda/choferesApi";
 import { fetchEvaluationByCodCita } from "@/services/agenda/evaluationsApi";
+import { getPCPValidations, PCPValidationRecord } from "@/services/agenda/pcpApi";
 import { DeliveryAppointment, PackingListItem, DeliveryEvaluation } from "@/store/types";
 import DocumentsModal from './DocumentsModal';
 import EvaluationModal from './EvaluationModal';
@@ -156,6 +157,8 @@ const AppointmentDetail: React.FC = () => {
     const [isLoadingPackingLists, setIsLoadingPackingLists] = useState(false);
     const [selectedPackingList, setSelectedPackingList] = useState<PackingListApiRecord | null>(null);
     const { isOpen: isPackingListDetailOpen, onOpen: onPackingListDetailOpen, onClose: onPackingListDetailClose } = useDisclosure();
+    const [pcpValidations, setPcpValidations] = useState<PCPValidationRecord[]>([]);
+    const [, setIsLoadingPCPValidations] = useState(false);
     
     // Estado para visualizar documentos
     const [selectedDocument, setSelectedDocument] = useState<{ name: string; url: string; type: string } | null>(null);
@@ -343,6 +346,28 @@ const AppointmentDetail: React.FC = () => {
             setPackingListsFromApi([]);
         }
     }, [appointment?.docEntry]);
+
+    // Cargar validaciones PCP cuando se abre el modal de detalle del PackingList
+    useEffect(() => {
+        if (isPackingListDetailOpen && selectedPackingList && appointment?.docEntry) {
+            const loadPCPValidations = async () => {
+                setIsLoadingPCPValidations(true);
+                try {
+                    const validations = await getPCPValidations(appointment.docEntry ?? "", selectedPackingList.number ?? "");
+                    setPcpValidations(validations);
+                } catch (error) {
+                    console.error('Error al cargar validaciones PCP:', error);
+                    setPcpValidations([]);
+                } finally {
+                    setIsLoadingPCPValidations(false);
+                }
+            };
+            
+            loadPCPValidations();
+        } else {
+            setPcpValidations([]);
+        }
+    }, [isPackingListDetailOpen, selectedPackingList, appointment?.docEntry]);
 
     // Cargar almacenes cuando se abre el modal de PackingList
     useEffect(() => {
@@ -1523,7 +1548,7 @@ const AppointmentDetail: React.FC = () => {
                     <Modal 
                         isOpen={isPackingListDetailOpen} 
                         onClose={onPackingListDetailClose}
-                        size="4xl"
+                        size="full"
                         scrollBehavior="inside"
                     >
                         <ModalContent>
@@ -1547,6 +1572,10 @@ const AppointmentDetail: React.FC = () => {
                                                             <TableColumn width={150}>CÓDIGO</TableColumn>
                                                             <TableColumn>DESCRIPCIÓN</TableColumn>
                                                             <TableColumn width={120} className="text-right">CANTIDAD</TableColumn>
+                                                            <TableColumn width={120}>CONFIRMACIÓN PCP</TableColumn>
+                                                            <TableColumn width={120}>COBERTURA ACTUAL</TableColumn>
+                                                            <TableColumn width={150}>COBERTURA CON INGRESOS</TableColumn>
+                                                            <TableColumn>COMENTARIO PCP</TableColumn>
                                                         </TableHeader>
                                                         <TableBody>
                                                             {detalle.map((item: any, index: number) => {
@@ -1554,6 +1583,12 @@ const AppointmentDetail: React.FC = () => {
                                                                 const itemCode = item.ItemCode || item.item_code || '';
                                                                 const itemName = item.ItemName || item.item_name || '';
                                                                 const quantity = item.Quantity || item.quantity || 0;
+                                                                
+                                                                // Buscar validación PCP para este item
+                                                                const pcpValidation = pcpValidations.find(
+                                                                    v => v.item_code === itemCode && v.line_number === lineNumber
+                                                                );
+                                                                
                                                                 return (
                                                                     <TableRow key={index}>
                                                                         <TableCell className="whitespace-nowrap text-center">
@@ -1567,8 +1602,44 @@ const AppointmentDetail: React.FC = () => {
                                                                                 {itemName}
                                                                             </div>
                                                                         </TableCell>
-                                                                        <TableCell className="text-right whitespace-nowrap font-semibold">
+                                                                        <TableCell className="text-center whitespace-nowrap font-semibold">
                                                                             {quantity.toLocaleString()}
+                                                                        </TableCell>
+                                                                        <TableCell className="text-center">
+                                                                            {pcpValidation?.confirmacion_pcp ? (
+                                                                                <Chip 
+                                                                                    size="sm" 
+                                                                                    color={pcpValidation.confirmacion_pcp === 'CONFORME' ? 'success' : 'danger'}
+                                                                                    variant="flat"
+                                                                                >
+                                                                                    {pcpValidation.confirmacion_pcp}
+                                                                                </Chip>
+                                                                            ) : (
+                                                                                <span className="text-gray-400 text-sm">-</span>
+                                                                            )}
+                                                                        </TableCell>
+                                                                        <TableCell className="text-center">
+                                                                            {pcpValidation?.cobertura_actual !== undefined && pcpValidation.cobertura_actual !== null ? (
+                                                                                <span className="text-sm font-medium">{pcpValidation.cobertura_actual.toFixed(2)}</span>
+                                                                            ) : (
+                                                                                <span className="text-gray-400 text-sm">-</span>
+                                                                            )}
+                                                                        </TableCell>
+                                                                        <TableCell className="text-center">
+                                                                            {pcpValidation?.cobertura_con_ingresos !== undefined && pcpValidation.cobertura_con_ingresos !== null ? (
+                                                                                <span className="text-sm font-medium">{pcpValidation.cobertura_con_ingresos.toFixed(2)}</span>
+                                                                            ) : (
+                                                                                <span className="text-gray-400 text-sm">-</span>
+                                                                            )}
+                                                                        </TableCell>
+                                                                        <TableCell>
+                                                                            {pcpValidation?.comentario ? (
+                                                                                <div className="max-w-[200px] truncate" title={pcpValidation.comentario}>
+                                                                                    <span className="text-sm">{pcpValidation.comentario}</span>
+                                                                                </div>
+                                                                            ) : (
+                                                                                <span className="text-gray-400 text-sm">-</span>
+                                                                            )}
                                                                         </TableCell>
                                                                     </TableRow>
                                                                 );

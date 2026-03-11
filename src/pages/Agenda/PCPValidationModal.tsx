@@ -23,11 +23,9 @@ import {
     CheckCircleIcon,
     InformationCircleIcon
 } from '@heroicons/react/24/outline';
-import { PackingListApiRecord } from '@/services/agenda/packingListApi';
+import { PackingListApiRecord, sendValidacionPCP, ValidacionPCPDetalle } from '@/services/agenda/packingListApi';
 import {
-    validatePCPItems,
     getPCPValidations,
-    PCPValidationItem,
     CoverageResponse
 } from '@/services/agenda/pcpApi';
 import { useAuth } from '@/store/authStore';
@@ -83,6 +81,7 @@ const PCPValidationModal: React.FC<PCPValidationModalProps> = ({
 
             // Cargar validaciones existentes
             const existingValidations = await getPCPValidations(codCita, packingList.number);
+            console.log("VALIDACIONES:", existingValidations);
 
             // Mapear items con sus validaciones existentes
             const itemsData: ItemValidationData[] = detalle.map((item: any, index: number) => {
@@ -92,9 +91,15 @@ const PCPValidationModal: React.FC<PCPValidationModalProps> = ({
                 const document = item.Document || item.document;
 
                 // Buscar validación existente para este item
+                // Normalizar line_number para comparación (puede venir como número o string)
+                const normalizedLineNumber = typeof lineNumber === 'string' ? parseInt(lineNumber, 10) : lineNumber;
                 const existingValidation = existingValidations.find(
-                    (v) => v.item_code === itemCode && v.line_number === lineNumber
+                    (v) => v.item_code === itemCode && 
+                           v.line_number !== undefined && 
+                           Number(v.line_number) === Number(normalizedLineNumber)
                 );
+
+                console.log("EXISTENTE: ", existingValidation)
 
                 return {
                     item_code: itemCode,
@@ -137,22 +142,31 @@ const PCPValidationModal: React.FC<PCPValidationModalProps> = ({
 
         setIsSaving(true);
         try {
-            const validationItems: PCPValidationItem[] = items.map(item => ({
-                item_code: item.item_code,
-                item_name: item.item_name,
-                line_number: item.line_number,
-                document: item.document,
-                confirmacion_pcp: item.confirmacion_pcp as 'CONFORME' | 'NO_CONFORME',
-                cobertura_actual: item.cobertura_actual ? parseFloat(item.cobertura_actual) : undefined,
-                cobertura_con_ingresos: item.cobertura_con_ingresos ? parseFloat(item.cobertura_con_ingresos) : undefined,
-                comentario: item.comentario.trim() || undefined,
+            if (!packingList?.number) {
+                throw new Error('El número del PackingList es requerido');
+            }
+
+            // Mapear items a la estructura que espera el API
+            const detalles: ValidacionPCPDetalle[] = items.map(item => ({
+                u_item_code: item.item_code,
+                u_item_name: item.item_name,
+                u_line_number: String(item.line_number),
+                u_document: item.document ? String(item.document) : '',
+                u_confirmacion_pcp: item.confirmacion_pcp as 'CONFORME' | 'NO_CONFORME',
+                u_cobertura_actual: item.cobertura_actual ? String(parseFloat(item.cobertura_actual)) : '',
+                u_cobertura_ingreso: item.cobertura_con_ingresos ? String(parseFloat(item.cobertura_con_ingresos)) : '',
+                u_comentario: item.comentario.trim() || '',
             }));
 
-            await validatePCPItems({
-                cod_cita: codCita,
-                packing_list_number: packingList?.number,
-                items: validationItems,
-                validado_por: currentUser?.fullName || currentUser?.username || 'system',
+            // Formatear fecha en formato ISO
+            const fechaValidacion = new Date().toISOString();
+
+            await sendValidacionPCP({
+                u_cod_cita: codCita,
+                u_packing_list_numbre: packingList.number,
+                u_validado_por: currentUser?.fullName || currentUser?.username || 'system',
+                u_fecha_validacion: fechaValidacion,
+                detalles: detalles,
             });
 
             alert('Validación PCP guardada exitosamente');

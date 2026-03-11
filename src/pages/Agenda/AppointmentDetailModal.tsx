@@ -40,6 +40,7 @@ import { DeliveryAppointment } from "@/store/types";
 import { UserRole } from "@/routes/menuTypes";
 import { fetchPackingListFromApi, PackingListApiRecord } from "@/services/agenda/packingListApi";
 import { formatDateForAPI } from "@/services/agenda/appointmentsApi";
+import { getPCPValidations, PCPValidationRecord } from "@/services/agenda/pcpApi";
 
 interface AppointmentDetailModalProps {
     isOpen: boolean;
@@ -70,6 +71,9 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
     const [packingListsFromApi, setPackingListsFromApi] = useState<PackingListApiRecord[]>([]);
     const [isLoadingPackingLists, setIsLoadingPackingLists] = useState(false);
     const [expandedPackingListId, setExpandedPackingListId] = useState<string | null>(null);
+    // Estado para validaciones PCP
+    const [pcpValidations, setPcpValidations] = useState<Record<string, PCPValidationRecord[]>>({});
+    const [isLoadingPCPValidations, setIsLoadingPCPValidations] = useState<Record<string, boolean>>({});
 
     // Cargar PackingList cuando se abre el modal y hay un appointment con docEntry
     useEffect(() => {
@@ -103,6 +107,29 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
             setPackingListsFromApi([]);
         }
     }, [isOpen, appointment?.docEntry]);
+
+    // Cargar validaciones PCP cuando se expande un PackingList
+    useEffect(() => {
+        if (expandedPackingListId && appointment?.docEntry) {
+            const packingList = packingListsFromApi.find(pl => pl.id === expandedPackingListId || pl.number === expandedPackingListId);
+            if (packingList && !pcpValidations[packingList.number]) {
+                const loadPCPValidations = async () => {
+                    setIsLoadingPCPValidations(prev => ({ ...prev, [packingList.number]: true }));
+                    try {
+                        const validations = await getPCPValidations(appointment.docEntry, packingList.number);
+                        setPcpValidations(prev => ({ ...prev, [packingList.number]: validations }));
+                    } catch (error) {
+                        console.error('Error al cargar validaciones PCP:', error);
+                        setPcpValidations(prev => ({ ...prev, [packingList.number]: [] }));
+                    } finally {
+                        setIsLoadingPCPValidations(prev => ({ ...prev, [packingList.number]: false }));
+                    }
+                };
+                
+                loadPCPValidations();
+            }
+        }
+    }, [expandedPackingListId, appointment?.docEntry, packingListsFromApi]);
 
     // Calcular progreso del proceso (0-100%)
     const calculateProgress = (): number => {
@@ -491,7 +518,7 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
                                                                                         <ChevronRightIcon className="w-4 h-4 text-gray-500" />
                                                                                     )
                                                                                 )}
-                                                                                {pl.Number}
+                                                                                {pl.number}
                                                                             </div>
                                                                         </TableCell>
                                                                         <TableCell className="whitespace-nowrap">{pl.WhsCode}</TableCell>
@@ -561,6 +588,10 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
                                                                         <TableColumn width={120}>CÓDIGO</TableColumn>
                                                                         <TableColumn>DESCRIPCIÓN</TableColumn>
                                                                         <TableColumn width={100} className="text-right">CANTIDAD</TableColumn>
+                                                                        <TableColumn width={120}>CONFIRMACIÓN PCP</TableColumn>
+                                                                        <TableColumn width={120}>COBERTURA ACTUAL</TableColumn>
+                                                                        <TableColumn width={150}>COBERTURA CON INGRESOS</TableColumn>
+                                                                        <TableColumn>COMENTARIO PCP</TableColumn>
                                                                     </TableHeader>
                                                                     <TableBody>
                                                                         {detalle.map((item, index) => {
@@ -568,6 +599,15 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
                                                                             const itemCode = item.ItemCode || item.itemCode || '';
                                                                             const itemName = item.ItemName || item.itemName || '';
                                                                             const quantity = item.Quantity || item.quantity || 0;
+                                                                            
+                                                                            // Buscar validación PCP para este item
+                                                                            const validationsForPL = pcpValidations[pl.number] || [];
+                                                                            const normalizedLineNumber = typeof lineNumber === 'string' ? parseInt(lineNumber, 10) : lineNumber;
+                                                                            const pcpValidation = validationsForPL.find(
+                                                                                v => v.item_code === itemCode && 
+                                                                                     v.line_number !== undefined && 
+                                                                                     Number(v.line_number) === Number(normalizedLineNumber)
+                                                                            );
                                                                             
                                                                             return (
                                                                                 <TableRow key={`${pl.Id}-${lineNumber}-${index}`}>
@@ -581,6 +621,42 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
                                                                                             </Chip>
                                                                                         ) : (
                                                                                             <span className="text-gray-400">0</span>
+                                                                                        )}
+                                                                                    </TableCell>
+                                                                                    <TableCell>
+                                                                                        {pcpValidation?.confirmacion_pcp ? (
+                                                                                            <Chip 
+                                                                                                size="sm" 
+                                                                                                color={pcpValidation.confirmacion_pcp === 'CONFORME' ? 'success' : 'danger'}
+                                                                                                variant="flat"
+                                                                                            >
+                                                                                                {pcpValidation.confirmacion_pcp}
+                                                                                            </Chip>
+                                                                                        ) : (
+                                                                                            <span className="text-gray-400 text-sm">-</span>
+                                                                                        )}
+                                                                                    </TableCell>
+                                                                                    <TableCell className="text-right">
+                                                                                        {pcpValidation?.cobertura_actual !== undefined && pcpValidation.cobertura_actual !== null ? (
+                                                                                            <span className="text-sm font-medium">{pcpValidation.cobertura_actual.toFixed(2)} meses</span>
+                                                                                        ) : (
+                                                                                            <span className="text-gray-400 text-sm">-</span>
+                                                                                        )}
+                                                                                    </TableCell>
+                                                                                    <TableCell className="text-right">
+                                                                                        {pcpValidation?.cobertura_con_ingresos !== undefined && pcpValidation.cobertura_con_ingresos !== null ? (
+                                                                                            <span className="text-sm font-medium">{pcpValidation.cobertura_con_ingresos.toFixed(2)} meses</span>
+                                                                                        ) : (
+                                                                                            <span className="text-gray-400 text-sm">-</span>
+                                                                                        )}
+                                                                                    </TableCell>
+                                                                                    <TableCell>
+                                                                                        {pcpValidation?.comentario ? (
+                                                                                            <div className="max-w-[200px] truncate" title={pcpValidation.comentario}>
+                                                                                                <span className="text-sm">{pcpValidation.comentario}</span>
+                                                                                            </div>
+                                                                                        ) : (
+                                                                                            <span className="text-gray-400 text-sm">-</span>
                                                                                         )}
                                                                                     </TableCell>
                                                                                 </TableRow>

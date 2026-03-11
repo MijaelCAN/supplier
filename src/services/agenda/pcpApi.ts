@@ -3,7 +3,8 @@ import { getApiBaseUrl } from "@/config/api.ts";
 
 const DEFAULT_API_BASE_URL = getApiBaseUrl();
 const PCP_VALIDATION_ENDPOINT = '/api/PCP/Validacion';
-//const PCP_COVERAGE_ENDPOINT = '/api/PCP/Cobertura';
+const PCP_COVERAGE_ENDPOINT = '/api/ValidacionPCP/ObtenerValidacion';
+const PCP_POST_VALIDACION = '/api/ValidacionPCP';
 
 /**
  * Interfaz para un item de validación PCP
@@ -23,8 +24,8 @@ export interface PCPValidationItem {
  * Interfaz para la petición de validación PCP
  */
 export interface PCPValidationRequest {
-    cod_cita: string; // DocEntry de la cita
-    packing_list_number?: string; // Número del PackingList (opcional, si se valida por PackingList)
+    CodigoCita: string; // DocEntry de la cita
+    NumeroPackingList?: string; // Número del PackingList (opcional, si se valida por PackingList)
     items: PCPValidationItem[]; // Array de items a validar
     validado_por?: string; // Usuario que valida (opcional, se puede obtener del token)
     fecha_validacion?: string; // Fecha de validación (opcional, se puede usar fecha actual)
@@ -94,13 +95,32 @@ export interface PCPValidationRecord {
 }
 
 /**
+ * Interfaz para la respuesta del API de validación PCP (estructura raw del API)
+ */
+interface ValidacionPCPGetResponseDataRaw {
+    codigo_cita: string;
+    numero_de_packing_list: string;
+    validado_por: string;
+    fecha_de_validacion: string;
+    codigo_de_producto: string;
+    nombre_de_producto: string;
+    numero_de_linea: string;
+    documento: string;
+    confirmacion_pcp: string;
+    cobertura_actual: string;
+    cobertura_ingreso: string;
+    comentario: string;
+}
+
+/**
  * Interfaz para obtener validaciones PCP de una cita
+ * Nota: El API puede retornar un objeto único o un array
  */
 export interface GetPCPValidationResponse {
     status_code: number;
     success: boolean;
     message: string;
-    data?: PCPValidationRecord[];
+    data?: ValidacionPCPGetResponseDataRaw | ValidacionPCPGetResponseDataRaw[] | PCPValidationRecord[];
 }
 
 /**
@@ -128,7 +148,7 @@ export interface GetPCPValidationResponse {
 export const validatePCPItems = async (
     request: PCPValidationRequest
 ): Promise<PCPValidationResponse> => {
-    if (!request.cod_cita || request.cod_cita.trim() === '') {
+    if (!request.CodigoCita || request.CodigoCita.trim() === '') {
         throw new Error('El código de cita es requerido');
     }
 
@@ -142,7 +162,7 @@ export const validatePCPItems = async (
         fecha_validacion: request.fecha_validacion || new Date().toISOString(),
     };
 
-    const url = `${DEFAULT_API_BASE_URL}${PCP_VALIDATION_ENDPOINT}`;
+    const url = `${DEFAULT_API_BASE_URL}${PCP_POST_VALIDACION}`;
 
     const response = await httpClient(url, {
         method: 'POST',
@@ -167,6 +187,26 @@ export const validatePCPItems = async (
 };
 
 /**
+ * Mapea la respuesta raw del API a PCPValidationRecord
+ */
+const mapValidacionPCPToRecord = (raw: ValidacionPCPGetResponseDataRaw): PCPValidationRecord => {
+    return {
+        cod_cita: raw.codigo_cita,
+        packing_list_number: raw.numero_de_packing_list,
+        item_code: raw.codigo_de_producto,
+        item_name: raw.nombre_de_producto,
+        confirmacion_pcp: raw.confirmacion_pcp as 'CONFORME' | 'NO_CONFORME',
+        cobertura_actual: raw.cobertura_actual ? parseFloat(raw.cobertura_actual) : undefined,
+        cobertura_con_ingresos: raw.cobertura_ingreso ? parseFloat(raw.cobertura_ingreso) : undefined,
+        comentario: raw.comentario || undefined,
+        validado_por: raw.validado_por,
+        fecha_validacion: raw.fecha_de_validacion,
+        line_number: raw.numero_de_linea ? parseInt(raw.numero_de_linea, 10) : undefined,
+        document: raw.documento ? parseInt(raw.documento, 10) : undefined,
+    };
+};
+
+/**
  * Obtiene las validaciones PCP de una cita
  * 
  * @param codCita - Código de la cita (DocEntry)
@@ -187,14 +227,14 @@ export const getPCPValidations = async (
     }
 
     const params: Record<string, string> = {
-        cod_cita: codCita.trim(),
+        CodigoCita: codCita.trim(),
     };
 
     if (packingListNumber && packingListNumber.trim() !== '') {
-        params['packing_list_number'] = packingListNumber.trim();
+        params['NumeroPackingList'] = packingListNumber.trim();
     }
 
-    const url = buildSecureUrl(DEFAULT_API_BASE_URL, PCP_VALIDATION_ENDPOINT, params);
+    const url = buildSecureUrl(DEFAULT_API_BASE_URL, PCP_COVERAGE_ENDPOINT, params);
 
     const response = await httpClient(url, {
         method: 'GET',
@@ -213,11 +253,27 @@ export const getPCPValidations = async (
 
     const json = (await response.json()) as GetPCPValidationResponse;
 
-    if (!json || !json.success) {
+    if (!json || !json.success || !json.data) {
         return [];
     }
 
-    return json.data || [];
+    // El API puede retornar un objeto único o un array
+    const data = json.data;
+
+    // Si ya es un array de PCPValidationRecord (formato antiguo), retornarlo directamente
+    if (Array.isArray(data)) {
+        // Verificar si el primer elemento ya está en formato PCPValidationRecord
+        if (data.length > 0 && 'item_code' in data[0]) {
+            return data as PCPValidationRecord[];
+        }
+        // Si es array de objetos raw, mapear cada uno
+        // TypeScript necesita que seamos explícitos sobre el tipo
+        const rawData = data as ValidacionPCPGetResponseDataRaw[];
+        return rawData.map(mapValidacionPCPToRecord);
+    }
+
+    // Si es un objeto único, convertirlo a array
+    return [mapValidacionPCPToRecord(data as ValidacionPCPGetResponseDataRaw)];
 };
 
 /**
@@ -229,7 +285,7 @@ export const getPCPValidations = async (
 export const updatePCPValidation = async (
     request: PCPValidationRequest
 ): Promise<PCPValidationResponse> => {
-    if (!request.cod_cita || request.cod_cita.trim() === '') {
+    if (!request.CodigoCita || request.CodigoCita.trim() === '') {
         throw new Error('El código de cita es requerido');
     }
 

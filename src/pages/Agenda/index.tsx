@@ -314,6 +314,18 @@ const Agenda: React.FC = () => {
                 // Llamar al nuevo endpoint de productos
                 const products = await fetchProductsFromApi(fechaInicio, fechaFin);
                 
+                // Debug: Verificar datos PCP
+                console.log('Productos cargados desde API:', products);
+                if (products.length > 0) {
+                    console.log('Primer producto con datos PCP:', {
+                        item_code: products[0].item_code,
+                        pcp_confirmacion: products[0].confirmacion_pcp,
+                        pcp_cobertura_actual: products[0].cobertura_actual,
+                        pcp_cobertura_con_ingresos: products[0].cobertura_ingreso,
+                        pcp_comentario: products[0].comentario
+                    });
+                }
+                
                 setListViewData(products);
             } catch (error) {
                 console.error('Error al cargar datos de lista:', error);
@@ -418,7 +430,11 @@ const Agenda: React.FC = () => {
                 'Descripción': product.item_name,
                 'Proveedor': product.u_razon_social,
                 'Cantidad': product.quantity,
-                'Horario': formatHorario(product.horario)
+                'Horario': formatHorario(product.horario),
+                'Confirmación PCP': product.confirmacion_pcp || '-',
+                'Cobertura Actual (meses)': product.cobertura_actual !== undefined && product.cobertura_actual !== null ? product.cobertura_actual.toFixed(2) : '-',
+                'Cobertura con Ingresos (meses)': product.cobertura_ingreso !== undefined && product.cobertura_ingreso !== null ? product.cobertura_ingreso.toFixed(2) : '-',
+                'Comentario PCP': product.comentario || '-'
             }));
 
             // Crear un libro de trabajo
@@ -435,7 +451,11 @@ const Agenda: React.FC = () => {
                 { wch: 50 }, // Descripción
                 { wch: 40 }, // Proveedor
                 { wch: 12 }, // Cantidad
-                { wch: 15 }  // Horario
+                { wch: 15 }, // Horario
+                { wch: 18 }, // Confirmación PCP
+                { wch: 22 }, // Cobertura Actual
+                { wch: 28 }, // Cobertura con Ingresos
+                { wch: 30 }  // Comentario PCP
             ];
             ws['!cols'] = colWidths;
 
@@ -559,6 +579,10 @@ const Agenda: React.FC = () => {
                                 <th>Proveedor</th>
                                 <th>Cantidad</th>
                                 <th>Horario</th>
+                                <th>Confirmación PCP</th>
+                                <th>Cobertura Actual</th>
+                                <th>Cobertura con Ingresos</th>
+                                <th>Comentario PCP</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -571,6 +595,10 @@ const Agenda: React.FC = () => {
                                     <td>${product.u_razon_social}</td>
                                     <td>${product.quantity}</td>
                                     <td>${formatHorario(product.horario)}</td>
+                                    <td>${product.confirmacion_pcp || '-'}</td>
+                                    <td>${product.cobertura_actual !== undefined && product.cobertura_actual !== null ? product.cobertura_actual.toFixed(2) + ' meses' : '-'}</td>
+                                    <td>${product.cobertura_ingreso !== undefined && product.cobertura_ingreso !== null ? product.cobertura_ingreso.toFixed(2) + ' meses' : '-'}</td>
+                                    <td>${product.comentario || '-'}</td>
                                 </tr>
                             `).join('')}
                         </tbody>
@@ -1413,20 +1441,20 @@ const Agenda: React.FC = () => {
                 console.log("DATA: ", data);
             // Crear PackingList en el API
             await createPackingListInApi({
-                vendorId: vendorId,
-                whsCode: packingListForm.warehouse,
+                vendor_id: vendorId,
+                whs_code: packingListForm.warehouse,
                 number: packingListForm.number.trim(),
-                inboundType: packingListForm.inboundType || 'OCNAC',
+                inbound_type: packingListForm.inboundType || 'OCNAC',
                 comments: packingListForm.comment || '',
-                dateExpected: packingListForm.date || new Date().toISOString().split('T')[0], // Formato YYYY-MM-DD
+                date_expected: packingListForm.date || new Date().toISOString().split('T')[0], // Formato YYYY-MM-DD
                 ticket: "0", // Ticket WMS
-                wmsResponse: packingListForm.commentWms || '',
-                codCita: selectedAppointment.docEntry,
-                _detallePackinList: selectedItems.map((item, index) => ({
+                wms_response: packingListForm.commentWms || '',
+                cod_cita: selectedAppointment.docEntry,
+                _detalle_packin_list: selectedItems.map((item, index) => ({
                     document: (item as any).document || 0, // Número de documento de orden de compra (debe venir del item)
-                    lineNumber: index + 1, // LineNumber secuencial desde 1 para los items seleccionados
-                    itemCode: item.productCode,
-                    itemName: item.productName,
+                    line_number: index + 1, // LineNumber secuencial desde 1 para los items seleccionados
+                    item_code: item.productCode,
+                    item_name: item.productName,
                     quantity: item.quantity
                 }))
             });
@@ -1498,15 +1526,15 @@ const Agenda: React.FC = () => {
         try {
             // Preparar los datos para el API
             const choferData = {
-                U_EmpresaTransporte: transportForm.transportCompany || '',
-                U_NombreConductor: transportForm.driverName || '',
-                U_LicenciaConducir: transportForm.driverLicense || '',
-                U_PlacaVehiculo: transportForm.vehiclePlate || '',
-                U_TipoVehiculo: transportForm.vehicleType || '',
-                U_TelefonoContacto: transportForm.contactPhone || '',
-                U_HoraLlegada: transportForm.estimatedArrival || '',
-                U_Notas: transportForm.notes || '',
-                U_CodCita: selectedAppointment.docEntry
+                u_empresa_transporte: transportForm.transportCompany || '',
+                u_nombre_conductor: transportForm.driverName || '',
+                u_licencia_conducir: transportForm.driverLicense || '',
+                u_placa_vehiculo: transportForm.vehiclePlate || '',
+                u_tipo_vehiculo: transportForm.vehicleType || '',
+                u_telefono_contacto: transportForm.contactPhone || '',
+                u_hora_llegada: transportForm.estimatedArrival || '',
+                u_notas: transportForm.notes || '',
+                u_cod_cita: selectedAppointment.docEntry
             };
 
             // Llamar al API para crear el chofer
@@ -1567,10 +1595,10 @@ const Agenda: React.FC = () => {
             // Guardar en el estado local también
             const document: any = {
                 id: `doc-${Date.now()}`,
-                name: uploadResult.nameFile,
+                name: uploadResult.name_file,
                 originalName: file.name,
                 type: file.type,
-                url: uploadResult.urlArchivo,
+                url: uploadResult.url_archivo,
                 uploadDate: new Date().toISOString(),
                 uploadedBy: currentUser?.id || 'system'
             };
@@ -1924,6 +1952,10 @@ const Agenda: React.FC = () => {
                                             <TableColumn>PROVEEDOR</TableColumn>
                                                 <TableColumn className="w-[100px] min-w-[100px]">CANTIDAD</TableColumn>
                                                 <TableColumn className="w-[120px] min-w-[120px]">HORARIO</TableColumn>
+                                                <TableColumn className="w-[120px] min-w-[120px]">CONFIRMACIÓN PCP</TableColumn>
+                                                <TableColumn className="w-[120px] min-w-[120px]">COBERTURA ACTUAL</TableColumn>
+                                                <TableColumn className="w-[150px] min-w-[150px]">COBERTURA CON INGRESOS</TableColumn>
+                                                <TableColumn>COMENTARIO PCP</TableColumn>
                                         </TableHeader>
                                         <TableBody>
                                                 {filteredListViewData.map((row, index) => (
@@ -1949,6 +1981,42 @@ const Agenda: React.FC = () => {
                                                     </TableCell>
                                                         <TableCell className="whitespace-nowrap">{row.quantity}</TableCell>
                                                         <TableCell className="whitespace-nowrap">{formatHorario(row.horario)}</TableCell>
+                                                        <TableCell>
+                                                            {row.confirmacion_pcp ? (
+                                                                <Chip 
+                                                                    size="sm" 
+                                                                    color={row.confirmacion_pcp === 'CONFORME' ? 'success' : 'danger'}
+                                                                    variant="flat"
+                                                                >
+                                                                    {row.confirmacion_pcp}
+                                                                </Chip>
+                                                            ) : (
+                                                                <span className="text-gray-400 text-sm">-</span>
+                                                            )}
+                                                        </TableCell>
+                                                        <TableCell className="text-right whitespace-nowrap">
+                                                            {row.cobertura_actual !== undefined && row.cobertura_actual !== null ? (
+                                                                <span className="text-sm font-medium">{row.cobertura_actual}</span>
+                                                            ) : (
+                                                                <span className="text-gray-400 text-sm">-</span>
+                                                            )}
+                                                        </TableCell>
+                                                        <TableCell className="text-right whitespace-nowrap">
+                                                            {row.cobertura_ingreso !== undefined && row.cobertura_ingreso !== null ? (
+                                                                <span className="text-sm font-medium">{row.cobertura_ingreso}</span>
+                                                            ) : (
+                                                                <span className="text-gray-400 text-sm">-</span>
+                                                            )}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            {row.comentario ? (
+                                                                <div className="truncate max-w-[200px]" title={row.comentario}>
+                                                                    <span className="text-sm">{row.comentario}</span>
+                                                                </div>
+                                                            ) : (
+                                                                <span className="text-gray-400 text-sm">-</span>
+                                                            )}
+                                                        </TableCell>
                                                 </TableRow>
                                             ))}
                                         </TableBody>
