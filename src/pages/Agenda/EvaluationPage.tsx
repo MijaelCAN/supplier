@@ -122,10 +122,88 @@ const EvaluationPage: React.FC = () => {
         }
     };
 
+    // Validaciones para abrir modales de evaluación
+    const canEvaluateDocumentacion = (): boolean => {
+        // Debe haber al menos un documento
+        if (!appointment) return false;
+        
+        // Verificar documentos del API si están disponibles
+        if ((appointment as any).Documents && Array.isArray((appointment as any).Documents)) {
+            return (appointment as any).Documents.length > 0;
+        }
+        
+        // Verificar documentos mapeados
+        if (appointment.documents) {
+            const hasInvoice = !!appointment.documents.invoice?.url;
+            const hasPurchaseOrder = !!appointment.documents.purchaseOrder?.url;
+            const hasDeliveryGuide = !!appointment.documents.deliveryGuide?.url;
+            return hasInvoice || hasPurchaseOrder || hasDeliveryGuide;
+        }
+        
+        return false;
+    };
+
+    const canEvaluatePuntualidad = (): boolean => {
+        // Debe haber llegado la fecha y hora de la cita
+        if (!appointment?.deliveryDate || !appointment?.deliveryTime) {
+            return false;
+        }
+        
+        // Construir fecha/hora de la cita
+        const appointmentDateTime = new Date(`${appointment.deliveryDate}T${appointment.deliveryTime}`);
+        const now = new Date();
+        
+        // La fecha/hora de la cita debe haber pasado
+        return appointmentDateTime <= now;
+    };
+
+    const canEvaluateCalidadYCantidad = (): boolean => {
+        // Debe haberse calificado puntualidad primero
+        return isCriterionEvaluated('puntualidad');
+    };
+
+    const getEvaluationErrorMessage = (type: EvaluationModalType): string => {
+        switch (type) {
+            case 'documentacion':
+                return 'No se puede calificar Documentación: aún no hay documentos cargados.';
+            case 'puntualidad':
+                return 'No se puede calificar Puntualidad: la fecha y hora de la cita aún no han llegado.';
+            case 'estadoMercaderia':
+            case 'cantidadCorrecta':
+                return 'No se puede calificar: primero debe calificarse la Puntualidad (asistencia).';
+            default:
+                return 'No se puede evaluar en este momento.';
+        }
+    };
+
     const handleOpenModal = (type: EvaluationModalType) => {
+        // Verificar si ya está evaluado
         if (isCriterionEvaluated(type)) {
             return;
         }
+
+        // Validaciones específicas por tipo
+        let canOpen = true;
+        switch (type) {
+            case 'documentacion':
+                canOpen = canEvaluateDocumentacion();
+                break;
+            case 'puntualidad':
+                canOpen = canEvaluatePuntualidad();
+                break;
+            case 'estadoMercaderia':
+            case 'cantidadCorrecta':
+                canOpen = canEvaluateCalidadYCantidad();
+                break;
+        }
+
+        if (!canOpen) {
+            // Mostrar mensaje de error específico
+            const errorMessage = getEvaluationErrorMessage(type);
+            alert(errorMessage);
+            return;
+        }
+
         setModalType(type);
         setIsModalOpen(true);
     };
@@ -329,6 +407,7 @@ const EvaluationPage: React.FC = () => {
                                         variant="flat"
                                         color="primary"
                                         onPress={() => handleOpenModal('puntualidad')}
+                                        isDisabled={!canEvaluatePuntualidad()}
                                     >
                                         Evaluar
                                     </Button>
@@ -395,6 +474,7 @@ const EvaluationPage: React.FC = () => {
                                         variant="flat"
                                         color="primary"
                                         onPress={() => handleOpenModal('documentacion')}
+                                        isDisabled={!canEvaluateDocumentacion()}
                                     >
                                         Evaluar
                                     </Button>
@@ -462,6 +542,7 @@ const EvaluationPage: React.FC = () => {
                                         variant="flat"
                                         color="primary"
                                         onPress={() => handleOpenModal('estadoMercaderia')}
+                                        isDisabled={!canEvaluateCalidadYCantidad()}
                                     >
                                         Evaluar
                                     </Button>
@@ -587,6 +668,7 @@ const EvaluationPage: React.FC = () => {
                                         variant="flat"
                                         color="primary"
                                         onPress={() => handleOpenModal('cantidadCorrecta')}
+                                        isDisabled={!canEvaluateCalidadYCantidad()}
                                     >
                                         Evaluar
                                     </Button>

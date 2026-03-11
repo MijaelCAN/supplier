@@ -441,7 +441,8 @@ export const updateAppointmentInApi = async (
         u_descripcion: appointmentData.u_descripcion || '',
         u_almacen: appointmentData.u_almacen || '',
         u_active: appointmentData.u_active || 'Y',
-        u_estado: appointmentData.u_estado || 'REGISTRADA'
+        // Solo incluir u_estado si viene en appointmentData, no forzar REGISTRADA
+        ...(appointmentData.u_estado && { u_estado: appointmentData.u_estado })
     };
     
     const response = await httpClient(url, {

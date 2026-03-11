@@ -49,6 +49,7 @@ import { formatDateForAPI, fetchAppointmentsFromApi, AppointmentDocument } from 
 import { createChoferInApi } from "@/services/agenda/choferesApi";
 import { fetchEvaluationByCodCita } from "@/services/agenda/evaluationsApi";
 import { getPCPValidations, PCPValidationRecord } from "@/services/agenda/pcpApi";
+import { STATUS_CONFIG } from "@/services/agenda/appointmentStatus";
 import { DeliveryAppointment, PackingListItem, DeliveryEvaluation } from "@/store/types";
 import DocumentsModal from './DocumentsModal';
 import EvaluationModal from './EvaluationModal';
@@ -83,6 +84,36 @@ const AppointmentDetail: React.FC = () => {
     const [isEvaluationModalOpen, setIsEvaluationModalOpen] = useState(false);
     const [evaluationModalType, setEvaluationModalType] = useState<'puntualidad' | 'documentacion' | 'estadoMercaderia' | 'cantidadCorrecta'>('puntualidad');
     const [isClaimModalOpen, setIsClaimModalOpen] = useState(false);
+
+    // Función helper para recargar el appointment desde el API
+    const reloadAppointmentFromApi = async () => {
+        if (!appointmentId) return;
+        
+        try {
+            const apiAppointments = await fetchAppointmentsFromApi();
+            const foundApiAppointment = apiAppointments.find(
+                (apt) => apt.docEntry === appointmentId || apt.appointmentNumber === appointmentId
+            );
+
+            if (foundApiAppointment) {
+                setAppointment(foundApiAppointment);
+                
+                // Cargar evaluación si existe docEntry
+                if (foundApiAppointment.docEntry) {
+                    try {
+                        const evalData = await fetchEvaluationByCodCita(foundApiAppointment.docEntry);
+                        if (evalData) {
+                            setEvaluation(evalData);
+                        }
+                    } catch (error) {
+                        console.error('Error al cargar evaluación:', error);
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Error al recargar appointment desde API:', error);
+        }
+    };
 
     // Cargar appointment SIEMPRE desde el API (no usar localStorage/store)
     useEffect(() => {
@@ -446,46 +477,37 @@ const AppointmentDetail: React.FC = () => {
         },
     ];
 
-    // Obtener color y estilo según el estado
+    // Obtener color y estilo según el estado usando STATUS_CONFIG
     const getStatusConfig = (status: string) => {
-        const configs: Record<string, { color: 'default' | 'primary' | 'success' | 'warning' | 'danger', bg: string, text: string }> = {
-            'Pendiente': { 
-                color: 'warning', 
-                bg: 'bg-amber-50', 
-                text: 'text-amber-700' 
-            },
-            'PackingListCompletado': { 
-                color: 'primary', 
-                bg: 'bg-blue-50', 
-                text: 'text-blue-700' 
-            },
-            'TransporteCompletado': { 
-                color: 'primary', 
-                bg: 'bg-blue-50', 
-                text: 'text-blue-700' 
-            },
-            'DocumentosCompletados': { 
-                color: 'primary', 
-                bg: 'bg-blue-50', 
-                text: 'text-blue-700' 
-            },
-            'ListaParaEntrega': { 
-                color: 'success', 
-                bg: 'bg-emerald-50', 
-                text: 'text-emerald-700' 
-            },
-            'Completada': { 
-                color: 'success', 
-                bg: 'bg-emerald-50', 
-                text: 'text-emerald-700' 
-            },
-            'Cancelada': { 
-                color: 'danger', 
-                bg: 'bg-red-50', 
-                text: 'text-red-700' 
-            }
+        // Usar STATUS_CONFIG si el estado existe, sino usar valores por defecto
+        const statusKey = status as keyof typeof STATUS_CONFIG;
+        if (statusKey && STATUS_CONFIG[statusKey]) {
+            const config = STATUS_CONFIG[statusKey];
+            // Mapear colores de STATUS_CONFIG a clases de Tailwind
+            const colorMap: Record<string, { bg: string, text: string }> = {
+                'default': { bg: 'bg-gray-50', text: 'text-gray-700' },
+                'primary': { bg: 'bg-blue-50', text: 'text-blue-700' },
+                'success': { bg: 'bg-emerald-50', text: 'text-emerald-700' },
+                'warning': { bg: 'bg-amber-50', text: 'text-amber-700' },
+                'danger': { bg: 'bg-red-50', text: 'text-red-700' }
+            };
+            const colorClasses = colorMap[config.color] || colorMap['default'];
+            return {
+                color: config.color,
+                bg: colorClasses.bg,
+                text: colorClasses.text,
+                label: config.label,
+                description: config.description
+            };
+        }
+        // Fallback para estados antiguos o no reconocidos
+        return { 
+            color: 'default' as const, 
+            bg: 'bg-gray-50', 
+            text: 'text-gray-700',
+            label: status,
+            description: ''
         };
-        return configs[status] || { color: 'default' as const, bg: 'bg-gray-50', text: 'text-gray-700' };
     };
 
     const statusConfig = getStatusConfig(appointment.status);
@@ -518,7 +540,65 @@ const AppointmentDetail: React.FC = () => {
         }
     };
 
-    const canOpenEvaluationModal = (type: EvaluationModalType): boolean => !isCriterionEvaluated(type);
+    // Validaciones para abrir modales de evaluación
+    const canEvaluateDocumentacion = (): boolean => {
+        // Debe haber al menos un documento
+        const allDocs = getAllDocuments();
+        return allDocs.length > 0;
+    };
+
+    const canEvaluatePuntualidad = (): boolean => {
+        // Debe haber llegado la fecha y hora de la cita
+        if (!appointment?.deliveryDate || !appointment?.deliveryTime) {
+            return false;
+        }
+        
+        // Construir fecha/hora de la cita
+        const appointmentDateTime = new Date(`${appointment.deliveryDate}T${appointment.deliveryTime}`);
+        const now = new Date();
+        
+        // La fecha/hora de la cita debe haber pasado
+        return appointmentDateTime <= now;
+    };
+
+    const canEvaluateCalidadYCantidad = (): boolean => {
+        // Debe haberse calificado puntualidad primero
+        return isCriterionEvaluated('puntualidad');
+    };
+
+    const canOpenEvaluationModal = (type: EvaluationModalType): boolean => {
+        // Primero verificar que no esté ya evaluado
+        if (isCriterionEvaluated(type)) {
+            return false;
+        }
+
+        // Validaciones específicas por tipo
+        switch (type) {
+            case 'documentacion':
+                return canEvaluateDocumentacion();
+            case 'puntualidad':
+                return canEvaluatePuntualidad();
+            case 'estadoMercaderia':
+            case 'cantidadCorrecta':
+                return canEvaluateCalidadYCantidad();
+            default:
+                return true;
+        }
+    };
+
+    const getEvaluationErrorMessage = (type: EvaluationModalType): string => {
+        switch (type) {
+            case 'documentacion':
+                return 'No se puede calificar Documentación: aún no hay documentos cargados.';
+            case 'puntualidad':
+                return 'No se puede calificar Puntualidad: la fecha y hora de la cita aún no han llegado.';
+            case 'estadoMercaderia':
+            case 'cantidadCorrecta':
+                return 'No se puede calificar: primero debe calificarse la Puntualidad (asistencia).';
+            default:
+                return 'No se puede evaluar en este momento.';
+        }
+    };
 
     const handleOpenPackingList = () => {
         setSelectedAppointment(appointment);
@@ -628,6 +708,8 @@ const AppointmentDetail: React.FC = () => {
                 const { updateAppointmentStatus } = await import('@/services/agenda/appointmentStatus');
                 const userId = currentUser.userCode || currentUser.id || currentUser.username || 'system';
                 await updateAppointmentStatus(appointment.docEntry, 'PROGRAMADA', userId);
+                // Recargar appointment para obtener el estado actualizado
+                await reloadAppointmentFromApi();
             }
 
             alert('PackingList creado exitosamente. Estado actualizado a PROGRAMADA.');
@@ -705,6 +787,9 @@ const AppointmentDetail: React.FC = () => {
 
     const handleOpenEvaluationModal = (type: EvaluationModalType) => {
         if (!canOpenEvaluationModal(type)) {
+            // Mostrar mensaje de error específico
+            const errorMessage = getEvaluationErrorMessage(type);
+            alert(errorMessage);
             return;
         }
         setEvaluationModalType(type);
@@ -734,8 +819,8 @@ const AppointmentDetail: React.FC = () => {
             
             const userId = currentUser?.userCode || currentUser?.id || currentUser?.username || 'system';
             await updateAppointmentStatus(appointment.docEntry, newStatus, userId);
-            
-            setAppointment({ ...appointment, status: newStatus });
+            // Recargar appointment para obtener el estado actualizado
+            await reloadAppointmentFromApi();
         }
         
         // Si se evaluó cantidad correcta, actualizar estado de almacén
@@ -769,8 +854,8 @@ const AppointmentDetail: React.FC = () => {
             
             const userId = currentUser.userCode || currentUser.id || currentUser.username || 'system';
             await updateAppointmentStatus(appointment.docEntry, newStatus, userId);
-            
-            setAppointment({ ...appointment, status: newStatus });
+            // Recargar appointment para obtener el estado actualizado
+            await reloadAppointmentFromApi();
         }
     };
 
@@ -791,8 +876,8 @@ const AppointmentDetail: React.FC = () => {
             const { updateAppointmentStatus } = await import('@/services/agenda/appointmentStatus');
             const userId = currentUser.userCode || currentUser.id || currentUser.username || 'system';
             await updateAppointmentStatus(appointment.docEntry, 'EN_EXPLANADA', userId);
-            
-            setAppointment({ ...appointment, status: 'EN_EXPLANADA' });
+            // Recargar appointment para obtener el estado actualizado
+            await reloadAppointmentFromApi();
             alert('Proveedor marcado como llegado. Estado actualizado a EN_EXPLANADA.');
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Error al actualizar estado';
@@ -815,8 +900,8 @@ const AppointmentDetail: React.FC = () => {
             const { updateAppointmentStatus } = await import('@/services/agenda/appointmentStatus');
             const userId = currentUser.userCode || currentUser.id || currentUser.username || 'system';
             await updateAppointmentStatus(appointment.docEntry, 'PARTE_DE_INGRESO_GENERADO', userId);
-            
-            setAppointment({ ...appointment, status: 'PARTE_DE_INGRESO_GENERADO' });
+            // Recargar appointment para obtener el estado actualizado
+            await reloadAppointmentFromApi();
             alert('Parte de Ingreso generado exitosamente. Estado actualizado.');
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Error al generar Parte de Ingreso';
@@ -839,8 +924,8 @@ const AppointmentDetail: React.FC = () => {
             const { updateAppointmentStatus } = await import('@/services/agenda/appointmentStatus');
             const userId = currentUser.userCode || currentUser.id || currentUser.username || 'system';
             await updateAppointmentStatus(appointment.docEntry, 'ENTREGADO', userId);
-            
-            setAppointment({ ...appointment, status: 'ENTREGADO' });
+            // Recargar appointment para obtener el estado actualizado
+            await reloadAppointmentFromApi();
             alert('Entrega marcada como completada. Estado actualizado a ENTREGADO.');
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Error al marcar como entregado';
@@ -907,15 +992,8 @@ const AppointmentDetail: React.FC = () => {
                 const { updateAppointmentStatus } = await import('@/services/agenda/appointmentStatus');
                 const userId = currentUser.userCode || currentUser.id || currentUser.username || 'system';
                 await updateAppointmentStatus(appointment.docEntry, 'TRANSPORTE_COMPLETO', userId);
-            }
-
-            // Recargar el appointment para obtener los datos actualizados
-            const apiAppointments = await fetchAppointmentsFromApi();
-            const updatedAppointment = apiAppointments.find(
-                (apt) => apt.docEntry === appointment.docEntry || apt.appointmentNumber === appointment.appointmentNumber
-            );
-            if (updatedAppointment) {
-                setAppointment(updatedAppointment);
+                // Recargar appointment para obtener el estado actualizado
+                await reloadAppointmentFromApi();
             }
 
             alert('Datos de transporte guardados exitosamente. Estado actualizado a TRANSPORTE_COMPLETO.');
@@ -965,9 +1043,8 @@ const AppointmentDetail: React.FC = () => {
                     const { updateAppointmentStatus } = await import('@/services/agenda/appointmentStatus');
                     const userId = currentUser.userCode || currentUser.id || currentUser.username || 'system';
                     await updateAppointmentStatus(appointment.docEntry, 'DOCUMENTOS_COMPLETOS', userId);
-                    
-                    // Actualizar estado local
-                    setAppointment({ ...appointment, status: 'DOCUMENTOS_COMPLETOS' });
+                    // Recargar appointment para obtener el estado actualizado
+                    await reloadAppointmentFromApi();
                 }
             }
         } catch (error) {
@@ -1017,7 +1094,7 @@ const AppointmentDetail: React.FC = () => {
                                             Ver Calificación
                                         </Button>
                                     )}
-                                    {canEvaluateSecurity && appointment?.docEntry && canOpenEvaluationModal('puntualidad') && (
+                                    {canEvaluateSecurity && appointment?.docEntry && (
                                         <>
                                             <Button
                                                 color="primary"
@@ -1025,12 +1102,13 @@ const AppointmentDetail: React.FC = () => {
                                                 onPress={() => handleOpenEvaluationModal('puntualidad')}
                                                 size="md"
                                                 startContent={<ClockIcon className="w-4 h-4" />}
+                                                isDisabled={!canOpenEvaluationModal('puntualidad')}
                                             >
                                                 Evaluar Puntualidad
                                             </Button>
                                         </>
                                     )}
-                                    {canEvaluateSecurity && appointment?.docEntry && canOpenEvaluationModal('documentacion') && (
+                                    {canEvaluateSecurity && appointment?.docEntry && (
                                         <>
                                             <Button
                                                 color="primary"
@@ -1038,28 +1116,31 @@ const AppointmentDetail: React.FC = () => {
                                                 onPress={() => handleOpenEvaluationModal('documentacion')}
                                                 size="md"
                                                 startContent={<DocumentTextIcon className="w-4 h-4" />}
+                                                isDisabled={!canOpenEvaluationModal('documentacion')}
                                             >
                                                 Evaluar Documentación
                                             </Button>
                                         </>
                                     )}
-                                    {canEvaluateQuality && appointment?.docEntry && canOpenEvaluationModal('estadoMercaderia') && (
+                                    {canEvaluateQuality && appointment?.docEntry && (
                                         <Button
                                             color="success"
                                             variant="flat"
                                             onPress={() => handleOpenEvaluationModal('estadoMercaderia')}
                                             size="sm"
                                             startContent={<CheckCircleIcon className="w-4 h-4" />}
+                                            isDisabled={!canOpenEvaluationModal('estadoMercaderia')}
                                         >
                                             Evaluar Estado Mercadería
                                         </Button>
                                     )}
-                                    {canEvaluateWarehouse && appointment?.docEntry && canOpenEvaluationModal('cantidadCorrecta') && (
+                                    {canEvaluateWarehouse && appointment?.docEntry && (
                                         <Button
                                             color="primary"
                                             variant="flat"
                                             onPress={() => handleOpenEvaluationModal('cantidadCorrecta')}
                                             size="sm"
+                                            isDisabled={!canOpenEvaluationModal('cantidadCorrecta')}
                                             startContent={<BuildingOfficeIcon className="w-4 h-4" />}
                                         >
                                             Evaluar Cantidad
@@ -1238,7 +1319,7 @@ const AppointmentDetail: React.FC = () => {
                                             content: "font-semibold"
                                         }}
                                     >
-                                        {appointment.status}
+                                        {statusConfig.label || appointment.status}
                                     </Chip>
                                 </div>
 

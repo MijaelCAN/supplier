@@ -60,11 +60,9 @@ const Agenda: React.FC = () => {
         selectedAppointment,
         isLoadingAppointments,
         appointmentsError,
-        updateAppointment,
         setSelectedAppointment,
         lookupSupplierByRUC,
         addPackingList,
-        addTransportData,
         addDocument,
         loadAppointmentsFromApi,
         createAppointmentFromApi,
@@ -1006,6 +1004,43 @@ const Agenda: React.FC = () => {
                 const currentAppointment = appointments.find(apt => apt.docEntry === editingAppointment.docEntry);
                 const currentStatus = currentAppointment?.status || 'REGISTRADA';
                 
+                // Determinar el nuevo estado basado en los cambios
+                let newStatus: string = currentStatus;
+                let needsStatusUpdate = false;
+                
+                // Verificar si hubo cambios que requieran cambiar a REPROGRAMADA
+                const oldDate = editingAppointment.deliveryDate || '';
+                const oldTime = editingAppointment.deliveryTime || '';
+                const oldTimeEnd = editingAppointment.deliveryTimeEnd || '';
+                const oldWarehouse = editingAppointment.warehouse || '';
+                
+                const dateChanged = oldDate !== data.deliveryDate;
+                const timeChanged = oldTime !== data.deliveryTime || oldTimeEnd !== data.deliveryTimeEnd;
+                const warehouseChanged = oldWarehouse !== data.warehouse;
+                
+                // Si cambió fecha u hora → REPROGRAMADA
+                if (dateChanged || timeChanged) {
+                    if (currentStatus !== 'REPROGRAMADA' && currentStatus !== 'Cancelada' && currentStatus !== 'ENTREGADO') {
+                        newStatus = 'REPROGRAMADA';
+                        needsStatusUpdate = true;
+                    }
+                }
+                // Si cambió almacén
+                else if (warehouseChanged) {
+                    // Si el almacén anterior estaba vacío y ahora se llena → mantener PROGRAMADA
+                    if (!oldWarehouse && data.warehouse) {
+                        // Mantener el estado actual (PROGRAMADA)
+                        newStatus = currentStatus;
+                    }
+                    // Si el almacén ya existía y se cambió → REPROGRAMADA
+                    else if (oldWarehouse && data.warehouse && oldWarehouse !== data.warehouse) {
+                        if (currentStatus !== 'REPROGRAMADA' && currentStatus !== 'Cancelada' && currentStatus !== 'ENTREGADO') {
+                            newStatus = 'REPROGRAMADA';
+                            needsStatusUpdate = true;
+                        }
+                    }
+                }
+                
                 await updateAppointmentFromApi(editingAppointment.docEntry, {
                     supplierRUC: data.supplierRUC,
                     supplierName: data.supplierName,
@@ -1015,8 +1050,17 @@ const Agenda: React.FC = () => {
                     description: data.notes,
                     warehouse: data.warehouse,
                     active: 'Y',
-                    estado: currentStatus // Incluir el estado actual de la cita
+                    estado: newStatus.toUpperCase() // Usar el estado determinado en mayúsculas
                 });
+                
+                // Si se necesita actualizar el estado, usar el endpoint de actualización de estado
+                if (needsStatusUpdate && editingAppointment.docEntry && currentUser) {
+                    const { updateAppointmentStatus } = await import('@/services/agenda/appointmentStatus');
+                    const userId = currentUser.userCode || currentUser.id || currentUser.username || 'system';
+                    // Asegurar que el estado esté en mayúsculas
+                    const statusToUpdate = newStatus.toUpperCase() as any;
+                    await updateAppointmentStatus(editingAppointment.docEntry, statusToUpdate, userId);
+                }
 
                 alert('Cita actualizada exitosamente');
             } else {
@@ -1476,10 +1520,13 @@ const Agenda: React.FC = () => {
                 const { updateAppointmentStatus } = await import('@/services/agenda/appointmentStatus');
                 const userId = currentUser.userCode || currentUser.id || currentUser.username || 'system';
                 await updateAppointmentStatus(selectedAppointment.docEntry, 'PROGRAMADA', userId);
+                
+                // Recargar appointments del API para obtener el estado actualizado
+                const ruc = currentUser?.role === UserRole.PROVEEDOR && currentUser.username 
+                    ? currentUser.username 
+                    : undefined;
+                await loadAppointmentsFromApi(ruc, weekStart, weekEnd);
             }
-            
-            // Update appointment status local
-            updateAppointment(selectedAppointment.id, { status: 'PROGRAMADA' });
             
             alert('PackingList creado exitosamente. Estado actualizado a PROGRAMADA.');
 
@@ -1545,16 +1592,13 @@ const Agenda: React.FC = () => {
                 const { updateAppointmentStatus } = await import('@/services/agenda/appointmentStatus');
                 const userId = currentUser.userCode || currentUser.id || currentUser.username || 'system';
                 await updateAppointmentStatus(selectedAppointment.docEntry, 'TRANSPORTE_COMPLETO', userId);
+                
+                // Recargar appointments del API para obtener el estado actualizado
+                const ruc = currentUser?.role === UserRole.PROVEEDOR && currentUser.username 
+                    ? currentUser.username 
+                    : undefined;
+                await loadAppointmentsFromApi(ruc, weekStart, weekEnd);
             }
-
-            // Guardar también en el store local
-            addTransportData(selectedAppointment.id, {
-                appointmentId: selectedAppointment.id,
-                ...transportForm
-            });
-            
-            // Actualizar estado local
-            updateAppointment(selectedAppointment.id, { status: 'TRANSPORTE_COMPLETO' });
 
             alert('Datos de transporte guardados exitosamente');
             setTransportForm({
@@ -1631,7 +1675,12 @@ const Agenda: React.FC = () => {
                     const { updateAppointmentStatus } = await import('@/services/agenda/appointmentStatus');
                     const userId = currentUser.userCode || currentUser.id || currentUser.username || 'system';
                     await updateAppointmentStatus(updatedAppointment.docEntry, 'DOCUMENTOS_COMPLETOS', userId);
-                    updateAppointment(selectedAppointment.id, { status: 'DOCUMENTOS_COMPLETOS' });
+                    
+                    // Recargar appointments del API para obtener el estado actualizado
+                    const ruc = currentUser?.role === UserRole.PROVEEDOR && currentUser.username 
+                        ? currentUser.username 
+                        : undefined;
+                    await loadAppointmentsFromApi(ruc, weekStart, weekEnd);
                 }
             }
         } catch (error) {
