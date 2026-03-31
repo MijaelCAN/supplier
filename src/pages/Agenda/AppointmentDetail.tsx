@@ -238,7 +238,7 @@ const AppointmentDetail: React.FC = () => {
     
     // Verificar si todos los documentos requeridos están completos
     const areAllDocumentsComplete = (): boolean => {
-        // Documentos requeridos principales: invoice, purchaseOrder, deliveryGuide
+        // Documentos requeridos principales: Factura, Orden de Compra, Guia de Remisión
         // Los formatos (CDR, XML) ahora son parte de los documentos, no documentos separados
         const REQUIRED_DOCUMENTS_COUNT = 3;
         

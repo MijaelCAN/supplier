@@ -38,7 +38,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { DeliveryAppointment } from "@/store/types";
 import { UserRole } from "@/routes/menuTypes";
-import { fetchPackingListFromApi, PackingListApiRecord } from "@/services/agenda/packingListApi";
+import { fetchPackingListFromApi, PackingListApiRecord, PackingListDetailApiRecord } from "@/services/agenda/packingListApi";
 import { formatDateForAPI } from "@/services/agenda/appointmentsApi";
 import { getPCPValidations, PCPValidationRecord } from "@/services/agenda/pcpApi";
 
@@ -73,7 +73,7 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
     const [expandedPackingListId, setExpandedPackingListId] = useState<string | null>(null);
     // Estado para validaciones PCP
     const [pcpValidations, setPcpValidations] = useState<Record<string, PCPValidationRecord[]>>({});
-    const [isLoadingPCPValidations, setIsLoadingPCPValidations] = useState<Record<string, boolean>>({});
+    const [_isLoadingPCPValidations, setIsLoadingPCPValidations] = useState<Record<string, boolean>>({});
 
     // Cargar PackingList cuando se abre el modal y hay un appointment con docEntry
     useEffect(() => {
@@ -116,7 +116,7 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
                 const loadPCPValidations = async () => {
                     setIsLoadingPCPValidations(prev => ({ ...prev, [packingList.number]: true }));
                     try {
-                        const validations = await getPCPValidations(appointment.docEntry, packingList.number);
+                        const validations = await getPCPValidations(appointment.docEntry!, packingList.number);
                         setPcpValidations(prev => ({ ...prev, [packingList.number]: validations }));
                     } catch (error) {
                         console.error('Error al cargar validaciones PCP:', error);
@@ -134,7 +134,7 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
     // Calcular progreso del proceso (0-100%)
     const calculateProgress = (): number => {
         let progress = 0;
-        if (appointment.status === 'Pendiente') progress = 0;
+        if ((appointment.status as string) === 'Pendiente') progress = 0;
         if (appointment.packingList) progress = 33;
         if (appointment.transportData) progress = 66;
         if (appointment.documents?.completed) progress = 100;
@@ -147,7 +147,7 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
             label: 'PackingList',
             icon: ClipboardDocumentListIcon,
             completed: !!appointment.packingList,
-            active: !appointment.packingList && appointment.status === 'Pendiente',
+            active: !appointment.packingList && (appointment.status as string) === 'Pendiente',
         },
         {
             label: 'Transporte',
@@ -256,7 +256,7 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
                                     variant="flat"
                                     size="lg"
                                     startContent={
-                                        appointment.status === 'Completada' ? (
+                                        (appointment.status as string) === 'Completada' ? (
                                             <CheckCircleIcon className="w-4 h-4" />
                                         ) : appointment.status === 'Cancelada' ? (
                                             <XCircleIcon className="w-4 h-4" />
@@ -498,15 +498,15 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
                                                     <TableBody>
                                                         {packingListsFromApi.map((pl) => {
                                                             // Obtener el detalle (puede venir en cualquiera de los dos campos)
-                                                            const detalle = pl.DetallePackinList || pl._detallePackinList || [];
-                                                            const isExpanded = expandedPackingListId === pl.Id;
-                                                            
+                                                            const detalle = pl.DetallePackinList || pl.detalle_packin_list || [];
+                                                            const isExpanded = expandedPackingListId === pl.id;
+
                                                             return (
-                                                                <React.Fragment key={pl.Id}>
-                                                                    <TableRow 
+                                                                <React.Fragment key={pl.id}>
+                                                                    <TableRow
                                                                         className={`cursor-pointer hover:bg-gray-50 transition-colors ${isExpanded ? 'bg-blue-50' : ''}`}
                                                                         onClick={() => {
-                                                                            setExpandedPackingListId(isExpanded ? null : pl.Id.toString());
+                                                                            setExpandedPackingListId(isExpanded ? null : pl.id.toString());
                                                                         }}
                                                                     >
                                                                         <TableCell className="whitespace-nowrap font-medium">
@@ -521,18 +521,18 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
                                                                                 {pl.number}
                                                                             </div>
                                                                         </TableCell>
-                                                                        <TableCell className="whitespace-nowrap">{pl.WhsCode}</TableCell>
-                                                                        <TableCell className="whitespace-nowrap">{pl.Ticket || '-'}</TableCell>
+                                                                        <TableCell className="whitespace-nowrap">{pl.whs_code}</TableCell>
+                                                                        <TableCell className="whitespace-nowrap">{pl.ticket || '-'}</TableCell>
                                                                         <TableCell className="whitespace-nowrap">
-                                                                            {typeof pl.DateExpected === 'string' 
-                                                                                ? pl.DateExpected.split('T')[0].split(' ')[0] 
-                                                                                : pl.DateExpected
+                                                                            {typeof pl.date_expected === 'string'
+                                                                                ? pl.date_expected.split('T')[0].split(' ')[0]
+                                                                                : pl.date_expected
                                                                             }
                                                                         </TableCell>
                                                                         <TableCell className="whitespace-nowrap">
-                                                                            {pl.InboundType ? (
-                                                                                <Chip size="sm" variant="flat" color={pl.InboundType === 'OCNAC' ? 'primary' : 'secondary'}>
-                                                                                    {pl.InboundType}
+                                                                            {pl.inbound_type ? (
+                                                                                <Chip size="sm" variant="flat" color={pl.inbound_type === 'OCNAC' ? 'primary' : 'secondary'}>
+                                                                                    {pl.inbound_type}
                                                                                 </Chip>
                                                                             ) : (
                                                                                 '-'
@@ -542,19 +542,19 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
                                                                             {detalle.length}
                                                                         </TableCell>
                                                                         <TableCell>
-                                                                            <div className="max-w-[200px] truncate" title={pl.Comments || ''}>
-                                                                                {pl.Comments || '-'}
+                                                                            <div className="max-w-[200px] truncate" title={pl.comments || ''}>
+                                                                                {pl.comments || '-'}
                                                                             </div>
                                                                         </TableCell>
                                                                         <TableCell>
-                                                                            {pl.WmsResponse ? (
-                                                                                <Chip 
-                                                                                    size="sm" 
-                                                                                    color={pl.WmsResponse.includes('Procesado') || pl.WmsResponse.includes('Transferido') ? 'success' : 'warning'}
+                                                                            {pl.wms_response ? (
+                                                                                <Chip
+                                                                                    size="sm"
+                                                                                    color={pl.wms_response.includes('Procesado') || pl.wms_response.includes('Transferido') ? 'success' : 'warning'}
                                                                                     variant="flat"
                                                                                 >
-                                                                                    <div className="max-w-[150px] truncate" title={pl.WmsResponse}>
-                                                                                        {pl.WmsResponse}
+                                                                                    <div className="max-w-[150px] truncate" title={pl.wms_response}>
+                                                                                        {pl.wms_response}
                                                                                     </div>
                                                                                 </Chip>
                                                                             ) : (
@@ -570,16 +570,16 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
                                                 
                                                 {/* Detalle expandido fuera de la tabla */}
                                                 {packingListsFromApi.map((pl) => {
-                                                    const detalle = pl.DetallePackinList || pl._detallePackinList || [];
-                                                    const isExpanded = expandedPackingListId === pl.Id;
-                                                    
+                                                    const detalle = pl.DetallePackinList || pl.detalle_packin_list || [];
+                                                    const isExpanded = expandedPackingListId === pl.id;
+
                                                     if (!isExpanded || detalle.length === 0) return null;
-                                                    
+
                                                     return (
-                                                        <div key={`detail-${pl.Id}`} className="mt-2 mb-4 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                                                        <div key={`detail-${pl.id}`} className="mt-2 mb-4 p-4 bg-gray-50 border border-gray-200 rounded-lg">
                                                             <h5 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
                                                                 <DocumentTextIcon className="w-4 h-4" />
-                                                                Detalle del PackingList {pl.Number} ({detalle.length} {detalle.length === 1 ? 'item' : 'items'})
+                                                                Detalle del PackingList {pl.number} ({detalle.length} {detalle.length === 1 ? 'item' : 'items'})
                                                             </h5>
                                                             <div className="overflow-x-auto">
                                                                 <Table aria-label="Tabla de detalles" removeWrapper>
@@ -594,11 +594,11 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
                                                                         <TableColumn>COMENTARIO PCP</TableColumn>
                                                                     </TableHeader>
                                                                     <TableBody>
-                                                                        {detalle.map((item, index) => {
-                                                                            const lineNumber = item.LineNumber || item.lineNumber || index + 1;
-                                                                            const itemCode = item.ItemCode || item.itemCode || '';
-                                                                            const itemName = item.ItemName || item.itemName || '';
-                                                                            const quantity = item.Quantity || item.quantity || 0;
+                                                                        {detalle.map((item: PackingListDetailApiRecord, index: number) => {
+                                                                            const lineNumber = item.line_number || index + 1;
+                                                                            const itemCode = item.item_code || '';
+                                                                            const itemName = item.item_name || '';
+                                                                            const quantity = item.quantity || 0;
                                                                             
                                                                             // Buscar validación PCP para este item
                                                                             const validationsForPL = pcpValidations[pl.number] || [];
@@ -610,7 +610,7 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
                                                                             );
                                                                             
                                                                             return (
-                                                                                <TableRow key={`${pl.Id}-${lineNumber}-${index}`}>
+                                                                                <TableRow key={`${pl.id}-${lineNumber}-${index}`}>
                                                                                     <TableCell className="whitespace-nowrap font-medium">{lineNumber}</TableCell>
                                                                                     <TableCell className="whitespace-nowrap font-mono text-sm">{itemCode}</TableCell>
                                                                                     <TableCell>{itemName}</TableCell>

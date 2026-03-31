@@ -246,22 +246,22 @@ const ModalEdit: FC<ModalEditProps> = ({
             const response = await fetchSupplierByCardCode(cardCode);
             if (response?.record) {
                 setApiRecord(response.record);
-                const contactoPrincipal = response.record.Contactos?.[0];
+                const contactoPrincipal = response.record.contactos?.[0];
                 reset({
-                    cardName: response.record.NombreSN ?? selectedSupplier?.cardName ?? '',
+                    cardName: response.record.nombre_sn ?? selectedSupplier?.cardName ?? '',
                     businessType: selectedSupplier?.businessType ?? '',
-                    email: response.record.Correo ?? selectedSupplier?.email ?? '',
-                    phone: response.record.Telefono1 ?? selectedSupplier?.phone ?? '',
+                    email: response.record.correo ?? selectedSupplier?.email ?? '',
+                    phone: response.record.telefono1 ?? selectedSupplier?.phone ?? '',
                     website: response.record.website ?? selectedSupplier?.website ?? '',
-                    cardCode: response.record.RUC ?? cardCode,
-                    address: response.record.Direccion ?? selectedSupplier?.address ?? '',
-                    department: response.record.Departamento ?? '',
-                    province: response.record.Provincia ?? '',
-                    district: response.record.Distrito ?? '',
-                    contactPerson: contactoPrincipal?.Name ?? selectedSupplier?.contactPerson ?? '',
-                    contactEmail: contactoPrincipal?.E_MailL ?? selectedSupplier?.contactEmail ?? '',
-                    contactPhone: contactoPrincipal?.Telefono ?? selectedSupplier?.contactPhone ?? '',
-                    paymentTerms: response.record.CondicionPago ?? selectedSupplier?.paymentTerms ?? '',
+                    cardCode: response.record.ruc ?? cardCode,
+                    address: response.record.direccion ?? selectedSupplier?.address ?? '',
+                    department: response.record.departamento ?? '',
+                    province: response.record.provincia ?? '',
+                    district: response.record.distrito ?? '',
+                    contactPerson: contactoPrincipal?.name ?? selectedSupplier?.contactPerson ?? '',
+                    contactEmail: contactoPrincipal?.e_mail_l ?? selectedSupplier?.contactEmail ?? '',
+                    contactPhone: contactoPrincipal?.telefono ?? selectedSupplier?.contactPhone ?? '',
+                    paymentTerms: response.record.condicion_pago ?? selectedSupplier?.paymentTerms ?? '',
                     status: selectedSupplier?.status ?? 'Pendiente'
                 });
             } else {
@@ -306,44 +306,47 @@ const ModalEdit: FC<ModalEditProps> = ({
         }
 
         try {
-            const contactos = [...(apiRecord.Contactos ?? [])];
+            const contactos = [...(apiRecord.contactos ?? [])];
             if (contactos.length === 0) {
                 contactos.push({
-                    DocEntry: '',
-                    Active: 'Y',
-                    Name: data.contactPerson,
-                    Profesion: '',
-                    Telefono: data.contactPhone,
-                    E_MailL: data.contactEmail,
+                    doc_entry: '',
+                    active: 'Y',
+                    name: data.contactPerson,
+                    nombre: '',
+                    segundo_nombre: '',
+                    apellido: '',
+                    profesion: '',
+                    telefono: data.contactPhone,
+                    e_mail_l: data.contactEmail,
                 });
             } else {
                 contactos[0] = {
                     ...contactos[0],
-                    Active: 'Y',
-                    Name: data.contactPerson,
-                    Telefono: data.contactPhone,
-                    E_MailL: data.contactEmail,
+                    active: 'Y',
+                    name: data.contactPerson,
+                    telefono: data.contactPhone,
+                    e_mail_l: data.contactEmail,
                 };
             }
 
             const updatedRecord: SupplierApiRecord = {
                 ...apiRecord,
-                NombreSN: data.cardName,
-                RUC: data.cardCode,
-                Correo: data.email,
-                Telefono1: data.phone,
+                nombre_sn: data.cardName,
+                ruc: data.cardCode,
+                correo: data.email,
+                telefono1: data.phone,
                 website: data.website || null,
-                Direccion: data.address,
-                DireccionSUNAT: apiRecord.DireccionSUNAT ?? data.address,
-                Departamento: data.department,
-                Provincia: data.province,
-                Distrito: data.district,
-                CondicionPago: data.paymentTerms,
+                direccion: data.address,
+                direccion_sunat: apiRecord.direccion_sunat ?? data.address,
+                departamento: data.department,
+                provincia: data.province,
+                distrito: data.district,
+                condicion_pago: data.paymentTerms,
                 status: data.status,
-                Contactos: contactos,
+                contactos: contactos,
             };
 
-            const response = await updateSupplierProfile(updatedRecord.CodigoSN, updatedRecord);
+            const response = await updateSupplierProfile(updatedRecord.codigo_sn, updatedRecord);
             const refreshedSupplier = response.supplier;
 
             updateSupplier(refreshedSupplier.docEntry, refreshedSupplier);

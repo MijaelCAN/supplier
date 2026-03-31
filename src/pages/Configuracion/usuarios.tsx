@@ -73,6 +73,7 @@ const ROLE_LABELS: Record<UserRole, { label: string; color: 'primary' | 'success
     [UserRole.CALIDAD]: { label: 'Calidad', color: 'secondary' },
     [UserRole.ALMACEN]: { label: 'Almacén', color: 'warning' },
     [UserRole.SEGURIDAD]: { label: 'Seguridad', color: 'default' },
+    [UserRole.PLANEAMIENTO]: { label: 'Planeamiento', color: 'primary' },
 };
 
 const SETTINGS_CATALOG = [
@@ -136,6 +137,7 @@ const DEFAULT_SETTINGS_BY_ROLE: Record<UserRole, string[]> = {
     [UserRole.SEGURIDAD]: ['validate_entry', 'confirm_availability', 'view_visits'],
     [UserRole.SOLICITANTE]: ['schedule_visits', 'view_visits', 'create_bids'],
     [UserRole.CALIDAD]: ['approve_quality', 'evaluate_providers'],
+    [UserRole.PLANEAMIENTO]: ['view_visits', 'view_providers'],
 };
 
 const inferRoleType = (role: UserRole): RoleType => (role === UserRole.PROVEEDOR ? 'provider' : 'internal');

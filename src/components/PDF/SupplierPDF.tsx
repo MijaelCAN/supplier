@@ -415,9 +415,9 @@ export const SupplierPDF = ({ supplier }: SupplierPDFProps) => {
                             </View>
                             {supplier.commercialReferences.slice(0, 5).map((ref, index) => (
                                 <View key={index} style={styles.tableRow}>
-                                    <Text style={[styles.tableCell, { width: '45%' }]}>{ref.U_RazonSocial || '—'}</Text>
-                                    <Text style={[styles.tableCell, { width: '30%' }]}>{ref.U_Contacto || '—'}</Text>
-                                    <Text style={[styles.tableCell, { width: '25%' }]}>{ref.U_Telefonos || '—'}</Text>
+                                    <Text style={[styles.tableCell, { width: '45%' }]}>{ref.u_razon_social || '—'}</Text>
+                                    <Text style={[styles.tableCell, { width: '30%' }]}>{ref.u_contacto || '—'}</Text>
+                                    <Text style={[styles.tableCell, { width: '25%' }]}>{ref.u_telefonos || '—'}</Text>
                                 </View>
                             ))}
                         </View>

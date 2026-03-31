@@ -402,6 +402,7 @@ export const saveEvaluation = async (
     files?: { criterioCodigo: string; file: File }[]
 ): Promise<DeliveryEvaluation> => {
     if (!evaluation.codCita) {
+        console.log("ROL: ", rolEvaluador);
         throw new Error('El código de cita es requerido');
     }
 

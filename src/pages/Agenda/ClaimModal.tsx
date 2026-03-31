@@ -118,23 +118,23 @@ const ClaimModal: React.FC<ClaimModalProps> = ({
     const handlePackingListChange = (packingListId: string) => {
         setSelectedPackingListId(packingListId);
         
-        const selectedPackingList = packingLists.find(pl => pl.Number === packingListId || pl.Id?.toString() === packingListId);
-        
+        const selectedPackingList = packingLists.find(pl => pl.number === packingListId || pl.id?.toString() === packingListId);
+
         if (selectedPackingList) {
-            const items = selectedPackingList._detallePackinList || selectedPackingList.DetallePackinList || [];
-            
+            const items = selectedPackingList.detalle_packin_list || selectedPackingList.DetallePackinList || [];
+
             // Calcular cantidad total
-            const totalQuantity = items.reduce((sum, item) => sum + (item.quantity || item.Quantity || 0), 0);
-            
+            const totalQuantity = items.reduce((sum, item) => sum + (item.quantity || 0), 0);
+
             // Obtener nombres de materiales/insumos
-            const materiales = items.map(item => item.itemName || item.ItemName || '').filter(Boolean).join(', ');
-            
+            const materiales = items.map(item => item.item_name || '').filter(Boolean).join(', ');
+
             // Actualizar campos
             setFormData(prev => ({
                 ...prev,
                 cantidad: totalQuantity.toString(),
                 insumoMaterial: materiales,
-                ordenCompra: selectedPackingList.Number || prev.ordenCompra || '',
+                ordenCompra: selectedPackingList.number || prev.ordenCompra || '',
                 // El lote puede venir de algún campo del packing list o ser manual
                 // nLote se mantiene si ya tiene valor, sino se puede dejar vacío para llenar manualmente
             }));
@@ -198,8 +198,8 @@ const ClaimModal: React.FC<ClaimModalProps> = ({
                                             className="col-span-2"
                                         >
                                             {packingLists.map((pl) => (
-                                                <SelectItem key={pl.Number || pl.Id?.toString() || ''}>
-                                                    {pl.Number} - {pl.DateExpected ? new Date(pl.DateExpected).toLocaleDateString() : ''}
+                                                <SelectItem key={pl.number || pl.id?.toString() || ''}>
+                                                    {pl.number} - {pl.date_expected ? new Date(pl.date_expected).toLocaleDateString() : ''}
                                                 </SelectItem>
                                             ))}
                                         </Select>

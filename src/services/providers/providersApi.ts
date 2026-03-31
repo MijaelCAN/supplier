@@ -102,23 +102,6 @@ interface SuppliersApiResponse {
 
 import { getApiBaseUrl } from "@/config/api.ts";
 
-const resolveEnv = (key: string): string | undefined => {
-    if (key in import.meta.env && typeof import.meta.env[key] === 'string') {
-        return import.meta.env[key] as string;
-    }
-
-    const viteKey = `VITE_${key}`;
-    if (viteKey in import.meta.env && typeof import.meta.env[viteKey] === 'string') {
-        return import.meta.env[viteKey] as string;
-    }
-
-    const reactKey = `REACT_APP_${key}`;
-    if (reactKey in import.meta.env && typeof import.meta.env[reactKey] === 'string') {
-        return import.meta.env[reactKey] as string;
-    }
-
-    return undefined;
-};
 
 const DEFAULT_SUPPLIERS_API_BASE_URL = getApiBaseUrl();
 const SUPPLIERS_ENDPOINT = '/api/Proveedores';
