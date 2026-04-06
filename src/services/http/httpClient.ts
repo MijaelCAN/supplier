@@ -10,6 +10,8 @@
  * Esta solución ofusca los endpoints en el código fuente y usa nombres genéricos.
  */
 
+import { getAlternativeBaseUrl, setApiBaseUrl } from '@/config/api';
+
 // Detectar si estamos en producción
 const isProduction = import.meta.env.PROD || import.meta.env.MODE === 'production';
 
@@ -198,6 +200,44 @@ const handleAuthError = (status: number, statusText: string) => {
 };
 
 /**
+ * Ejecuta fetch; si falla por red, reintenta una vez con la base API alternativa (interna ↔ pública)
+ * y persiste la base que respondió para alinear getApiBaseUrl() en nuevas llamadas.
+ */
+const fetchWithApiFailover = async (
+    targetUrl: string,
+    fetchOptions: RequestInit,
+    skipAuth: boolean | undefined
+): Promise<Response> => {
+    const run = async (url: string): Promise<Response> => {
+        const response = await fetch(url, fetchOptions);
+        if (!skipAuth && (response.status === 401 || response.status === 403)) {
+            handleAuthError(response.status, response.statusText);
+        }
+        return response;
+    };
+
+    try {
+        return await run(targetUrl);
+    } catch (firstError) {
+        const altUrl = getAlternativeBaseUrl(targetUrl);
+        if (!altUrl) {
+            throw firstError;
+        }
+        try {
+            const response = await run(altUrl);
+            try {
+                setApiBaseUrl(new URL(altUrl).origin);
+            } catch {
+                // ignore
+            }
+            return response;
+        } catch {
+            throw firstError;
+        }
+    }
+};
+
+/**
  * Cliente HTTP que intercepta y ofusca URLs en producción
  * 
  * IMPORTANTE: Esta solución ofusca los endpoints en el código fuente,
@@ -225,33 +265,22 @@ export const httpClient = async (
         }
     }
     
-    // Si skipObfuscation está activado, usar fetch normal
+    const { skipObfuscation, skipAuth, ...fetchOptions } = options;
+    const init: RequestInit = {
+        ...fetchOptions,
+        headers,
+    };
+
+    // Si skipObfuscation está activado, usar fetch normal (failover solo si la URL es de nuestras bases)
     if (options.skipObfuscation) {
-        const { skipObfuscation, skipAuth, ...fetchOptions } = options;
-        return fetch(urlString, {
-            ...fetchOptions,
-            headers,
-        });
+        return fetchWithApiFailover(urlString, init, skipAuth);
     }
-    
+
     // En producción, desofuscar la URL antes de hacer la petición
     // (porque en el código usamos endpoints genéricos)
     const realUrl = isProduction ? deobfuscateUrl(urlString) : urlString;
-    
-    // Hacer la petición con la URL real y headers actualizados
-    const { skipObfuscation, skipAuth, ...fetchOptions } = options;
-    const response = await fetch(realUrl, {
-        ...fetchOptions,
-        headers,
-    });
-    
-    // Interceptar errores de autenticación (401, 403)
-    // Solo si no es skipAuth (para evitar loops en el login)
-    if (!options.skipAuth && (response.status === 401 || response.status === 403)) {
-        handleAuthError(response.status, response.statusText);
-    }
-    
-    return response;
+
+    return fetchWithApiFailover(realUrl, init, skipAuth);
 };
 
 /**

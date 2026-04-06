@@ -4,6 +4,7 @@ import ReactDOM from "react-dom/client";
 import App from "./App.tsx";
 import { Provider } from "./provider.tsx";
 import "@/styles/globals.css";
+import { resolveApiBaseUrl } from "@/config/api";
 import { ensureAdminSeeded } from "@/services/auth/seedAdmin";
 
 // Establecer tema light por defecto antes de renderizar
@@ -23,3 +24,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     </Provider>
   </React.StrictMode>,
 );
+
+// En segundo plano: actualiza base y cache sin retrasar el primer paint.
+// La primera petición puede usar cache/fallback; httpClient hace failover si hace falta.
+void resolveApiBaseUrl();
