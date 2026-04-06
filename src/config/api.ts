@@ -14,17 +14,18 @@ const PUBLIC_URL = trimTrailingSlash(
 );
 
 const URL_CACHE_KEY = 'supplier_portal_api_url';
-const URL_CACHE_TTL = 5 * 60 * 1000; // 5 minutos
 
 /**
- * Carga la URL cacheada desde localStorage si aún es válida
+ * Carga la URL persistida (sin TTL: una vez resuelta se reutiliza hasta failover o borrado manual).
  */
 const loadCachedUrl = (): string | null => {
     try {
         const raw = localStorage.getItem(URL_CACHE_KEY);
         if (!raw) return null;
-        const { url, ts }: { url: string; ts: number } = JSON.parse(raw);
-        if (Date.now() - ts < URL_CACHE_TTL) return url;
+        const parsed = JSON.parse(raw) as { url?: unknown };
+        if (typeof parsed.url === 'string' && parsed.url.length > 0) {
+            return trimTrailingSlash(parsed.url);
+        }
     } catch {
         // ignore
     }
@@ -38,11 +39,34 @@ let _resolvedUrl: string = loadCachedUrl() ?? INTERNAL_URL;
  * Actualiza la URL activa y persiste en localStorage
  */
 export const setApiBaseUrl = (url: string): void => {
-    _resolvedUrl = url;
+    const normalized = trimTrailingSlash(url);
+    _resolvedUrl = normalized;
     try {
-        localStorage.setItem(URL_CACHE_KEY, JSON.stringify({ url, ts: Date.now() }));
+        localStorage.setItem(URL_CACHE_KEY, JSON.stringify({ url: normalized, ts: Date.now() }));
     } catch {
         // ignore
+    }
+};
+
+/**
+ * Reasigna el origin de una URL si apunta a la API interna o pública conocida,
+ * usando siempre la base resuelta actual. Evita doble petición por failover cuando
+ * los módulos capturaron getApiBaseUrl() al importar.
+ */
+export const rewriteRequestUrlToCurrentBase = (absoluteUrl: string): string => {
+    try {
+        const u = new URL(absoluteUrl);
+        const internalOrigin = new URL(INTERNAL_URL).origin;
+        const publicOrigin = new URL(PUBLIC_URL).origin;
+        if (u.origin !== internalOrigin && u.origin !== publicOrigin) {
+            return absoluteUrl;
+        }
+        const cur = new URL(getApiBaseUrl());
+        u.protocol = cur.protocol;
+        u.host = cur.host;
+        return u.toString();
+    } catch {
+        return absoluteUrl;
     }
 };
 
@@ -88,17 +112,9 @@ const probeReachable = (base: string): Promise<string> => {
         .finally(() => clearTimeout(timeoutId));
 };
 
-/**
- * Detecta qué URL usar: interna y pública se prueban en paralelo.
- * Gana la primera que responde (no-cors opaco cuenta como éxito si el host contesta).
- * Así en red pública no esperas a que falle la interna por timeout secuencial.
- *
- * Persiste el resultado en localStorage para evitar el check en cada recarga.
- */
-export const resolveApiBaseUrl = async (): Promise<void> => {
-    // Si el cache aún es válido no hace falta volver a probar
-    if (loadCachedUrl()) return;
+let resolutionPromise: Promise<void> | null = null;
 
+async function probeAndPersistBestBase(): Promise<void> {
     try {
         const winner = await Promise.any([
             probeReachable(INTERNAL_URL),
@@ -108,7 +124,24 @@ export const resolveApiBaseUrl = async (): Promise<void> => {
     } catch {
         setApiBaseUrl(PUBLIC_URL);
     }
+}
+
+/**
+ * Garantiza que la base API quedó resuelta (cache o probe único en esta carga).
+ * Idempotente: varias llamadas comparten la misma promesa; no vuelve a hacer /health por petición HTTP.
+ */
+export const waitForApiBaseResolution = (): Promise<void> => {
+    if (loadCachedUrl()) {
+        return Promise.resolve();
+    }
+    if (!resolutionPromise) {
+        resolutionPromise = probeAndPersistBestBase();
+    }
+    return resolutionPromise;
 };
+
+/** @deprecated Usar waitForApiBaseResolution */
+export const resolveApiBaseUrl = waitForApiBaseResolution;
 
 /**
  * Obtiene la URL base del API activa.

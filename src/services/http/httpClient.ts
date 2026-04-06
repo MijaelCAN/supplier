@@ -10,7 +10,12 @@
  * Esta solución ofusca los endpoints en el código fuente y usa nombres genéricos.
  */
 
-import { getAlternativeBaseUrl, setApiBaseUrl } from '@/config/api';
+import {
+    getAlternativeBaseUrl,
+    rewriteRequestUrlToCurrentBase,
+    setApiBaseUrl,
+    waitForApiBaseResolution,
+} from '@/config/api';
 
 // Detectar si estamos en producción
 const isProduction = import.meta.env.PROD || import.meta.env.MODE === 'production';
@@ -208,6 +213,9 @@ const fetchWithApiFailover = async (
     fetchOptions: RequestInit,
     skipAuth: boolean | undefined
 ): Promise<Response> => {
+    await waitForApiBaseResolution();
+    const urlAfterBase = rewriteRequestUrlToCurrentBase(targetUrl);
+
     const run = async (url: string): Promise<Response> => {
         const response = await fetch(url, fetchOptions);
         if (!skipAuth && (response.status === 401 || response.status === 403)) {
@@ -217,9 +225,9 @@ const fetchWithApiFailover = async (
     };
 
     try {
-        return await run(targetUrl);
+        return await run(urlAfterBase);
     } catch (firstError) {
-        const altUrl = getAlternativeBaseUrl(targetUrl);
+        const altUrl = getAlternativeBaseUrl(urlAfterBase);
         if (!altUrl) {
             throw firstError;
         }
