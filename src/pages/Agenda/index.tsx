@@ -70,8 +70,11 @@ const Agenda: React.FC = () => {
     } = useAgendaStore();
 
 
-    // State
-    const [currentWeek, setCurrentWeek] = useState(new Date());
+    // State — restaurar semana si se vuelve desde el detalle de una cita
+    const restoredWeek = (location.state as { weekDate?: string } | null)?.weekDate;
+    const [currentWeek, setCurrentWeek] = useState(() =>
+        restoredWeek ? new Date(restoredWeek) : new Date()
+    );
     const [, setSelectedDate] = useState<string | null>(null);
     const [, setSelectedTimeSlot] = useState<string | null>(null);
     const [isLookingUp, setIsLookingUp] = useState(false);
@@ -1167,7 +1170,7 @@ const Agenda: React.FC = () => {
         setSelectedAppointment(appointment);
         // Navegar a la página de detalle usando docEntry o appointmentNumber
         const appointmentId = appointment.docEntry || appointment.appointmentNumber;
-        navigate(`/agenda/detail/${appointmentId}`);
+        navigate(`/agenda/detail/${appointmentId}`, { state: { weekDate: currentWeek.toISOString() } });
     };
 
     // Función para buscar cita relacionada con un producto y navegar al detalle

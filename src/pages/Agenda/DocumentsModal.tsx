@@ -9,7 +9,7 @@ import {
     Progress,
     Chip,
 } from '@heroui/react';
-import { CheckCircleIcon, XMarkIcon, ArrowUpTrayIcon as UploadIcon } from '@heroicons/react/24/outline';
+import { CheckCircleIcon, ClockIcon, XMarkIcon, ArrowUpTrayIcon as UploadIcon } from '@heroicons/react/24/outline';
 import {
     COMMERCIAL_DOCUMENT_TYPES,
     CommercialDocumentType,
@@ -177,7 +177,7 @@ const DocumentsModal: React.FC<DocumentsModalProps> = ({
                                                             <p className="font-semibold text-sm">
                                                                 {docType.label}
                                                             </p>
-                                                            {doc.uploaded && (
+                                                            {doc.uploaded ? (
                                                                 <Chip
                                                                     size="sm"
                                                                     color="success"
@@ -187,6 +187,17 @@ const DocumentsModal: React.FC<DocumentsModalProps> = ({
                                                                     }
                                                                 >
                                                                     Cargado
+                                                                </Chip>
+                                                            ) : (
+                                                                <Chip
+                                                                    size="sm"
+                                                                    color="warning"
+                                                                    variant="flat"
+                                                                    startContent={
+                                                                        <ClockIcon className="w-3 h-3" />
+                                                                    }
+                                                                >
+                                                                    Pendiente
                                                                 </Chip>
                                                             )}
                                                         </div>

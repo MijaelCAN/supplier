@@ -905,6 +905,7 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
                                                         </Button>
                                                     </div>
                                                 )}
+
                                             </div>
                                         ) : (
                                             <div className="text-center py-8">

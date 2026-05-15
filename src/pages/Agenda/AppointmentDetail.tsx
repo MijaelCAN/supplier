@@ -1,6 +1,6 @@
 // src/pages/Agenda/AppointmentDetail.tsx
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
     Button,
     Chip,
@@ -73,6 +73,8 @@ const parseDate = (dateStr: string): Date => {
 const AppointmentDetail: React.FC = () => {
     const { appointmentId } = useParams<{ appointmentId: string }>();
     const navigate = useNavigate();
+    const location = useLocation();
+    const weekDate = (location.state as { weekDate?: string } | null)?.weekDate;
     const { currentUser } = useAuth();
     const isProvider = currentUser?.role === UserRole.PROVEEDOR;
     const isSecurity = currentUser?.role === UserRole.SEGURIDAD;
@@ -162,6 +164,7 @@ const AppointmentDetail: React.FC = () => {
             const loadDocumentsFromApi = async () => {
                 try {
                     const apiAppointments = await fetchAppointmentsFromApi();
+                    console.log('apiAppointments:', apiAppointments);
                     const foundApiAppointment = apiAppointments.find(
                         (apt) => apt.docEntry === appointment.docEntry
                     );
@@ -240,9 +243,10 @@ const AppointmentDetail: React.FC = () => {
     const areAllDocumentsComplete = (): boolean => {
         // Documentos requeridos principales: Factura, Orden de Compra, Guia de Remisión
         // Los formatos (CDR, XML) ahora son parte de los documentos, no documentos separados
-        const REQUIRED_DOCUMENTS_COUNT = 3;
+        const REQUIRED_DOCUMENTS_COUNT = 100;
         
         // Prioridad 1: Si hay documentos del API, verificar que haya al menos los documentos requeridos
+        console.log('appointmentDocuments:', appointmentDocuments.length);
         if (appointmentDocuments.length > 0) {
             // Debe haber al menos los documentos requeridos del API para considerarse completo
             return appointmentDocuments.length >= REQUIRED_DOCUMENTS_COUNT;
@@ -428,7 +432,7 @@ const AppointmentDetail: React.FC = () => {
     useEffect(() => {
         if (!isLoadingAppointment && !appointment) {
             const timer = setTimeout(() => {
-                navigate('/agenda');
+                navigate('/agenda', { state: { weekDate } });
             }, 2000);
             return () => clearTimeout(timer);
         }
@@ -1062,7 +1066,7 @@ const AppointmentDetail: React.FC = () => {
                         <Button
                             variant="light"
                             startContent={<ArrowLeftIcon className="w-5 h-5" />}
-                            onPress={() => navigate('/agenda')}
+                            onPress={() => navigate('/agenda', { state: { weekDate } })}
                         >
                             Volver a Agenda
                         </Button>

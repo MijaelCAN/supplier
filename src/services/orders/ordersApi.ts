@@ -1,18 +1,7 @@
 import {OrderItem, PurchaseOrder} from "@/store/types.ts";
 import {Order, OrderItem as ItemsApi, OrdersApiResponse} from "@/services/orders/types.ts";
 import {httpClient, buildSecureUrl} from "@/services/http/httpClient.ts";
-
-const nameBaseUrl = 'VITE_BASE_URL';
-const nameEnpoint = 'VITE_ORDER_ENDPOINT';
-
-const normaliseString = (value?: string | null) => (value ?? '').trim();
-
-const resolveEnv = (key: string): string | undefined => {
-    if (key in import.meta.env && typeof import.meta.env[key] === 'string') {
-        return import.meta.env[key];
-    }
-    return undefined;
-}
+import {getApiBaseUrl} from "@/config/api.ts";
 
 const buildEnpointUrlOrder = (
     cardCode?: string,
@@ -20,8 +9,8 @@ const buildEnpointUrlOrder = (
     startDate?: string,
     endDate?: string,
 ): string => {
-    const BASE_URL = normaliseString(resolveEnv(nameBaseUrl));
-    const ENDPOINT = resolveEnv(nameEnpoint) || '/api/Documentos/OrdenCompra';
+    const BASE_URL = getApiBaseUrl();
+    const ENDPOINT = '/api/Documentos/OrdenCompra';
     
     const params: Record<string, string> = {};
     if (state && state.trim() !== '') params['Estado'] = state.trim();
