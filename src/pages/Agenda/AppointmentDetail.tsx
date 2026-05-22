@@ -552,17 +552,16 @@ const AppointmentDetail: React.FC = () => {
     };
 
     const canEvaluatePuntualidad = (): boolean => {
-        // Debe haber llegado la fecha y hora de la cita
         if (!appointment?.deliveryDate || !appointment?.deliveryTime) {
             return false;
         }
-        
-        // Construir fecha/hora de la cita
+
         const appointmentDateTime = new Date(`${appointment.deliveryDate}T${appointment.deliveryTime}`);
+        // Permitir registrar 1 hora antes de la cita
+        const enableFrom = new Date(appointmentDateTime.getTime() - 60 * 60 * 1000);
         const now = new Date();
-        
-        // La fecha/hora de la cita debe haber pasado
-        return appointmentDateTime <= now;
+
+        return enableFrom <= now;
     };
 
     const canEvaluateCalidadYCantidad = (): boolean => {
@@ -572,7 +571,9 @@ const AppointmentDetail: React.FC = () => {
 
     const canOpenEvaluationModal = (type: EvaluationModalType): boolean => {
         // Primero verificar que no esté ya evaluado
+        console.log("validacion: ", isCriterionEvaluated(type));
         if (isCriterionEvaluated(type)) {
+            console.log("Entro en evaluated")
             return false;
         }
 
@@ -791,6 +792,7 @@ const AppointmentDetail: React.FC = () => {
 
     const handleOpenEvaluationModal = (type: EvaluationModalType) => {
         if (!canOpenEvaluationModal(type)) {
+            console.log('Evaluation modal open');
             // Mostrar mensaje de error específico
             const errorMessage = getEvaluationErrorMessage(type);
             alert(errorMessage);

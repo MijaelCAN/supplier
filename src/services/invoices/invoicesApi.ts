@@ -242,20 +242,20 @@ export const fetchInvoicesForPaymentSchedule = async (
 
 // Tipo para cada factura en el request de programación de pagos
 type SchedulePaymentInvoice = {
-    u_CodProveedor: string;
-    u_FechaCompromisoPago: string;
-    u_NFactura: string;
-    u_NombreProveedor: string;
-    u_Ruc: string;
-    u_FechaEmision: string;
-    u_FechaVencimiento: string;
-    u_Retencion: string;
-    u_FechaContabilicacion: string;
-    u_ImporteFactura: string;
-    u_ImportePagar: string;
-    u_TotalPagar: string;
-    u_Estado: string;
-    u_Comentario: string;
+    u_cod_proveedor: string;
+    u_fecha_compromiso_pago: string;
+    u_n_factura: string;
+    u_nombre_proveedor: string;
+    u_ruc: string;
+    u_fecha_emision: string;
+    u_fecha_vencimiento: string;
+    u_retencion: string;
+    u_fecha_contabilicacion: string;
+    u_importe_factura: string;
+    u_importe_pagar: string;
+    u_total_pagar: string;
+    u_estado: string;
+    u_comentario: string;
 };
 
 interface SchedulePaymentResponse {
@@ -285,20 +285,20 @@ export const schedulePaymentInvoices = async (
             : String((invoice as Invoice & { importePagar?: number }).importePagar || 0);
         
         return {
-            u_CodProveedor: supplierId,
-            u_FechaCompromisoPago: scheduleDate, // Formato: YYYY-MM-DD
-            u_NFactura: invoice.invoiceNumber || invoice.purchaseOrderId,
-            u_NombreProveedor: invoice.supplierName || '',
-            u_Ruc: supplierRUC,
-            u_FechaEmision: invoice.receivedDate || '',
-            u_FechaVencimiento: invoice.dueDate || '',
-            u_Retencion: String(invoice.retention || 0),
-            u_FechaContabilicacion: (invoice as Invoice & { taxDate?: string }).taxDate || invoice.receivedDate || '',
-            u_ImporteFactura: String(invoice.amount || 0),
-            u_ImportePagar: importePagar,
-            u_TotalPagar: String(invoice.saldo || invoice.amount || 0),
-            u_Estado: 'Y',
-            u_Comentario: '' // Campo de comentario, por ahora vacío
+            u_cod_proveedor: supplierId,
+            u_fecha_compromiso_pago: scheduleDate,
+            u_n_factura: invoice.invoiceNumber || invoice.purchaseOrderId,
+            u_nombre_proveedor: invoice.supplierName || '',
+            u_ruc: supplierRUC,
+            u_fecha_emision: invoice.receivedDate || '',
+            u_fecha_vencimiento: invoice.dueDate || '',
+            u_retencion: String(invoice.retention || 0),
+            u_fecha_contabilicacion: (invoice as Invoice & { taxDate?: string }).taxDate || invoice.receivedDate || '',
+            u_importe_factura: String(invoice.amount || 0),
+            u_importe_pagar: importePagar,
+            u_total_pagar: String(invoice.saldo || invoice.amount || 0),
+            u_estado: 'Y',
+            u_comentario: ''
         };
     });
     
