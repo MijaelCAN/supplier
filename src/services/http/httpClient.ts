@@ -204,6 +204,8 @@ const handleAuthError = (status: number, statusText: string) => {
     window.dispatchEvent(authErrorEvent);
 };
 
+const API_REQUEST_TIMEOUT_MS = 15000;
+
 /**
  * Ejecuta fetch; si falla por red, reintenta una vez con la base API alternativa (interna ↔ pública)
  * y persiste la base que respondió para alinear getApiBaseUrl() en nuevas llamadas.
@@ -217,11 +219,18 @@ const fetchWithApiFailover = async (
     const urlAfterBase = rewriteRequestUrlToCurrentBase(targetUrl);
 
     const run = async (url: string): Promise<Response> => {
-        const response = await fetch(url, fetchOptions);
-        if (!skipAuth && (response.status === 401 || response.status === 403)) {
-            handleAuthError(response.status, response.statusText);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), API_REQUEST_TIMEOUT_MS);
+        const signal = fetchOptions.signal ?? controller.signal;
+        try {
+            const response = await fetch(url, { ...fetchOptions, signal });
+            if (!skipAuth && (response.status === 401 || response.status === 403)) {
+                handleAuthError(response.status, response.statusText);
+            }
+            return response;
+        } finally {
+            clearTimeout(timeoutId);
         }
-        return response;
     };
 
     try {
