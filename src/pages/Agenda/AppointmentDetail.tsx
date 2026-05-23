@@ -1,62 +1,71 @@
 // src/pages/Agenda/AppointmentDetail.tsx
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import React, {useEffect, useMemo, useRef, useState} from 'react';
+import {useLocation, useNavigate, useParams} from 'react-router-dom';
 import {
+    Avatar,
     Button,
-    Chip,
     Card,
     CardBody,
-    Avatar,
-    Table,
-    TableHeader,
-    TableColumn,
-    TableBody,
-    TableRow,
-    TableCell,
-    Modal,
-    ModalContent,
-    ModalHeader,
-    ModalBody,
-    ModalFooter,
+    Checkbox,
+    Chip,
+    Divider,
     Input,
-    Textarea,
+    Modal,
+    ModalBody,
+    ModalContent,
+    ModalFooter,
+    ModalHeader,
     Select,
     SelectItem,
-    Checkbox,
-    Divider,
+    Table,
+    TableBody,
+    TableCell,
+    TableColumn,
+    TableHeader,
+    TableRow,
+    Textarea,
     useDisclosure
 } from "@heroui/react";
 import {
-    CheckCircleIcon,
-    XCircleIcon,
-    ClockIcon,
-    TruckIcon,
-    DocumentTextIcon,
+    ArrowLeftIcon,
     BuildingOfficeIcon,
     CalendarIcon,
-    ClipboardDocumentListIcon,
+    CheckCircleIcon,
     ClipboardDocumentCheckIcon,
+    ClipboardDocumentListIcon,
+    ClockIcon,
+    DocumentTextIcon,
     ExclamationTriangleIcon,
-    ArrowLeftIcon,
-    StarIcon
+    StarIcon,
+    TruckIcon,
+    XCircleIcon
 } from "@heroicons/react/24/outline";
 import Dashboard from "@/layouts/Dashboard";
-import { useAgendaStore } from "@/store/agendaStore";
-import { useAuth } from "@/store/authStore";
-import { UserRole } from "@/routes/menuTypes";
-import { fetchPackingListFromApi, PackingListApiRecord, uploadFileToPackingList, createPackingListInApi, fetchWarehousesFromApi, WarehouseApiRecord, fetchDocumentsFromApi, DocumentApiRecord, fetchDocumentDetailFromApi } from "@/services/agenda/packingListApi";
-import { formatDateForAPI, fetchAppointmentsFromApi, AppointmentDocument } from "@/services/agenda/appointmentsApi";
-import { createChoferInApi } from "@/services/agenda/choferesApi";
-import { fetchEvaluationByCodCita } from "@/services/agenda/evaluationsApi";
-import { getPCPValidations, PCPValidationRecord } from "@/services/agenda/pcpApi";
-import { STATUS_CONFIG } from "@/services/agenda/appointmentStatus";
-import { DeliveryAppointment, PackingListItem, DeliveryEvaluation } from "@/store/types";
+import {useAgendaStore} from "@/store/agendaStore";
+import {useAuth} from "@/store/authStore";
+import {UserRole} from "@/routes/menuTypes";
+import {
+    createPackingListInApi,
+    DocumentApiRecord,
+    fetchDocumentDetailFromApi,
+    fetchDocumentsFromApi,
+    fetchPackingListFromApi,
+    fetchWarehousesFromApi,
+    PackingListApiRecord,
+    uploadFileToPackingList,
+    WarehouseApiRecord
+} from "@/services/agenda/packingListApi";
+import {AppointmentDocument, fetchAppointmentsFromApi, formatDateForAPI} from "@/services/agenda/appointmentsApi";
+import {createChoferInApi} from "@/services/agenda/choferesApi";
+import {fetchEvaluationByCodCita} from "@/services/agenda/evaluationsApi";
+import {getPCPValidations, PCPValidationRecord} from "@/services/agenda/pcpApi";
+import {STATUS_CONFIG} from "@/services/agenda/appointmentStatus";
+import {DeliveryAppointment, DeliveryEvaluation, PackingListItem, SupplierClaim} from "@/store/types";
 import DocumentsModal from './DocumentsModal';
 import EvaluationModal from './EvaluationModal';
 import ClaimModal from './ClaimModal';
 import PCPValidationModal from './PCPValidationModal';
-import { SupplierClaim } from '@/store/types';
-import { generateClaimPDF, openClaimPDFInNewTab } from '@/utils/pdfGenerator';
+import {generateClaimPDF, openClaimPDFInNewTab} from '@/utils/pdfGenerator';
 
 // Función para convertir fecha de formato DD-MM-YYYY a Date para ordenamiento
 const parseDate = (dateStr: string): Date => {
@@ -77,7 +86,6 @@ const AppointmentDetail: React.FC = () => {
     const weekDate = (location.state as { weekDate?: string } | null)?.weekDate;
     const { currentUser } = useAuth();
     const isProvider = currentUser?.role === UserRole.PROVEEDOR;
-    const isSecurity = currentUser?.role === UserRole.SEGURIDAD;
     const { setSelectedAppointment } = useAgendaStore(); // Solo usamos setSelectedAppointment, no el store local de appointments
     const [appointment, setAppointment] = useState<DeliveryAppointment | null>(null);
     const [isLoadingAppointment, setIsLoadingAppointment] = useState(true);
@@ -521,6 +529,7 @@ const AppointmentDetail: React.FC = () => {
     const canManagePackingList = [UserRole.ADMIN, UserRole.COMPRAS, UserRole.ALMACEN].includes(currentUser?.role || UserRole.ADMIN);
     const canManageTransport = currentUser?.role === UserRole.PROVEEDOR;
     const canManageDocuments = currentUser?.role === UserRole.PROVEEDOR;
+    const canEditAppointment = [UserRole.ADMIN, UserRole.ALMACEN, UserRole.COMPRAS].includes(currentUser?.role || UserRole.ADMIN);
     const canEvaluateSecurity = [UserRole.SEGURIDAD, UserRole.ADMIN].includes(currentUser?.role || UserRole.ADMIN);
     const canEvaluateQuality = [UserRole.CALIDAD, UserRole.ADMIN].includes(currentUser?.role || UserRole.ADMIN);
     const canEvaluateWarehouse = [UserRole.ALMACEN, UserRole.ADMIN].includes(currentUser?.role || UserRole.ADMIN);
@@ -1077,7 +1086,7 @@ const AppointmentDetail: React.FC = () => {
                         <div className="flex items-center gap-2 flex-wrap">
                             {!isProvider && (
                                 <>
-                                    {!isSecurity && (
+                                    {canEditAppointment && (
                                         <Button 
                                         color="primary" 
                                         onPress={handleEdit}

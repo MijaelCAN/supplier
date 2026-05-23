@@ -17,6 +17,11 @@ import {
   Checkbox,
   Card,
   CardBody,
+  Modal,
+  ModalContent,
+  ModalBody,
+  Spinner,
+  addToast,
 } from '@heroui/react';
 import { useInvoices } from '@/store/extendedStore';
 import { Invoice } from '@/store/types';
@@ -56,6 +61,7 @@ const ScheduleInvoices: React.FC = () => {
   const [editableInvoices, setEditableInvoices] = useState<Set<string>>(new Set());
   const [scheduleDate, setScheduleDate] = useState<string>(todayDate.toDate(getLocalTimeZone()).toISOString().split('T')[0]);
   const [isLoadingInvoices, setIsLoadingInvoices] = useState(false);
+  const [isScheduling, setIsScheduling] = useState(false);
   const [invoicesError, setInvoicesError] = useState<string | null>(null);
   
   // Date range for invoice search
@@ -258,16 +264,15 @@ const ScheduleInvoices: React.FC = () => {
 
   const handleScheduleInvoices = async () => {
     if (selectedInvoices.size === 0) {
-      alert('Por favor selecciona al menos una factura');
+      addToast({ title: 'Selecciona al menos una factura', color: 'warning' });
       return;
     }
 
     if (!scheduleDate) {
-      alert('Por favor selecciona una fecha');
+      addToast({ title: 'Selecciona una fecha de pago', color: 'warning' });
       return;
     }
 
-    // Get selected invoices with their edited values
     const invoicesToSchedule = invoiceItems
       .filter(inv => selectedInvoices.has(inv.id))
       .map(inv => ({
@@ -275,20 +280,34 @@ const ScheduleInvoices: React.FC = () => {
         scheduleDate: scheduleDate,
         editedImportePagar: editedImportePagar[inv.id]
       }));
-    
+
+    setIsScheduling(true);
     try {
       const response = await schedulePaymentInvoices(invoicesToSchedule);
-      
+
       if (response.success) {
-        alert(response.message || `${selectedInvoices.size} factura(s) programada(s) exitosamente para el ${new Date(scheduleDate).toLocaleDateString('es-PE')}`);
-        // Navigate back to calendar
+        addToast({
+          title: 'Facturas programadas',
+          description: response.message || `${selectedInvoices.size} factura(s) programada(s) exitosamente`,
+          color: 'success',
+        });
         navigate('/cronograma');
       } else {
-        alert(`Error: ${response.message || 'No se pudieron programar las facturas'}`);
+        addToast({
+          title: 'No se pudieron programar las facturas',
+          description: response.message || 'Ocurrió un error en el servidor',
+          color: 'danger',
+        });
       }
     } catch (error) {
       console.error('Error al programar facturas:', error);
-      alert(`Error al programar facturas: ${error instanceof Error ? error.message : 'Error desconocido'}`);
+      addToast({
+        title: 'Error al programar facturas',
+        description: error instanceof Error ? error.message : 'Error desconocido',
+        color: 'danger',
+      });
+    } finally {
+      setIsScheduling(false);
     }
   };
 
@@ -664,10 +683,11 @@ const ScheduleInvoices: React.FC = () => {
               >
                 Cancelar
               </Button>
-              <Button 
-                color="primary" 
+              <Button
+                color="primary"
                 onPress={handleScheduleInvoices}
-                isDisabled={selectedInvoices.size === 0 || !scheduleDate}
+                isDisabled={selectedInvoices.size === 0 || !scheduleDate || isScheduling}
+                isLoading={isScheduling}
               >
                 Programar {selectedInvoices.size > 0 ? `${selectedInvoices.size} ` : ''}Factura(s)
               </Button>
@@ -675,6 +695,24 @@ const ScheduleInvoices: React.FC = () => {
           </div>
         </CardBody>
       </Card>
+      {/* Modal de carga bloqueante */}
+      <Modal
+        isOpen={isScheduling}
+        isDismissable={false}
+        hideCloseButton
+        size="sm"
+        classNames={{ backdrop: 'bg-black/60' }}
+      >
+        <ModalContent>
+          <ModalBody className="flex flex-col items-center gap-4 py-8">
+            <Spinner size="lg" color="primary" />
+            <p className="text-sm font-medium text-gray-700">
+              Programando {selectedInvoices.size} factura(s)...
+            </p>
+            <p className="text-xs text-gray-400">Por favor espera, no cierres esta ventana</p>
+          </ModalBody>
+        </ModalContent>
+      </Modal>
     </div>
   );
 };
