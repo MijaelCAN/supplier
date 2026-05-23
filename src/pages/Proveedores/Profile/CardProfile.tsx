@@ -16,7 +16,7 @@ import {
     Alert,
     addToast
 } from '@heroui/react';
-import {PencilIcon, DocumentArrowDownIcon, ArrowDownTrayIcon} from '@heroicons/react/24/outline';
+import {PencilIcon, DocumentArrowDownIcon, ArrowDownTrayIcon, EyeIcon} from '@heroicons/react/24/outline';
 import Dashboard from "@/layouts/Dashboard";
 import { useParams, useLocation } from "react-router-dom";
 import { useSuppliers } from "@/store/extendedStore.ts";
@@ -91,6 +91,31 @@ const DOCUMENT_KEY_ALIASES: Record<string, string> = {
 
 const normaliseDocumentKey = (value?: string): string | undefined =>
     value ? DOCUMENT_KEY_ALIASES[value] ?? value : undefined;
+
+const openDocument = (link: string) => {
+    if (!link || link.trim() === '') return;
+    // Si ya es una URL, abrir directamente
+    if (link.startsWith('http://') || link.startsWith('https://') || link.startsWith('blob:')) {
+        window.open(link, '_blank', 'noopener,noreferrer');
+        return;
+    }
+    // Si es base64 (con o sin prefijo data:), crear blob y abrir
+    const base64Data = link.includes(',') ? link.split(',')[1] : link;
+    const mimeType = link.startsWith('data:') ? link.split(';')[0].replace('data:', '') : 'application/pdf';
+    try {
+        const byteChars = atob(base64Data);
+        const byteArray = new Uint8Array(byteChars.length);
+        for (let i = 0; i < byteChars.length; i++) byteArray[i] = byteChars.charCodeAt(i);
+        const blob = new Blob([byteArray], { type: mimeType });
+        const blobUrl = URL.createObjectURL(blob);
+        const win = window.open(blobUrl, '_blank', 'noopener,noreferrer');
+        // Liberar el blob URL después de que el navegador lo haya cargado
+        if (win) win.addEventListener('load', () => URL.revokeObjectURL(blobUrl));
+        else URL.revokeObjectURL(blobUrl);
+    } catch {
+        window.open(link, '_blank', 'noopener,noreferrer');
+    }
+};
 
 type DocumentResource = {
     href: string;
@@ -1341,6 +1366,7 @@ const SupplierProfileCard = () => {
                                     </div>
                                 </Tab>
                                 
+                                {/* Tab Bancos - pendiente de funcionalidad API
                                 <Tab key="banks" title="Bancos">
                                     <div className="p-6 space-y-4">
                                         {(formData.bancos ?? []).length === 0 ? (
@@ -1357,30 +1383,22 @@ const SupplierProfileCard = () => {
                                                         <CardBody className="space-y-4">
                                                             <div className="flex justify-between items-center">
                                                                 <h4 className="font-semibold text-lg">Banco {index + 1}</h4>
-                                                                {/* <Button
-                                                                    color="danger"
-                                                                    variant="light"
-                                                                    size="sm"
-                                                                    onPress={() => removeBank(index)}
-                                                                >
-                                                                    Eliminar
-                                                                </Button> */}
                                                             </div>
                                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                                <Input 
-                                                                    label="Banco" 
-                                                                    value={banco.banco || ''} 
-                                                                    onValueChange={(value) => handleBankChange(index, 'banco', value)} 
+                                                                <Input
+                                                                    label="Banco"
+                                                                    value={banco.banco || ''}
+                                                                    onValueChange={(value) => handleBankChange(index, 'banco', value)}
                                                                 />
-                                                                <Input 
-                                                                    label="Número de Cuenta" 
-                                                                    value={banco.cuenta || ''} 
-                                                                    onValueChange={(value) => handleBankChange(index, 'cuenta', value)} 
+                                                                <Input
+                                                                    label="Número de Cuenta"
+                                                                    value={banco.cuenta || ''}
+                                                                    onValueChange={(value) => handleBankChange(index, 'cuenta', value)}
                                                                 />
-                                                                <Input 
-                                                                    label="Sectorista" 
-                                                                    value={banco.sectorista || ''} 
-                                                                    onValueChange={(value) => handleBankChange(index, 'sectorista', value)} 
+                                                                <Input
+                                                                    label="Sectorista"
+                                                                    value={banco.sectorista || ''}
+                                                                    onValueChange={(value) => handleBankChange(index, 'sectorista', value)}
                                                                 />
                                                             </div>
                                                         </CardBody>
@@ -1393,6 +1411,7 @@ const SupplierProfileCard = () => {
                                         )}
                                     </div>
                                 </Tab>
+                                */}
                                 
                                 <Tab key="documents" title="Documentos">
                                     <div className="p-6 space-y-4">
@@ -1485,9 +1504,20 @@ const SupplierProfileCard = () => {
                                                                         }}
                                                                     />
                                                                     {documento.u_link_documento && (
-                                                                        <Chip size="sm" variant="flat" color="primary">
-                                                                            Archivo cargado
-                                                                        </Chip>
+                                                                        <div className="flex items-center gap-2">
+                                                                            <Chip size="sm" variant="flat" color="success">
+                                                                                Archivo cargado
+                                                                            </Chip>
+                                                                            <Button
+                                                                                size="sm"
+                                                                                variant="flat"
+                                                                                color="primary"
+                                                                                startContent={<EyeIcon className="h-4 w-4" />}
+                                                                                onPress={() => openDocument(documento.u_link_documento)}
+                                                                            >
+                                                                                Ver documento
+                                                                            </Button>
+                                                                        </div>
                                                                     )}
                                                                 </div>
                                                             </CardBody>

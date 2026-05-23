@@ -142,6 +142,11 @@ export interface FetchOptions extends RequestInit {
      * Si es true, no se agregará el token de autenticación (útil para endpoints públicos)
      */
     skipAuth?: boolean;
+    /**
+     * Timeout en ms para esta petición. Por defecto: 120 000 ms (2 min).
+     * Pasar 0 para deshabilitar el timeout.
+     */
+    timeout?: number;
 }
 
 /**
@@ -204,7 +209,7 @@ const handleAuthError = (status: number, statusText: string) => {
     window.dispatchEvent(authErrorEvent);
 };
 
-const API_REQUEST_TIMEOUT_MS = 15000;
+const API_REQUEST_TIMEOUT_MS = 120_000; // 2 minutos por defecto
 
 /**
  * Ejecuta fetch; si falla por red, reintenta una vez con la base API alternativa (interna ↔ pública)
@@ -213,17 +218,35 @@ const API_REQUEST_TIMEOUT_MS = 15000;
 const fetchWithApiFailover = async (
     targetUrl: string,
     fetchOptions: RequestInit,
-    skipAuth: boolean | undefined
+    skipAuth: boolean | undefined,
+    timeoutMs: number = API_REQUEST_TIMEOUT_MS
 ): Promise<Response> => {
     await waitForApiBaseResolution();
     const urlAfterBase = rewriteRequestUrlToCurrentBase(targetUrl);
 
     const run = async (url: string): Promise<Response> => {
+        // Si el caller ya envió su propio signal, respetarlo sin imponer timeout adicional
+        if (fetchOptions.signal) {
+            const response = await fetch(url, fetchOptions);
+            if (!skipAuth && (response.status === 401 || response.status === 403)) {
+                handleAuthError(response.status, response.statusText);
+            }
+            return response;
+        }
+
+        // Sin signal propio: aplicar timeout configurable (0 = sin límite)
+        if (timeoutMs === 0) {
+            const response = await fetch(url, fetchOptions);
+            if (!skipAuth && (response.status === 401 || response.status === 403)) {
+                handleAuthError(response.status, response.statusText);
+            }
+            return response;
+        }
+
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), API_REQUEST_TIMEOUT_MS);
-        const signal = fetchOptions.signal ?? controller.signal;
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
         try {
-            const response = await fetch(url, { ...fetchOptions, signal });
+            const response = await fetch(url, { ...fetchOptions, signal: controller.signal });
             if (!skipAuth && (response.status === 401 || response.status === 403)) {
                 handleAuthError(response.status, response.statusText);
             }
@@ -282,7 +305,7 @@ export const httpClient = async (
         }
     }
     
-    const { skipObfuscation, skipAuth, ...fetchOptions } = options;
+    const { skipObfuscation, skipAuth, timeout, ...fetchOptions } = options;
     const init: RequestInit = {
         ...fetchOptions,
         headers,
@@ -290,14 +313,14 @@ export const httpClient = async (
 
     // Si skipObfuscation está activado, usar fetch normal (failover solo si la URL es de nuestras bases)
     if (options.skipObfuscation) {
-        return fetchWithApiFailover(urlString, init, skipAuth);
+        return fetchWithApiFailover(urlString, init, skipAuth, timeout);
     }
 
     // En producción, desofuscar la URL antes de hacer la petición
     // (porque en el código usamos endpoints genéricos)
     const realUrl = isProduction ? deobfuscateUrl(urlString) : urlString;
 
-    return fetchWithApiFailover(realUrl, init, skipAuth);
+    return fetchWithApiFailover(realUrl, init, skipAuth, timeout);
 };
 
 /**
