@@ -3,7 +3,6 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
     Button,
     Chip,
-    Textarea,
     Progress,
     Modal,
     ModalContent,
@@ -25,7 +24,7 @@ import Dashboard from '@/layouts/Dashboard';
 import { useAuth } from '@/store/authStore';
 import { UserRole } from '@/routes/menuTypes';
 import { DeliveryEvaluation, EVALUATION_WEIGHTS } from '@/store/types';
-import { fetchEvaluationByCodCita, saveEvaluation, calculateTotalScore, getBadgeFromScore } from '@/services/agenda/evaluationsApi';
+import { fetchEvaluationByCodCita, calculateTotalScore, getBadgeFromScore } from '@/services/agenda/evaluationsApi';
 import { fetchAppointmentsFromApi } from '@/services/agenda/appointmentsApi';
 import { DeliveryAppointment } from '@/store/types';
 import { STATUS_CONFIG } from '@/services/agenda/appointmentStatus';
@@ -38,8 +37,8 @@ const EvaluationPage: React.FC = () => {
     const [appointment, setAppointment] = useState<DeliveryAppointment | null>(null);
     const [evaluation, setEvaluation] = useState<DeliveryEvaluation | null>(null);
     const [isLoading, setIsLoading] = useState(true);
-    const [isSaving, setIsSaving] = useState(false);
-    const [generalComment, setGeneralComment] = useState('');
+    //const [isSaving, setIsSaving] = useState(false);
+    //const [generalComment, setGeneralComment] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalType, setModalType] = useState<'puntualidad' | 'documentacion' | 'estadoMercaderia' | 'cantidadCorrecta'>('puntualidad');
     const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
@@ -90,7 +89,7 @@ const EvaluationPage: React.FC = () => {
                     const evalData = await fetchEvaluationByCodCita(foundAppointment.docEntry);
                     if (evalData) {
                         setEvaluation(evalData);
-                        setGeneralComment(evalData.comentario || '');
+                        //setGeneralComment(evalData.comentario || '');
                     } else {
                         // Crear evaluación vacía
                         setEvaluation({
@@ -109,7 +108,7 @@ const EvaluationPage: React.FC = () => {
         loadData();
     }, [appointmentId, navigate]);
 
-    const handleSaveGeneralComment = async () => {
+    /*const handleSaveGeneralComment = async () => {
         if (!appointment?.docEntry || !canEdit) return;
 
         setIsSaving(true);
@@ -129,7 +128,7 @@ const EvaluationPage: React.FC = () => {
         } finally {
             setIsSaving(false);
         }
-    };
+    };*/
 
     // Validaciones para abrir modales de evaluación
     const canEvaluateDocumentacion = (): boolean => {
@@ -670,7 +669,7 @@ const EvaluationPage: React.FC = () => {
 
 
                     {/* Comentario General */}
-                    {canEdit && (
+                    {/*canEdit && (
                         <div className="bg-white rounded-lg border border-gray-200 p-6">
                             <h3 className="text-lg font-semibold text-gray-900 mb-4">Comentario General</h3>
                             <Textarea
@@ -688,7 +687,7 @@ const EvaluationPage: React.FC = () => {
                                 Guardar Comentario
                             </Button>
                         </div>
-                    )}
+                    )*/}
                 </div>
 
                 {/* Modal de Detalles del Criterio */}
