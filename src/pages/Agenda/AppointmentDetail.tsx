@@ -525,7 +525,7 @@ const AppointmentDetail: React.FC = () => {
     const canEvaluateQuality = [UserRole.CALIDAD, UserRole.ADMIN].includes(currentUser?.role || UserRole.ADMIN);
     const canEvaluateWarehouse = [UserRole.ALMACEN, UserRole.ADMIN].includes(currentUser?.role || UserRole.ADMIN);
     const canValidatePCP = [UserRole.PLANEAMIENTO, UserRole.ADMIN].includes(currentUser?.role || UserRole.ADMIN);
-    const canViewEvaluation = [UserRole.ADMIN, UserRole.COMPRAS, UserRole.PROVEEDOR, UserRole.ALMACEN, UserRole.CALIDAD, UserRole.SEGURIDAD, UserRole.PLANEAMIENTO].includes(currentUser?.role || UserRole.ADMIN);
+    const canViewEvaluation = [UserRole.PROVEEDOR, UserRole.ALMACEN, UserRole.CALIDAD, UserRole.SEGURIDAD, UserRole.PLANEAMIENTO].includes(currentUser?.role || UserRole.ADMIN);
 
     const isCriterionEvaluated = (type: EvaluationModalType): boolean => {
         if (!evaluation) return false;
