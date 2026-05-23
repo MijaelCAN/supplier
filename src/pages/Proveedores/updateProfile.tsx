@@ -635,7 +635,7 @@ interface BankReference {
                                 <Card key={address.id}>
                                     <CardHeader className="flex justify-between items-center">
                                         <h4 className="font-medium">Dirección {index + 1}</h4>
-                                        {addresses.length > 1 && (
+                                        {/* addresses.length > 1 && (
                                             <Button
                                                 size="sm"
                                                 variant="light"
@@ -645,7 +645,7 @@ interface BankReference {
                                             >
                                                 Eliminar
                                             </Button>
-                                        )}
+                                        ) */}
                                     </CardHeader>
                                     <CardBody className="space-y-4">
                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -749,7 +749,7 @@ interface BankReference {
                                 <Card key={contact.id}>
                                     <CardHeader className="flex justify-between items-center">
                                         <h4 className="font-medium">Contacto {index + 1}</h4>
-                                        {contactPersons.length > 1 && (
+                                        {/* contactPersons.length > 1 && (
                                             <Button
                                                 size="sm"
                                                 variant="light"
@@ -759,7 +759,7 @@ interface BankReference {
                                             >
                                                 Eliminar
                                             </Button>
-                                        )}
+                                        ) */}
                                     </CardHeader>
                                     <CardBody className="space-y-4">
                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -848,7 +848,7 @@ interface BankReference {
                                 <Card key={bank.id}>
                                     <CardHeader className="flex justify-between items-center">
                                         <h4 className="font-medium">Cuenta Bancaria {index + 1}</h4>
-                                        {bankReferences.length > 1 && (
+                                        {/* bankReferences.length > 1 && (
                                             <Button
                                                 size="sm"
                                                 variant="light"
@@ -858,7 +858,7 @@ interface BankReference {
                                             >
                                                 Eliminar
                                             </Button>
-                                        )}
+                                        ) */}
                                     </CardHeader>
                                     <CardBody className="space-y-4">
                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

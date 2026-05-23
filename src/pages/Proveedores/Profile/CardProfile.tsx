@@ -1193,14 +1193,14 @@ const SupplierProfileCard = () => {
                                                         <CardBody className="space-y-4">
                                                             <div className="flex justify-between items-center">
                                                                 <h4 className="font-semibold text-lg">Dirección {index + 1}</h4>
-                                                                <Button 
-                                                                    color="danger" 
-                                                                    variant="light" 
-                                                                    size="sm" 
+                                                                {/* <Button
+                                                                    color="danger"
+                                                                    variant="light"
+                                                                    size="sm"
                                                                     onPress={() => removeAddress(index)}
                                                                 >
                                                                     Eliminar
-                                                                </Button>
+                                                                </Button> */}
                                                             </div>
                                                             <Input
                                                                 label="Código Dirección"
@@ -1292,14 +1292,14 @@ const SupplierProfileCard = () => {
                                                         <CardBody className="space-y-4">
                                                             <div className="flex justify-between items-center">
                                                                 <h4 className="font-semibold text-lg">Contacto {index + 1}</h4>
-                                                                <Button 
-                                                                    color="danger" 
-                                                                    variant="light" 
-                                                                    size="sm" 
+                                                                {/* <Button
+                                                                    color="danger"
+                                                                    variant="light"
+                                                                    size="sm"
                                                                     onPress={() => removeContact(index)}
                                                                 >
                                                                     Eliminar
-                                                                </Button>
+                                                                </Button> */}
                                                             </div>
                                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                                                 <Input 
@@ -1357,14 +1357,14 @@ const SupplierProfileCard = () => {
                                                         <CardBody className="space-y-4">
                                                             <div className="flex justify-between items-center">
                                                                 <h4 className="font-semibold text-lg">Banco {index + 1}</h4>
-                                                                <Button 
-                                                                    color="danger" 
-                                                                    variant="light" 
-                                                                    size="sm" 
+                                                                {/* <Button
+                                                                    color="danger"
+                                                                    variant="light"
+                                                                    size="sm"
                                                                     onPress={() => removeBank(index)}
                                                                 >
                                                                     Eliminar
-                                                                </Button>
+                                                                </Button> */}
                                                             </div>
                                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                                                 <Input 
@@ -1420,14 +1420,14 @@ const SupplierProfileCard = () => {
                                                             <CardBody className="space-y-4">
                                                                 <div className="flex justify-between items-center">
                                                                     <h4 className="font-semibold text-lg">Documento {index + 1}</h4>
-                                                                    <Button 
-                                                                        color="danger" 
-                                                                        variant="light" 
-                                                                        size="sm" 
+                                                                    {/* <Button
+                                                                        color="danger"
+                                                                        variant="light"
+                                                                        size="sm"
                                                                         onPress={() => removeDocument(index)}
                                                                     >
                                                                         Eliminar
-                                                                    </Button>
+                                                                    </Button> */}
                                                                 </div>
                                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                                                     <Select

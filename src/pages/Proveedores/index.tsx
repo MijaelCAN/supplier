@@ -311,7 +311,7 @@ export default function SupplierManagement() {
                                 >
                                     Editar
                                 </DropdownItem>
-                                <DropdownItem
+                                {/* <DropdownItem
                                     key="delete"
                                     className="text-danger"
                                     color="danger"
@@ -322,7 +322,7 @@ export default function SupplierManagement() {
                                     }}
                                 >
                                     Eliminar
-                                </DropdownItem>
+                                </DropdownItem> */}
                             </DropdownMenu>
                         </Dropdown>
                     </div>
@@ -600,7 +600,7 @@ export default function SupplierManagement() {
                 <ModalRegister isRegisterOpen={isRegisterOpen} onRegisterClose={onRegisterClose} onRegistered={handleRefreshSuppliers} />
                 <ModalDetail isViewOpen={isViewOpen} onViewClose={onViewClose} selectedSupplier={selectedSupplier} onEditOpen={onEditOpen} />
                 <ModalEdit isEditOpen={isEditOpen} onEditClose={onEditClose} selectedSupplier={selectedSupplier} updateSupplier={updateSupplier} onUpdated={handleRefreshSuppliers}/>
-                <ModalDelete isDeleteOpen={isDeleteOpen} onDeleteClose={onDeleteClose} selectedSupplier={selectedSupplier} deleteSupplier={deleteSupplier} />
+                {/* <ModalDelete isDeleteOpen={isDeleteOpen} onDeleteClose={onDeleteClose} selectedSupplier={selectedSupplier} deleteSupplier={deleteSupplier} /> */}
 
             </div>
         </Dashboard>

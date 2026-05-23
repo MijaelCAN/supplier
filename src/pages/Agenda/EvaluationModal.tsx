@@ -185,7 +185,7 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({
                 evaluation.estadoMercaderia = {
                     puntaje: puntajeMap[estadoMercaderia] || 0,
                     estado: estadoMercaderia as 'ACEPTADO' | 'OBSERVADO' | 'RECHAZADO',
-                    comentario: comment || undefined, // Comentario se usa como motivo cuando es OBSERVADO o RECHAZADO
+                    comentario: comment,
                     evaluadoPor: userRole,
                     fechaEvaluacion: new Date().toISOString(),
                 };

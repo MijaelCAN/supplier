@@ -25,8 +25,8 @@ export type EvaluationNivel = 'EXCELENTE' | 'BUENO' | 'REGULAR' | 'DEFICIENTE';
 export interface EvaluationCriterioRequest {
     criterio_codigo: string; // 'PUNTUALIDAD', 'DOCUMENTACION', 'ESTADO_MERCADERIA', 'CANTIDAD_CORRECTA'
     calificacion: number; // 0-10
-    comentario?: string;
-    archivo_base64?: string; // Base64 del archivo si aplica
+    comentario: string;
+    archivo_base64: string; // Base64 del archivo, vacío si no aplica
 }
 
 /**
@@ -412,16 +412,12 @@ export const saveEvaluation = async (
     // Puntualidad
     if (evaluation.puntualidad?.puntaje !== undefined) {
         const fileForPuntualidad = files?.find(f => f.criterioCodigo === EVALUATION_CRITERIA_CODES.PUNTUALIDAD);
-        let archivoBase64: string | undefined;
-
-        if (fileForPuntualidad) {
-            archivoBase64 = await fileToBase64(fileForPuntualidad.file);
-        }
+        const archivoBase64 = fileForPuntualidad ? await fileToBase64(fileForPuntualidad.file) : '';
 
         criterios.push({
             criterio_codigo: EVALUATION_CRITERIA_CODES.PUNTUALIDAD,
             calificacion: evaluation.puntualidad.puntaje,
-            comentario: evaluation.puntualidad.comentario,
+            comentario: evaluation.puntualidad.comentario ?? '',
             archivo_base64: archivoBase64,
         });
     }
@@ -429,33 +425,25 @@ export const saveEvaluation = async (
     // Documentación
     if (evaluation.documentacion?.puntaje !== undefined) {
         const fileForDocumentacion = files?.find(f => f.criterioCodigo === EVALUATION_CRITERIA_CODES.DOCUMENTACION);
-        let archivoBase64: string | undefined;
-
-        if (fileForDocumentacion) {
-            archivoBase64 = await fileToBase64(fileForDocumentacion.file);
-        }
+        const archivoBase64 = fileForDocumentacion ? await fileToBase64(fileForDocumentacion.file) : '';
 
         criterios.push({
             criterio_codigo: EVALUATION_CRITERIA_CODES.DOCUMENTACION,
             calificacion: evaluation.documentacion.puntaje,
-            comentario: evaluation.documentacion.comentario,
+            comentario: evaluation.documentacion.comentario ?? '',
             archivo_base64: archivoBase64,
         });
     }
 
     // Estado de Mercadería
-    if (evaluation.estadoMercaderia?.puntaje !== undefined && evaluation.estadoMercaderia.puntaje > 0) {
+    if (evaluation.estadoMercaderia?.puntaje !== undefined) {
         const fileForEstado = files?.find(f => f.criterioCodigo === EVALUATION_CRITERIA_CODES.ESTADO_MERCADERIA);
-        let archivoBase64: string | undefined;
-        
-        if (fileForEstado) {
-            archivoBase64 = await fileToBase64(fileForEstado.file);
-        }
+        const archivoBase64 = fileForEstado ? await fileToBase64(fileForEstado.file) : '';
 
         criterios.push({
             criterio_codigo: EVALUATION_CRITERIA_CODES.ESTADO_MERCADERIA,
             calificacion: evaluation.estadoMercaderia.puntaje,
-            comentario: evaluation.estadoMercaderia.comentario,
+            comentario: evaluation.estadoMercaderia.comentario ?? '',
             archivo_base64: archivoBase64,
         });
     }
@@ -463,16 +451,12 @@ export const saveEvaluation = async (
     // Cantidad Correcta
     if (evaluation.cantidadCorrecta?.puntaje !== undefined) {
         const fileForCantidad = files?.find(f => f.criterioCodigo === EVALUATION_CRITERIA_CODES.CANTIDAD_CORRECTA);
-        let archivoBase64: string | undefined;
-        
-        if (fileForCantidad) {
-            archivoBase64 = await fileToBase64(fileForCantidad.file);
-        }
+        const archivoBase64 = fileForCantidad ? await fileToBase64(fileForCantidad.file) : '';
 
         criterios.push({
             criterio_codigo: EVALUATION_CRITERIA_CODES.CANTIDAD_CORRECTA,
             calificacion: evaluation.cantidadCorrecta.puntaje,
-            comentario: evaluation.cantidadCorrecta.comentario,
+            comentario: evaluation.cantidadCorrecta.comentario ?? '',
             archivo_base64: archivoBase64,
         });
     }
