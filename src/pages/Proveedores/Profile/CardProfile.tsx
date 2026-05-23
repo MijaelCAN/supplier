@@ -23,7 +23,7 @@ import { useSuppliers } from "@/store/extendedStore.ts";
 import { useAuthStore } from '@/store/authStore';
 import { UserRole } from '@/routes/menuTypes';
 import { useConfigData } from '@/store';
-import { fetchSupplierByCardCode, updateSupplierProfile, type SupplierApiRecord, type Contacto, type Banco, type DocumentoEvaluacion} from '@/services/providers/providersApi';
+import { fetchSupplierByCardCode, updateSupplierProfile, type SupplierApiRecord, type Contacto, type DocumentoEvaluacion} from '@/services/providers/providersApi';
 import { fetchCondicionesPago, type CondicionPago } from '@/services/maestros/condicionesPagoApi';
 import { generateSupplierPDF, openSupplierPDFInNewTab } from '@/utils/pdfGenerator';
 import { UbigeoSelector } from '@/components/UbigeoSelector';
@@ -229,11 +229,13 @@ const createEmptyContact = (): Contacto => ({
     telefono: '',
 });
 
+/* Pendiente API
 const createEmptyBank = (): Banco => ({
     banco: '',
     cuenta: '',
     sectorista: '',
 });
+*/
 
 const createEmptyDocument = (cardCode: string): DocumentoEvaluacion => ({
     doc_entry: '0',
@@ -485,7 +487,8 @@ const SupplierProfileCard = () => {
         setFormData((prev) => (prev ? {...prev, contactos: [...(prev.contactos ?? []), createEmptyContact()]} : prev));
     };
 
-    const removeContact = (index: number) => {
+    /* Pendiente API — descomentar cuando esté disponible
+    const _removeContact = (index: number) => {
         setFormData((prev) => {
             if (!prev) return prev;
             const contactos = [...(prev.contactos ?? [])];
@@ -494,23 +497,21 @@ const SupplierProfileCard = () => {
         });
     };
 
-    const handleBankChange = (index: number, field: keyof Banco, value: string) => {
+    const _handleBankChange = (index: number, field: keyof Banco, value: string) => {
         setFormData((prev) => {
             if (!prev) return prev;
             const bancos = [...(prev.bancos ?? [])];
-            while (bancos.length <= index) {
-                bancos.push(createEmptyBank());
-            }
+            while (bancos.length <= index) bancos.push(createEmptyBank());
             bancos[index] = {...bancos[index], [field]: value} as Banco;
             return {...prev, bancos: bancos};
         });
     };
 
-    const addBank = () => {
+    const _addBank = () => {
         setFormData((prev) => (prev ? {...prev, bancos: [...(prev.bancos ?? []), createEmptyBank()]} : prev));
     };
 
-    const removeBank = (index: number) => {
+    const _removeBank = (index: number) => {
         setFormData((prev) => {
             if (!prev) return prev;
             const bancos = [...(prev.bancos ?? [])];
@@ -518,6 +519,7 @@ const SupplierProfileCard = () => {
             return {...prev, bancos: bancos};
         });
     };
+    */
 
     const handleDocumentChange = (
         index: number,
@@ -542,7 +544,8 @@ const SupplierProfileCard = () => {
         } : prev));
     };
 
-    const removeDocument = (index: number) => {
+    /* Pendiente API
+    const _removeDocument = (index: number) => {
         setFormData((prev) => {
             if (!prev) return prev;
             const documentos = [...(prev.documento_evaluacion ?? [])];
@@ -550,6 +553,7 @@ const SupplierProfileCard = () => {
             return {...prev, documento_evaluacion: documentos};
         });
     };
+    */
 
     const handleDocumentFileChange = async (index: number, file: File | null) => {
         if (!file) {
@@ -962,8 +966,8 @@ const SupplierProfileCard = () => {
         });
     };
 
-    // Función para eliminar dirección
-    const removeAddress = (index: number) => {
+    /* Pendiente API
+    const _removeAddress = (index: number) => {
         setFormData((prev) => {
             if (!prev) return prev;
             const direcciones = [...(prev.direcciones ?? [])];
@@ -971,6 +975,7 @@ const SupplierProfileCard = () => {
             return { ...prev, direcciones: direcciones };
         });
     };
+    */
 
     if (!formData) {
         return (

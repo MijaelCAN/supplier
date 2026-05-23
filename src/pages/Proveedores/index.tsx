@@ -22,7 +22,7 @@ import {
     MagnifyingGlassIcon,
     EllipsisVerticalIcon,
     PencilIcon,
-    TrashIcon,
+    // TrashIcon,
     EyeIcon,
     StarIcon,
     CheckCircleIcon,
@@ -34,7 +34,7 @@ import {Supplier, useSuppliers} from "@/store/extendedStore";
 import HeaderComponent from "@/components/headerComponent.tsx";
 import OrderTable from "@/components/OrdenCompra/orderTable.tsx";
 import {ModalRegister} from "@/components/Proveedores/modalRegister.tsx";
-import {ModalDelete} from "@/components/Proveedores/ModalDelete.tsx";
+// import {ModalDelete} from "@/components/Proveedores/ModalDelete.tsx";
 import {ModalDetail} from "@/components/Proveedores/ModalDetail.tsx";
 import {ModalEdit} from "@/components/Proveedores/ModalEdit.tsx";
 import {useNavigate} from "react-router-dom";
@@ -74,7 +74,7 @@ const INITIAL_VISIBLE_COLUMNS = ["name", "contact", "businessType", "rating", "t
 
 export default function SupplierManagement() {
     const navigate = useNavigate()
-    const { suppliers, deleteSupplier, setSelectedSupplier, selectedSupplier, updateSupplier, setSuppliers} = useSuppliers()
+    const { suppliers, setSelectedSupplier, selectedSupplier, updateSupplier, setSuppliers} = useSuppliers()
     const currentUser = useAuthStore((state) => state.currentUser);
     const supplierList = Array.isArray(suppliers) ? suppliers : [];
     const [filterValue, setFilterValue] = useState("");
@@ -93,7 +93,7 @@ export default function SupplierManagement() {
     const { isOpen: isRegisterOpen, onOpen: onRegisterOpen, onClose: onRegisterClose } = useDisclosure();
     const { isOpen: isViewOpen, onClose: onViewClose } = useDisclosure();
     const { isOpen: isEditOpen, onOpen: onEditOpen, onClose: onEditClose } = useDisclosure();
-    const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
+    // const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
 
     const todayString = useMemo(() => new Date().toISOString().slice(0, 10), []);
     function getDateBeforeDays(days: number): string {

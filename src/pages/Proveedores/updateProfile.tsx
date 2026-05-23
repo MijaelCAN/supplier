@@ -21,7 +21,7 @@ import {
     DocumentCheckIcon,
     BanknotesIcon,
     UserGroupIcon,
-    GlobeAltIcon, UserIcon, TrashIcon, PhoneIcon, CloudArrowUpIcon, BriefcaseIcon, MapPinIcon
+    GlobeAltIcon, UserIcon, PhoneIcon, CloudArrowUpIcon, BriefcaseIcon, MapPinIcon
 } from "@heroicons/react/24/outline";
 import {useState} from "react";
 import {Input, Divider} from "@heroui/react";
@@ -224,9 +224,7 @@ interface BankReference {
             setAddresses([...addresses, newAddress]);
         };
 
-        const removeAddress = (id: string) => {
-            setAddresses(addresses.filter(addr => addr.id !== id));
-        };
+        // const _removeAddress = (id: string) => { setAddresses(addresses.filter(addr => addr.id !== id)); };
 
         const updateAddress = (id: string, field: keyof Address, value: string) => {
             setAddresses(addresses.map(addr =>
@@ -247,9 +245,7 @@ interface BankReference {
             setContactPersons([...contactPersons, newContact]);
         };
 
-        const removeContactPerson = (id: string) => {
-            setContactPersons(contactPersons.filter(contact => contact.id !== id));
-        };
+        // const _removeContactPerson = (id: string) => { setContactPersons(contactPersons.filter(contact => contact.id !== id)); };
 
         const updateContactPerson = (id: string, field: keyof ContactPerson, value: string) => {
             setContactPersons(contactPersons.map(contact =>
@@ -274,9 +270,7 @@ interface BankReference {
             setBankReferences([...bankReferences, newBank]);
         };
 
-        const removeBankReference = (id: string) => {
-            setBankReferences(bankReferences.filter(bank => bank.id !== id));
-        };
+        // const _removeBankReference = (id: string) => { setBankReferences(bankReferences.filter(bank => bank.id !== id)); };
 
         const updateBankReference = (id: string, field: keyof BankReference, value: string) => {
             setBankReferences(bankReferences.map(bank =>
