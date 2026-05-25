@@ -1,6 +1,7 @@
 import { httpClient, buildSecureUrl } from "@/services/http/httpClient";
 import { formatDateForAPI } from "./appointmentsApi";
 import { getApiBaseUrl } from "@/config/api.ts";
+import { DOCUMENT_TYPE_PREFIXES } from "@/config/commercialDocuments";
 
 const DEFAULT_API_BASE_URL = getApiBaseUrl();
 const PACKING_LIST_ENDPOINT = '/api/Documentos/PackinList';
@@ -8,6 +9,7 @@ const WAREHOUSE_LIST_ENDPOINT = '/api/PackingList/ListadoAlmacen';
 const DOCUMENTS_ENDPOINT = '/api/PackingList/Documentos';
 const DOCUMENT_DETAIL_ENDPOINT = '/api/PackingList/Documentos/Detalle';
 const FILES_ENDPOINT = '/api/PackingList/Archivos';
+const VALIDACION_PCP_ENDPOINT = '/api/ValidacionPCP';
 
 export interface DatosTransporte {
     u_empresa_transporte?: string;
@@ -162,20 +164,20 @@ export const fetchPackingListFromApi = async (
  * Interfaz para crear un PackingList
  */
 export interface CreatePackingListRequest {
-    vendorId: string;
-    whsCode: string;
+    vendor_id: string;
+    whs_code: string;
     number: string;
-    inboundType: string;
+    inbound_type: string;
     comments: string;
-    dateExpected: string; // Formato: "2025-11-18" (YYYY-MM-DD)
+    date_expected: string; // Formato: "2025-11-18" (YYYY-MM-DD)
     ticket: string;
-    wmsResponse: string;
-    codCita: string; // DocEntry de la cita
-    _detallePackinList: Array<{
+    wms_response: string;
+    cod_cita: string; // DocEntry de la cita
+    _detalle_packin_list: Array<{
         document: number;
-        lineNumber: number;
-        itemCode: string;
-        itemName: string;
+        line_number: number;
+        item_code: string;
+        item_name: string;
         quantity: number;
     }>;
 }
@@ -184,7 +186,7 @@ export interface CreatePackingListRequest {
  * Respuesta al crear un PackingList
  */
 interface CreatePackingListResponse {
-    statusCode: number;
+    status_code: number;
     success: boolean;
     message: string;
     data: any;
@@ -200,8 +202,8 @@ export const createPackingListInApi = async (
     const url = `${DEFAULT_API_BASE_URL}${PACKING_LIST_ENDPOINT}`;
     
     // Preparar el request body con el formato correcto
-    // dateExpected debe venir en formato YYYY-MM-DD (el API lo espera así según el ejemplo)
-    let dateExpectedFormatted = packingListData.dateExpected;
+    // date_expected debe venir en formato YYYY-MM-DD (el API lo espera así según el ejemplo)
+    let dateExpectedFormatted = packingListData.date_expected;
     if (!dateExpectedFormatted.includes('-')) {
         // Si viene en formato YYYYMMDD, convertir a YYYY-MM-DD
         if (dateExpectedFormatted.length === 8) {
@@ -211,7 +213,7 @@ export const createPackingListInApi = async (
             dateExpectedFormatted = `${year}-${month}-${day}`;
         } else {
             // Si viene en otro formato, usar formatDateForAPI y luego convertir
-            dateExpectedFormatted = formatDateForAPI(packingListData.dateExpected);
+            dateExpectedFormatted = formatDateForAPI(packingListData.date_expected);
             if (dateExpectedFormatted.length === 8) {
                 const year = dateExpectedFormatted.substring(0, 4);
                 const month = dateExpectedFormatted.substring(4, 6);
@@ -222,16 +224,16 @@ export const createPackingListInApi = async (
     }
     
     const requestBody: CreatePackingListRequest = {
-        vendorId: packingListData.vendorId,
-        whsCode: packingListData.whsCode,
+        vendor_id: packingListData.vendor_id,
+        whs_code: packingListData.whs_code,
         number: packingListData.number,
-        inboundType: packingListData.inboundType || 'OCNAC',
+        inbound_type: packingListData.inbound_type || 'OCNAC',
         comments: packingListData.comments || '',
-        dateExpected: dateExpectedFormatted, // Formato YYYY-MM-DD
+        date_expected: dateExpectedFormatted, // Formato YYYY-MM-DD
         ticket: packingListData.ticket || '',
-        wmsResponse: packingListData.wmsResponse || '',
-        codCita: packingListData.codCita,
-        _detallePackinList: packingListData._detallePackinList || []
+        wms_response: packingListData.wms_response || '',
+        cod_cita: packingListData.cod_cita,
+        _detalle_packin_list: packingListData._detalle_packin_list || []
     };
     
     const response = await httpClient(url, {
@@ -249,7 +251,7 @@ export const createPackingListInApi = async (
     
     const json = (await response.json()) as CreatePackingListResponse;
     
-    if (!json || (json.statusCode !== 200 && json.statusCode !== 201)) {
+    if (!json || (json.status_code !== 200 && json.status_code !== 201)) {
         throw new Error(json.message || 'Error al crear el PackingList');
     }
 };
@@ -266,7 +268,7 @@ export interface WarehouseApiRecord {
  * Interfaz para la respuesta del API de almacenes
  */
 interface WarehouseListApiResponse {
-    statusCode: number;
+    status_code: number;
     success: boolean;
     message: string;
     data: WarehouseApiRecord[];
@@ -484,35 +486,25 @@ export const fetchDocumentDetailFromApi = async (docNum: string, typeDoc: 'OCNAC
  * Interfaz para la petición de subida de archivo
  */
 export interface UploadFileRequest {
-    nameFile: string;
+    name_file: string;
     base64: string;
-    codCita: string;
+    cod_cita: string;
 }
 
 /**
  * Interfaz para la respuesta de subida de archivo
  */
 export interface UploadFileResponse {
-    statusCode: number;
+    status_code: number;
     success: boolean;
     message: string;
     data: {
-        codCita: string;
-        urlArchivo: string;
-        nameFile: string;
+        cod_cita: string;
+        url_archivo: string;
+        name_file: string;
     };
 }
 
-/**
- * Mapeo de tipos de documento a prefijos de nombre de archivo
- */
-const DOCUMENT_TYPE_PREFIXES: Record<string, string> = {
-    invoice: 'FAC',
-    purchaseOrder: 'OC',
-    deliveryGuide: 'GR',
-    cdr: 'CDR',
-    xml: 'XML'
-};
 
 /**
  * Convierte un archivo File a base64
@@ -555,7 +547,7 @@ const generateFileName = (type: string, originalFileName: string): string => {
 /**
  * Sube un archivo a la cita en el API
  * @param file - Archivo a subir
- * @param type - Tipo de documento (invoice, purchaseOrder, deliveryGuide, cdr, xml)
+ * @param type - Tipo de documento (invoice, purchaseOrder, deliveryGuide, qualityCertificate, transportGuide, packingList, safetySheet, analysisCertificate, etc.)
  * @param codCita - Código de la cita (DocEntry)
  * @returns Promise con la respuesta del API
  */
@@ -580,9 +572,9 @@ export const uploadFileToPackingList = async (
     
     // Preparar request body
     const requestBody: UploadFileRequest = {
-        nameFile: nameFile,
+        name_file: nameFile,
         base64: base64,
-        codCita: codCita.trim()
+        cod_cita: codCita.trim()
     };
     
     const url = `${DEFAULT_API_BASE_URL}${FILES_ENDPOINT}`;
@@ -624,6 +616,18 @@ export interface ProductApiRecord {
     u_razon_social: string;
     quantity: string;
     horario: string; // Formato: "1100 - 1200"
+    // Campos de identificación
+    cod_cita?: string;
+    packing_list_number?: string;
+    line_number?: number;
+    document?: number;
+    // Campos de validación PCP
+    confirmacion_pcp?: 'CONFORME' | 'NO_CONFORME' | null;
+    cobertura_actual?: number | null;
+    cobertura_ingreso?: number | null;
+    comentario?: string | null;
+    pcp_validado_por?: string | null;
+    pcp_fecha_validacion?: string | null;
 }
 
 /**
@@ -665,6 +669,7 @@ export const fetchProductsFromApi = async (
     }
     
     const json = (await response.json()) as ProductListApiResponse;
+    //console.log("JSON PRO: ", json);
     
     if (!json || typeof json !== 'object') {
         throw new Error('Respuesta del servicio de productos inválida.');
@@ -682,4 +687,182 @@ export const fetchProductsFromApi = async (
             : [];
     
     return products;
+};
+
+/**
+ * INTERFAZ PARA EL DETALLE DE VALIDACIÓN PCP
+ */
+export interface ValidacionPCPDetalle {
+    u_item_code: string;
+    u_item_name: string;
+    u_line_number: string;
+    u_document: string;
+    u_confirmacion_pcp: string;
+    u_cobertura_actual: number | string;
+    u_cobertura_ingreso: number | string;
+    u_comentario: string;
+}
+
+/**
+ * INTERFAZ PARA LA PETICIÓN DE VALIDACIÓN PCP
+ */
+export interface ValidacionPCPRequest {
+    u_cod_cita: string;
+    u_packing_list_numbre: string;
+    u_validado_por: string;
+    u_fecha_validacion: string; // Formato ISO: "2024-01-15T10:30:00Z"
+    detalles: ValidacionPCPDetalle[];
+}
+
+/**
+ * INTERFAZ PARA LA RESPUESTA DE VALIDACIÓN PCP
+ */
+export interface ValidacionPCPResponseItem {
+    u_item_code: string;
+    cantidad_lineas: number;
+}
+
+export interface ValidacionPCPResponse {
+    status_code: number;
+    success: boolean;
+    message: string;
+    data: ValidacionPCPResponseItem[];
+}
+
+/**
+ * INTERFAZ PARA LA RESPUESTA DE OBTENER VALIDACIÓN PCP (GET)
+ */
+export interface ValidacionPCPGetResponseData {
+    codigo_cita: string;
+    numero_de_packing_list: string;
+    validado_por: string;
+    fecha_de_validacion: string;
+    codigo_de_producto: string;
+    nombre_de_producto: string;
+    numero_de_linea: string;
+    documento: string;
+    confirmacion_pcp: string;
+    cobertura_actual: string;
+    cobertura_ingreso: string;
+    comentario: string;
+}
+
+export interface ValidacionPCPGetResponse {
+    status_code: number;
+    success: boolean;
+    message: string;
+    data: ValidacionPCPGetResponseData | null;
+}
+
+/**
+ * Envía la validación PCP al API
+ * @param validacionData - Datos de la validación PCP a enviar
+ * @returns Promise con la respuesta del API
+ */
+export const sendValidacionPCP = async (
+    validacionData: ValidacionPCPRequest
+): Promise<ValidacionPCPResponse> => {
+    const url = `${DEFAULT_API_BASE_URL}${VALIDACION_PCP_ENDPOINT}`;
+    
+    // Preparar el request body asegurando que los campos numéricos sean strings
+    const requestBody: ValidacionPCPRequest = {
+        u_cod_cita: validacionData.u_cod_cita,
+        u_packing_list_numbre: validacionData.u_packing_list_numbre,
+        u_validado_por: validacionData.u_validado_por,
+        u_fecha_validacion: validacionData.u_fecha_validacion,
+        detalles: (validacionData.detalles || []).map(detalle => ({
+            u_item_code: detalle.u_item_code,
+            u_item_name: detalle.u_item_name,
+            u_line_number: String(detalle.u_line_number),
+            u_document: String(detalle.u_document || ''),
+            u_confirmacion_pcp: detalle.u_confirmacion_pcp,
+            u_cobertura_actual: typeof detalle.u_cobertura_actual === 'number' 
+                ? String(detalle.u_cobertura_actual) 
+                : (detalle.u_cobertura_actual || ''),
+            u_cobertura_ingreso: typeof detalle.u_cobertura_ingreso === 'number' 
+                ? String(detalle.u_cobertura_ingreso) 
+                : (detalle.u_cobertura_ingreso || ''),
+            u_comentario: detalle.u_comentario || '',
+        }))
+    };
+    
+    const response = await httpClient(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+    });
+    
+    if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Error desconocido');
+        throw new Error(`Error al enviar validación PCP (${response.status}): ${errorText}`);
+    }
+    
+    const json = (await response.json()) as ValidacionPCPResponse;
+    
+    if (!json || typeof json !== 'object') {
+        throw new Error('Respuesta del servicio de validación PCP inválida.');
+    }
+    
+    if (!json.success || (json.status_code !== 200 && json.status_code !== 201)) {
+        throw new Error(json.message || 'Error al enviar la validación PCP');
+    }
+    
+    return json;
+};
+
+/**
+ * Obtiene la validación PCP de un producto específico
+ * @param codigoCita - Código de la cita
+ * @param numeroPackingList - Número del packing list
+ * @returns Promise con los datos de validación PCP o null si no existe
+ */
+export const getValidacionPCP = async (
+    codigoCita: string,
+    numeroPackingList: string
+): Promise<ValidacionPCPGetResponseData | null> => {
+    const params: Record<string, string> = {
+        CodigoCita: codigoCita,
+        NumeroPackingList: numeroPackingList
+    };
+    
+    const url = buildSecureUrl(
+        DEFAULT_API_BASE_URL,
+        `${VALIDACION_PCP_ENDPOINT}/ObtenerValidacion`,
+        params
+    );
+    
+    const response = await httpClient(url, {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+    });
+    
+    if (!response.ok) {
+        // Si el error es 404, significa que no existe validación, retornamos null
+        if (response.status === 404) {
+            return null;
+        }
+        const errorText = await response.text().catch(() => 'Error desconocido');
+        throw new Error(`Error al obtener validación PCP (${response.status}): ${errorText}`);
+    }
+    
+    const json = (await response.json()) as ValidacionPCPGetResponse;
+    
+    if (!json || typeof json !== 'object') {
+        throw new Error('Respuesta del servicio de validación PCP inválida.');
+    }
+    
+    if (!json.success) {
+        // Si no es exitoso pero el status_code es 200, puede que no haya datos
+        if (json.status_code === 200 && !json.data) {
+            return null;
+        }
+        throw new Error(json.message || 'Error al obtener la validación PCP');
+    }
+    
+    // Retornar los datos o null si no existen
+    return json.data || null;
 };

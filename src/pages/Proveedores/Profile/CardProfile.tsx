@@ -16,14 +16,14 @@ import {
     Alert,
     addToast
 } from '@heroui/react';
-import {PencilIcon, DocumentArrowDownIcon, ArrowDownTrayIcon} from '@heroicons/react/24/outline';
+import {PencilIcon, DocumentArrowDownIcon, ArrowDownTrayIcon, EyeIcon} from '@heroicons/react/24/outline';
 import Dashboard from "@/layouts/Dashboard";
 import { useParams, useLocation } from "react-router-dom";
 import { useSuppliers } from "@/store/extendedStore.ts";
 import { useAuthStore } from '@/store/authStore';
 import { UserRole } from '@/routes/menuTypes';
 import { useConfigData } from '@/store';
-import { fetchSupplierByCardCode, updateSupplierProfile, type SupplierApiRecord, type Contacto, type Banco, type DocumentoEvaluacion} from '@/services/providers/providersApi';
+import { fetchSupplierByCardCode, updateSupplierProfile, type SupplierApiRecord, type Contacto, type DocumentoEvaluacion} from '@/services/providers/providersApi';
 import { fetchCondicionesPago, type CondicionPago } from '@/services/maestros/condicionesPagoApi';
 import { generateSupplierPDF, openSupplierPDFInNewTab } from '@/utils/pdfGenerator';
 import { UbigeoSelector } from '@/components/UbigeoSelector';
@@ -91,6 +91,31 @@ const DOCUMENT_KEY_ALIASES: Record<string, string> = {
 
 const normaliseDocumentKey = (value?: string): string | undefined =>
     value ? DOCUMENT_KEY_ALIASES[value] ?? value : undefined;
+
+const openDocument = (link: string) => {
+    if (!link || link.trim() === '') return;
+    // Si ya es una URL, abrir directamente
+    if (link.startsWith('http://') || link.startsWith('https://') || link.startsWith('blob:')) {
+        window.open(link, '_blank', 'noopener,noreferrer');
+        return;
+    }
+    // Si es base64 (con o sin prefijo data:), crear blob y abrir
+    const base64Data = link.includes(',') ? link.split(',')[1] : link;
+    const mimeType = link.startsWith('data:') ? link.split(';')[0].replace('data:', '') : 'application/pdf';
+    try {
+        const byteChars = atob(base64Data);
+        const byteArray = new Uint8Array(byteChars.length);
+        for (let i = 0; i < byteChars.length; i++) byteArray[i] = byteChars.charCodeAt(i);
+        const blob = new Blob([byteArray], { type: mimeType });
+        const blobUrl = URL.createObjectURL(blob);
+        const win = window.open(blobUrl, '_blank', 'noopener,noreferrer');
+        // Liberar el blob URL después de que el navegador lo haya cargado
+        if (win) win.addEventListener('load', () => URL.revokeObjectURL(blobUrl));
+        else URL.revokeObjectURL(blobUrl);
+    } catch {
+        window.open(link, '_blank', 'noopener,noreferrer');
+    }
+};
 
 type DocumentResource = {
     href: string;
@@ -204,11 +229,13 @@ const createEmptyContact = (): Contacto => ({
     telefono: '',
 });
 
+/* Pendiente API
 const createEmptyBank = (): Banco => ({
     banco: '',
     cuenta: '',
     sectorista: '',
 });
+*/
 
 const createEmptyDocument = (cardCode: string): DocumentoEvaluacion => ({
     doc_entry: '0',
@@ -460,7 +487,8 @@ const SupplierProfileCard = () => {
         setFormData((prev) => (prev ? {...prev, contactos: [...(prev.contactos ?? []), createEmptyContact()]} : prev));
     };
 
-    const removeContact = (index: number) => {
+    /* Pendiente API — descomentar cuando esté disponible
+    const _removeContact = (index: number) => {
         setFormData((prev) => {
             if (!prev) return prev;
             const contactos = [...(prev.contactos ?? [])];
@@ -469,23 +497,21 @@ const SupplierProfileCard = () => {
         });
     };
 
-    const handleBankChange = (index: number, field: keyof Banco, value: string) => {
+    const _handleBankChange = (index: number, field: keyof Banco, value: string) => {
         setFormData((prev) => {
             if (!prev) return prev;
             const bancos = [...(prev.bancos ?? [])];
-            while (bancos.length <= index) {
-                bancos.push(createEmptyBank());
-            }
+            while (bancos.length <= index) bancos.push(createEmptyBank());
             bancos[index] = {...bancos[index], [field]: value} as Banco;
             return {...prev, bancos: bancos};
         });
     };
 
-    const addBank = () => {
+    const _addBank = () => {
         setFormData((prev) => (prev ? {...prev, bancos: [...(prev.bancos ?? []), createEmptyBank()]} : prev));
     };
 
-    const removeBank = (index: number) => {
+    const _removeBank = (index: number) => {
         setFormData((prev) => {
             if (!prev) return prev;
             const bancos = [...(prev.bancos ?? [])];
@@ -493,6 +519,7 @@ const SupplierProfileCard = () => {
             return {...prev, bancos: bancos};
         });
     };
+    */
 
     const handleDocumentChange = (
         index: number,
@@ -517,7 +544,8 @@ const SupplierProfileCard = () => {
         } : prev));
     };
 
-    const removeDocument = (index: number) => {
+    /* Pendiente API
+    const _removeDocument = (index: number) => {
         setFormData((prev) => {
             if (!prev) return prev;
             const documentos = [...(prev.documento_evaluacion ?? [])];
@@ -525,6 +553,7 @@ const SupplierProfileCard = () => {
             return {...prev, documento_evaluacion: documentos};
         });
     };
+    */
 
     const handleDocumentFileChange = async (index: number, file: File | null) => {
         if (!file) {
@@ -937,8 +966,8 @@ const SupplierProfileCard = () => {
         });
     };
 
-    // Función para eliminar dirección
-    const removeAddress = (index: number) => {
+    /* Pendiente API
+    const _removeAddress = (index: number) => {
         setFormData((prev) => {
             if (!prev) return prev;
             const direcciones = [...(prev.direcciones ?? [])];
@@ -946,6 +975,7 @@ const SupplierProfileCard = () => {
             return { ...prev, direcciones: direcciones };
         });
     };
+    */
 
     if (!formData) {
         return (
@@ -1193,14 +1223,14 @@ const SupplierProfileCard = () => {
                                                         <CardBody className="space-y-4">
                                                             <div className="flex justify-between items-center">
                                                                 <h4 className="font-semibold text-lg">Dirección {index + 1}</h4>
-                                                                <Button 
-                                                                    color="danger" 
-                                                                    variant="light" 
-                                                                    size="sm" 
+                                                                {/* <Button
+                                                                    color="danger"
+                                                                    variant="light"
+                                                                    size="sm"
                                                                     onPress={() => removeAddress(index)}
                                                                 >
                                                                     Eliminar
-                                                                </Button>
+                                                                </Button> */}
                                                             </div>
                                                             <Input
                                                                 label="Código Dirección"
@@ -1292,14 +1322,14 @@ const SupplierProfileCard = () => {
                                                         <CardBody className="space-y-4">
                                                             <div className="flex justify-between items-center">
                                                                 <h4 className="font-semibold text-lg">Contacto {index + 1}</h4>
-                                                                <Button 
-                                                                    color="danger" 
-                                                                    variant="light" 
-                                                                    size="sm" 
+                                                                {/* <Button
+                                                                    color="danger"
+                                                                    variant="light"
+                                                                    size="sm"
                                                                     onPress={() => removeContact(index)}
                                                                 >
                                                                     Eliminar
-                                                                </Button>
+                                                                </Button> */}
                                                             </div>
                                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                                                 <Input 
@@ -1341,6 +1371,7 @@ const SupplierProfileCard = () => {
                                     </div>
                                 </Tab>
                                 
+                                {/* Tab Bancos - pendiente de funcionalidad API
                                 <Tab key="banks" title="Bancos">
                                     <div className="p-6 space-y-4">
                                         {(formData.bancos ?? []).length === 0 ? (
@@ -1357,30 +1388,22 @@ const SupplierProfileCard = () => {
                                                         <CardBody className="space-y-4">
                                                             <div className="flex justify-between items-center">
                                                                 <h4 className="font-semibold text-lg">Banco {index + 1}</h4>
-                                                                <Button 
-                                                                    color="danger" 
-                                                                    variant="light" 
-                                                                    size="sm" 
-                                                                    onPress={() => removeBank(index)}
-                                                                >
-                                                                    Eliminar
-                                                                </Button>
                                                             </div>
                                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                                <Input 
-                                                                    label="Banco" 
-                                                                    value={banco.banco || ''} 
-                                                                    onValueChange={(value) => handleBankChange(index, 'banco', value)} 
+                                                                <Input
+                                                                    label="Banco"
+                                                                    value={banco.banco || ''}
+                                                                    onValueChange={(value) => handleBankChange(index, 'banco', value)}
                                                                 />
-                                                                <Input 
-                                                                    label="Número de Cuenta" 
-                                                                    value={banco.cuenta || ''} 
-                                                                    onValueChange={(value) => handleBankChange(index, 'cuenta', value)} 
+                                                                <Input
+                                                                    label="Número de Cuenta"
+                                                                    value={banco.cuenta || ''}
+                                                                    onValueChange={(value) => handleBankChange(index, 'cuenta', value)}
                                                                 />
-                                                                <Input 
-                                                                    label="Sectorista" 
-                                                                    value={banco.sectorista || ''} 
-                                                                    onValueChange={(value) => handleBankChange(index, 'sectorista', value)} 
+                                                                <Input
+                                                                    label="Sectorista"
+                                                                    value={banco.sectorista || ''}
+                                                                    onValueChange={(value) => handleBankChange(index, 'sectorista', value)}
                                                                 />
                                                             </div>
                                                         </CardBody>
@@ -1393,6 +1416,7 @@ const SupplierProfileCard = () => {
                                         )}
                                     </div>
                                 </Tab>
+                                */}
                                 
                                 <Tab key="documents" title="Documentos">
                                     <div className="p-6 space-y-4">
@@ -1420,14 +1444,14 @@ const SupplierProfileCard = () => {
                                                             <CardBody className="space-y-4">
                                                                 <div className="flex justify-between items-center">
                                                                     <h4 className="font-semibold text-lg">Documento {index + 1}</h4>
-                                                                    <Button 
-                                                                        color="danger" 
-                                                                        variant="light" 
-                                                                        size="sm" 
+                                                                    {/* <Button
+                                                                        color="danger"
+                                                                        variant="light"
+                                                                        size="sm"
                                                                         onPress={() => removeDocument(index)}
                                                                     >
                                                                         Eliminar
-                                                                    </Button>
+                                                                    </Button> */}
                                                                 </div>
                                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                                                     <Select
@@ -1485,9 +1509,20 @@ const SupplierProfileCard = () => {
                                                                         }}
                                                                     />
                                                                     {documento.u_link_documento && (
-                                                                        <Chip size="sm" variant="flat" color="primary">
-                                                                            Archivo cargado
-                                                                        </Chip>
+                                                                        <div className="flex items-center gap-2">
+                                                                            <Chip size="sm" variant="flat" color="success">
+                                                                                Archivo cargado
+                                                                            </Chip>
+                                                                            <Button
+                                                                                size="sm"
+                                                                                variant="flat"
+                                                                                color="primary"
+                                                                                startContent={<EyeIcon className="h-4 w-4" />}
+                                                                                onPress={() => openDocument(documento.u_link_documento)}
+                                                                            >
+                                                                                Ver documento
+                                                                            </Button>
+                                                                        </div>
                                                                     )}
                                                                 </div>
                                                             </CardBody>

@@ -1,17 +1,7 @@
 import {Reception as ReceptionApi, ReceptionApiResponse} from "@/services/receptions/types.ts";
 import {Reception} from "@/store/types.ts";
 import {httpClient, buildSecureUrl} from "@/services/http/httpClient.ts";
-
-const nameBaseUrl = 'VITE_BASE_URL';
-
-const normaliseString = (value?: string | null) => (value ?? '').trim();
-
-const resolveEnv = (key: string): string | undefined => {
-    if (key in import.meta.env && typeof import.meta.env[key] === 'string') {
-        return import.meta.env[key];
-    }
-    return undefined;
-}
+import {getApiBaseUrl} from "@/config/api.ts";
 
 const buildEndpointUrlReception = (
     cardCode?: string,
@@ -19,8 +9,8 @@ const buildEndpointUrlReception = (
     startDate?: string,
     endDate?: string,
 ): string => {
-    const BASE_URL = normaliseString(resolveEnv(nameBaseUrl));
-    const ENDPOINT = resolveEnv('VITE_RECEPTION_ENDPOINT') || '/api/Documentos/Recepcion';
+    const BASE_URL = getApiBaseUrl();
+    const ENDPOINT = '/api/Documentos/Recepcion';
     
     const params: Record<string, string> = {};
     if (state && state.trim() !== '') params['Estado'] = state.trim();

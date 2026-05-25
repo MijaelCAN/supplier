@@ -1,6 +1,6 @@
-import { UserRole } from '@/routes/menuTypes';
-import { httpClient } from '@/services/http/httpClient';
-import { getApiBaseUrl } from '@/config/api.ts';
+import {UserRole} from '@/routes/menuTypes';
+import {httpClient} from '@/services/http/httpClient';
+import {getApiBaseUrl} from '@/config/api.ts';
 
 export type RoleType = 'internal' | 'provider';
 
@@ -93,7 +93,7 @@ interface ApiUpdatePasswordRequest {
 }
 
 interface ApiUpdatePasswordResponse {
-    statusCode: number;
+    status_code: number;
     message: string | null;
     data: string;
 }
@@ -142,6 +142,7 @@ const mapRole = (role: string): UserRole => {
         'solicitante': UserRole.SOLICITANTE,
         'calidad': UserRole.CALIDAD,
         'seguridad': UserRole.SEGURIDAD,
+        'planeamiento': UserRole.PLANEAMIENTO
     };
     return roleMap[role.toLowerCase()] || UserRole.PROVEEDOR;
 };
@@ -254,6 +255,7 @@ export const loginWithAPI = async (
         }
 
         const user = sanitizeUser(userData);
+        console.log("User: ", user);
         const token = userData.token;
 
         return {
@@ -343,7 +345,7 @@ export const updatePasswordWithAPI = async (
 
         const apiResponse: ApiUpdatePasswordResponse = await response.json();
 
-        if (apiResponse.statusCode !== 200) {
+        if (apiResponse.status_code !== 200) {
             throw new AuthError(
                 'UNKNOWN',
                 apiResponse.message || 'Error al actualizar la contraseña.',
@@ -408,7 +410,7 @@ interface ApiProviderEmailResponseData {
  * Interfaz para la respuesta completa en formato interno (camelCase)
  */
 interface ApiProviderEmailResponse {
-    statusCode: number;
+    status_code: number;
     success: boolean;
     message: string;
     data: ApiProviderEmailResponseData;
@@ -435,7 +437,7 @@ const mapApiProviderEmailResponse = (
     rawResponse: ApiProviderEmailResponseRaw
 ): ApiProviderEmailResponse => {
     return {
-        statusCode: rawResponse.status_code,
+        status_code: rawResponse.status_code,
         success: rawResponse.success,
         message: rawResponse.message,
         data: {
@@ -488,7 +490,7 @@ export const getProviderEmailByRuc = async (
         const rawResponse: ApiProviderEmailResponseRaw = await response.json();
         const apiResponse = mapApiProviderEmailResponse(rawResponse);
 
-        if (apiResponse.statusCode !== 200) {
+        if (apiResponse.status_code !== 200) {
             throw new AuthError(
                 'UNKNOWN',
                 apiResponse.message || 'Error al obtener el correo del proveedor.',

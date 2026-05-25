@@ -140,6 +140,12 @@ const ModalRegister: FC<ModalRegisterProps> = ({
         supplierName: string;
     } | null>(null);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (!errorMessage) return;
+        const id = setTimeout(() => setErrorMessage(null), 5000);
+        return () => clearTimeout(id);
+    }, [errorMessage]);
     const portalLink = useMemo(() => (typeof window !== 'undefined' ? `${window.location.origin}/login` : '/login'), []);
 
     const {
@@ -272,6 +278,7 @@ const ModalRegister: FC<ModalRegisterProps> = ({
     };
 
     const onSubmit = async (data: SupplierRegisterFormData) => {
+        setErrorMessage(null);
 
         // Validar estado y condición (la nueva API puede tener diferentes valores)
         const estadoValido = sunatData?.estado && !sunatData.estado.includes('BAJA') && !sunatData.estado.includes('SUSPENSION')

@@ -49,28 +49,28 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({
         switch (evaluationType) {
             case 'puntualidad':
                 return {
-                    title: 'Evaluar Puntualidad de Entrega',
+                    title: '¿Cumple con la hora de Cita?',
                     description: 'Evalúa si la entrega se realizó en el horario programado',
                     label: 'Puntualidad',
-                    canUploadFile: false,
+                    canUploadFile: true,
                 };
             case 'documentacion':
                 return {
-                    title: 'Evaluar Documentación Completa',
-                    description: 'Evalúa si todos los documentos requeridos fueron entregados correctamente',
+                    title: 'Cumple con la entrega de la documentación',
+                    description: '( Guia de remisión, Factura, Orden de compra)',
                     label: 'Documentación',
-                    canUploadFile: false,
+                    canUploadFile: true,
                 };
             case 'estadoMercaderia':
                 return {
-                    title: 'Evaluar Estado de la Mercadería',
+                    title: '¿El producto cumple con los requisitos solicitados (*)?',
                     description: 'Evalúa el estado físico y calidad de la mercadería recibida',
                     label: 'Estado de Mercadería',
                     canUploadFile: true,
                 };
             case 'cantidadCorrecta':
                 return {
-                    title: 'Evaluar Cantidad Correcta',
+                    title: 'Cumple con las cantidades solicitadas',
                     description: 'Evalúa si las cantidades recibidas coinciden con el PackingList',
                     label: 'Cantidad Correcta',
                     canUploadFile: true,
@@ -93,17 +93,25 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({
     };
 
     const config = getEvaluationConfig();
-    const canUploadFile = config.canUploadFile && (userRole === UserRole.CALIDAD || userRole === UserRole.ALMACEN);
-    //const canEditAll = userRole === UserRole.COMPRAS;
-
+    const canUploadFile = config.canUploadFile;
     // Cargar datos existentes cuando se abre el modal
     useEffect(() => {
-        if (isOpen && currentEvaluation) {
+        if (!isOpen) return;
+
+        // Siempre resetear al abrir/cambiar de criterio para no arrastrar datos entre modales
+        setScore(null);
+        setComment('');
+        setGeneralComment('');
+        setFile(null);
+        setEstadoMercaderia('');
+        setFiles([]);
+
+        if (currentEvaluation) {
             if (evaluationType === 'puntualidad' && currentEvaluation.puntualidad) {
-                setScore(currentEvaluation.puntualidad.puntaje || 0);
+                setScore(currentEvaluation.puntualidad.puntaje);
                 setComment(currentEvaluation.puntualidad.comentario || '');
             } else if (evaluationType === 'documentacion' && currentEvaluation.documentacion) {
-                setScore(currentEvaluation.documentacion.puntaje || 0);
+                setScore(currentEvaluation.documentacion.puntaje);
                 setComment(currentEvaluation.documentacion.comentario || '');
             } else if (evaluationType === 'estadoMercaderia' && currentEvaluation.estadoMercaderia) {
                 setEstadoMercaderia(currentEvaluation.estadoMercaderia.estado || '');
@@ -117,19 +125,11 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({
                     else setEstadoMercaderia('RECHAZADO');
                 }
             } else if (evaluationType === 'cantidadCorrecta' && currentEvaluation.cantidadCorrecta) {
-                setScore(currentEvaluation.cantidadCorrecta.puntaje || null);
+                setScore(currentEvaluation.cantidadCorrecta.puntaje);
                 setComment(currentEvaluation.cantidadCorrecta.comentario || '');
             } else if (evaluationType === 'full') {
                 setGeneralComment(currentEvaluation.comentario || '');
             }
-        } else if (isOpen) {
-            // Reset cuando se abre sin evaluación previa
-            setScore(null);
-            setComment('');
-            setGeneralComment('');
-            setFile(null);
-            setEstadoMercaderia('');
-            setFiles([]);
         }
     }, [isOpen, currentEvaluation, evaluationType]);
 
@@ -145,8 +145,8 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({
                 alert(`Por favor ingrese el motivo de ${tipoMotivo}`);
                 return;
             }
-        } else if (evaluationType !== 'full' && evaluationType !== 'puntualidad' && evaluationType !== 'documentacion' && score === 0) {
-            alert('Por favor seleccione un puntaje');
+        } else if (evaluationType === 'cantidadCorrecta' && score === null) {
+            alert('Por favor seleccione Sí o No');
             return;
         } else if ((evaluationType === 'puntualidad' || evaluationType === 'documentacion') && score === null) {
             alert('Por favor seleccione Sí o No');
@@ -163,14 +163,14 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({
             // Asignar según el tipo
             if (evaluationType === 'puntualidad') {
                 evaluation.puntualidad = {
-                    puntaje: score === 1 ? 1 : 0, // Binario: 1 = Sí, 0 = No
+                    puntaje: score === 10 ? 10 : 0, // Binario: 10 = Sí, 0 = No
                     comentario: comment,
                     evaluadoPor: userRole,
                     fechaEvaluacion: new Date().toISOString(),
                 };
             } else if (evaluationType === 'documentacion') {
                 evaluation.documentacion = {
-                    puntaje: score === 1 ? 1 : 0, // Binario: 1 = Sí, 0 = No
+                    puntaje: score === 10 ? 10 : 0, // Binario: 10 = Sí, 0 = No
                     comentario: comment,
                     evaluadoPor: userRole,
                     fechaEvaluacion: new Date().toISOString(),
@@ -185,48 +185,18 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({
                 evaluation.estadoMercaderia = {
                     puntaje: puntajeMap[estadoMercaderia] || 0,
                     estado: estadoMercaderia as 'ACEPTADO' | 'OBSERVADO' | 'RECHAZADO',
-                    comentario: comment || undefined, // Comentario se usa como motivo cuando es OBSERVADO o RECHAZADO
-                    evaluadoPor: userRole,
-                    fechaEvaluacion: new Date().toISOString(),
-                };
-            } else if (evaluationType === 'cantidadCorrecta') {
-                // Para cantidadCorrecta, usar escala 1-10 pero también permitir estados ACEPTADO/OBSERVADO/RECHAZADO
-                // Si el score es >= 9, es ACEPTADO; >= 5 es OBSERVADO; < 5 es RECHAZADO
-                let estado: 'ACEPTADO' | 'OBSERVADO' | 'RECHAZADO' | undefined;
-                if (score && score >= 9) {
-                    estado = 'ACEPTADO';
-                } else if (score && score >= 5) {
-                    estado = 'OBSERVADO';
-                } else {
-                    estado = 'RECHAZADO';
-                }
-                
-                evaluation.cantidadCorrecta = {
-                    puntaje: score || 0,
-                    estado: estado,
                     comentario: comment,
                     evaluadoPor: userRole,
                     fechaEvaluacion: new Date().toISOString(),
                 };
-            }
-
-            // Si hay evaluación previa, mantener los otros campos
-            if (currentEvaluation) {
-                if (!evaluation.puntualidad && currentEvaluation.puntualidad) {
-                    evaluation.puntualidad = currentEvaluation.puntualidad;
-                }
-                if (!evaluation.documentacion && currentEvaluation.documentacion) {
-                    evaluation.documentacion = currentEvaluation.documentacion;
-                }
-                if (!evaluation.estadoMercaderia && currentEvaluation.estadoMercaderia) {
-                    evaluation.estadoMercaderia = currentEvaluation.estadoMercaderia;
-                }
-                if (!evaluation.cantidadCorrecta && currentEvaluation.cantidadCorrecta) {
-                    evaluation.cantidadCorrecta = currentEvaluation.cantidadCorrecta;
-                }
-                if (!evaluation.comentario && currentEvaluation.comentario) {
-                    evaluation.comentario = currentEvaluation.comentario;
-                }
+            } else if (evaluationType === 'cantidadCorrecta') {
+                evaluation.cantidadCorrecta = {
+                    puntaje: score === 10 ? 10 : 0, // Binario: 10 = Sí, 0 = No
+                    estado: score === 10 ? 'ACEPTADO' : 'RECHAZADO',
+                    comentario: comment,
+                    evaluadoPor: userRole,
+                    fechaEvaluacion: new Date().toISOString(),
+                };
             }
 
             // Preparar archivos para enviar con los criterios
@@ -246,6 +216,16 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({
                     filesToSend.push({
                         criterioCodigo: EVALUATION_CRITERIA_CODES.CANTIDAD_CORRECTA,
                         file: file,
+                    });
+                } else if (evaluationType === 'puntualidad' && file) {
+                    filesToSend.push({
+                        criterioCodigo: EVALUATION_CRITERIA_CODES.PUNTUALIDAD,
+                        file,
+                    });
+                } else if (evaluationType === 'documentacion' && file) {
+                    filesToSend.push({
+                        criterioCodigo: EVALUATION_CRITERIA_CODES.DOCUMENTACION,
+                        file,
                     });
                 }
             }
@@ -334,7 +314,7 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({
                 }
                 validFiles.push(file);
             }
-            setFiles([...files, ...validFiles]);
+            setFiles((prev) => [...prev, ...validFiles]);
         } else {
             // Un solo archivo para otros tipos
             const selectedFile = selectedFiles[0];
@@ -365,7 +345,7 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({
             <ModalContent>
                 {(onClose) => (
                     <>
-                        <ModalHeader>
+                        <ModalHeader className="flex justify-center">
                             <div className="flex flex-col gap-1">
                                 <h3 className="text-xl font-semibold">{config.title}</h3>
                                 <p className="text-sm font-normal text-gray-500">{config.description}</p>
@@ -433,9 +413,9 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({
                                                     isDisabled={!estadoMercaderia}
                                                 />
                                             </>
-                                        ) : evaluationType === 'puntualidad' || evaluationType === 'documentacion' && (
+                                        ) : (evaluationType === 'puntualidad' || evaluationType === 'documentacion' || evaluationType === 'cantidadCorrecta') ? (
                                             <>
-                                                {/* Selector Binario para Puntualidad y Documentación (Sí/No) */}
+                                                {/* Selector binario para puntualidad, documentación y cantidad */}
                                                 <div>
                                                     <label className="text-sm font-medium text-gray-700 mb-2 block">
                                                         {config.label} *
@@ -443,9 +423,9 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({
                                                     <div className="grid grid-cols-2 gap-3">
                                                         <button
                                                             type="button"
-                                                            onClick={() => setScore(1)}
+                                                            onClick={() => setScore(10)}
                                                             className={`p-4 rounded-lg border-2 transition-all ${
-                                                                score === 1
+                                                                score === 10
                                                                     ? 'border-green-500 bg-green-50 text-green-700'
                                                                     : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
                                                             }`}
@@ -456,6 +436,8 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({
                                                                 <span className="text-xs text-gray-600">
                                                                     {evaluationType === 'documentacion' 
                                                                         ? 'Documentación completa' 
+                                                                        : evaluationType === 'cantidadCorrecta'
+                                                                        ? 'Coincide con el PackingList'
                                                                         : 'Llegó puntual'}
                                                                 </span>
                                                             </div>
@@ -475,7 +457,9 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({
                                                                 <span className="text-xs text-gray-600">
                                                                     {evaluationType === 'puntualidad' 
                                                                         ? 'No llegó puntual' 
-                                                                        : 'Documentación incompleta'}
+                                                                        : evaluationType === 'documentacion'
+                                                                        ? 'Documentación incompleta'
+                                                                        : 'No coincide con el PackingList'}
                                                                 </span>
                                                             </div>
                                                         </button>
@@ -484,13 +468,17 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({
 
                                                 <Textarea
                                                     label="Comentario"
-                                                    placeholder="Agregue un comentario sobre esta evaluación..."
+                                                    placeholder={
+                                                        evaluationType === 'cantidadCorrecta'
+                                                            ? 'Agregue un comentario sobre cantidades, faltantes o diferencias...'
+                                                            : 'Agregue un comentario sobre esta evaluación...'
+                                                    }
                                                     value={comment}
                                                     onValueChange={setComment}
                                                     minRows={3}
                                                 />
                                             </>
-                                        )}
+                                        ) : null}
                                     </>
                                 )}
 
@@ -507,14 +495,14 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({
                                 {canUploadFile && (
                                     <div>
                                         <label className="text-sm font-medium text-gray-700 mb-2 block">
-                                            {evaluationType === 'estadoMercaderia' 
-                                                ? 'Archivos Adjuntos (PDF, Imágenes, Videos - Máx. 50MB por archivo)' 
+                                            {evaluationType === 'estadoMercaderia'
+                                                ? 'Archivos Adjuntos (PDF, Imágenes, Videos - Máx. 50MB por archivo)'
                                                 : 'Archivo Adjunto (PDF, JPG, PNG - Máx. 10MB)'}
                                         </label>
                                         <input
                                             type="file"
-                                            accept={evaluationType === 'estadoMercaderia' 
-                                                ? ".pdf,.jpg,.jpeg,.png,.mp4,.mov,.avi" 
+                                            accept={evaluationType === 'estadoMercaderia'
+                                                ? ".pdf,.jpg,.jpeg,.png,.mp4,.mov,.avi"
                                                 : ".pdf,.jpg,.jpeg,.png"}
                                             multiple={evaluationType === 'estadoMercaderia'}
                                             onChange={handleFileChange}
@@ -555,7 +543,7 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({
                                             </div>
                                         )}
                                     </div>
-                                )}
+                                        )}
                             </div>
                         </ModalBody>
                         <ModalFooter>
@@ -573,9 +561,9 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({
                                 isDisabled={
                                     evaluationType === 'estadoMercaderia' 
                                         ? !estadoMercaderia || ((estadoMercaderia === 'OBSERVADO' || estadoMercaderia === 'RECHAZADO') && !comment.trim())
-                                        : evaluationType === 'puntualidad' || evaluationType === 'documentacion'
+                                        : evaluationType === 'puntualidad' || evaluationType === 'documentacion' || evaluationType === 'cantidadCorrecta'
                                         ? score === null
-                                        : evaluationType !== 'full' && score === 0
+                                        : false
                                 }
                             >
                                 {isSaving ? 'Guardando...' : isUploading ? 'Subiendo archivo...' : 'Guardar Evaluación'}

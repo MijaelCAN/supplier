@@ -81,7 +81,7 @@ interface ScheduleAppointmentModalProps {
     currentUserRole?: UserRole;
 }
 
-const ScheduleAppointmentModal: React.FC<ScheduleAppointmentModalProps> = ({
+export const ScheduleAppointmentModal: React.FC<ScheduleAppointmentModalProps> = ({
     isOpen,
     supplierData: supplierDataProp,
     onOpenChange,
@@ -317,6 +317,11 @@ const ScheduleAppointmentModal: React.FC<ScheduleAppointmentModalProps> = ({
 
     // Determinar si el usuario es ALMACEN y está en modo edición
     const isAlmacenEditing = !!(editingAppointment && currentUserRole === UserRole.ALMACEN);
+
+    // Solo ADMIN, COMPRAS y ALMACEN pueden editar el almacén de destino
+    const canEditWarehouse = currentUserRole === UserRole.ADMIN
+      || currentUserRole === UserRole.COMPRAS
+      || currentUserRole === UserRole.ALMACEN;
 
     return (
         <Modal 
@@ -720,6 +725,7 @@ const ScheduleAppointmentModal: React.FC<ScheduleAppointmentModalProps> = ({
                                             onSelectionChange={(keys) => setFormData(prev => ({ ...prev, warehouse: Array.from(keys)[0] as string }))}
                                             startContent={<MapPinIcon className="w-4 h-4 text-gray-400" />}
                                             isRequired={isAlmacenEditing}
+                                            isDisabled={!canEditWarehouse}
                                             description={isAlmacenEditing ? "Complete este campo para actualizar la cita" : undefined}
                                         >
                                             <SelectItem key="ALM001">Sede Ancon</SelectItem>
@@ -831,4 +837,4 @@ const ScheduleAppointmentModal: React.FC<ScheduleAppointmentModalProps> = ({
     );
 };
 
-export default ScheduleAppointmentModal;
+//export default ScheduleAppointmentModal;

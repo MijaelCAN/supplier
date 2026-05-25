@@ -102,23 +102,6 @@ interface SuppliersApiResponse {
 
 import { getApiBaseUrl } from "@/config/api.ts";
 
-const resolveEnv = (key: string): string | undefined => {
-    if (key in import.meta.env && typeof import.meta.env[key] === 'string') {
-        return import.meta.env[key] as string;
-    }
-
-    const viteKey = `VITE_${key}`;
-    if (viteKey in import.meta.env && typeof import.meta.env[viteKey] === 'string') {
-        return import.meta.env[viteKey] as string;
-    }
-
-    const reactKey = `REACT_APP_${key}`;
-    if (reactKey in import.meta.env && typeof import.meta.env[reactKey] === 'string') {
-        return import.meta.env[reactKey] as string;
-    }
-
-    return undefined;
-};
 
 const DEFAULT_SUPPLIERS_API_BASE_URL = getApiBaseUrl();
 const SUPPLIERS_ENDPOINT = '/api/Proveedores';
@@ -341,7 +324,7 @@ const buildEndpointUrl = (cardCode?: string) => {
     return json;
 };*/
 type SuppliersApiListResponse = {
-    statusCode: number;
+    status_code: number;
     message: string;
     data: SupplierApiRecord[];
     total?: number;
@@ -561,7 +544,7 @@ export const createSupplierProfile = async (
         body: JSON.stringify(payload),
     });
 
-    // Primero parsear el JSON para verificar el statusCode
+    // Primero parsear el JSON para verificar el status_code
     let json;
     try {
         json = await response.json();
@@ -569,9 +552,9 @@ export const createSupplierProfile = async (
         throw new Error('No se pudo parsear la respuesta del servidor.');
     }
 
-    // Verificar si hay un error en el statusCode (cualquier código >= 400 o statusCode en el JSON)
-    if (!response.ok || (json.statusCode && json.statusCode >= 400)) {
-        const errorMessage = json.message || `Error al crear el proveedor (${json.statusCode || response.status})`;
+    // Verificar si hay un error en el status_code (cualquier código >= 400 o status_code en el JSON)
+    if (!response.ok || (json.status_code && json.status_code >= 400)) {
+        const errorMessage = json.message || `Error al crear el proveedor (${json.status_code || response.status})`;
         throw new Error(errorMessage);
     }
 

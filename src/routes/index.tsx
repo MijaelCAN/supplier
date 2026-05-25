@@ -1,29 +1,44 @@
-import {createBrowserRouter, Navigate} from "react-router-dom";
+import { lazy, Suspense, ReactNode } from "react";
+import { createBrowserRouter, Navigate } from "react-router-dom";
 import Auth from "@/layouts/Auth";
 import Dashboard from "@/layouts/Dashboard";
 import NotFoundPage from "@/pages/NotFound";
 import ProtectedRoute from "@/components/ProtectedRoute";
-import Home from "@/pages/Home";
-import {UserRole} from "./menuTypes";
+import { UserRole } from "./menuTypes";
+import { Spinner } from "@heroui/react";
 
-// Import pages
-import ProveedorProfile from "@/pages/Proveedores/Profile/CardProfile";
-import EvaluationSuppliers from "@/pages/Proveedores/evaluations";
-import EvaluationForm from "@/pages/Proveedores/evalForm";
-import ExecutiveDashboard from "@/pages/Reportes/dashboard";
-import SupplierManagement from "@/pages/Proveedores/index.tsx";
-import PurchaseOrdersList from "@/pages/OrdenCompra";
-import InvoicesList from "@/pages/Facturas";
-import UserManagement from "@/pages/Configuracion/usuarios.tsx";
-import PaymentsList from "@/pages/Finanzas/pagos.tsx";
-import {SolicitudCompra} from "@/pages/SolicitudCompra";
-import AgendaPage from "@/pages/Agenda";
-import AppointmentDetailPage from "@/pages/Agenda/AppointmentDetail";
-import EvaluationPage from "@/pages/Agenda/EvaluationPage";
-import ReceptionPage from "@/pages/Recepcion";
-import PaymentCalendar from "@/pages/Pagos/Paymentcalendar ";
-import ScheduleInvoices from "@/pages/Pagos/ScheduleInvoices";
+// ── Lazy pages ────────────────────────────────────────────────────────────────
+const Home                = lazy(() => import("@/pages/Home"));
+const ProveedorProfile    = lazy(() => import("@/pages/Proveedores/Profile/CardProfile"));
+const EvaluationSuppliers = lazy(() => import("@/pages/Proveedores/evaluations"));
+const EvaluationForm      = lazy(() => import("@/pages/Proveedores/evalForm"));
+const ExecutiveDashboard  = lazy(() => import("@/pages/Reportes/dashboard"));
+const SupplierManagement  = lazy(() => import("@/pages/Proveedores/index"));
+const PurchaseOrdersList  = lazy(() => import("@/pages/OrdenCompra"));
+const InvoicesList        = lazy(() => import("@/pages/Facturas"));
+const UserManagement      = lazy(() => import("@/pages/Configuracion/usuarios"));
+const PaymentsList        = lazy(() => import("@/pages/Finanzas/pagos"));
+const SolicitudCompra     = lazy(() => import("@/pages/SolicitudCompra").then(m => ({ default: m.SolicitudCompra })));
+const AgendaPage          = lazy(() => import("@/pages/Agenda"));
+const AppointmentDetail   = lazy(() => import("@/pages/Agenda/AppointmentDetail"));
+const EvaluationPage      = lazy(() => import("@/pages/Agenda/EvaluationPage"));
+const ReceptionPage       = lazy(() => import("@/pages/Recepcion"));
+const PaymentCalendar     = lazy(() => import("@/pages/Pagos/Paymentcalendar "));
+const ScheduleInvoices    = lazy(() => import("@/pages/Pagos/ScheduleInvoices"));
 
+// ── Fallback de carga ─────────────────────────────────────────────────────────
+const PageLoader = () => (
+  <div className="flex h-screen w-full items-center justify-center">
+    <Spinner size="lg" color="primary" />
+  </div>
+);
+
+// ── Helper: envuelve cualquier elemento en Suspense ───────────────────────────
+const Lazy = ({ children }: { children: ReactNode }) => (
+  <Suspense fallback={<PageLoader />}>{children}</Suspense>
+);
+
+// ── Router ────────────────────────────────────────────────────────────────────
 const router = createBrowserRouter([
   {
     path: "/login",
@@ -33,19 +48,19 @@ const router = createBrowserRouter([
     path: "/",
     element: (
       <ProtectedRoute>
-        <Home />
+        <Lazy><Home /></Lazy>
       </ProtectedRoute>
     ),
   },
   {
     path: "/dashboard",
-    element: <Navigate to="/" replace />, // Redirect old dashboard to home
+    element: <Navigate to="/" replace />,
   },
   {
     path: "/proveedores",
     element: (
       <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.COMPRAS, UserRole.SEGURIDAD, UserRole.CALIDAD, UserRole.ALMACEN]}>
-        <SupplierManagement />
+        <Lazy><SupplierManagement /></Lazy>
       </ProtectedRoute>
     ),
   },
@@ -53,7 +68,7 @@ const router = createBrowserRouter([
     path: "/proveedor/perfil",
     element: (
       <ProtectedRoute requiredRoles={[UserRole.PROVEEDOR, UserRole.ADMIN, UserRole.COMPRAS, UserRole.FINANZAS, UserRole.ALMACEN]}>
-        <ProveedorProfile />
+        <Lazy><ProveedorProfile /></Lazy>
       </ProtectedRoute>
     ),
   },
@@ -61,7 +76,7 @@ const router = createBrowserRouter([
     path: "/proveedores/profile/:supplierCode",
     element: (
       <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.COMPRAS, UserRole.FINANZAS, UserRole.ALMACEN]}>
-        <ProveedorProfile />
+        <Lazy><ProveedorProfile /></Lazy>
       </ProtectedRoute>
     ),
   },
@@ -69,7 +84,7 @@ const router = createBrowserRouter([
     path: "/proveedores/evaluaciones",
     element: (
       <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.COMPRAS]}>
-        <EvaluationSuppliers rol={"PROVEEDOR"} />
+        <Lazy><EvaluationSuppliers rol={"PROVEEDOR"} /></Lazy>
       </ProtectedRoute>
     ),
   },
@@ -77,7 +92,7 @@ const router = createBrowserRouter([
     path: "/proveedor/evaluacion",
     element: (
       <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.COMPRAS]}>
-        <EvaluationForm />
+        <Lazy><EvaluationForm /></Lazy>
       </ProtectedRoute>
     ),
   },
@@ -85,37 +100,23 @@ const router = createBrowserRouter([
     path: "/reportes/ejecutivo",
     element: (
       <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.FINANZAS]}>
-        <ExecutiveDashboard />
+        <Lazy><ExecutiveDashboard /></Lazy>
       </ProtectedRoute>
     ),
   },
-  // Solicitud de compra
   {
     path: "/solicitud-compra",
     element: (
-        <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.COMPRAS, UserRole.PROVEEDOR]}>
-          {/*<Dashboard>
-          <div className="p-6">
-            <h1 className="text-2xl font-bold mb-4">Órdenes de Compra</h1>
-            <p className="text-gray-600">Página en construcción - Gestión de órdenes de compra</p>
-          </div>
-        </Dashboard>*/}
-          <SolicitudCompra />
-        </ProtectedRoute>
+      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.COMPRAS, UserRole.PROVEEDOR]}>
+        <Lazy><SolicitudCompra /></Lazy>
+      </ProtectedRoute>
     ),
   },
-  // Placeholder routes for future implementation
   {
     path: "/orden-compra",
     element: (
       <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.COMPRAS, UserRole.PROVEEDOR]}>
-        {/*<Dashboard>
-          <div className="p-6">
-            <h1 className="text-2xl font-bold mb-4">Órdenes de Compra</h1>
-            <p className="text-gray-600">Página en construcción - Gestión de órdenes de compra</p>
-          </div>
-        </Dashboard>*/}
-        <PurchaseOrdersList />
+        <Lazy><PurchaseOrdersList /></Lazy>
       </ProtectedRoute>
     ),
   },
@@ -123,7 +124,7 @@ const router = createBrowserRouter([
     path: "/factura",
     element: (
       <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.FINANZAS, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.ALMACEN]}>
-        <InvoicesList />
+        <Lazy><InvoicesList /></Lazy>
       </ProtectedRoute>
     ),
   },
@@ -131,13 +132,7 @@ const router = createBrowserRouter([
     path: "/finanzas/pagos",
     element: (
       <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.FINANZAS]}>
-        {/*<Dashboard>
-          <div className="p-6">
-            <h1 className="text-2xl font-bold mb-4">Gestión de Pagos</h1>
-            <p className="text-gray-600">Página en construcción - Procesamiento de pagos</p>
-          </div>
-        </Dashboard>*/}
-        <PaymentsList />
+        <Lazy><PaymentsList /></Lazy>
       </ProtectedRoute>
     ),
   },
@@ -145,13 +140,7 @@ const router = createBrowserRouter([
     path: "/configuracion/usuarios",
     element: (
       <ProtectedRoute requiredRoles={[UserRole.ADMIN]}>
-        {/*<Dashboard>
-          <div className="p-6">
-            <h1 className="text-2xl font-bold mb-4">Gestión de Usuarios</h1>
-            <p className="text-gray-600">Página en construcción - Administración de usuarios</p>
-          </div>
-        </Dashboard>*/}
-        < UserManagement />
+        <Lazy><UserManagement /></Lazy>
       </ProtectedRoute>
     ),
   },
@@ -171,59 +160,59 @@ const router = createBrowserRouter([
   {
     path: "/configuracion/permisos",
     element: (
-        <ProtectedRoute requiredRoles={[UserRole.ADMIN]}>
-          <Dashboard>
-            <div className="p-6">
-              <h1 className="text-2xl font-bold mb-4">Configuración del Sistema</h1>
-              <p className="text-gray-600">Página en construcción - Configuración general</p>
-            </div>
-          </Dashboard>
-        </ProtectedRoute>
+      <ProtectedRoute requiredRoles={[UserRole.ADMIN]}>
+        <Dashboard>
+          <div className="p-6">
+            <h1 className="text-2xl font-bold mb-4">Configuración del Sistema</h1>
+            <p className="text-gray-600">Página en construcción - Configuración general</p>
+          </div>
+        </Dashboard>
+      </ProtectedRoute>
     ),
   },
   {
     path: "/cotizaciones",
     element: (
-        <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.COMPRAS, UserRole.PROVEEDOR]}>
-          <Dashboard>
-            <div className="p-6">
-              <h1 className="text-2xl font-bold mb-4">Cotizaciones</h1>
-              <p className="text-gray-600">Página en construcción - Gestión de cotizaciones</p>
-            </div>
-          </Dashboard>
-        </ProtectedRoute>
+      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.COMPRAS, UserRole.PROVEEDOR]}>
+        <Dashboard>
+          <div className="p-6">
+            <h1 className="text-2xl font-bold mb-4">Cotizaciones</h1>
+            <p className="text-gray-600">Página en construcción - Gestión de cotizaciones</p>
+          </div>
+        </Dashboard>
+      </ProtectedRoute>
     ),
   },
   {
     path: "/agenda",
     element: (
-      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.ALMACEN, UserRole.SEGURIDAD, UserRole.CALIDAD]}>
-        <AgendaPage />
+      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.ALMACEN, UserRole.SEGURIDAD, UserRole.CALIDAD, UserRole.PLANEAMIENTO]}>
+        <Lazy><AgendaPage /></Lazy>
       </ProtectedRoute>
     ),
   },
   {
     path: "/agenda/detail/:appointmentId",
     element: (
-      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.ALMACEN, UserRole.CALIDAD, UserRole.SEGURIDAD]}>
-        <AppointmentDetailPage />
+      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.ALMACEN, UserRole.CALIDAD, UserRole.SEGURIDAD, UserRole.PLANEAMIENTO]}>
+        <Lazy><AppointmentDetail /></Lazy>
       </ProtectedRoute>
     ),
   },
   {
     path: "/agenda/evaluation/:appointmentId",
     element: (
-      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.COMPRAS, UserRole.ALMACEN, UserRole.CALIDAD, UserRole.SEGURIDAD]}>
-        <EvaluationPage />
+      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.COMPRAS, UserRole.ALMACEN, UserRole.CALIDAD, UserRole.SEGURIDAD, UserRole.PLANEAMIENTO]}>
+        <Lazy><EvaluationPage /></Lazy>
       </ProtectedRoute>
     ),
   },
   {
     path: "/recepcion",
     element: (
-        <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.ALMACEN, UserRole.SEGURIDAD, UserRole.CALIDAD]}>
-          <ReceptionPage />
-        </ProtectedRoute>
+      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.ALMACEN, UserRole.SEGURIDAD, UserRole.CALIDAD]}>
+        <Lazy><ReceptionPage /></Lazy>
+      </ProtectedRoute>
     ),
   },
   {
@@ -231,7 +220,7 @@ const router = createBrowserRouter([
     element: (
       <ProtectedRoute requiredRoles={[UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.ADMIN]}>
         <Dashboard>
-          <PaymentCalendar />
+          <Lazy><PaymentCalendar /></Lazy>
         </Dashboard>
       </ProtectedRoute>
     ),
@@ -241,7 +230,7 @@ const router = createBrowserRouter([
     element: (
       <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.COMPRAS, UserRole.FINANZAS]}>
         <Dashboard>
-          <ScheduleInvoices />
+          <Lazy><ScheduleInvoices /></Lazy>
         </Dashboard>
       </ProtectedRoute>
     ),

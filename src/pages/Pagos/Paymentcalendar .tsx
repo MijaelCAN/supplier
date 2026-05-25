@@ -107,20 +107,24 @@ const PaymentCalendar: React.FC = () => {
     return `${date.year}-${String(date.month).padStart(2, '0')}-${String(date.day).padStart(2, '0')}`;
   };
 
+  // Parsea "YYYY-MM-DD" o "DD/MM/YYYY" como medianoche local (sin conversión UTC)
+  const parseLocalDate = (dateStr: string): Date => {
+    const datePart = dateStr.split(/[ T]/)[0];
+    if (datePart.includes('-')) {
+      const [year, month, day] = datePart.split('-').map(Number);
+      return new Date(year, month - 1, day);
+    }
+    const [day, month, year] = datePart.split('/').map(Number);
+    return new Date(year, month - 1, day);
+  };
+
   // Función para determinar el estado del pago basado en fechas
   const determinePaymentStatus = (invoice: Invoice & { scheduledPaymentDate?: string; importePagar?: number }): Payment['status'] => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
-    const scheduledDate = invoice.scheduledPaymentDate ? new Date(invoice.scheduledPaymentDate) : null;
-    const dueDate = invoice.dueDate ? new Date(invoice.dueDate) : null;
-    
-    if (scheduledDate) {
-      scheduledDate.setHours(0, 0, 0, 0);
-    }
-    if (dueDate) {
-      dueDate.setHours(0, 0, 0, 0);
-    }
+    const scheduledDate = invoice.scheduledPaymentDate ? parseLocalDate(invoice.scheduledPaymentDate) : null;
+    const dueDate = invoice.dueDate ? parseLocalDate(invoice.dueDate) : null;
 
     // Si la factura está pagada
     if (invoice.status === 'Pagada') {
@@ -419,8 +423,12 @@ const PaymentCalendar: React.FC = () => {
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return 'N/A';
     try {
-      const date = new Date(dateStr);
-      return date.toLocaleDateString('es-PE');
+      const d = parseLocalDate(dateStr);
+      if (isNaN(d.getTime())) return dateStr;
+      const day = String(d.getDate()).padStart(2, '0');
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const year = d.getFullYear();
+      return `${day}/${month}/${year}`;
     } catch {
       return dateStr;
     }
@@ -533,7 +541,7 @@ const PaymentCalendar: React.FC = () => {
         {/* Header */}
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Calendario de Pagos</h1>
+            <h1 className="text-3xl font-bold text-gray-900">Cronograma de Pagos</h1>
             <p className="text-gray-600 mt-1">
               {isProvider ? 'Visualiza tus pagos programados' : 'Visualiza y gestiona tus pagos programados'}
             </p>

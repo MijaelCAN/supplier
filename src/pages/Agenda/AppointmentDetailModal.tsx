@@ -38,8 +38,9 @@ import {
 } from "@heroicons/react/24/outline";
 import { DeliveryAppointment } from "@/store/types";
 import { UserRole } from "@/routes/menuTypes";
-import { fetchPackingListFromApi, PackingListApiRecord } from "@/services/agenda/packingListApi";
+import { fetchPackingListFromApi, PackingListApiRecord, PackingListDetailApiRecord } from "@/services/agenda/packingListApi";
 import { formatDateForAPI } from "@/services/agenda/appointmentsApi";
+import { getPCPValidations, PCPValidationRecord } from "@/services/agenda/pcpApi";
 
 interface AppointmentDetailModalProps {
     isOpen: boolean;
@@ -70,6 +71,9 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
     const [packingListsFromApi, setPackingListsFromApi] = useState<PackingListApiRecord[]>([]);
     const [isLoadingPackingLists, setIsLoadingPackingLists] = useState(false);
     const [expandedPackingListId, setExpandedPackingListId] = useState<string | null>(null);
+    // Estado para validaciones PCP
+    const [pcpValidations, setPcpValidations] = useState<Record<string, PCPValidationRecord[]>>({});
+    const [_isLoadingPCPValidations, setIsLoadingPCPValidations] = useState<Record<string, boolean>>({});
 
     // Cargar PackingList cuando se abre el modal y hay un appointment con docEntry
     useEffect(() => {
@@ -104,10 +108,33 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
         }
     }, [isOpen, appointment?.docEntry]);
 
+    // Cargar validaciones PCP cuando se expande un PackingList
+    useEffect(() => {
+        if (expandedPackingListId && appointment?.docEntry) {
+            const packingList = packingListsFromApi.find(pl => pl.id === expandedPackingListId || pl.number === expandedPackingListId);
+            if (packingList && !pcpValidations[packingList.number]) {
+                const loadPCPValidations = async () => {
+                    setIsLoadingPCPValidations(prev => ({ ...prev, [packingList.number]: true }));
+                    try {
+                        const validations = await getPCPValidations(appointment.docEntry!, packingList.number);
+                        setPcpValidations(prev => ({ ...prev, [packingList.number]: validations }));
+                    } catch (error) {
+                        console.error('Error al cargar validaciones PCP:', error);
+                        setPcpValidations(prev => ({ ...prev, [packingList.number]: [] }));
+                    } finally {
+                        setIsLoadingPCPValidations(prev => ({ ...prev, [packingList.number]: false }));
+                    }
+                };
+                
+                loadPCPValidations();
+            }
+        }
+    }, [expandedPackingListId, appointment?.docEntry, packingListsFromApi]);
+
     // Calcular progreso del proceso (0-100%)
     const calculateProgress = (): number => {
         let progress = 0;
-        if (appointment.status === 'Pendiente') progress = 0;
+        if ((appointment.status as string) === 'Pendiente') progress = 0;
         if (appointment.packingList) progress = 33;
         if (appointment.transportData) progress = 66;
         if (appointment.documents?.completed) progress = 100;
@@ -120,7 +147,7 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
             label: 'PackingList',
             icon: ClipboardDocumentListIcon,
             completed: !!appointment.packingList,
-            active: !appointment.packingList && appointment.status === 'Pendiente',
+            active: !appointment.packingList && (appointment.status as string) === 'Pendiente',
         },
         {
             label: 'Transporte',
@@ -229,7 +256,7 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
                                     variant="flat"
                                     size="lg"
                                     startContent={
-                                        appointment.status === 'Completada' ? (
+                                        (appointment.status as string) === 'Completada' ? (
                                             <CheckCircleIcon className="w-4 h-4" />
                                         ) : appointment.status === 'Cancelada' ? (
                                             <XCircleIcon className="w-4 h-4" />
@@ -471,15 +498,15 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
                                                     <TableBody>
                                                         {packingListsFromApi.map((pl) => {
                                                             // Obtener el detalle (puede venir en cualquiera de los dos campos)
-                                                            const detalle = pl.DetallePackinList || pl._detallePackinList || [];
-                                                            const isExpanded = expandedPackingListId === pl.Id;
-                                                            
+                                                            const detalle = pl.DetallePackinList || pl.detalle_packin_list || [];
+                                                            const isExpanded = expandedPackingListId === pl.id;
+
                                                             return (
-                                                                <React.Fragment key={pl.Id}>
-                                                                    <TableRow 
+                                                                <React.Fragment key={pl.id}>
+                                                                    <TableRow
                                                                         className={`cursor-pointer hover:bg-gray-50 transition-colors ${isExpanded ? 'bg-blue-50' : ''}`}
                                                                         onClick={() => {
-                                                                            setExpandedPackingListId(isExpanded ? null : pl.Id.toString());
+                                                                            setExpandedPackingListId(isExpanded ? null : pl.id.toString());
                                                                         }}
                                                                     >
                                                                         <TableCell className="whitespace-nowrap font-medium">
@@ -491,21 +518,21 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
                                                                                         <ChevronRightIcon className="w-4 h-4 text-gray-500" />
                                                                                     )
                                                                                 )}
-                                                                                {pl.Number}
+                                                                                {pl.number}
                                                                             </div>
                                                                         </TableCell>
-                                                                        <TableCell className="whitespace-nowrap">{pl.WhsCode}</TableCell>
-                                                                        <TableCell className="whitespace-nowrap">{pl.Ticket || '-'}</TableCell>
+                                                                        <TableCell className="whitespace-nowrap">{pl.whs_code}</TableCell>
+                                                                        <TableCell className="whitespace-nowrap">{pl.ticket || '-'}</TableCell>
                                                                         <TableCell className="whitespace-nowrap">
-                                                                            {typeof pl.DateExpected === 'string' 
-                                                                                ? pl.DateExpected.split('T')[0].split(' ')[0] 
-                                                                                : pl.DateExpected
+                                                                            {typeof pl.date_expected === 'string'
+                                                                                ? pl.date_expected.split('T')[0].split(' ')[0]
+                                                                                : pl.date_expected
                                                                             }
                                                                         </TableCell>
                                                                         <TableCell className="whitespace-nowrap">
-                                                                            {pl.InboundType ? (
-                                                                                <Chip size="sm" variant="flat" color={pl.InboundType === 'OCNAC' ? 'primary' : 'secondary'}>
-                                                                                    {pl.InboundType}
+                                                                            {pl.inbound_type ? (
+                                                                                <Chip size="sm" variant="flat" color={pl.inbound_type === 'OCNAC' ? 'primary' : 'secondary'}>
+                                                                                    {pl.inbound_type}
                                                                                 </Chip>
                                                                             ) : (
                                                                                 '-'
@@ -515,19 +542,19 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
                                                                             {detalle.length}
                                                                         </TableCell>
                                                                         <TableCell>
-                                                                            <div className="max-w-[200px] truncate" title={pl.Comments || ''}>
-                                                                                {pl.Comments || '-'}
+                                                                            <div className="max-w-[200px] truncate" title={pl.comments || ''}>
+                                                                                {pl.comments || '-'}
                                                                             </div>
                                                                         </TableCell>
                                                                         <TableCell>
-                                                                            {pl.WmsResponse ? (
-                                                                                <Chip 
-                                                                                    size="sm" 
-                                                                                    color={pl.WmsResponse.includes('Procesado') || pl.WmsResponse.includes('Transferido') ? 'success' : 'warning'}
+                                                                            {pl.wms_response ? (
+                                                                                <Chip
+                                                                                    size="sm"
+                                                                                    color={pl.wms_response.includes('Procesado') || pl.wms_response.includes('Transferido') ? 'success' : 'warning'}
                                                                                     variant="flat"
                                                                                 >
-                                                                                    <div className="max-w-[150px] truncate" title={pl.WmsResponse}>
-                                                                                        {pl.WmsResponse}
+                                                                                    <div className="max-w-[150px] truncate" title={pl.wms_response}>
+                                                                                        {pl.wms_response}
                                                                                     </div>
                                                                                 </Chip>
                                                                             ) : (
@@ -543,16 +570,16 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
                                                 
                                                 {/* Detalle expandido fuera de la tabla */}
                                                 {packingListsFromApi.map((pl) => {
-                                                    const detalle = pl.DetallePackinList || pl._detallePackinList || [];
-                                                    const isExpanded = expandedPackingListId === pl.Id;
-                                                    
+                                                    const detalle = pl.DetallePackinList || pl.detalle_packin_list || [];
+                                                    const isExpanded = expandedPackingListId === pl.id;
+
                                                     if (!isExpanded || detalle.length === 0) return null;
-                                                    
+
                                                     return (
-                                                        <div key={`detail-${pl.Id}`} className="mt-2 mb-4 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                                                        <div key={`detail-${pl.id}`} className="mt-2 mb-4 p-4 bg-gray-50 border border-gray-200 rounded-lg">
                                                             <h5 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
                                                                 <DocumentTextIcon className="w-4 h-4" />
-                                                                Detalle del PackingList {pl.Number} ({detalle.length} {detalle.length === 1 ? 'item' : 'items'})
+                                                                Detalle del PackingList {pl.number} ({detalle.length} {detalle.length === 1 ? 'item' : 'items'})
                                                             </h5>
                                                             <div className="overflow-x-auto">
                                                                 <Table aria-label="Tabla de detalles" removeWrapper>
@@ -561,16 +588,29 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
                                                                         <TableColumn width={120}>CÓDIGO</TableColumn>
                                                                         <TableColumn>DESCRIPCIÓN</TableColumn>
                                                                         <TableColumn width={100} className="text-right">CANTIDAD</TableColumn>
+                                                                        <TableColumn width={120}>CONFIRMACIÓN PCP</TableColumn>
+                                                                        <TableColumn width={120}>COBERTURA ACTUAL</TableColumn>
+                                                                        <TableColumn width={150}>COBERTURA CON INGRESOS</TableColumn>
+                                                                        <TableColumn>COMENTARIO PCP</TableColumn>
                                                                     </TableHeader>
                                                                     <TableBody>
-                                                                        {detalle.map((item, index) => {
-                                                                            const lineNumber = item.LineNumber || item.lineNumber || index + 1;
-                                                                            const itemCode = item.ItemCode || item.itemCode || '';
-                                                                            const itemName = item.ItemName || item.itemName || '';
-                                                                            const quantity = item.Quantity || item.quantity || 0;
+                                                                        {detalle.map((item: PackingListDetailApiRecord, index: number) => {
+                                                                            const lineNumber = item.line_number || index + 1;
+                                                                            const itemCode = item.item_code || '';
+                                                                            const itemName = item.item_name || '';
+                                                                            const quantity = item.quantity || 0;
+                                                                            
+                                                                            // Buscar validación PCP para este item
+                                                                            const validationsForPL = pcpValidations[pl.number] || [];
+                                                                            const normalizedLineNumber = typeof lineNumber === 'string' ? parseInt(lineNumber, 10) : lineNumber;
+                                                                            const pcpValidation = validationsForPL.find(
+                                                                                v => v.item_code === itemCode && 
+                                                                                     v.line_number !== undefined && 
+                                                                                     Number(v.line_number) === Number(normalizedLineNumber)
+                                                                            );
                                                                             
                                                                             return (
-                                                                                <TableRow key={`${pl.Id}-${lineNumber}-${index}`}>
+                                                                                <TableRow key={`${pl.id}-${lineNumber}-${index}`}>
                                                                                     <TableCell className="whitespace-nowrap font-medium">{lineNumber}</TableCell>
                                                                                     <TableCell className="whitespace-nowrap font-mono text-sm">{itemCode}</TableCell>
                                                                                     <TableCell>{itemName}</TableCell>
@@ -581,6 +621,42 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
                                                                                             </Chip>
                                                                                         ) : (
                                                                                             <span className="text-gray-400">0</span>
+                                                                                        )}
+                                                                                    </TableCell>
+                                                                                    <TableCell>
+                                                                                        {pcpValidation?.confirmacion_pcp ? (
+                                                                                            <Chip 
+                                                                                                size="sm" 
+                                                                                                color={pcpValidation.confirmacion_pcp === 'CONFORME' ? 'success' : 'danger'}
+                                                                                                variant="flat"
+                                                                                            >
+                                                                                                {pcpValidation.confirmacion_pcp}
+                                                                                            </Chip>
+                                                                                        ) : (
+                                                                                            <span className="text-gray-400 text-sm">-</span>
+                                                                                        )}
+                                                                                    </TableCell>
+                                                                                    <TableCell className="text-right">
+                                                                                        {pcpValidation?.cobertura_actual !== undefined && pcpValidation.cobertura_actual !== null ? (
+                                                                                            <span className="text-sm font-medium">{pcpValidation.cobertura_actual.toFixed(2)} meses</span>
+                                                                                        ) : (
+                                                                                            <span className="text-gray-400 text-sm">-</span>
+                                                                                        )}
+                                                                                    </TableCell>
+                                                                                    <TableCell className="text-right">
+                                                                                        {pcpValidation?.cobertura_con_ingresos !== undefined && pcpValidation.cobertura_con_ingresos !== null ? (
+                                                                                            <span className="text-sm font-medium">{pcpValidation.cobertura_con_ingresos.toFixed(2)} meses</span>
+                                                                                        ) : (
+                                                                                            <span className="text-gray-400 text-sm">-</span>
+                                                                                        )}
+                                                                                    </TableCell>
+                                                                                    <TableCell>
+                                                                                        {pcpValidation?.comentario ? (
+                                                                                            <div className="max-w-[200px] truncate" title={pcpValidation.comentario}>
+                                                                                                <span className="text-sm">{pcpValidation.comentario}</span>
+                                                                                            </div>
+                                                                                        ) : (
+                                                                                            <span className="text-gray-400 text-sm">-</span>
                                                                                         )}
                                                                                     </TableCell>
                                                                                 </TableRow>
@@ -809,31 +885,8 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
                                                         )}
                                                     </div>
 
-                                                    {/* CDR */}
-                                                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
-                                                        <div className="flex items-center gap-3">
-                                                            <DocumentTextIcon className="w-5 h-5 text-gray-600" />
-                                                            <span className="text-sm font-medium text-gray-900">CDR</span>
-                                                        </div>
-                                                        {appointment.documents.cdr ? (
-                                                            <CheckCircleIcon className="w-5 h-5 text-emerald-500" />
-                                                        ) : (
-                                                            <XCircleIcon className="w-5 h-5 text-amber-500" />
-                                                        )}
-                                                    </div>
-
-                                                    {/* XML */}
-                                                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100 col-span-2">
-                                                        <div className="flex items-center gap-3">
-                                                            <DocumentTextIcon className="w-5 h-5 text-gray-600" />
-                                                            <span className="text-sm font-medium text-gray-900">XML</span>
-                                                        </div>
-                                                        {appointment.documents.xml ? (
-                                                            <CheckCircleIcon className="w-5 h-5 text-emerald-500" />
-                                                        ) : (
-                                                            <XCircleIcon className="w-5 h-5 text-amber-500" />
-                                                        )}
-                                                    </div>
+                                                    {/* Nota: CDR y XML son formatos, no documentos separados.
+                                                        Los documentos pueden cargarse en formato CDR/XML según el tipo de documento */}
                                                 </div>
 
                                                 {!appointment.documents.completed && canManageDocuments && (
@@ -852,6 +905,7 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
                                                         </Button>
                                                     </div>
                                                 )}
+
                                             </div>
                                         ) : (
                                             <div className="text-center py-8">

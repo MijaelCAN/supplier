@@ -1,58 +1,72 @@
 // src/pages/Agenda/AppointmentDetail.tsx
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, {useEffect, useMemo, useRef, useState} from 'react';
+import {useLocation, useNavigate, useParams} from 'react-router-dom';
 import {
+    Avatar,
     Button,
-    Chip,
     Card,
     CardBody,
-    Avatar,
-    Table,
-    TableHeader,
-    TableColumn,
-    TableBody,
-    TableRow,
-    TableCell,
-    Modal,
-    ModalContent,
-    ModalHeader,
-    ModalBody,
-    ModalFooter,
+    Checkbox,
+    Chip,
+    Divider,
     Input,
-    Textarea,
+    Modal,
+    ModalBody,
+    ModalContent,
+    ModalFooter,
+    ModalHeader,
     Select,
     SelectItem,
-    Checkbox,
-    Divider,
+    Table,
+    TableBody,
+    TableCell,
+    TableColumn,
+    TableHeader,
+    TableRow,
+    Textarea,
     useDisclosure
 } from "@heroui/react";
 import {
-    CheckCircleIcon,
-    XCircleIcon,
-    ClockIcon,
-    TruckIcon,
-    DocumentTextIcon,
+    ArrowLeftIcon,
     BuildingOfficeIcon,
     CalendarIcon,
+    CheckCircleIcon,
+    ClipboardDocumentCheckIcon,
     ClipboardDocumentListIcon,
+    ClockIcon,
+    DocumentTextIcon,
     ExclamationTriangleIcon,
-    ArrowLeftIcon,
-    StarIcon
+    StarIcon,
+    TruckIcon,
+    XCircleIcon
 } from "@heroicons/react/24/outline";
 import Dashboard from "@/layouts/Dashboard";
-import { useAgendaStore } from "@/store/agendaStore";
-import { useAuth } from "@/store/authStore";
-import { UserRole } from "@/routes/menuTypes";
-import { fetchPackingListFromApi, PackingListApiRecord, uploadFileToPackingList, createPackingListInApi, fetchWarehousesFromApi, WarehouseApiRecord, fetchDocumentsFromApi, DocumentApiRecord, fetchDocumentDetailFromApi } from "@/services/agenda/packingListApi";
-import { formatDateForAPI, fetchAppointmentsFromApi, AppointmentDocument } from "@/services/agenda/appointmentsApi";
-import { createChoferInApi } from "@/services/agenda/choferesApi";
-import { fetchEvaluationByCodCita } from "@/services/agenda/evaluationsApi";
-import { DeliveryAppointment, PackingListItem, DeliveryEvaluation } from "@/store/types";
+import {useAgendaStore} from "@/store/agendaStore";
+import {useAuth} from "@/store/authStore";
+import {UserRole} from "@/routes/menuTypes";
+import {
+    createPackingListInApi,
+    DocumentApiRecord,
+    fetchDocumentDetailFromApi,
+    fetchDocumentsFromApi,
+    fetchPackingListFromApi,
+    fetchWarehousesFromApi,
+    PackingListApiRecord,
+    uploadFileToPackingList,
+    WarehouseApiRecord
+} from "@/services/agenda/packingListApi";
+import {AppointmentDocument, fetchAppointmentsFromApi, formatDateForAPI} from "@/services/agenda/appointmentsApi";
+import {createChoferInApi} from "@/services/agenda/choferesApi";
+import {fetchEvaluationByCodCita} from "@/services/agenda/evaluationsApi";
+import {getPCPValidations, PCPValidationRecord} from "@/services/agenda/pcpApi";
+import {STATUS_CONFIG} from "@/services/agenda/appointmentStatus";
+import {DeliveryAppointment, DeliveryEvaluation, PackingListItem, SupplierClaim} from "@/store/types";
 import DocumentsModal from './DocumentsModal';
+import { COMMERCIAL_DOCUMENT_TYPES } from '@/config/commercialDocuments';
 import EvaluationModal from './EvaluationModal';
 import ClaimModal from './ClaimModal';
-import { SupplierClaim } from '@/store/types';
-import { generateClaimPDF, openClaimPDFInNewTab } from '@/utils/pdfGenerator';
+import PCPValidationModal from './PCPValidationModal';
+import {generateClaimPDF, openClaimPDFInNewTab} from '@/utils/pdfGenerator';
 
 // Función para convertir fecha de formato DD-MM-YYYY a Date para ordenamiento
 const parseDate = (dateStr: string): Date => {
@@ -69,9 +83,10 @@ const parseDate = (dateStr: string): Date => {
 const AppointmentDetail: React.FC = () => {
     const { appointmentId } = useParams<{ appointmentId: string }>();
     const navigate = useNavigate();
+    const location = useLocation();
+    const weekDate = (location.state as { weekDate?: string } | null)?.weekDate;
     const { currentUser } = useAuth();
     const isProvider = currentUser?.role === UserRole.PROVEEDOR;
-    const isSecurity = currentUser?.role === UserRole.SEGURIDAD;
     const { setSelectedAppointment } = useAgendaStore(); // Solo usamos setSelectedAppointment, no el store local de appointments
     const [appointment, setAppointment] = useState<DeliveryAppointment | null>(null);
     const [isLoadingAppointment, setIsLoadingAppointment] = useState(true);
@@ -80,6 +95,36 @@ const AppointmentDetail: React.FC = () => {
     const [isEvaluationModalOpen, setIsEvaluationModalOpen] = useState(false);
     const [evaluationModalType, setEvaluationModalType] = useState<'puntualidad' | 'documentacion' | 'estadoMercaderia' | 'cantidadCorrecta'>('puntualidad');
     const [isClaimModalOpen, setIsClaimModalOpen] = useState(false);
+
+    // Función helper para recargar el appointment desde el API
+    const reloadAppointmentFromApi = async () => {
+        if (!appointmentId) return;
+        
+        try {
+            const apiAppointments = await fetchAppointmentsFromApi();
+            const foundApiAppointment = apiAppointments.find(
+                (apt) => apt.docEntry === appointmentId || apt.appointmentNumber === appointmentId
+            );
+
+            if (foundApiAppointment) {
+                setAppointment(foundApiAppointment);
+                
+                // Cargar evaluación si existe docEntry
+                if (foundApiAppointment.docEntry) {
+                    try {
+                        const evalData = await fetchEvaluationByCodCita(foundApiAppointment.docEntry);
+                        if (evalData) {
+                            setEvaluation(evalData);
+                        }
+                    } catch (error) {
+                        console.error('Error al cargar evaluación:', error);
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Error al recargar appointment desde API:', error);
+        }
+    };
 
     // Cargar appointment SIEMPRE desde el API (no usar localStorage/store)
     useEffect(() => {
@@ -128,6 +173,7 @@ const AppointmentDetail: React.FC = () => {
             const loadDocumentsFromApi = async () => {
                 try {
                     const apiAppointments = await fetchAppointmentsFromApi();
+                    console.log('apiAppointments:', apiAppointments);
                     const foundApiAppointment = apiAppointments.find(
                         (apt) => apt.docEntry === appointment.docEntry
                     );
@@ -154,6 +200,8 @@ const AppointmentDetail: React.FC = () => {
     const [isLoadingPackingLists, setIsLoadingPackingLists] = useState(false);
     const [selectedPackingList, setSelectedPackingList] = useState<PackingListApiRecord | null>(null);
     const { isOpen: isPackingListDetailOpen, onOpen: onPackingListDetailOpen, onClose: onPackingListDetailClose } = useDisclosure();
+    const [pcpValidations, setPcpValidations] = useState<PCPValidationRecord[]>([]);
+    const [, setIsLoadingPCPValidations] = useState(false);
     
     // Estado para visualizar documentos
     const [selectedDocument, setSelectedDocument] = useState<{ name: string; url: string; type: string } | null>(null);
@@ -164,6 +212,8 @@ const AppointmentDetail: React.FC = () => {
     const { isOpen: isTransportOpen, onOpen: onTransportOpen, onClose: onTransportClose } = useDisclosure();
     const { isOpen: isDocumentsOpen, onOpen: onDocumentsOpen, onClose: onDocumentsClose } = useDisclosure();
     const { isOpen: isDocumentsSelectOpen, onOpen: onDocumentsSelectOpen, onClose: onDocumentsSelectClose } = useDisclosure();
+    const { isOpen: isPCPValidationOpen, onOpen: onPCPValidationOpen, onClose: onPCPValidationClose } = useDisclosure();
+    const [selectedPackingListForPCP, setSelectedPackingListForPCP] = useState<PackingListApiRecord | null>(null);
     
     // Estado para formulario de transporte
     const [transportForm, setTransportForm] = useState({
@@ -200,29 +250,19 @@ const AppointmentDetail: React.FC = () => {
     
     // Verificar si todos los documentos requeridos están completos
     const areAllDocumentsComplete = (): boolean => {
-        // Documentos requeridos: invoice, purchaseOrder, deliveryGuide, cdr, xml (5 documentos)
-        const REQUIRED_DOCUMENTS_COUNT = 5;
-        
-        // Prioridad 1: Si hay documentos del API, verificar que haya al menos 5 documentos
-        // (uno por cada tipo requerido: invoice, purchaseOrder, deliveryGuide, cdr, xml)
+        // Completo = todos los tipos disponibles en el modal han sido cargados
         if (appointmentDocuments.length > 0) {
-            // Debe haber al menos 5 documentos del API para considerarse completo
-            return appointmentDocuments.length >= REQUIRED_DOCUMENTS_COUNT;
+            return appointmentDocuments.length >= COMMERCIAL_DOCUMENT_TYPES.length;
         }
-        
-        // Prioridad 2: Si no hay documentos del API, verificar documentos mapeados
-        // Todos los tipos requeridos deben estar presentes
+
+        // Fallback legacy: los 3 tipos requeridos del appointment están presentes
         if (appointment?.documents) {
             const hasInvoice = !!appointment.documents.invoice?.url;
             const hasPurchaseOrder = !!appointment.documents.purchaseOrder?.url;
             const hasDeliveryGuide = !!appointment.documents.deliveryGuide?.url;
-            const hasCdr = !!appointment.documents.cdr?.url;
-            const hasXml = !!appointment.documents.xml?.url;
-            
-            // Todos los documentos requeridos deben estar presentes
-            return hasInvoice && hasPurchaseOrder && hasDeliveryGuide && hasCdr && hasXml;
+            return hasInvoice && hasPurchaseOrder && hasDeliveryGuide;
         }
-        
+
         return false;
     };
 
@@ -342,6 +382,28 @@ const AppointmentDetail: React.FC = () => {
         }
     }, [appointment?.docEntry]);
 
+    // Cargar validaciones PCP cuando se abre el modal de detalle del PackingList
+    useEffect(() => {
+        if (isPackingListDetailOpen && selectedPackingList && appointment?.docEntry) {
+            const loadPCPValidations = async () => {
+                setIsLoadingPCPValidations(true);
+                try {
+                    const validations = await getPCPValidations(appointment.docEntry ?? "", selectedPackingList.number ?? "");
+                    setPcpValidations(validations);
+                } catch (error) {
+                    console.error('Error al cargar validaciones PCP:', error);
+                    setPcpValidations([]);
+                } finally {
+                    setIsLoadingPCPValidations(false);
+                }
+            };
+            
+            loadPCPValidations();
+        } else {
+            setPcpValidations([]);
+        }
+    }, [isPackingListDetailOpen, selectedPackingList, appointment?.docEntry]);
+
     // Cargar almacenes cuando se abre el modal de PackingList
     useEffect(() => {
         if (isPackingListOpen) {
@@ -370,7 +432,7 @@ const AppointmentDetail: React.FC = () => {
     useEffect(() => {
         if (!isLoadingAppointment && !appointment) {
             const timer = setTimeout(() => {
-                navigate('/agenda');
+                navigate('/agenda', { state: { weekDate } });
             }, 2000);
             return () => clearTimeout(timer);
         }
@@ -419,58 +481,130 @@ const AppointmentDetail: React.FC = () => {
         },
     ];
 
-    // Obtener color y estilo según el estado
+    // Obtener color y estilo según el estado usando STATUS_CONFIG
     const getStatusConfig = (status: string) => {
-        const configs: Record<string, { color: 'default' | 'primary' | 'success' | 'warning' | 'danger', bg: string, text: string }> = {
-            'Pendiente': { 
-                color: 'warning', 
-                bg: 'bg-amber-50', 
-                text: 'text-amber-700' 
-            },
-            'PackingListCompletado': { 
-                color: 'primary', 
-                bg: 'bg-blue-50', 
-                text: 'text-blue-700' 
-            },
-            'TransporteCompletado': { 
-                color: 'primary', 
-                bg: 'bg-blue-50', 
-                text: 'text-blue-700' 
-            },
-            'DocumentosCompletados': { 
-                color: 'primary', 
-                bg: 'bg-blue-50', 
-                text: 'text-blue-700' 
-            },
-            'ListaParaEntrega': { 
-                color: 'success', 
-                bg: 'bg-emerald-50', 
-                text: 'text-emerald-700' 
-            },
-            'Completada': { 
-                color: 'success', 
-                bg: 'bg-emerald-50', 
-                text: 'text-emerald-700' 
-            },
-            'Cancelada': { 
-                color: 'danger', 
-                bg: 'bg-red-50', 
-                text: 'text-red-700' 
-            }
+        // Usar STATUS_CONFIG si el estado existe, sino usar valores por defecto
+        const statusKey = status as keyof typeof STATUS_CONFIG;
+        if (statusKey && STATUS_CONFIG[statusKey]) {
+            const config = STATUS_CONFIG[statusKey];
+            // Mapear colores de STATUS_CONFIG a clases de Tailwind
+            const colorMap: Record<string, { bg: string, text: string }> = {
+                'default': { bg: 'bg-gray-50', text: 'text-gray-700' },
+                'primary': { bg: 'bg-blue-50', text: 'text-blue-700' },
+                'success': { bg: 'bg-emerald-50', text: 'text-emerald-700' },
+                'warning': { bg: 'bg-amber-50', text: 'text-amber-700' },
+                'danger': { bg: 'bg-red-50', text: 'text-red-700' }
+            };
+            const colorClasses = colorMap[config.color] || colorMap['default'];
+            return {
+                color: config.color,
+                bg: colorClasses.bg,
+                text: colorClasses.text,
+                label: config.label,
+                description: config.description
+            };
+        }
+        // Fallback para estados antiguos o no reconocidos
+        return { 
+            color: 'default' as const, 
+            bg: 'bg-gray-50', 
+            text: 'text-gray-700',
+            label: status,
+            description: ''
         };
-        return configs[status] || { color: 'default' as const, bg: 'bg-gray-50', text: 'text-gray-700' };
     };
 
     const statusConfig = getStatusConfig(appointment.status);
+    type EvaluationModalType = 'puntualidad' | 'documentacion' | 'estadoMercaderia' | 'cantidadCorrecta';
 
     // Verificar permisos según rol
     const canManagePackingList = [UserRole.ADMIN, UserRole.COMPRAS, UserRole.ALMACEN].includes(currentUser?.role || UserRole.ADMIN);
     const canManageTransport = currentUser?.role === UserRole.PROVEEDOR;
     const canManageDocuments = currentUser?.role === UserRole.PROVEEDOR;
+    const canEditAppointment = [UserRole.ADMIN, UserRole.ALMACEN, UserRole.COMPRAS].includes(currentUser?.role || UserRole.ADMIN);
     const canEvaluateSecurity = [UserRole.SEGURIDAD, UserRole.ADMIN].includes(currentUser?.role || UserRole.ADMIN);
     const canEvaluateQuality = [UserRole.CALIDAD, UserRole.ADMIN].includes(currentUser?.role || UserRole.ADMIN);
     const canEvaluateWarehouse = [UserRole.ALMACEN, UserRole.ADMIN].includes(currentUser?.role || UserRole.ADMIN);
-    const canViewEvaluation = [UserRole.ADMIN, UserRole.COMPRAS, UserRole.PROVEEDOR, UserRole.ALMACEN, UserRole.CALIDAD, UserRole.SEGURIDAD].includes(currentUser?.role || UserRole.ADMIN);
+    const canValidatePCP = [UserRole.PLANEAMIENTO, UserRole.ADMIN].includes(currentUser?.role || UserRole.ADMIN);
+    const canViewEvaluation = [UserRole.PROVEEDOR, UserRole.ALMACEN, UserRole.CALIDAD, UserRole.SEGURIDAD, UserRole.PLANEAMIENTO].includes(currentUser?.role || UserRole.ADMIN);
+
+    const isCriterionEvaluated = (type: EvaluationModalType): boolean => {
+        if (!evaluation) return false;
+
+        switch (type) {
+            case 'puntualidad':
+                return evaluation.puntualidad?.puntaje !== undefined;
+            case 'documentacion':
+                return evaluation.documentacion?.puntaje !== undefined;
+            case 'estadoMercaderia':
+                return evaluation.estadoMercaderia?.puntaje !== undefined;
+            case 'cantidadCorrecta':
+                return evaluation.cantidadCorrecta?.puntaje !== undefined;
+            default:
+                return false;
+        }
+    };
+
+    // Validaciones para abrir modales de evaluación
+    const canEvaluateDocumentacion = (): boolean => {
+        // Debe haber al menos un documento
+        const allDocs = getAllDocuments();
+        return allDocs.length > 0;
+    };
+
+    const canEvaluatePuntualidad = (): boolean => {
+        if (!appointment?.deliveryDate || !appointment?.deliveryTime) {
+            return false;
+        }
+
+        const appointmentDateTime = new Date(`${appointment.deliveryDate}T${appointment.deliveryTime}`);
+        // Permitir registrar 1 hora antes de la cita
+        const enableFrom = new Date(appointmentDateTime.getTime() - 60 * 60 * 1000);
+        const now = new Date();
+
+        return enableFrom <= now;
+    };
+
+    const canEvaluateCalidadYCantidad = (): boolean => {
+        // Debe haberse calificado puntualidad primero
+        return isCriterionEvaluated('puntualidad');
+    };
+
+    const canOpenEvaluationModal = (type: EvaluationModalType): boolean => {
+        // Primero verificar que no esté ya evaluado
+        console.log("validacion: ", isCriterionEvaluated(type));
+        if (isCriterionEvaluated(type)) {
+            console.log("Entro en evaluated")
+            return false;
+        }
+
+        // Validaciones específicas por tipo
+        switch (type) {
+            case 'documentacion':
+                return canEvaluateDocumentacion();
+            case 'puntualidad':
+                return canEvaluatePuntualidad();
+            case 'estadoMercaderia':
+            case 'cantidadCorrecta':
+                return canEvaluateCalidadYCantidad();
+            default:
+                return true;
+        }
+    };
+
+    const getEvaluationErrorMessage = (type: EvaluationModalType): string => {
+        switch (type) {
+            case 'documentacion':
+                return 'No se puede calificar Documentación: aún no hay documentos cargados.';
+            case 'puntualidad':
+                return 'No se puede calificar Puntualidad: la fecha y hora de la cita aún no han llegado.';
+            case 'estadoMercaderia':
+            case 'cantidadCorrecta':
+                return 'No se puede calificar: primero debe calificarse la Puntualidad (asistencia).';
+            default:
+                return 'No se puede evaluar en este momento.';
+        }
+    };
 
     const handleOpenPackingList = () => {
         setSelectedAppointment(appointment);
@@ -557,20 +691,20 @@ const AppointmentDetail: React.FC = () => {
             }
             
             await createPackingListInApi({
-                vendorId: vendorId,
-                whsCode: packingListForm.warehouse,
+                vendor_id: vendorId,
+                whs_code: packingListForm.warehouse,
                 number: packingListForm.number.trim(),
-                inboundType: packingListForm.inboundType || 'OCNAC',
+                inbound_type: packingListForm.inboundType || 'OCNAC',
                 comments: packingListForm.comment || '',
-                dateExpected: packingListForm.date || new Date().toISOString().split('T')[0],
+                date_expected: packingListForm.date || new Date().toISOString().split('T')[0],
                 ticket: "0",
-                wmsResponse: packingListForm.commentWms || '',
-                codCita: appointment.docEntry,
-                _detallePackinList: selectedItems.map((item, index) => ({
+                wms_response: packingListForm.commentWms || '',
+                cod_cita: appointment.docEntry,
+                _detalle_packin_list: selectedItems.map((item, index) => ({
                     document: (item as any).document || 0,
-                    lineNumber: index + 1,
-                    itemCode: item.productCode,
-                    itemName: item.productName,
+                    line_number: index + 1,
+                    item_code: item.productCode,
+                    item_name: item.productName,
                     quantity: item.quantity
                 }))
             });
@@ -580,6 +714,8 @@ const AppointmentDetail: React.FC = () => {
                 const { updateAppointmentStatus } = await import('@/services/agenda/appointmentStatus');
                 const userId = currentUser.userCode || currentUser.id || currentUser.username || 'system';
                 await updateAppointmentStatus(appointment.docEntry, 'PROGRAMADA', userId);
+                // Recargar appointment para obtener el estado actualizado
+                await reloadAppointmentFromApi();
             }
 
             alert('PackingList creado exitosamente. Estado actualizado a PROGRAMADA.');
@@ -655,7 +791,14 @@ const AppointmentDetail: React.FC = () => {
         }
     };
 
-    const handleOpenEvaluationModal = (type: 'puntualidad' | 'documentacion' | 'estadoMercaderia' | 'cantidadCorrecta') => {
+    const handleOpenEvaluationModal = (type: EvaluationModalType) => {
+        if (!canOpenEvaluationModal(type)) {
+            console.log('Evaluation modal open');
+            // Mostrar mensaje de error específico
+            const errorMessage = getEvaluationErrorMessage(type);
+            alert(errorMessage);
+            return;
+        }
         setEvaluationModalType(type);
         setIsEvaluationModalOpen(true);
     };
@@ -683,8 +826,8 @@ const AppointmentDetail: React.FC = () => {
             
             const userId = currentUser?.userCode || currentUser?.id || currentUser?.username || 'system';
             await updateAppointmentStatus(appointment.docEntry, newStatus, userId);
-            
-            setAppointment({ ...appointment, status: newStatus });
+            // Recargar appointment para obtener el estado actualizado
+            await reloadAppointmentFromApi();
         }
         
         // Si se evaluó cantidad correcta, actualizar estado de almacén
@@ -718,8 +861,8 @@ const AppointmentDetail: React.FC = () => {
             
             const userId = currentUser.userCode || currentUser.id || currentUser.username || 'system';
             await updateAppointmentStatus(appointment.docEntry, newStatus, userId);
-            
-            setAppointment({ ...appointment, status: newStatus });
+            // Recargar appointment para obtener el estado actualizado
+            await reloadAppointmentFromApi();
         }
     };
 
@@ -740,8 +883,8 @@ const AppointmentDetail: React.FC = () => {
             const { updateAppointmentStatus } = await import('@/services/agenda/appointmentStatus');
             const userId = currentUser.userCode || currentUser.id || currentUser.username || 'system';
             await updateAppointmentStatus(appointment.docEntry, 'EN_EXPLANADA', userId);
-            
-            setAppointment({ ...appointment, status: 'EN_EXPLANADA' });
+            // Recargar appointment para obtener el estado actualizado
+            await reloadAppointmentFromApi();
             alert('Proveedor marcado como llegado. Estado actualizado a EN_EXPLANADA.');
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Error al actualizar estado';
@@ -764,8 +907,8 @@ const AppointmentDetail: React.FC = () => {
             const { updateAppointmentStatus } = await import('@/services/agenda/appointmentStatus');
             const userId = currentUser.userCode || currentUser.id || currentUser.username || 'system';
             await updateAppointmentStatus(appointment.docEntry, 'PARTE_DE_INGRESO_GENERADO', userId);
-            
-            setAppointment({ ...appointment, status: 'PARTE_DE_INGRESO_GENERADO' });
+            // Recargar appointment para obtener el estado actualizado
+            await reloadAppointmentFromApi();
             alert('Parte de Ingreso generado exitosamente. Estado actualizado.');
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Error al generar Parte de Ingreso';
@@ -788,8 +931,8 @@ const AppointmentDetail: React.FC = () => {
             const { updateAppointmentStatus } = await import('@/services/agenda/appointmentStatus');
             const userId = currentUser.userCode || currentUser.id || currentUser.username || 'system';
             await updateAppointmentStatus(appointment.docEntry, 'ENTREGADO', userId);
-            
-            setAppointment({ ...appointment, status: 'ENTREGADO' });
+            // Recargar appointment para obtener el estado actualizado
+            await reloadAppointmentFromApi();
             alert('Entrega marcada como completada. Estado actualizado a ENTREGADO.');
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Error al marcar como entregado';
@@ -856,15 +999,8 @@ const AppointmentDetail: React.FC = () => {
                 const { updateAppointmentStatus } = await import('@/services/agenda/appointmentStatus');
                 const userId = currentUser.userCode || currentUser.id || currentUser.username || 'system';
                 await updateAppointmentStatus(appointment.docEntry, 'TRANSPORTE_COMPLETO', userId);
-            }
-
-            // Recargar el appointment para obtener los datos actualizados
-            const apiAppointments = await fetchAppointmentsFromApi();
-            const updatedAppointment = apiAppointments.find(
-                (apt) => apt.docEntry === appointment.docEntry || apt.appointmentNumber === appointment.appointmentNumber
-            );
-            if (updatedAppointment) {
-                setAppointment(updatedAppointment);
+                // Recargar appointment para obtener el estado actualizado
+                await reloadAppointmentFromApi();
             }
 
             alert('Datos de transporte guardados exitosamente. Estado actualizado a TRANSPORTE_COMPLETO.');
@@ -914,9 +1050,8 @@ const AppointmentDetail: React.FC = () => {
                     const { updateAppointmentStatus } = await import('@/services/agenda/appointmentStatus');
                     const userId = currentUser.userCode || currentUser.id || currentUser.username || 'system';
                     await updateAppointmentStatus(appointment.docEntry, 'DOCUMENTOS_COMPLETOS', userId);
-                    
-                    // Actualizar estado local
-                    setAppointment({ ...appointment, status: 'DOCUMENTOS_COMPLETOS' });
+                    // Recargar appointment para obtener el estado actualizado
+                    await reloadAppointmentFromApi();
                 }
             }
         } catch (error) {
@@ -934,7 +1069,7 @@ const AppointmentDetail: React.FC = () => {
                         <Button
                             variant="light"
                             startContent={<ArrowLeftIcon className="w-5 h-5" />}
-                            onPress={() => navigate('/agenda')}
+                            onPress={() => navigate('/agenda', { state: { weekDate } })}
                         >
                             Volver a Agenda
                         </Button>
@@ -943,7 +1078,7 @@ const AppointmentDetail: React.FC = () => {
                         <div className="flex items-center gap-2 flex-wrap">
                             {!isProvider && (
                                 <>
-                                    {!isSecurity && (
+                                    {canEditAppointment && (
                                         <Button 
                                         color="primary" 
                                         onPress={handleEdit}
@@ -974,15 +1109,21 @@ const AppointmentDetail: React.FC = () => {
                                                 onPress={() => handleOpenEvaluationModal('puntualidad')}
                                                 size="md"
                                                 startContent={<ClockIcon className="w-4 h-4" />}
+                                                isDisabled={!canOpenEvaluationModal('puntualidad')}
                                             >
                                                 Evaluar Puntualidad
                                             </Button>
+                                        </>
+                                    )}
+                                    {canEvaluateSecurity && appointment?.docEntry && (
+                                        <>
                                             <Button
                                                 color="primary"
                                                 variant="flat"
                                                 onPress={() => handleOpenEvaluationModal('documentacion')}
                                                 size="md"
                                                 startContent={<DocumentTextIcon className="w-4 h-4" />}
+                                                isDisabled={!canOpenEvaluationModal('documentacion')}
                                             >
                                                 Evaluar Documentación
                                             </Button>
@@ -995,6 +1136,7 @@ const AppointmentDetail: React.FC = () => {
                                             onPress={() => handleOpenEvaluationModal('estadoMercaderia')}
                                             size="sm"
                                             startContent={<CheckCircleIcon className="w-4 h-4" />}
+                                            isDisabled={!canOpenEvaluationModal('estadoMercaderia')}
                                         >
                                             Evaluar Estado Mercadería
                                         </Button>
@@ -1005,6 +1147,7 @@ const AppointmentDetail: React.FC = () => {
                                             variant="flat"
                                             onPress={() => handleOpenEvaluationModal('cantidadCorrecta')}
                                             size="sm"
+                                            isDisabled={!canOpenEvaluationModal('cantidadCorrecta')}
                                             startContent={<BuildingOfficeIcon className="w-4 h-4" />}
                                         >
                                             Evaluar Cantidad
@@ -1183,7 +1326,7 @@ const AppointmentDetail: React.FC = () => {
                                             content: "font-semibold"
                                         }}
                                     >
-                                        {appointment.status}
+                                        {statusConfig.label || appointment.status}
                                     </Chip>
                                 </div>
 
@@ -1358,6 +1501,7 @@ const AppointmentDetail: React.FC = () => {
                                             <TableColumn width={80}>ITEMS</TableColumn>
                                             <TableColumn>COMENTARIO</TableColumn>
                                             <TableColumn>RESP. WMS</TableColumn>
+                                            <TableColumn width={150}>ACCIONES</TableColumn>
                                         </TableHeader>
                                         <TableBody>
                                             {packingListsFromApi.map((pl) => {
@@ -1368,7 +1512,12 @@ const AppointmentDetail: React.FC = () => {
                                                     <TableRow 
                                                         key={pl.id}
                                                         className="cursor-pointer hover:bg-gray-50 transition-colors"
-                                                        onClick={() => {
+                                                        onClick={(e) => {
+                                                            // No abrir el modal de detalle si se hace clic en la celda de acciones
+                                                            const target = e.target as HTMLElement;
+                                                            if (target.closest('button') || target.closest('[data-action-cell]')) {
+                                                                return;
+                                                            }
                                                             setSelectedPackingList(pl);
                                                             onPackingListDetailOpen();
                                                         }}
@@ -1427,6 +1576,31 @@ const AppointmentDetail: React.FC = () => {
                                                                     '-'
                                                                 )}
                                                             </TableCell>
+                                                            <TableCell data-action-cell onClick={(e) => e.stopPropagation()}>
+                                                                {canValidatePCP ? (
+                                                                    <div onClick={(e) => e.stopPropagation()}>
+                                                                        <Button
+                                                                            size="sm"
+                                                                            color="secondary"
+                                                                            variant="flat"
+                                                                            startContent={<ClipboardDocumentCheckIcon className="w-4 h-4" />}
+                                                                            onPress={() => {
+                                                                                setSelectedPackingListForPCP(pl);
+                                                                                onPCPValidationOpen();
+                                                                            }}
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                setSelectedPackingListForPCP(pl);
+                                                                                onPCPValidationOpen();
+                                                                            }}
+                                                                        >
+                                                                            Validar PCP
+                                                                        </Button>
+                                                                    </div>
+                                                                ) : (
+                                                                    <span className="text-gray-400 text-sm">-</span>
+                                                                )}
+                                                            </TableCell>
                                                         </TableRow>
                                                 );
                                             })}
@@ -1462,7 +1636,7 @@ const AppointmentDetail: React.FC = () => {
                     <Modal 
                         isOpen={isPackingListDetailOpen} 
                         onClose={onPackingListDetailClose}
-                        size="4xl"
+                        size="full"
                         scrollBehavior="inside"
                     >
                         <ModalContent>
@@ -1486,6 +1660,10 @@ const AppointmentDetail: React.FC = () => {
                                                             <TableColumn width={150}>CÓDIGO</TableColumn>
                                                             <TableColumn>DESCRIPCIÓN</TableColumn>
                                                             <TableColumn width={120} className="text-right">CANTIDAD</TableColumn>
+                                                            <TableColumn width={120}>CONFIRMACIÓN PCP</TableColumn>
+                                                            <TableColumn width={120}>COBERTURA ACTUAL</TableColumn>
+                                                            <TableColumn width={150}>COBERTURA CON INGRESOS</TableColumn>
+                                                            <TableColumn>COMENTARIO PCP</TableColumn>
                                                         </TableHeader>
                                                         <TableBody>
                                                             {detalle.map((item: any, index: number) => {
@@ -1493,6 +1671,12 @@ const AppointmentDetail: React.FC = () => {
                                                                 const itemCode = item.ItemCode || item.item_code || '';
                                                                 const itemName = item.ItemName || item.item_name || '';
                                                                 const quantity = item.Quantity || item.quantity || 0;
+                                                                
+                                                                // Buscar validación PCP para este item
+                                                                const pcpValidation = pcpValidations.find(
+                                                                    v => v.item_code === itemCode && v.line_number === lineNumber
+                                                                );
+                                                                
                                                                 return (
                                                                     <TableRow key={index}>
                                                                         <TableCell className="whitespace-nowrap text-center">
@@ -1506,8 +1690,44 @@ const AppointmentDetail: React.FC = () => {
                                                                                 {itemName}
                                                                             </div>
                                                                         </TableCell>
-                                                                        <TableCell className="text-right whitespace-nowrap font-semibold">
+                                                                        <TableCell className="text-center whitespace-nowrap font-semibold">
                                                                             {quantity.toLocaleString()}
+                                                                        </TableCell>
+                                                                        <TableCell className="text-center">
+                                                                            {pcpValidation?.confirmacion_pcp ? (
+                                                                                <Chip 
+                                                                                    size="sm" 
+                                                                                    color={pcpValidation.confirmacion_pcp === 'CONFORME' ? 'success' : 'danger'}
+                                                                                    variant="flat"
+                                                                                >
+                                                                                    {pcpValidation.confirmacion_pcp}
+                                                                                </Chip>
+                                                                            ) : (
+                                                                                <span className="text-gray-400 text-sm">-</span>
+                                                                            )}
+                                                                        </TableCell>
+                                                                        <TableCell className="text-center">
+                                                                            {pcpValidation?.cobertura_actual !== undefined && pcpValidation.cobertura_actual !== null ? (
+                                                                                <span className="text-sm font-medium">{pcpValidation.cobertura_actual.toFixed(2)}</span>
+                                                                            ) : (
+                                                                                <span className="text-gray-400 text-sm">-</span>
+                                                                            )}
+                                                                        </TableCell>
+                                                                        <TableCell className="text-center">
+                                                                            {pcpValidation?.cobertura_con_ingresos !== undefined && pcpValidation.cobertura_con_ingresos !== null ? (
+                                                                                <span className="text-sm font-medium">{pcpValidation.cobertura_con_ingresos.toFixed(2)}</span>
+                                                                            ) : (
+                                                                                <span className="text-gray-400 text-sm">-</span>
+                                                                            )}
+                                                                        </TableCell>
+                                                                        <TableCell>
+                                                                            {pcpValidation?.comentario ? (
+                                                                                <div className="max-w-[200px] truncate" title={pcpValidation.comentario}>
+                                                                                    <span className="text-sm">{pcpValidation.comentario}</span>
+                                                                                </div>
+                                                                            ) : (
+                                                                                <span className="text-gray-400 text-sm">-</span>
+                                                                            )}
                                                                         </TableCell>
                                                                     </TableRow>
                                                                 );
@@ -1680,36 +1900,13 @@ const AppointmentDetail: React.FC = () => {
                                                     )}
                                                 </div>
 
-                                                {/* CDR */}
-                                                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
-                                                    <div className="flex items-center gap-3">
-                                                        <DocumentTextIcon className="w-5 h-5 text-gray-600" />
-                                                        <span className="text-sm font-medium text-gray-900">CDR</span>
-                                                    </div>
-                                                    {appointment.documents?.cdr ? (
-                                                        <CheckCircleIcon className="w-5 h-5 text-emerald-500" />
-                                                    ) : (
-                                                        <XCircleIcon className="w-5 h-5 text-amber-500" />
-                                                    )}
-                                                </div>
-
-                                                {/* XML */}
-                                                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100 col-span-2">
-                                                    <div className="flex items-center gap-3">
-                                                        <DocumentTextIcon className="w-5 h-5 text-gray-600" />
-                                                        <span className="text-sm font-medium text-gray-900">XML</span>
-                                                    </div>
-                                                    {appointment.documents?.xml ? (
-                                                        <CheckCircleIcon className="w-5 h-5 text-emerald-500" />
-                                                    ) : (
-                                                        <XCircleIcon className="w-5 h-5 text-amber-500" />
-                                                    )}
-                                                </div>
+                                                {/* Nota: CDR y XML son formatos, no documentos separados.
+                                                    Los documentos pueden cargarse en formato CDR/XML según el tipo de documento */}
                                             </div>
                                         );
                                     })()}
 
-                                    {!areAllDocumentsComplete() && canManageDocuments && (
+                                    {canManageDocuments && appointmentDocuments.length < COMMERCIAL_DOCUMENT_TYPES.length && (
                                         <div className="mt-4">
                                             <Button
                                                 color="primary"
@@ -1718,7 +1915,7 @@ const AppointmentDetail: React.FC = () => {
                                                 startContent={<DocumentTextIcon className="w-5 h-5" />}
                                                 onPress={handleOpenDocuments}
                                             >
-                                                Cargar Documentos Faltantes
+                                                {appointmentDocuments.length === 0 ? 'Cargar Documentos' : 'Cargar Documentos Faltantes'}
                                             </Button>
                                         </div>
                                     )}
@@ -2297,6 +2494,36 @@ const AppointmentDetail: React.FC = () => {
                             onGenerateClaim={handleGenerateClaim}
                         />
                     </>
+                )}
+
+                {/* Modal de Validación PCP */}
+                {appointment?.docEntry && canValidatePCP && (
+                    <PCPValidationModal
+                        isOpen={isPCPValidationOpen}
+                        onOpenChange={onPCPValidationClose}
+                        codCita={appointment.docEntry}
+                        packingList={selectedPackingListForPCP}
+                        onValidationSaved={async () => {
+                            // Recargar PackingList después de guardar validación
+                            if (appointment.docEntry) {
+                                try {
+                                    const today = new Date();
+                                    const startDate = new Date(today);
+                                    startDate.setDate(startDate.getDate() - 30);
+                                    const endDate = new Date(today);
+                                    endDate.setDate(endDate.getDate() + 30);
+                                    
+                                    const fechaInicio = formatDateForAPI(startDate);
+                                    const fechaFin = formatDateForAPI(endDate);
+                                    
+                                    const packingLists = await fetchPackingListFromApi(fechaInicio, fechaFin, appointment.docEntry);
+                                    setPackingListsFromApi(packingLists);
+                                } catch (error) {
+                                    console.error('Error al recargar PackingList:', error);
+                                }
+                            }
+                        }}
+                    />
                 )}
             </div>
         </Dashboard>

@@ -1,6 +1,7 @@
 import { httpClient, buildSecureUrl } from "@/services/http/httpClient";
 import { DeliveryAppointment } from "@/store/types";
 import { getApiBaseUrl } from "@/config/api.ts";
+import { mapFileNameToDocumentType } from "@/config/commercialDocuments";
 
 const DEFAULT_APPOINTMENTS_API_BASE_URL = getApiBaseUrl();
 const APPOINTMENTS_ENDPOINT = '/api/Proveedores/CitasProveedor';
@@ -138,90 +139,54 @@ const mapApiRecordToAppointment = (record: AppointmentApiRecord, index: number):
         completedDate: new Date().toISOString(),
     } : undefined;
 
-    // Mapear documentos si existen
-    const documents = record.documents && record.documents.length > 0 ? {
-        invoice: (() => {
-            const doc = record.documents.find(d => {
-                const name = d.u_name_file.toLowerCase();
-                return name.includes('fac') || name.includes('invoice');
-            });
-            return doc ? {
-                id: doc.document_doc_entry,
-                name: doc.u_name_file,
-                type: doc.u_name_file.split('.').pop() || 'pdf',
-                url: doc.u_link_documento,
-                uploadDate: new Date().toISOString(),
-                uploadedBy: 'system'
-            } : undefined;
-        })(),
-        purchaseOrder: (() => {
-            const doc = record.documents.find(d => {
-                const name = d.u_name_file.toLowerCase();
-                return name.includes('oc') || name.includes('order');
-            });
-            return doc ? {
-                id: doc.document_doc_entry,
-                name: doc.u_name_file,
-                type: doc.u_name_file.split('.').pop() || 'pdf',
-                url: doc.u_link_documento,
-                uploadDate: new Date().toISOString(),
-                uploadedBy: 'system'
-            } : undefined;
-        })(),
-        deliveryGuide: (() => {
-            const doc = record.documents.find(d => {
-                const name = d.u_name_file.toLowerCase();
-                return name.includes('guia') || name.includes('guide');
-            });
-            return doc ? {
-                id: doc.document_doc_entry,
-                name: doc.u_name_file,
-                type: doc.u_name_file.split('.').pop() || 'pdf',
-                url: doc.u_link_documento,
-                uploadDate: new Date().toISOString(),
-                uploadedBy: 'system'
-            } : undefined;
-        })(),
-        cdr: (() => {
-            const doc = record.documents.find(d => d.u_name_file.toLowerCase().includes('cdr'));
-            return doc ? {
-                id: doc.document_doc_entry,
-                name: doc.u_name_file,
-                type: doc.u_name_file.split('.').pop() || 'pdf',
-                url: doc.u_link_documento,
-                uploadDate: new Date().toISOString(),
-                uploadedBy: 'system'
-            } : undefined;
-        })(),
-        xml: (() => {
-            const doc = record.documents.find(d => d.u_name_file.toLowerCase().includes('xml'));
-            return doc ? {
-                id: doc.document_doc_entry,
-                name: doc.u_name_file,
-                type: doc.u_name_file.split('.').pop() || 'xml',
-                url: doc.u_link_documento,
-                uploadDate: new Date().toISOString(),
-                uploadedBy: 'system'
-            } : undefined;
-        })(),
-        id: `docs-${id}`,
-        appointmentId: id,
-        otherDocuments: record.documents.filter(doc => {
-            const name = doc.u_name_file.toLowerCase();
-            return !name.includes('fac') && !name.includes('invoice') && !name.includes('oc') && 
-                   !name.includes('order') && !name.includes('guia') && !name.includes('guide') && 
-                   !name.includes('cdr') && !name.includes('xml');
-        }).map(doc => ({
-            id: doc.document_doc_entry,
-            name: doc.u_name_file,
-            type: doc.u_name_file.split('.').pop() || 'unknown',
-            url: doc.u_link_documento,
-            uploadDate: new Date().toISOString(),
-            uploadedBy: 'system'
-        })),
-        completed: true,
-        completedDate: new Date().toISOString()
-    } : undefined;
+    // Mapear documentos si existen usando la configuración dinámica
+    const documents = record.documents && record.documents.length > 0 ? (() => {
+        // Inicializar objeto de documentos
+        const mappedDocs: any = {
+            id: `docs-${id}`,
+            appointmentId: id,
+            otherDocuments: []
+        };
+
+        // Mapear cada documento según su nombre
+        record.documents.forEach(doc => {
+            const documentTypeKey = mapFileNameToDocumentType(doc.u_name_file);
+            
+            if (documentTypeKey) {
+                // Mapear a un tipo conocido
+                mappedDocs[documentTypeKey] = {
+                    id: doc.document_doc_entry,
+                    name: doc.u_name_file,
+                    type: doc.u_name_file.split('.').pop() || 'pdf',
+                    url: doc.u_link_documento,
+                    uploadDate: new Date().toISOString(),
+                    uploadedBy: 'system'
+                };
+            } else {
+                // Agregar a otros documentos si no se puede mapear
+                mappedDocs.otherDocuments.push({
+                    id: doc.document_doc_entry,
+                    name: doc.u_name_file,
+                    type: doc.u_name_file.split('.').pop() || 'unknown',
+                    url: doc.u_link_documento,
+                    uploadDate: new Date().toISOString(),
+                    uploadedBy: 'system'
+                });
+            }
+        });
+
+        // Verificar si todos los documentos requeridos están presentes
+        // Por ahora mantenemos la lógica simple - se puede mejorar para ser más dinámica
+        const requiredDocs = ['invoice', 'purchaseOrder', 'deliveryGuide'];
+        const hasAllRequired = requiredDocs.every(key => !!mappedDocs[key]);
+        
+        mappedDocs.completed = hasAllRequired;
+        if (hasAllRequired) {
+            mappedDocs.completedDate = new Date().toISOString();
+        }
+
+        return mappedDocs;
+    })() : undefined;
     
     return {
         id,
@@ -327,7 +292,6 @@ export const fetchAppointmentsFromApi = async (
     }
     
     const json = (await response.json()) as AppointmentsApiResponse;
-    console.log('json citas', json);
     
     if (!json || typeof json !== 'object') {
         throw new Error('Respuesta del servicio de citas inválida.');
@@ -449,7 +413,7 @@ export interface UpdateAppointmentRequest {
  * Respuesta al actualizar una cita
  */
 interface UpdateAppointmentResponse {
-    statusCode: number;
+    status_code: number;
     success: boolean;
     message: string;
     data: string; // DocEntry de la cita actualizada
@@ -477,7 +441,8 @@ export const updateAppointmentInApi = async (
         u_descripcion: appointmentData.u_descripcion || '',
         u_almacen: appointmentData.u_almacen || '',
         u_active: appointmentData.u_active || 'Y',
-        u_estado: appointmentData.u_estado || 'REGISTRADA'
+        // Solo incluir u_estado si viene en appointmentData, no forzar REGISTRADA
+        ...(appointmentData.u_estado && { u_estado: appointmentData.u_estado })
     };
     
     const response = await httpClient(url, {
@@ -500,7 +465,7 @@ export const updateAppointmentInApi = async (
     
     const json = (await response.json()) as UpdateAppointmentResponse;
     
-    if (!json || (json.statusCode !== 204 && json.statusCode !== 200)) {
+    if (!json || (json.status_code !== 204 && json.status_code !== 200)) {
         throw new Error(json.message || 'Error al actualizar la cita');
     }
     

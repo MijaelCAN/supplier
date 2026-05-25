@@ -287,17 +287,17 @@ const PurchaseOrdersList = () => {
     const getWelcomeMessage = () => {
         if (isProveedor) {
             return {
-                title: "Mis Órdenes de Compra",
+                title: "Mis Órdenes de compra",
                 description: "Consulta y gestiona tus órdenes de compra asignadas"
             };
         } else if (isCompras) {
             return {
-                title: "Órdenes de Compra",
+                title: "Órdenes de compra",
                 description: "Gestiona y supervisa todas las órdenes de compra de la empresa"
             };
         } else {
             return {
-                title: "Órdenes de Compra",
+                title: "Órdenes de compra",
                 description: "Gestiona las órdenes de compra de la empresa"
             };
         }

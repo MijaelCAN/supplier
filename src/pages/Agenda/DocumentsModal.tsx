@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Modal,
     ModalContent,
@@ -9,7 +9,12 @@ import {
     Progress,
     Chip,
 } from '@heroui/react';
-import { DocumentTextIcon, CheckCircleIcon, XMarkIcon, ArrowUpTrayIcon as UploadIcon } from '@heroicons/react/24/outline';
+import { CheckCircleIcon, ClockIcon, XMarkIcon, ArrowUpTrayIcon as UploadIcon } from '@heroicons/react/24/outline';
+import {
+    COMMERCIAL_DOCUMENT_TYPES,
+    CommercialDocumentType,
+    mapFileNameToDocumentType
+} from "@/config/commercialDocuments";
 
 interface DocumentFile {
     file: File | null;
@@ -33,14 +38,6 @@ interface DocumentsModalProps {
     loadedDocuments?: LoadedDocument[];
 }
 
-interface DocumentType {
-    key: string;
-    label: string;
-    accept: string;
-    icon: React.ReactNode;
-    description: string;
-}
-
 const DocumentsModal: React.FC<DocumentsModalProps> = ({
     isOpen,
     onOpenChange,
@@ -48,54 +45,29 @@ const DocumentsModal: React.FC<DocumentsModalProps> = ({
     handleUploadDocument,
     loadedDocuments = [],
 }) => {
+    // Estado para tipos de documentos (puede venir de API en el futuro)
+    const [documentTypes ] = useState<CommercialDocumentType[]>(COMMERCIAL_DOCUMENT_TYPES);
+
+    // Cargar tipos de documentos (puede venir de API en el futuro)
+    useEffect(() => {
+        // Por ahora usamos la configuración estática
+        // En el futuro se puede descomentar para cargar desde API:
+        // loadDocumentTypesFromApi().then(setDocumentTypes);
+    }, []);
+
     // Función para mapear documentos cargados a tipos del modal
     const mapLoadedDocumentsToTypes = (docs: LoadedDocument[]): Record<string, DocumentFile> => {
-        const mapped: Record<string, DocumentFile> = {
-            invoice: { file: null, uploaded: false, progress: 0 },
-            purchaseOrder: { file: null, uploaded: false, progress: 0 },
-            deliveryGuide: { file: null, uploaded: false, progress: 0 },
-            cdr: { file: null, uploaded: false, progress: 0 },
-            xml: { file: null, uploaded: false, progress: 0 },
-        };
+        // Inicializar todos los tipos de documentos
+        const mapped: Record<string, DocumentFile> = {};
+        documentTypes.forEach(docType => {
+            mapped[docType.key] = { file: null, uploaded: false, progress: 0 };
+        });
 
+        // Mapear documentos cargados según sus nombres
         docs.forEach(doc => {
-            const name = doc.name.toLowerCase();
-            
-            // Mapear según el nombre del archivo
-            if (name.includes('fac') || name.includes('factura') || name.includes('invoice')) {
-                mapped.invoice = { 
-                    file: null, 
-                    uploaded: true, 
-                    progress: 100,
-                    loadedName: doc.name,
-                    loadedUrl: doc.url
-                };
-            } else if (name.includes('oc') || name.includes('orden') || name.includes('purchase')) {
-                mapped.purchaseOrder = { 
-                    file: null, 
-                    uploaded: true, 
-                    progress: 100,
-                    loadedName: doc.name,
-                    loadedUrl: doc.url
-                };
-            } else if (name.includes('gr') || name.includes('guia') || name.includes('remision') || name.includes('delivery')) {
-                mapped.deliveryGuide = { 
-                    file: null, 
-                    uploaded: true, 
-                    progress: 100,
-                    loadedName: doc.name,
-                    loadedUrl: doc.url
-                };
-            } else if (name.includes('cdr')) {
-                mapped.cdr = { 
-                    file: null, 
-                    uploaded: true, 
-                    progress: 100,
-                    loadedName: doc.name,
-                    loadedUrl: doc.url
-                };
-            } else if (name.includes('xml') && !name.includes('cdr')) {
-                mapped.xml = { 
+            const documentTypeKey = mapFileNameToDocumentType(doc.name);
+            if (documentTypeKey && mapped[documentTypeKey]) {
+                mapped[documentTypeKey] = { 
                     file: null, 
                     uploaded: true, 
                     progress: 100,
@@ -113,50 +85,12 @@ const DocumentsModal: React.FC<DocumentsModalProps> = ({
         mapLoadedDocumentsToTypes(loadedDocuments)
     );
 
-    // Actualizar cuando cambian los documentos cargados o se abre el modal
-    React.useEffect(() => {
+    // Actualizar cuando cambian los documentos cargados, tipos de documentos o se abre el modal
+    useEffect(() => {
         if (isOpen) {
             setDocuments(mapLoadedDocumentsToTypes(loadedDocuments));
         }
-    }, [isOpen, loadedDocuments]);
-
-    const documentTypes: DocumentType[] = [
-        {
-            key: 'invoice',
-            label: 'Factura',
-            accept: '.pdf,.jpg,.jpeg,.png',
-            icon: <DocumentTextIcon className="w-5 h-5" />,
-            description: 'PDF, JPG, PNG',
-        },
-        {
-            key: 'purchaseOrder',
-            label: 'Orden de Compra',
-            accept: '.pdf,.jpg,.jpeg,.png',
-            icon: <DocumentTextIcon className="w-5 h-5" />,
-            description: 'PDF, JPG, PNG',
-        },
-        {
-            key: 'deliveryGuide',
-            label: 'Guía de Remisión',
-            accept: '.pdf,.jpg,.jpeg,.png',
-            icon: <DocumentTextIcon className="w-5 h-5" />,
-            description: 'PDF, JPG, PNG',
-        },
-        {
-            key: 'cdr',
-            label: 'CDR',
-            accept: '.pdf,.xml',
-            icon: <DocumentTextIcon className="w-5 h-5" />,
-            description: 'PDF, XML',
-        },
-        {
-            key: 'xml',
-            label: 'XML',
-            accept: '.xml',
-            icon: <DocumentTextIcon className="w-5 h-5" />,
-            description: 'XML',
-        },
-    ];
+    }, [isOpen, loadedDocuments, documentTypes]);
 
     const handleFileSelect = async (type: string, file: File) => {
         if (!selectedAppointment) return;
@@ -243,7 +177,7 @@ const DocumentsModal: React.FC<DocumentsModalProps> = ({
                                                             <p className="font-semibold text-sm">
                                                                 {docType.label}
                                                             </p>
-                                                            {doc.uploaded && (
+                                                            {doc.uploaded ? (
                                                                 <Chip
                                                                     size="sm"
                                                                     color="success"
@@ -254,6 +188,17 @@ const DocumentsModal: React.FC<DocumentsModalProps> = ({
                                                                 >
                                                                     Cargado
                                                                 </Chip>
+                                                            ) : (
+                                                                <Chip
+                                                                    size="sm"
+                                                                    color="warning"
+                                                                    variant="flat"
+                                                                    startContent={
+                                                                        <ClockIcon className="w-3 h-3" />
+                                                                    }
+                                                                >
+                                                                    Pendiente
+                                                                </Chip>
                                                             )}
                                                         </div>
                                                         <p className="text-xs text-gray-500 mb-3">
@@ -261,7 +206,7 @@ const DocumentsModal: React.FC<DocumentsModalProps> = ({
                                                         </p>
 
                                                         {(hasFile || doc.uploaded) ? (
-                                                            <div className="space-y-2">
+                                                            <div className="space-y-2 space-x-2">
                                                                 <div className="flex items-center justify-between">
                                                                     <p className="text-sm text-gray-700 dark:text-gray-300 truncate">
                                                                         {doc.file ? doc.file.name : (doc.loadedName || 'Documento cargado')}

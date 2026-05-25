@@ -452,11 +452,19 @@ export interface TransportData {
 export interface DeliveryDocuments {
     id: string;
     appointmentId: string;
+    // Documentos comerciales dinámicos
     invoice?: DocumentFile;
     purchaseOrder?: DocumentFile;
     deliveryGuide?: DocumentFile;
+    qualityCertificate?: DocumentFile;
+    transportGuide?: DocumentFile;
+    packingList?: DocumentFile;
+    safetySheet?: DocumentFile;
+    analysisCertificate?: DocumentFile;
+    // Mantener compatibilidad con versiones anteriores (deprecated)
     cdr?: DocumentFile;
     xml?: DocumentFile;
+    // Otros documentos no categorizados
     otherDocuments?: DocumentFile[];
     completed: boolean;
     completedDate?: string;
@@ -535,15 +543,15 @@ export interface DeliveryEvaluation {
 }
 
 export interface EvaluationScore {
-    // Para puntualidad y documentación: 0 = No, 1 = Sí (binario)
-    // Para estadoMercaderia y cantidadCorrecta: 1-5 (escala)
+    // Para puntualidad, documentación y cantidadCorrecta: 0 = No, 10 = Sí (binario)
+    // Para estadoMercaderia: escala 1-10
     puntaje: number; 
     comentario?: string;
     evaluadoPor?: string; // Rol que evaluó
     fechaEvaluacion?: string;
     peso?: number; // Peso de esta sección en el cálculo total
     // Campos específicos para estadoMercaderia y cantidadCorrecta
-    estado?: 'ACEPTADO' | 'OBSERVADO' | 'RECHAZADO'; // Para estadoMercaderia y cantidadCorrecta
+    estado?: 'ACEPTADO' | 'OBSERVADO' | 'RECHAZADO';
     // Nota: comentario se usa como motivo cuando estado es OBSERVADO o RECHAZADO
 }
 

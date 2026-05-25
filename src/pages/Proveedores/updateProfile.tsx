@@ -21,7 +21,7 @@ import {
     DocumentCheckIcon,
     BanknotesIcon,
     UserGroupIcon,
-    GlobeAltIcon, UserIcon, TrashIcon, PhoneIcon, CloudArrowUpIcon, BriefcaseIcon, MapPinIcon
+    GlobeAltIcon, UserIcon, PhoneIcon, CloudArrowUpIcon, BriefcaseIcon, MapPinIcon
 } from "@heroicons/react/24/outline";
 import {useState} from "react";
 import {Input, Divider} from "@heroui/react";
@@ -224,9 +224,7 @@ interface BankReference {
             setAddresses([...addresses, newAddress]);
         };
 
-        const removeAddress = (id: string) => {
-            setAddresses(addresses.filter(addr => addr.id !== id));
-        };
+        // const _removeAddress = (id: string) => { setAddresses(addresses.filter(addr => addr.id !== id)); };
 
         const updateAddress = (id: string, field: keyof Address, value: string) => {
             setAddresses(addresses.map(addr =>
@@ -247,9 +245,7 @@ interface BankReference {
             setContactPersons([...contactPersons, newContact]);
         };
 
-        const removeContactPerson = (id: string) => {
-            setContactPersons(contactPersons.filter(contact => contact.id !== id));
-        };
+        // const _removeContactPerson = (id: string) => { setContactPersons(contactPersons.filter(contact => contact.id !== id)); };
 
         const updateContactPerson = (id: string, field: keyof ContactPerson, value: string) => {
             setContactPersons(contactPersons.map(contact =>
@@ -274,9 +270,7 @@ interface BankReference {
             setBankReferences([...bankReferences, newBank]);
         };
 
-        const removeBankReference = (id: string) => {
-            setBankReferences(bankReferences.filter(bank => bank.id !== id));
-        };
+        // const _removeBankReference = (id: string) => { setBankReferences(bankReferences.filter(bank => bank.id !== id)); };
 
         const updateBankReference = (id: string, field: keyof BankReference, value: string) => {
             setBankReferences(bankReferences.map(bank =>
@@ -635,7 +629,7 @@ interface BankReference {
                                 <Card key={address.id}>
                                     <CardHeader className="flex justify-between items-center">
                                         <h4 className="font-medium">Dirección {index + 1}</h4>
-                                        {addresses.length > 1 && (
+                                        {/* addresses.length > 1 && (
                                             <Button
                                                 size="sm"
                                                 variant="light"
@@ -645,7 +639,7 @@ interface BankReference {
                                             >
                                                 Eliminar
                                             </Button>
-                                        )}
+                                        ) */}
                                     </CardHeader>
                                     <CardBody className="space-y-4">
                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -749,7 +743,7 @@ interface BankReference {
                                 <Card key={contact.id}>
                                     <CardHeader className="flex justify-between items-center">
                                         <h4 className="font-medium">Contacto {index + 1}</h4>
-                                        {contactPersons.length > 1 && (
+                                        {/* contactPersons.length > 1 && (
                                             <Button
                                                 size="sm"
                                                 variant="light"
@@ -759,7 +753,7 @@ interface BankReference {
                                             >
                                                 Eliminar
                                             </Button>
-                                        )}
+                                        ) */}
                                     </CardHeader>
                                     <CardBody className="space-y-4">
                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -848,7 +842,7 @@ interface BankReference {
                                 <Card key={bank.id}>
                                     <CardHeader className="flex justify-between items-center">
                                         <h4 className="font-medium">Cuenta Bancaria {index + 1}</h4>
-                                        {bankReferences.length > 1 && (
+                                        {/* bankReferences.length > 1 && (
                                             <Button
                                                 size="sm"
                                                 variant="light"
@@ -858,7 +852,7 @@ interface BankReference {
                                             >
                                                 Eliminar
                                             </Button>
-                                        )}
+                                        ) */}
                                     </CardHeader>
                                     <CardBody className="space-y-4">
                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

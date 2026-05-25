@@ -22,7 +22,7 @@ interface NotificacionRequest {
 }
 
 interface NotificacionResponse {
-    statusCode: number;
+    status_code: number;
     success: boolean;
     message: string;
     data: null;
@@ -66,7 +66,7 @@ const sendNotificationEmail = async (request: NotificacionRequest): Promise<Emai
         const result: NotificacionResponse = await response.json();
         
         return {
-            success: result.success || result.statusCode === 200,
+            success: result.success || result.status_code === 200,
             message: result.message || 'Correo enviado correctamente',
         };
     } catch (error) {

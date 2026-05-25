@@ -1,16 +1,6 @@
 // Servicio para consultar la lista negra de proveedores (SSCO)
 import {httpClient, buildSecureUrl} from "@/services/http/httpClient.ts";
-
-const nameBaseUrl = 'VITE_BASE_URL';
-
-const normaliseString = (value?: string | null) => (value ?? '').trim();
-
-const resolveEnv = (key: string): string | undefined => {
-    if (key in import.meta.env && typeof import.meta.env[key] === 'string') {
-        return import.meta.env[key];
-    }
-    return undefined;
-}
+import {getApiBaseUrl} from "@/config/api.ts";
 
 export interface BlackListRecord {
     U_Ruc: string;
@@ -26,13 +16,13 @@ export interface BlackListRecord {
 }
 
 interface BlackListApiResponse {
-    statusCode: number;
+    status_code: number;
     message: string;
     data: BlackListRecord | BlackListRecord[];
 }
 
 const buildBlackListUrl = (ruc?: string): string => {
-    const BASE_URL = normaliseString(resolveEnv(nameBaseUrl));
+    const BASE_URL = getApiBaseUrl();
     const ENDPOINT = '/api/Proveedores/BlackList';
     
     const params: Record<string, string> = {};

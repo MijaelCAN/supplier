@@ -1,5 +1,4 @@
 import {
-    Button,
     Chip,
     Avatar
 } from "@heroui/react";
