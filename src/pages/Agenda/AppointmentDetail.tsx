@@ -62,6 +62,7 @@ import {getPCPValidations, PCPValidationRecord} from "@/services/agenda/pcpApi";
 import {STATUS_CONFIG} from "@/services/agenda/appointmentStatus";
 import {DeliveryAppointment, DeliveryEvaluation, PackingListItem, SupplierClaim} from "@/store/types";
 import DocumentsModal from './DocumentsModal';
+import { COMMERCIAL_DOCUMENT_TYPES } from '@/config/commercialDocuments';
 import EvaluationModal from './EvaluationModal';
 import ClaimModal from './ClaimModal';
 import PCPValidationModal from './PCPValidationModal';
@@ -249,28 +250,19 @@ const AppointmentDetail: React.FC = () => {
     
     // Verificar si todos los documentos requeridos están completos
     const areAllDocumentsComplete = (): boolean => {
-        // Documentos requeridos principales: Factura, Orden de Compra, Guia de Remisión
-        // Los formatos (CDR, XML) ahora son parte de los documentos, no documentos separados
-        const REQUIRED_DOCUMENTS_COUNT = 100;
-        
-        // Prioridad 1: Si hay documentos del API, verificar que haya al menos los documentos requeridos
-        console.log('appointmentDocuments:', appointmentDocuments.length);
+        // Completo = todos los tipos disponibles en el modal han sido cargados
         if (appointmentDocuments.length > 0) {
-            // Debe haber al menos los documentos requeridos del API para considerarse completo
-            return appointmentDocuments.length >= REQUIRED_DOCUMENTS_COUNT;
+            return appointmentDocuments.length >= COMMERCIAL_DOCUMENT_TYPES.length;
         }
-        
-        // Prioridad 2: Si no hay documentos del API, verificar documentos mapeados
-        // Los documentos principales deben estar presentes
+
+        // Fallback legacy: los 3 tipos requeridos del appointment están presentes
         if (appointment?.documents) {
             const hasInvoice = !!appointment.documents.invoice?.url;
             const hasPurchaseOrder = !!appointment.documents.purchaseOrder?.url;
             const hasDeliveryGuide = !!appointment.documents.deliveryGuide?.url;
-            
-            // Verificar documentos principales (CDR y XML ahora son formatos, no documentos separados)
             return hasInvoice && hasPurchaseOrder && hasDeliveryGuide;
         }
-        
+
         return false;
     };
 
@@ -1914,7 +1906,7 @@ const AppointmentDetail: React.FC = () => {
                                         );
                                     })()}
 
-                                    {!areAllDocumentsComplete() && canManageDocuments && (
+                                    {canManageDocuments && appointmentDocuments.length < COMMERCIAL_DOCUMENT_TYPES.length && (
                                         <div className="mt-4">
                                             <Button
                                                 color="primary"
@@ -1923,7 +1915,7 @@ const AppointmentDetail: React.FC = () => {
                                                 startContent={<DocumentTextIcon className="w-5 h-5" />}
                                                 onPress={handleOpenDocuments}
                                             >
-                                                Cargar Documentos Faltantes
+                                                {appointmentDocuments.length === 0 ? 'Cargar Documentos' : 'Cargar Documentos Faltantes'}
                                             </Button>
                                         </div>
                                     )}
