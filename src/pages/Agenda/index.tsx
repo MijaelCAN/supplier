@@ -41,7 +41,6 @@ import { useAuth } from "@/store/authStore";
 import { UserRole } from "@/routes/menuTypes";
 import { DeliveryAppointment, PackingListItem } from "@/store/types";
 import { useNavigate, useLocation } from 'react-router-dom';
-import ScheduleAppointmentModal from './Scheduleappointmentmodal';
 import { fetchPackingListFromApi, createPackingListInApi, fetchWarehousesFromApi, WarehouseApiRecord, fetchDocumentsFromApi, DocumentApiRecord, fetchDocumentDetailFromApi, uploadFileToPackingList, fetchProductsFromApi, ProductApiRecord } from "@/services/agenda/packingListApi";
 import { formatDateForAPI } from "@/services/agenda/appointmentsApi";
 
@@ -50,6 +49,7 @@ import DocumentsModal from './DocumentsModal';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { STATUS_CONFIG } from '@/services/agenda/appointmentStatus';
+import {ScheduleAppointmentModal} from "@/pages/Agenda/Scheduleappointmentmodal.tsx";
 
 const Agenda: React.FC = () => {
     const navigate = useNavigate();
