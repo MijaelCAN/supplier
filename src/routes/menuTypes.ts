@@ -4,7 +4,12 @@ export enum UserRole {
     ADMIN = 'admin',
     PROVEEDOR = 'proveedor',
     COMPRAS = 'compras',
-    FINANZAS = 'finanzas'
+    FINANZAS = 'finanzas',
+    SOLICITANTE = 'solicitante',
+    CALIDAD = 'calidad',
+    ALMACEN = 'almacen',
+    SEGURIDAD = 'seguridad',
+    PLANEAMIENTO = 'planeamiento'
 }
 
 export interface MenuItem {

@@ -1,87 +1,257 @@
-import {Route, Routes} from "react-router-dom";
-import Login from "@/layouts/Auth";
-import UpdateProfile from "@/pages/Proveedores/updateProfile.tsx";
-import Home from "@/layouts/Home.tsx";
-import PurchaseOrderReception from "@/pages/OrdenCompra/orden-compra.tsx";
-import SupplierManagement from "@/pages/Proveedores/index.tsx";
-import DocsPage from "@/pages/blog.tsx";
-import ProveedorProfile from "@/pages/Proveedores/profile.tsx";
-import SupplierEvaluations from "@/pages/Proveedores/evaluations.tsx";
-import {UserRole} from "@/routes/menuTypes.ts";
-import FormularioEvaluacion from "@/pages/Proveedores/evalForm.tsx";
-import SupplierProfileCard from "@/pages/Proveedores/Profile/CardProfile.tsx";
-import React from "react";
+import { lazy, Suspense, ReactNode } from "react";
+import { createBrowserRouter, Navigate } from "react-router-dom";
+import Auth from "@/layouts/Auth";
+import Dashboard from "@/layouts/Dashboard";
+import NotFoundPage from "@/pages/NotFound";
+import ProtectedRoute from "@/components/ProtectedRoute";
+import { UserRole } from "./menuTypes";
+import { Spinner } from "@heroui/react";
 
-/*const AppRoutes = () => {
-    return (
-        <Routes>
-            <Route path="/dashboard" element={<Login />}/>
-            <Route path="/" element={<Home/>} />
-            {/*<Route path="/orden-compra" element={<Dashboard />} /> *
-            <Route path="/proveedores" element={<SupplierManagement />} />
-            <Route path="/proveedores/nuevo" element={<UpdateProfile />} />
-            <Route path="/proveedores/evaluaciones" element={<ProveedorProfile />} />
-            <Route path="/orden-compra" element={<PurchaseOrderReception/>} />
-            <Route path="/blog" element={<DocsPage />}  />
-        </Routes>
-    )
-}
-export default AppRoutes;*/
+// ── Lazy pages ────────────────────────────────────────────────────────────────
+const Home                = lazy(() => import("@/pages/Home"));
+const ProveedorProfile    = lazy(() => import("@/pages/Proveedores/Profile/CardProfile"));
+const EvaluationSuppliers = lazy(() => import("@/pages/Proveedores/evaluations"));
+const EvaluationForm      = lazy(() => import("@/pages/Proveedores/evalForm"));
+const ExecutiveDashboard  = lazy(() => import("@/pages/Reportes/dashboard"));
+const SupplierManagement  = lazy(() => import("@/pages/Proveedores/index"));
+const PurchaseOrdersList  = lazy(() => import("@/pages/OrdenCompra"));
+const InvoicesList        = lazy(() => import("@/pages/Facturas"));
+const UserManagement      = lazy(() => import("@/pages/Configuracion/usuarios"));
+const PaymentsList        = lazy(() => import("@/pages/Finanzas/pagos"));
+const SolicitudCompra     = lazy(() => import("@/pages/SolicitudCompra").then(m => ({ default: m.SolicitudCompra })));
+const AgendaPage          = lazy(() => import("@/pages/Agenda"));
+const AppointmentDetail   = lazy(() => import("@/pages/Agenda/AppointmentDetail"));
+const EvaluationPage      = lazy(() => import("@/pages/Agenda/EvaluationPage"));
+const ReceptionPage       = lazy(() => import("@/pages/Recepcion"));
+const PaymentCalendar     = lazy(() => import("@/pages/Pagos/Paymentcalendar "));
+const ScheduleInvoices    = lazy(() => import("@/pages/Pagos/ScheduleInvoices"));
 
-const AppRoutes = () => {
-        const userRole = UserRole.ADMIN;
+// ── Fallback de carga ─────────────────────────────────────────────────────────
+const PageLoader = () => (
+  <div className="flex h-screen w-full items-center justify-center">
+    <Spinner size="lg" color="primary" />
+  </div>
+);
 
-    return (
-        <Routes>
-            {/* Rutas públicas */}
-            <Route path="/" element={<Home/>} />
-            <Route path="/login" element={<Login />}/>
+// ── Helper: envuelve cualquier elemento en Suspense ───────────────────────────
+const Lazy = ({ children }: { children: ReactNode }) => (
+  <Suspense fallback={<PageLoader />}>{children}</Suspense>
+);
 
-            {/* Dashboard común */}
-                {/*<Route path="/dashboard" element={<Dashboard />}/>*/}
+// ── Router ────────────────────────────────────────────────────────────────────
+const router = createBrowserRouter([
+  {
+    path: "/login",
+    element: <Auth />,
+  },
+  {
+    path: "/",
+    element: (
+      <ProtectedRoute>
+        <Lazy><Home /></Lazy>
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/dashboard",
+    element: <Navigate to="/" replace />,
+  },
+  {
+    path: "/proveedores",
+    element: (
+      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.COMPRAS, UserRole.SEGURIDAD, UserRole.CALIDAD, UserRole.ALMACEN]}>
+        <Lazy><SupplierManagement /></Lazy>
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/proveedor/perfil",
+    element: (
+      <ProtectedRoute requiredRoles={[UserRole.PROVEEDOR, UserRole.ADMIN, UserRole.COMPRAS, UserRole.FINANZAS, UserRole.ALMACEN]}>
+        <Lazy><ProveedorProfile /></Lazy>
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/proveedores/profile/:supplierCode",
+    element: (
+      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.COMPRAS, UserRole.FINANZAS, UserRole.ALMACEN]}>
+        <Lazy><ProveedorProfile /></Lazy>
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/proveedores/evaluaciones",
+    element: (
+      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.COMPRAS]}>
+        <Lazy><EvaluationSuppliers rol={"PROVEEDOR"} /></Lazy>
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/proveedor/evaluacion",
+    element: (
+      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.COMPRAS]}>
+        <Lazy><EvaluationForm /></Lazy>
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/reportes/ejecutivo",
+    element: (
+      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.FINANZAS]}>
+        <Lazy><ExecutiveDashboard /></Lazy>
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/solicitud-compra",
+    element: (
+      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.COMPRAS, UserRole.PROVEEDOR]}>
+        <Lazy><SolicitudCompra /></Lazy>
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/orden-compra",
+    element: (
+      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.COMPRAS, UserRole.PROVEEDOR]}>
+        <Lazy><PurchaseOrdersList /></Lazy>
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/factura",
+    element: (
+      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.FINANZAS, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.ALMACEN]}>
+        <Lazy><InvoicesList /></Lazy>
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/finanzas/pagos",
+    element: (
+      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.FINANZAS]}>
+        <Lazy><PaymentsList /></Lazy>
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/configuracion/usuarios",
+    element: (
+      <ProtectedRoute requiredRoles={[UserRole.ADMIN]}>
+        <Lazy><UserManagement /></Lazy>
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/configuracion/sistema",
+    element: (
+      <ProtectedRoute requiredRoles={[UserRole.ADMIN]}>
+        <Dashboard>
+          <div className="p-6">
+            <h1 className="text-2xl font-bold mb-4">Configuración del Sistema</h1>
+            <p className="text-gray-600">Página en construcción - Configuración general</p>
+          </div>
+        </Dashboard>
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/configuracion/permisos",
+    element: (
+      <ProtectedRoute requiredRoles={[UserRole.ADMIN]}>
+        <Dashboard>
+          <div className="p-6">
+            <h1 className="text-2xl font-bold mb-4">Configuración del Sistema</h1>
+            <p className="text-gray-600">Página en construcción - Configuración general</p>
+          </div>
+        </Dashboard>
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/cotizaciones",
+    element: (
+      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.COMPRAS, UserRole.PROVEEDOR]}>
+        <Dashboard>
+          <div className="p-6">
+            <h1 className="text-2xl font-bold mb-4">Cotizaciones</h1>
+            <p className="text-gray-600">Página en construcción - Gestión de cotizaciones</p>
+          </div>
+        </Dashboard>
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/agenda",
+    element: (
+      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.ALMACEN, UserRole.SEGURIDAD, UserRole.CALIDAD, UserRole.PLANEAMIENTO]}>
+        <Lazy><AgendaPage /></Lazy>
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/agenda/detail/:appointmentId",
+    element: (
+      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.ALMACEN, UserRole.CALIDAD, UserRole.SEGURIDAD, UserRole.PLANEAMIENTO]}>
+        <Lazy><AppointmentDetail /></Lazy>
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/agenda/evaluation/:appointmentId",
+    element: (
+      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.COMPRAS, UserRole.ALMACEN, UserRole.CALIDAD, UserRole.SEGURIDAD, UserRole.PLANEAMIENTO]}>
+        <Lazy><EvaluationPage /></Lazy>
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/recepcion",
+    element: (
+      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.ALMACEN, UserRole.SEGURIDAD, UserRole.CALIDAD]}>
+        <Lazy><ReceptionPage /></Lazy>
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/cronograma",
+    element: (
+      <ProtectedRoute requiredRoles={[UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.ADMIN]}>
+        <Dashboard>
+          <Lazy><PaymentCalendar /></Lazy>
+        </Dashboard>
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/cronograma/programar-facturas",
+    element: (
+      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.COMPRAS, UserRole.FINANZAS]}>
+        <Dashboard>
+          <Lazy><ScheduleInvoices /></Lazy>
+        </Dashboard>
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/pagos",
+    element: (
+      <ProtectedRoute requiredRoles={[UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.ADMIN]}>
+        <Dashboard>
+          <div className="p-6">
+            <h1 className="text-2xl font-bold mb-4">Mis Pagos</h1>
+            <p className="text-gray-600">Página en construcción - Estado de pagos del proveedor</p>
+          </div>
+        </Dashboard>
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "*",
+    element: <NotFoundPage />,
+  },
+]);
 
-            {/* Rutas de Proveedores (Admin, Compras) */}
-            <Route path="/proveedores" element={<SupplierManagement />} />
-            {/*<Route path="/proveedores/evaluaciones" element={<SupplierEvaluations role={userRole}/>} />*/}
-                <Route path="/proveedor/evaluacion" element={<FormularioEvaluacion role={userRole}/>} />
-                {/*<Route path="/proveedores/homologaciones" element={<SupplierHomologations />} />*/}
-
-            {/* Rutas del Perfil del Proveedor */}
-                <Route path="/proveedor/perfil" element={<SupplierProfileCard />} />
-                <Route path="/proveedor/documentos" element={<ProveedorProfile />} />
-                {/*<Route path="/proveedor/certificaciones" element={<SupplierCertifications />} />*/}
-
-            {/* Rutas de Procesos de Compra */}
-            <Route path="/orden-compra" element={<PurchaseOrderReception/>} />
-                {/*<Route path="/recepcion" element={<Reception />} />*/}
-                {/*<Route path="/factura" element={<Invoicing />} />*/}
-                {/*<Route path="/pagos" element={<Payments />} />*/}
-                {/*<Route path="/entrega" element={<DeliverySchedule />} />*/}
-                {/*<Route path="/cronograma" element={<PaymentSchedule />} />*/}
-                {/*<Route path="/agenda" element={<Agenda />} />*/}
-                {/*<Route path="/licitacion" element={<Bidding />} />*/}
-
-            {/* Rutas de Finanzas */}
-                {/*<Route path="/finanzas/pagos" element={<PaymentStatus />} />*/}
-                {/*<Route path="/finanzas/cuentas-por-pagar" element={<AccountsPayable />} />*/}
-                {/*<Route path="/finanzas/conciliacion" element={<Reconciliation />} />*/}
-
-            {/* Rutas de Reportes */}
-                {/*<Route path="/reportes/proveedores" element={<SupplierReports />} />*/}
-                {/*<Route path="/reportes/compras" element={<PurchaseMetrics />} />*/}
-                {/*<Route path="/reportes/financieros" element={<FinancialReports />} />*/}
-                {/*<Route path="/reportes/ejecutivo" element={<ExecutiveDashboard />} />*/}
-
-            {/* Rutas de Configuración */}
-                {/*<Route path="/configuracion/perfil" element={<UserProfile />} />*/}
-                {/*<Route path="/configuracion/sistema" element={<SystemConfig />} />*/}
-                {/*<Route path="/configuracion/usuarios" element={<UserManagement />} />*/}
-                {/*<Route path="/configuracion/permisos" element={<PermissionManagement />} />*/}
-
-            {/* Ruta temporal para blog */}
-            <Route path="/blog" element={<DocsPage />} />
-        </Routes>
-    );
-};
-
-export default AppRoutes;
+export default router;

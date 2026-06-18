@@ -1,7 +1,7 @@
+import { useState } from "react";
 import { Kbd } from "@heroui/kbd";
 import { Link } from "@heroui/link";
 import { Input } from "@heroui/input";
-import {} from "@heroui/menu";
 import {
   Navbar as HeroUINavbar,
   NavbarBrand,
@@ -11,21 +11,23 @@ import {
   NavbarMenu,
   NavbarMenuItem,
 } from "@heroui/navbar";
-
-
+import { Button } from "@heroui/react";
 import { siteConfig } from "@/config/site";
 import { ThemeSwitch } from "@/components/theme-switch";
 import {
   DiscordIcon,
-  GithubIcon, HamburgerIcon,
-  SearchIcon, TwitterIcon,
+  GithubIcon,
+  HamburgerIcon,
+  SearchIcon,
+  TwitterIcon,
 } from "@/components/icons";
 import { Logo } from "@/components/icons";
-import {Button} from "@heroui/react";
-import {useState} from "react";
 
+type NavbarProps = {
+  setDrawerOpen: (open: boolean) => void;
+};
 
-export const Navbar = ({setDrawerOpen}) => {
+export const Navbar = ({ setDrawerOpen }: NavbarProps) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const searchInput = (
@@ -51,7 +53,12 @@ export const Navbar = ({setDrawerOpen}) => {
 
   return (
       <div>
-        <HeroUINavbar maxWidth="xl" position="sticky" shouldBlockScroll={true} >
+        <HeroUINavbar
+          maxWidth="xl"
+          position="sticky"
+          shouldBlockScroll
+          onMenuOpenChange={setIsMenuOpen}
+        >
 
           <NavbarContent className="sm:basis-full" justify="start">
             <NavbarBrand className="gap-3 max-w-fit">
@@ -69,7 +76,7 @@ export const Navbar = ({setDrawerOpen}) => {
               <HamburgerIcon/>
             </Button>
             <NavbarContent className="md:hidden" justify="start">
-              <NavbarMenuToggle aria-label={isMenuOpen ? "Close menu" : "Open menu"} className="text-white"/>
+            <NavbarMenuToggle aria-label={isMenuOpen ? "Close menu" : "Open menu"} className="text-white"/>
             </NavbarContent>
           </NavbarContent>
 
@@ -105,7 +112,7 @@ export const Navbar = ({setDrawerOpen}) => {
             {searchInput}
             <div className="mx-4 mt-2 flex flex-col gap-2">
               {siteConfig.navMenuItems.map((item, index) => (
-                  <NavbarMenuItem key={`${item}-${index}`}>
+                  <NavbarMenuItem key={`${item.label}-${index}`}>
                     <Link
                         color={
                           index === 2

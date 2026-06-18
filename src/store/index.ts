@@ -154,7 +154,7 @@ interface AppStore {
     // Proveedores
     suppliers: Supplier[]
     selectedSupplier: Supplier | null
-    addSupplier: (supplier: Omit<Supplier, 'id' | 'fechaRegistro'>) => void
+    addSupplier: (supplier: Omit<Supplier, 'docEntry' | 'registrationDate'>) => void
     updateSupplier: (id: string, supplier: Partial<Supplier>) => void
     deleteSupplier: (id: string) => void
     getSupplierById: (id: string) => Supplier | undefined
@@ -183,7 +183,7 @@ interface AppStore {
     isLoading: boolean
     setLoading: (loading: boolean) => void
     notifications: Array<{id: string, message: string, type: 'success' | 'error' | 'warning'}>
-    addNotification: (notification: Omit<any, 'id'>) => void
+    //addNotification: (notification: Omit<any, 'id'>) => void
     removeNotification: (id: string) => void
 }
 
@@ -242,8 +242,8 @@ export const useAppStore = create<AppStore>()(
             addSupplier: (supplierData) => set((state) => ({
                 suppliers: [...state.suppliers, {
                     ...supplierData,
-                    id: crypto.randomUUID(),
-                    fechaRegistro: new Date()
+                    docEntry: `supplier-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                    registrationDate: new Date().toISOString().split('T')[0]
                 }]
             })),
 
@@ -270,7 +270,7 @@ export const useAppStore = create<AppStore>()(
             addUser: (userData) => set((state) => ({
                 users: [...state.users, {
                     ...userData,
-                    id: crypto.randomUUID()
+                    id: `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
                 }]
             })),
 
@@ -290,12 +290,15 @@ export const useAppStore = create<AppStore>()(
             // Utilidades
             setLoading: (loading) => set({ isLoading: loading }),
 
-            addNotification: (notification) => set((state) => ({
-                notifications: [...state.notifications, {
-                    ...notification,
-                    id: crypto.randomUUID()
-                }]
-            })),
+            /*addNotification: (notificationData) => set((state) => {
+                const newNotification = {
+                    ...notificationData,
+                    id: `notif-${String(state.notifications.length + 1).padStart(3, '0')}`,
+                    createdDate: new Date().toISOString(),
+                    read: false
+                };
+                return { notifications: [...state.notifications, newNotification] };
+            }),*/
 
             removeNotification: (id) => set((state) => ({
                 notifications: state.notifications.filter(notif => notif.id !== id)

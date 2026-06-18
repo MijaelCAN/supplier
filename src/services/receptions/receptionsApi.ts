@@ -1,0 +1,98 @@
+import {Reception as ReceptionApi, ReceptionApiResponse} from "@/services/receptions/types.ts";
+import {Reception} from "@/store/types.ts";
+import {httpClient, buildSecureUrl} from "@/services/http/httpClient.ts";
+import {getApiBaseUrl} from "@/config/api.ts";
+
+const buildEndpointUrlReception = (
+    cardCode?: string,
+    state?: string,
+    startDate?: string,
+    endDate?: string,
+): string => {
+    const BASE_URL = getApiBaseUrl();
+    const ENDPOINT = '/api/Documentos/Recepcion';
+    
+    const params: Record<string, string> = {};
+    if (state && state.trim() !== '') params['Estado'] = state.trim();
+    if (cardCode && cardCode.trim() !== '') params['cardCode'] = cardCode.trim();
+    if (startDate && startDate.trim() !== '') params['FechaInicio'] = startDate;
+    if (endDate && endDate.trim() !== '') params['FechaFin'] = endDate;
+
+    return buildSecureUrl(BASE_URL, ENDPOINT, params);
+}
+
+const handleResponse = async (response: Response): Promise<ReceptionApiResponse> => {
+    if (!response.ok) throw new Error(`Error al consultar las recepciones: ${response.statusText}`);
+    try {
+        return await response.json();
+    } catch (error) {
+        throw new Error(`No se pudo parsear el Json de Recepciones`);
+    }
+}
+
+const fetchReceptionResponse = async (
+    cardCode?: string,
+    state?: string,
+    startDate?: string,
+    endDate?: string,
+    init?: ResponseInit,
+): Promise<ReceptionApiResponse> => {
+    const response = await httpClient(buildEndpointUrlReception(cardCode, state, startDate, endDate), {
+        headers: {},
+        ...init
+    })
+
+    return handleResponse(response)
+}
+
+const mapRecordReceptionToReception = (record: ReceptionApi): Reception => {
+    const parseAmount = (value: string) => parseFloat((value || "0").replace(",", ".")) || 0;
+    const parseDate = (dateStr: string) => dateStr || "";
+    
+    const total = parseAmount(record.total);
+
+    // Mapear detalle
+    const detalle = record.detalle?.map(item => ({
+        docEntry: item.doc_entry?.toString() || '',
+        description: item.dscription || '',
+        itemCode: item.item_code || '',
+        lineTotal: parseAmount(item.line_total),
+        quantity: parseAmount(item.quantity)
+    })) || [];
+
+    return {
+        id: record.doc_entry?.toString() || '',
+        docEntry: record.doc_entry?.toString() || '',
+        supplierId: record.card_code || '',
+        supplierName: record.card_name || '',
+        addressDestination: record.direccion_destino || '',
+        addressBilling: record.direccion_facturacion || '',
+        docDate: parseDate(record.doc_date),
+        currency: record.doc_cur === 'S/' ? 'PEN' : 'USD',
+        total: total,
+        detalle: detalle.length > 0 ? detalle : undefined,
+    }
+}
+
+export const fetchReceptionsByCardCode = async (
+    cardCode?: string,
+    state?: string,
+    startDate?: string,
+    endDate?: string,
+): Promise<Reception[] | null> => {
+    const json = await fetchReceptionResponse(cardCode, state, startDate, endDate);
+    console.log("JSON RECEPTIONS CONSUMIDO: ", json);
+    const records = Array.isArray(json.data) ? json.data : [json.data];
+    if (!records || records.length === 0) return null;
+
+    return records.map(record => mapRecordReceptionToReception(record));
+}
+
+
+
+
+
+
+
+
+

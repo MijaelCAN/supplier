@@ -12,10 +12,14 @@ import {
 } from "@heroui/react";
 import {DeleteIcon, EditIcon, EyeIcon} from "@/components/icons.tsx";
 import { useCallback, useEffect, useState} from "react";
+import {httpClient, buildSecureUrl} from "@/services/http/httpClient.ts";
 
-
-
-const API_URL = "http://192.168.254.27:8085/api/Documentos/OrdenCompra?CardCode=P20608168673&FechaInicio=20200101&FechaFin=20250318";
+const BASE_URL = "http://192.168.254.27:8085";
+const API_URL = buildSecureUrl(BASE_URL, "/api/Documentos/OrdenCompra", {
+    CardCode: "P20608168673",
+    FechaInicio: "20200101",
+    FechaFin: "20250318"
+});
 export const columns = [
     {name: "N° OC", uid: "num_oc"},
     {name: "PROVEEDOR", uid: "proveedor"},
@@ -61,7 +65,7 @@ export default function Proveedores() {
     const [listProveedores , setListProveedores ] = useState([]);
 
     useEffect(() => {
-        fetch(API_URL)
+        httpClient(API_URL)
             .then(res => res.json())
             .then(data => {
                 if (data.statusCode === 200) {

@@ -1,13 +1,11 @@
-import {Bars3Icon, BellIcon} from "@heroicons/react/24/outline";
-import {Link as Link2} from "react-router-dom";
-import {Badge} from "@heroui/badge";
-import {Button} from "@heroui/button";
-import {ThemeSwitch} from "@/components/theme-switch.tsx";
-import {Avatar} from "@heroui/avatar";
-import {FC} from "react";
-import {Input} from "@heroui/input";
-import {Kbd} from "@heroui/kbd";
-import {SearchIcon} from "@/components/icons.tsx";
+import { Bars3Icon } from "@heroicons/react/24/outline";
+import { Link as Link2 } from "react-router-dom";
+import { ThemeSwitch } from "@/components/theme-switch.tsx";
+import { Avatar } from "@heroui/avatar";
+import { FC } from "react";
+import { Input } from "@heroui/input";
+import { Kbd } from "@heroui/kbd";
+import { SearchIcon } from "@/components/icons.tsx";
 
 interface HeaderProps {
     setSidebarOpen: (open: boolean) => void;
@@ -86,7 +84,7 @@ const Header: FC<HeaderProps> = ({setSidebarOpen}) => {
                         </div>
 
                         {/* Notificaciones */}
-                        <Badge content="3" color="danger" size="sm">
+                        {/*<Badge content="5" color="danger" size="sm">
                             <Button
                                 isIconOnly
                                 variant="light"
@@ -94,7 +92,7 @@ const Header: FC<HeaderProps> = ({setSidebarOpen}) => {
                             >
                                 <BellIcon className="h-5 w-5"/>
                             </Button>
-                        </Badge>
+                        </Badge>*/}
 
                         {/* Theme Switch */}
                         <ThemeSwitch/>

@@ -9,7 +9,8 @@
     Select,
     SelectItem
 } from "@heroui/react";
-import {Supplier, useConfigData} from "@/store";
+import {useConfigData} from "@/store";
+import {Supplier} from "@/store/extendedStore";
 import {FC} from "react";
 
 interface ModalEditProps {
@@ -150,7 +151,7 @@ const ModalEdit: FC<ModalEditProps> = ({isEditOpen, onEditClose, selectedSupplie
 }
 
 export { ModalEdit }*/
-import { FC, useEffect } from 'react'
+import { FC, useEffect, useState, useCallback } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -166,7 +167,9 @@ import {
     SelectItem,
     Divider
 } from "@heroui/react";
-import {Supplier, useConfigData} from "@/store";
+import {Supplier} from "@/store/types";
+import {useExtendedStore} from "@/store/extendedStore.ts";
+import { fetchSupplierByCardCode, updateSupplierProfile, type SupplierApiRecord } from '@/services/providers/providersApi';
 
 // Schema de validación con Zod
 const supplierSchema = z.object({
@@ -177,8 +180,9 @@ const supplierSchema = z.object({
     website: z.string().url('URL inválida').optional().or(z.literal('')),
     cardCode: z.string().min(1, 'El RUC/Tax ID es requerido'),
     address: z.string().min(1, 'La dirección es requerida'),
-    city: z.string().min(1, 'La ciudad es requerida'),
-    country: z.string().min(1, 'El país es requerido'),
+    department: z.string().min(1, 'El departamento es requerido'),
+    province: z.string().min(1, 'La provincia es requerida'),
+    district: z.string().min(1, 'El distrito es requerido'),
     contactPerson: z.string().min(1, 'El nombre del contacto es requerido'),
     contactEmail: z.string().email('Email de contacto inválido').min(1, 'El email de contacto es requerido'),
     contactPhone: z.string().min(1, 'El teléfono de contacto es requerido'),
@@ -192,16 +196,22 @@ interface ModalEditProps {
     isEditOpen: boolean;
     onEditClose: () => void;
     selectedSupplier: Supplier | null;
-    updateSupplier: (id: string, supplier: SupplierFormData) => void
+    updateSupplier: (id: string, supplier: Partial<Supplier>) => void;
+    onUpdated?: () => Promise<void> | void;
 }
 
 const ModalEdit: FC<ModalEditProps> = ({
    isEditOpen,
    onEditClose,
    selectedSupplier,
-   updateSupplier
+   updateSupplier,
+   onUpdated
 }) => {
-    const { estadosSupplier } = useConfigData()
+    const estadosSupplier = useExtendedStore( state => state.estadosSupplier)
+    const setSelectedSupplier = useExtendedStore(state => state.setSelectedSupplier);
+    const [apiRecord, setApiRecord] = useState<SupplierApiRecord | null>(null);
+    const [ ,setIsLoadingRecord] = useState(false);
+    const [ ,setApiError] = useState<string | null>(null);
 
     const {
         control,
@@ -218,8 +228,9 @@ const ModalEdit: FC<ModalEditProps> = ({
             website: '',
             cardCode: '',
             address: '',
-            city: '',
-            country: '',
+            department: '',
+            province: '',
+            district: '',
             contactPerson: '',
             contactEmail: '',
             contactPhone: '',
@@ -228,42 +239,134 @@ const ModalEdit: FC<ModalEditProps> = ({
         }
     })
 
-    // Resetear el formulario cuando cambie el supplier seleccionado
-    useEffect(() => {
-        if (selectedSupplier) {
-            reset({
-                cardName: selectedSupplier.cardName || '',
-                businessType: selectedSupplier.businessType || '',
-                email: selectedSupplier.email || '',
-                phone: selectedSupplier.phone || '',
-                website: selectedSupplier.website || '',
-                cardCode: selectedSupplier.cardCode || '',
-                address: selectedSupplier.address || '',
-                city: selectedSupplier.city || '',
-                country: selectedSupplier.country || '',
-                contactPerson: selectedSupplier.contactPerson || '',
-                contactEmail: selectedSupplier.contactEmail || '',
-                contactPhone: selectedSupplier.contactPhone || '',
-                paymentTerms: selectedSupplier.paymentTerms || '',
-                status: selectedSupplier.status || 'P'
-            })
+    const loadSupplierRecord = useCallback(async (cardCode: string) => {
+        setIsLoadingRecord(true);
+        setApiError(null);
+        try {
+            const response = await fetchSupplierByCardCode(cardCode);
+            if (response?.record) {
+                setApiRecord(response.record);
+                const contactoPrincipal = response.record.contactos?.[0];
+                reset({
+                    cardName: response.record.nombre_sn ?? selectedSupplier?.cardName ?? '',
+                    businessType: selectedSupplier?.businessType ?? '',
+                    email: response.record.correo ?? selectedSupplier?.email ?? '',
+                    phone: response.record.telefono1 ?? selectedSupplier?.phone ?? '',
+                    website: response.record.website ?? selectedSupplier?.website ?? '',
+                    cardCode: response.record.ruc ?? cardCode,
+                    address: response.record.direccion ?? selectedSupplier?.address ?? '',
+                    department: response.record.departamento ?? '',
+                    province: response.record.provincia ?? '',
+                    district: response.record.distrito ?? '',
+                    contactPerson: contactoPrincipal?.name ?? selectedSupplier?.contactPerson ?? '',
+                    contactEmail: contactoPrincipal?.e_mail_l ?? selectedSupplier?.contactEmail ?? '',
+                    contactPhone: contactoPrincipal?.telefono ?? selectedSupplier?.contactPhone ?? '',
+                    paymentTerms: response.record.condicion_pago ?? selectedSupplier?.paymentTerms ?? '',
+                    status: selectedSupplier?.status ?? 'Pendiente'
+                });
+            } else {
+                setApiError('No se pudo obtener la información actual del proveedor.');
+            }
+        } catch (error) {
+            console.error('Error al consultar el proveedor en SAP.', error);
+            setApiError('No se pudo obtener la información actual del proveedor.');
+        } finally {
+            setIsLoadingRecord(false);
         }
-    }, [selectedSupplier, reset])
+    }, [reset, selectedSupplier]);
+
+    useEffect(() => {
+        if (isEditOpen && selectedSupplier?.cardCode) {
+            loadSupplierRecord(selectedSupplier.cardCode);
+        } else {
+            setApiRecord(null);
+            reset({
+                cardName: '',
+                businessType: '',
+                email: '',
+                phone: '',
+                website: '',
+                cardCode: '',
+                address: '',
+                department: '',
+                province: '',
+                district: '',
+                contactPerson: '',
+                contactEmail: '',
+                contactPhone: '',
+                paymentTerms: '',
+                status: 'P'
+            });
+        }
+    }, [isEditOpen, selectedSupplier, reset, loadSupplierRecord]);
 
     const onSubmit = async (data: SupplierFormData) => {
-        if (!selectedSupplier?.docEntry) return
+        if (!selectedSupplier?.docEntry || !selectedSupplier.cardCode || !apiRecord) {
+            return;
+        }
 
         try {
-            updateSupplier(selectedSupplier.docEntry, data)
-            onEditClose()
+            const contactos = [...(apiRecord.contactos ?? [])];
+            if (contactos.length === 0) {
+                contactos.push({
+                    doc_entry: '',
+                    active: 'Y',
+                    name: data.contactPerson,
+                    nombre: '',
+                    segundo_nombre: '',
+                    apellido: '',
+                    profesion: '',
+                    telefono: data.contactPhone,
+                    e_mail_l: data.contactEmail,
+                });
+            } else {
+                contactos[0] = {
+                    ...contactos[0],
+                    active: 'Y',
+                    name: data.contactPerson,
+                    telefono: data.contactPhone,
+                    e_mail_l: data.contactEmail,
+                };
+            }
+
+            const updatedRecord: SupplierApiRecord = {
+                ...apiRecord,
+                nombre_sn: data.cardName,
+                ruc: data.cardCode,
+                correo: data.email,
+                telefono1: data.phone,
+                website: data.website || null,
+                direccion: data.address,
+                direccion_sunat: apiRecord.direccion_sunat ?? data.address,
+                departamento: data.department,
+                provincia: data.province,
+                distrito: data.district,
+                condicion_pago: data.paymentTerms,
+                status: data.status,
+                contactos: contactos,
+            };
+
+            const response = await updateSupplierProfile(updatedRecord.codigo_sn, updatedRecord);
+            const refreshedSupplier = response.supplier;
+
+            updateSupplier(refreshedSupplier.docEntry, refreshedSupplier);
+            setSelectedSupplier(refreshedSupplier);
+
+            if (onUpdated) {
+                await onUpdated();
+            }
+
+            onEditClose();
         } catch (error) {
             console.error('Error al actualizar el proveedor:', error)
         }
     }
 
     const handleClose = () => {
-        reset() // Limpiar el formulario al cerrar
-        onEditClose()
+        reset();
+        onEditClose();
+        setApiRecord(null);
+        setApiError(null);
     }
 
     return (
@@ -276,7 +379,7 @@ const ModalEdit: FC<ModalEditProps> = ({
                         </ModalHeader>
                         <ModalBody>
                             {selectedSupplier && (
-                                <div className="space-y-6">
+                                <div className="space-y-4">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <Controller
                                             name="cardName"
@@ -285,6 +388,7 @@ const ModalEdit: FC<ModalEditProps> = ({
                                                 <Input
                                                     {...field}
                                                     label="Nombre de la Empresa"
+                                                    size="sm"
                                                     placeholder="Ingrese el nombre"
                                                     isInvalid={!!errors.cardName}
                                                     errorMessage={errors.cardName?.message}
@@ -298,6 +402,7 @@ const ModalEdit: FC<ModalEditProps> = ({
                                                 <Input
                                                     {...field}
                                                     label="Tipo de Negocio"
+                                                    size="sm"
                                                     placeholder="Tipo de negocio"
                                                     isInvalid={!!errors.businessType}
                                                     errorMessage={errors.businessType?.message}
@@ -315,6 +420,7 @@ const ModalEdit: FC<ModalEditProps> = ({
                                                     {...field}
                                                     label="Email"
                                                     type="email"
+                                                    size="sm"
                                                     placeholder="email@empresa.com"
                                                     isInvalid={!!errors.email}
                                                     errorMessage={errors.email?.message}
@@ -328,6 +434,7 @@ const ModalEdit: FC<ModalEditProps> = ({
                                                 <Input
                                                     {...field}
                                                     label="Teléfono"
+                                                    size="sm"
                                                     placeholder="+51 999 999 999"
                                                     isInvalid={!!errors.phone}
                                                     errorMessage={errors.phone?.message}
@@ -344,6 +451,7 @@ const ModalEdit: FC<ModalEditProps> = ({
                                                 <Input
                                                     {...field}
                                                     label="Sitio Web"
+                                                    size="sm"
                                                     placeholder="https://www.empresa.com"
                                                     isInvalid={!!errors.website}
                                                     errorMessage={errors.website?.message}
@@ -357,6 +465,7 @@ const ModalEdit: FC<ModalEditProps> = ({
                                                 <Input
                                                     {...field}
                                                     label="RUC/Tax ID"
+                                                    size="sm"
                                                     placeholder="20123456789"
                                                     isInvalid={!!errors.cardCode}
                                                     errorMessage={errors.cardCode?.message}
@@ -372,6 +481,7 @@ const ModalEdit: FC<ModalEditProps> = ({
                                             <Input
                                                 {...field}
                                                 label="Dirección"
+                                                size="sm"
                                                 placeholder="Dirección completa"
                                                 isInvalid={!!errors.address}
                                                 errorMessage={errors.address?.message}
@@ -379,30 +489,46 @@ const ModalEdit: FC<ModalEditProps> = ({
                                         )}
                                     />
 
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                         <Controller
-                                            name="city"
+                                            name="department"
                                             control={control}
                                             render={({ field }) => (
                                                 <Input
                                                     {...field}
-                                                    label="Ciudad"
-                                                    placeholder="Ciudad"
-                                                    isInvalid={!!errors.city}
-                                                    errorMessage={errors.city?.message}
+                                                    label="Departamento"
+                                                    size="sm"
+                                                    placeholder="Departamento"
+                                                    isInvalid={!!errors.department}
+                                                    errorMessage={errors.department?.message}
                                                 />
                                             )}
                                         />
                                         <Controller
-                                            name="country"
+                                            name="province"
                                             control={control}
                                             render={({ field }) => (
                                                 <Input
                                                     {...field}
-                                                    label="País"
-                                                    placeholder="País"
-                                                    isInvalid={!!errors.country}
-                                                    errorMessage={errors.country?.message}
+                                                    label="Provincia"
+                                                    size="sm"
+                                                    placeholder="Provincia"
+                                                    isInvalid={!!errors.province}
+                                                    errorMessage={errors.province?.message}
+                                                />
+                                            )}
+                                        />
+                                        <Controller
+                                            name="district"
+                                            control={control}
+                                            render={({ field }) => (
+                                                <Input
+                                                    {...field}
+                                                    label="Distrito"
+                                                    size="sm"
+                                                    placeholder="Distrito"
+                                                    isInvalid={!!errors.district}
+                                                    errorMessage={errors.district?.message}
                                                 />
                                             )}
                                         />
@@ -420,6 +546,7 @@ const ModalEdit: FC<ModalEditProps> = ({
                                                     <Input
                                                         {...field}
                                                         label="Nombre Completo"
+                                                        size="sm"
                                                         placeholder="Nombre del contacto"
                                                         isInvalid={!!errors.contactPerson}
                                                         errorMessage={errors.contactPerson?.message}
@@ -434,6 +561,7 @@ const ModalEdit: FC<ModalEditProps> = ({
                                                         {...field}
                                                         label="Email de Contacto"
                                                         type="email"
+                                                        size="sm"
                                                         placeholder="contacto@empresa.com"
                                                         isInvalid={!!errors.contactEmail}
                                                         errorMessage={errors.contactEmail?.message}
@@ -449,6 +577,7 @@ const ModalEdit: FC<ModalEditProps> = ({
                                                     <Input
                                                         {...field}
                                                         label="Teléfono de Contacto"
+                                                        size="sm"
                                                         placeholder="+51 999 999 999"
                                                         isInvalid={!!errors.contactPhone}
                                                         errorMessage={errors.contactPhone?.message}

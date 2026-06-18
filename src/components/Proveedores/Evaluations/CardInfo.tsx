@@ -1,15 +1,8 @@
-import React from "react";
-import {
-    Card,
-    CardHeader,
-    CardBody,
-    Button,
-    Image,
-    Input,
-    Select,
-    SelectItem,
-    Chip
-} from "@heroui/react";
+import { FC, ReactNode } from "react";
+import {Card, Button, Chip, SelectItem, Select, CardBody, CardHeader} from "@heroui/react";
+import {Input} from "@heroui/input";
+
+type TipoDocumento = "evaluacion" | "cotizacion" | "contrato";
 
 interface ProveedorInfoProps {
     datosProveedor: {
@@ -22,42 +15,59 @@ interface ProveedorInfoProps {
         email?: string;
         telefono?: string;
     };
-    tipoDocumento?: string;
+    tipoDocumento?: TipoDocumento;
 }
 
+type TipoConfig = Record<TipoDocumento, {
+    titulo: string;
+    icono: ReactNode;
+    color: string;
+    bgColor: string;
+    borderColor: string;
+}>;
 
-const ProveedorInfo: React.FC<ProveedorInfoProps> = ({datosProveedor, tipoDocumento = "cotizacion"}) => {
-    const tipoConfig = {
-        evaluacion: {
-            titulo: "Datos de la Evaluación",
-            icono: <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+const tipoConfig: TipoConfig = {
+    evaluacion: {
+        titulo: "Datos de la Evaluación",
+        icono: (
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-            </svg>,
-            color: "text-blue-600",
-            bgColor: "bg-blue-50",
-            borderColor: "border-blue-200"
-        },
-        cotizacion: {
-            titulo: "Datos de la Cotización",
-            icono: <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            </svg>
+        ),
+        color: "text-blue-600",
+        bgColor: "bg-blue-50",
+        borderColor: "border-blue-200"
+    },
+    cotizacion: {
+        titulo: "Datos de la Cotización",
+        icono: (
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-            </svg>,
-            color: "text-green-600",
-            bgColor: "bg-green-50",
-            borderColor: "border-green-200"
-        },
-        contrato: {
-            titulo: "Datos del Contrato",
-            icono: <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            </svg>
+        ),
+        color: "text-green-600",
+        bgColor: "bg-green-50",
+        borderColor: "border-green-200"
+    },
+    contrato: {
+        titulo: "Datos del Contrato",
+        icono: (
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>,
-            color: "text-purple-600",
-            bgColor: "bg-purple-50",
-            borderColor: "border-purple-200"
-        }
-    };
+            </svg>
+        ),
+        color: "text-purple-600",
+        bgColor: "bg-purple-50",
+        borderColor: "border-purple-200"
+    }
+};
 
-    const config = tipoConfig[tipoDocumento] || tipoConfig.evaluacion;
+const ProveedorInfo: FC<ProveedorInfoProps> = ({
+    datosProveedor,
+    tipoDocumento = "cotizacion"
+}) => {
+    const resolvedTipoDocumento: TipoDocumento = tipoDocumento ?? "cotizacion";
+    const config = tipoConfig[resolvedTipoDocumento] ?? tipoConfig.cotizacion;
 
     return (
         <div>
@@ -106,10 +116,14 @@ const ProveedorInfo: React.FC<ProveedorInfoProps> = ({datosProveedor, tipoDocume
 
                                 {/* Info básica */}
                                 <div className="text-white">
-                                    <h1 className="text-2xl md:text-2xl font-bold mb-1">
-                                        {/*datosProveedor?.nombre || "Nombre del Proveedor"*/}
-                                        EVALUACION DE PROVEEDOR
-                                    </h1>
+                                    <div className="flex items-center gap-3 mb-1">
+                                        <span className={`flex items-center justify-center w-10 h-10 rounded-xl ${config.bgColor} ${config.borderColor}`}>
+                                            {config.icono}
+                                        </span>
+                                        <h1 className="text-2xl md:text-2xl font-bold">
+                                            {config.titulo.toUpperCase()}
+                                        </h1>
+                                    </div>
                                     <p className="text-white/80 text-sm md:text-base mb-2">
                                         {datosProveedor?.nombre || "Categoría de Servicios"}
                                     </p>
@@ -117,8 +131,8 @@ const ProveedorInfo: React.FC<ProveedorInfoProps> = ({datosProveedor, tipoDocume
                                         <Chip size="sm" className="bg-white/20 backdrop-blur-sm text-white border border-white/30">
                                             ID: {datosProveedor?.id || "PROV-001"}
                                         </Chip>
-                                        <Chip size="sm" className="bg-green-500/90 backdrop-blur-sm text-white">
-                                            Activo
+                                        <Chip size="sm" className={`bg-white/10 backdrop-blur-sm ${config.color}`}>
+                                            Estado: Activo
                                         </Chip>
                                     </div>
                                 </div>
@@ -156,7 +170,7 @@ const ProveedorInfo: React.FC<ProveedorInfoProps> = ({datosProveedor, tipoDocume
             </Card>
 
             {/* Card de información específica del documento */}
-            {/*<Card className="shadow-lg border-0" radius="none">
+            <Card className="shadow-lg border-0" radius="none">
                 <CardHeader className={`${config.bgColor} ${config.borderColor} border-b-2 pb-6`}>
                     <div className="flex items-center justify-between w-full">
                         <div className="flex items-center gap-4">
@@ -171,7 +185,7 @@ const ProveedorInfo: React.FC<ProveedorInfoProps> = ({datosProveedor, tipoDocume
                             </div>
                         </div>
 
-                        {/* Badge de estado *
+                        {/* Badge de estado */}
                         <Chip
                             color="warning"
                             variant="flat"
@@ -188,7 +202,7 @@ const ProveedorInfo: React.FC<ProveedorInfoProps> = ({datosProveedor, tipoDocume
 
                 <CardBody className="p-6">
                     <div className="space-y-6">
-                        {/* Información del proveedor en resumen *
+                        {/* Información del proveedor en resumen */}
                         <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                                 <div>
@@ -206,7 +220,7 @@ const ProveedorInfo: React.FC<ProveedorInfoProps> = ({datosProveedor, tipoDocume
                             </div>
                         </div>
 
-                        {/* Formulario dinámico según tipo *
+                        {/* Formulario dinámico según tipo */}
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                             {tipoDocumento === 'evaluacion' && (
                                 <>
@@ -283,9 +297,9 @@ const ProveedorInfo: React.FC<ProveedorInfoProps> = ({datosProveedor, tipoDocume
                                         placeholder="Seleccionar moneda"
                                         description="Moneda para la cotización"
                                     >
-                                        <SelectItem key="pen" value="PEN">Soles (PEN)</SelectItem>
-                                        <SelectItem key="usd" value="USD">Dólares (USD)</SelectItem>
-                                        <SelectItem key="eur" value="EUR">Euros (EUR)</SelectItem>
+                                        <SelectItem key="pen" >Soles (PEN)</SelectItem>
+                                        <SelectItem key="usd" >Dólares (USD)</SelectItem>
+                                        <SelectItem key="eur" >Euros (EUR)</SelectItem>
                                     </Select>
                                     <Select
                                         label="Tipo de Servicio"
@@ -293,9 +307,9 @@ const ProveedorInfo: React.FC<ProveedorInfoProps> = ({datosProveedor, tipoDocume
                                         placeholder="Seleccionar tipo"
                                         description="Categoría del servicio cotizado"
                                     >
-                                        <SelectItem key="consultoria" value="consultoria">Consultoría</SelectItem>
-                                        <SelectItem key="suministros" value="suministros">Suministros</SelectItem>
-                                        <SelectItem key="servicios" value="servicios">Servicios</SelectItem>
+                                        <SelectItem key="consultoria" >Consultoría</SelectItem>
+                                        <SelectItem key="suministros">Suministros</SelectItem>
+                                        <SelectItem key="servicios">Servicios</SelectItem>
                                     </Select>
                                 </>
                             )}
@@ -341,10 +355,10 @@ const ProveedorInfo: React.FC<ProveedorInfoProps> = ({datosProveedor, tipoDocume
                                         placeholder="Seleccionar estado"
                                         description="Estado actual del contrato"
                                     >
-                                        <SelectItem key="borrador" value="borrador">Borrador</SelectItem>
-                                        <SelectItem key="revision" value="revision">En Revisión</SelectItem>
-                                        <SelectItem key="activo" value="activo">Activo</SelectItem>
-                                        <SelectItem key="finalizado" value="finalizado">Finalizado</SelectItem>
+                                        <SelectItem key="borrador">Borrador</SelectItem>
+                                        <SelectItem key="revision">En Revisión</SelectItem>
+                                        <SelectItem key="activo" >Activo</SelectItem>
+                                        <SelectItem key="finalizado">Finalizado</SelectItem>
                                     </Select>
                                     <Input
                                         label="Responsable del Contrato"
@@ -361,7 +375,7 @@ const ProveedorInfo: React.FC<ProveedorInfoProps> = ({datosProveedor, tipoDocume
                             )}
                         </div>
 
-                        {/* Botones de acción *
+                        {/* Botones de acción */}
                         <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
                             <Button
                                 color="default"
@@ -387,136 +401,9 @@ const ProveedorInfo: React.FC<ProveedorInfoProps> = ({datosProveedor, tipoDocume
                         </div>
                     </div>
                 </CardBody>
-            </Card>*/}
+            </Card>
         </div>
     );
 };
 
 export default ProveedorInfo;
-
-/*const ProveedorInfo: React.FC<ProveedorInfoProps> = ({datosProveedor}) => {
-    return (
-        <>
-            <Card isFooterBlurred className="w-full border-none" radius="none">
-                <Image
-                    radius="none"
-                    alt="Woman listing to music"
-                    className="object-cover object-center"
-                    width={1148}
-                    height={200}
-                    src="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=1471&q=80"
-
-                />
-
-                <CardFooter className="justify-between before:bg-white/10 border-white/20 border-1 overflow-hidden py-1 absolute before:rounded-xl rounded-large bottom-1 w-[calc(100%_-_8px)] shadow-small ml-1 z-10">
-                    <Button
-                        className="text-tiny text-white bg-black/20"
-                        color="default"
-                        radius="lg"
-                        size="sm"
-                        variant="flat"
-                    >
-                        Ver Perfil
-                    </Button>
-                </CardFooter>
-            </Card>
-            <Card className="mb-6" radius="none">
-                <CardHeader>
-                    <div className="flex items-center gap-3">
-                        <CalendarIcon className="w-6 h-6 text-green-500"/>
-                        <h2 className="text-xl font-semibold">Datos de la Evaluación</h2>
-                    </div>
-                </CardHeader>
-                <CardBody className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                        <Input
-                            label="Período"
-                            placeholder="2024-Q1"
-                            isRequired
-                        />
-                        <Input
-                            label="Fecha de Evaluación"
-                            type="date"
-                            isRequired
-                        />
-                        <Input
-                            label="Evaluador"
-                            isRequired
-                        />
-                    </div>
-                </CardBody>
-            </Card>
-        </>
-    );
-};
-
-export default ProveedorInfo;*/
-
-{/*<Card
-            isBlurred
-            className="border-none bg-background/60 dark:bg-default-100/50 max-w-[610px]"
-            shadow="sm"
-        >
-            <CardHeader className="bg-blue-600 text-white p-6 rounded-t-lg flex items-center gap-3">
-                <BuildingOfficeIcon className="w-7 h-7"/>
-                <h2 className="text-2xl font-semibold">Información del Proveedor</h2>
-            </CardHeader>
-
-            <CardBody className="p-6 bg-white">
-                <dl className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-6">
-
-                    <div className="flex items-center gap-3">
-                        <UserIcon className="w-6 h-6 text-blue-600 flex-shrink-0"/>
-                        <div>
-                            <dt className="text-sm font-medium text-gray-500">Nombre del Proveedor</dt>
-                            <dd className="mt-1 text-lg font-semibold text-gray-900">{datosProveedor.nombre || "-"}</dd>
-                        </div>
-                    </div>
-
-
-                    <div className="flex items-center gap-3">
-                        <IdentificationIcon className="w-6 h-6 text-blue-600 flex-shrink-0"/>
-                        <div>
-                            <dt className="text-sm font-medium text-gray-500">RUC</dt>
-                            <dd className="mt-1 text-lg font-semibold text-gray-900">{datosProveedor.ruc || "-"}</dd>
-                        </div>
-                    </div>
-
-
-                    <div className="flex items-center gap-3">
-                        <UserIcon className="w-6 h-6 text-blue-600 flex-shrink-0"/>
-                        <div>
-                            <dt className="text-sm font-medium text-gray-500">Contacto Principal</dt>
-                            <dd className="mt-1 text-lg font-semibold text-gray-900">{datosProveedor.contacto || "-"}</dd>
-                        </div>
-                    </div>
-
-
-                    <div className="flex items-center gap-3">
-                        <EnvelopeIcon className="w-6 h-6 text-blue-600 flex-shrink-0"/>
-                        <div>
-                            <dt className="text-sm font-medium text-gray-500">Email</dt>
-                            <dd className="mt-1 text-lg font-semibold text-gray-900">
-                                {datosProveedor.email ? (
-                                    <a href={`mailto:${datosProveedor.email}`}
-                                       className="hover:underline text-blue-700">
-                                        {datosProveedor.email}
-                                    </a>
-                                ) : (
-                                    "-"
-                                )}
-                            </dd>
-                        </div>
-                    </div>
-
-
-                    <div className="flex items-center gap-3">
-                        <PhoneIcon className="w-6 h-6 text-blue-600 flex-shrink-0"/>
-                        <div>
-                            <dt className="text-sm font-medium text-gray-500">Teléfono</dt>
-                            <dd className="mt-1 text-lg font-semibold text-gray-900">{datosProveedor.telefono || "-"}</dd>
-                        </div>
-                    </div>
-                </dl>
-            </CardBody>
-        </Card>*/}

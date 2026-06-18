@@ -21,11 +21,10 @@ import {
     DocumentCheckIcon,
     BanknotesIcon,
     UserGroupIcon,
-    GlobeAltIcon, UserIcon, TrashIcon, PhoneIcon, CloudArrowUpIcon, BriefcaseIcon, MapPinIcon
+    GlobeAltIcon, UserIcon, PhoneIcon, CloudArrowUpIcon, BriefcaseIcon, MapPinIcon
 } from "@heroicons/react/24/outline";
 import {useState} from "react";
-import {Input} from "@heroui/input";
-import {Divider} from "@heroui/divider";
+import {Input, Divider} from "@heroui/react";
 
 interface ContactPerson {
     id: string;
@@ -225,9 +224,7 @@ interface BankReference {
             setAddresses([...addresses, newAddress]);
         };
 
-        const removeAddress = (id: string) => {
-            setAddresses(addresses.filter(addr => addr.id !== id));
-        };
+        // const _removeAddress = (id: string) => { setAddresses(addresses.filter(addr => addr.id !== id)); };
 
         const updateAddress = (id: string, field: keyof Address, value: string) => {
             setAddresses(addresses.map(addr =>
@@ -248,9 +245,7 @@ interface BankReference {
             setContactPersons([...contactPersons, newContact]);
         };
 
-        const removeContactPerson = (id: string) => {
-            setContactPersons(contactPersons.filter(contact => contact.id !== id));
-        };
+        // const _removeContactPerson = (id: string) => { setContactPersons(contactPersons.filter(contact => contact.id !== id)); };
 
         const updateContactPerson = (id: string, field: keyof ContactPerson, value: string) => {
             setContactPersons(contactPersons.map(contact =>
@@ -275,9 +270,7 @@ interface BankReference {
             setBankReferences([...bankReferences, newBank]);
         };
 
-        const removeBankReference = (id: string) => {
-            setBankReferences(bankReferences.filter(bank => bank.id !== id));
-        };
+        // const _removeBankReference = (id: string) => { setBankReferences(bankReferences.filter(bank => bank.id !== id)); };
 
         const updateBankReference = (id: string, field: keyof BankReference, value: string) => {
             setBankReferences(bankReferences.map(bank =>
@@ -509,7 +502,7 @@ interface BankReference {
                                         isRequired
                                     >
                                         {supplierTypes.map((type) => (
-                                            <SelectItem key={type.key} value={type.key}>
+                                            <SelectItem key={type.key} >
                                                 {type.label}
                                             </SelectItem>
                                         ))}
@@ -526,8 +519,8 @@ interface BankReference {
                                         })}
                                         isRequired
                                     >
-                                        <SelectItem key="natural" value="natural">Persona Natural</SelectItem>
-                                        <SelectItem key="juridica" value="juridica">Persona Jurídica</SelectItem>
+                                        <SelectItem key="natural">Persona Natural</SelectItem>
+                                        <SelectItem key="juridica">Persona Jurídica</SelectItem>
                                     </Select>
 
                                     <Select
@@ -542,7 +535,7 @@ interface BankReference {
                                         isRequired
                                     >
                                         {documentTypes.map((doc) => (
-                                            <SelectItem key={doc.key} value={doc.key}>
+                                            <SelectItem key={doc.key} >
                                                 {doc.label}
                                             </SelectItem>
                                         ))}
@@ -636,7 +629,7 @@ interface BankReference {
                                 <Card key={address.id}>
                                     <CardHeader className="flex justify-between items-center">
                                         <h4 className="font-medium">Dirección {index + 1}</h4>
-                                        {addresses.length > 1 && (
+                                        {/* addresses.length > 1 && (
                                             <Button
                                                 size="sm"
                                                 variant="light"
@@ -646,7 +639,7 @@ interface BankReference {
                                             >
                                                 Eliminar
                                             </Button>
-                                        )}
+                                        ) */}
                                     </CardHeader>
                                     <CardBody className="space-y-4">
                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -658,7 +651,7 @@ interface BankReference {
                                                 isRequired
                                             >
                                                 {addressTypes.map((type) => (
-                                                    <SelectItem key={type.key} value={type.key}>
+                                                    <SelectItem key={type.key}>
                                                         {type.label}
                                                     </SelectItem>
                                                 ))}
@@ -750,7 +743,7 @@ interface BankReference {
                                 <Card key={contact.id}>
                                     <CardHeader className="flex justify-between items-center">
                                         <h4 className="font-medium">Contacto {index + 1}</h4>
-                                        {contactPersons.length > 1 && (
+                                        {/* contactPersons.length > 1 && (
                                             <Button
                                                 size="sm"
                                                 variant="light"
@@ -760,7 +753,7 @@ interface BankReference {
                                             >
                                                 Eliminar
                                             </Button>
-                                        )}
+                                        ) */}
                                     </CardHeader>
                                     <CardBody className="space-y-4">
                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -772,7 +765,7 @@ interface BankReference {
                                                 isRequired
                                             >
                                                 {contactTypes.map((type) => (
-                                                    <SelectItem key={type.key} value={type.key}>
+                                                    <SelectItem key={type.key}>
                                                         {type.label}
                                                     </SelectItem>
                                                 ))}
@@ -849,7 +842,7 @@ interface BankReference {
                                 <Card key={bank.id}>
                                     <CardHeader className="flex justify-between items-center">
                                         <h4 className="font-medium">Cuenta Bancaria {index + 1}</h4>
-                                        {bankReferences.length > 1 && (
+                                        {/* bankReferences.length > 1 && (
                                             <Button
                                                 size="sm"
                                                 variant="light"
@@ -859,7 +852,7 @@ interface BankReference {
                                             >
                                                 Eliminar
                                             </Button>
-                                        )}
+                                        ) */}
                                     </CardHeader>
                                     <CardBody className="space-y-4">
                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -887,7 +880,7 @@ interface BankReference {
                                                 isRequired
                                             >
                                                 {accountTypes.map((type) => (
-                                                    <SelectItem key={type.key} value={type.key}>
+                                                    <SelectItem key={type.key}>
                                                         {type.label}
                                                     </SelectItem>
                                                 ))}
@@ -901,7 +894,7 @@ interface BankReference {
                                                 isRequired
                                             >
                                                 {currencies.map((currency) => (
-                                                    <SelectItem key={currency.key} value={currency.key}>
+                                                    <SelectItem key={currency.key}>
                                                         {currency.label}
                                                     </SelectItem>
                                                 ))}
@@ -1197,7 +1190,7 @@ interface BankReference {
                                         isRequired
                                     >
                                         {relationTypes.map((relation) => (
-                                            <SelectItem key={relation.key} value={relation.key}>
+                                            <SelectItem key={relation.key}>
                                                 {relation.label}
                                             </SelectItem>
                                         ))}

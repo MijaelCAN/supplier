@@ -98,3 +98,276 @@
   "U_VIS_SaleAmount": "100",
   "U_VIS_SaleCategory": "D"
 }
+{
+  "statusCode": 200,
+  "message": "Detale de proveedor 151 obtenido correctamente.",
+  "data": {
+    "docEntry": "151",
+    "cardCode": "20606106883",
+    "cardName": "FINE ART SOLUTIONS SOCIEDAD ANONIMA CERRADA",
+    "email": "solutions@industrias.com",
+    // SI
+    "phone": "963852741",
+    // SI
+    "cellPhone": "",
+    // SI
+    "currency": "USD",
+    "website": "",
+    // SI
+    "address": "CAL.FRAY ANGELICO NRO. 483 DPTO. 101 LIMA - LIMA - SAN BORJA",
+    "taxPayerCategory": "",
+    "businessType": "SIN ACTIVIDAD",
+    "personType": "TPJ",
+    "documentType": "",
+    "agenteRetencion": false,
+    "agentePercepcion": false,
+    "exoneradoPercepcion": false,
+    "registradoMype": false,
+    "emisorFacElectronica": false,
+    "estado": "Activo",
+    "condicion": "Habido",
+    "status": "Pendiente",
+    "approvalDate": "",
+    "rejectionReason": [],
+    "rating": 0,
+    "totalOrders": 0,
+    "totalAmount": "",
+    "paymentTerms": "30",
+    "registrationDate": "2025-09-01T05:11:00-05:00",
+    "lastOrderDate": "",
+    "lastProfileUpdate": "",
+    "coverImage": "",
+    "avatar": "",
+    "generalManager": "",
+    "adminManager": "",
+    "salesManager": "",
+    "addresses": [],
+    "contactPerson": "Lopez Saldaño Miguel",
+    "contactEmail": "contacto@gmail.com",
+    "contactPhone": "963852741",
+    "listaContactos": [
+      {
+        "name": "Lopez Saldaño Miguel",
+        "email": "lsaldaño@gmail.com"
+        "phone": 963852741
+        ",
+        "active": true,
+        "position": ""
+      }
+    ],
+    "ServiciosOfrecidos": [],
+    "Documentos": {
+      "certificaciones": [],
+      "licenciaMunicipal": [],
+      "referenciasComerciales": [],
+      "referenciasBancarias": [],
+      "historialPrecios": [],
+      "condicionesPago": [],
+      "vigenciaPoder": [],
+      "fichaRuc": [],
+      "matrizAmbiental": [],
+      "matrizIperc": []
+    }
+  }
+}
+
+
+{
+  "statusCode": 200,
+  "message": "Detale de proveedor 151 obtenido correctamente.",
+  "data": {
+    "docEntry": "151",
+    "cardCode": "20606106883",
+    "cardName": "FINE ART SOLUTIONS SOCIEDAD ANONIMA CERRADA",
+    "email": "solutions@industrias.com",
+    "phone": "963852741",
+    "cellPhone": "987654321",
+    "currency": "S/",
+    "website": "https://www.fineartsolutions.com",
+    "address": "CAL.FRAY ANGELICO NRO. 483 DPTO. 101 LIMA - LIMA - SAN BORJA",
+    "taxPayerCategory": "General",
+    "businessType": "SIN ACTIVIDAD",
+    "personType": "tpj",
+    "documentType": "RUC",
+    "agenteRetencion": true,
+    "agentePercepcion": false,
+    "exoneradoPercepcion": false,
+    "registradoMype": false,
+    "emisorFacElectronica": true,
+    "estado": "Activo",
+    "condicion": "Habido",
+    "status": "Activo",
+    "approvalDate": "2023-03-15T10:00:00Z",
+    "rejectionReason": [],
+    "rating": 6.3,
+    "totalOrders": 45,
+    "totalAmount": 18639,
+    "paymentTerms": "30",
+    "registrationDate": "2019-07-22T09:30:00Z",
+    "lastOrderDate": "2025-08-28T14:25:00Z",
+    "lastProfileUpdate": "2025-08-30T16:00:00Z",
+    "coverImage": "https://images.unsplash.com/photo-1506744038136-46273834b3fb",
+    "avatar": "https://i.pravatar.cc/150?u=proveedor",
+    "generalManager": "Ana María López",
+    "adminManager": "Carlos Ruiz",
+    "salesManager": "Marcela Ramírez",
+    "addresses": [
+      {
+        "address": "Av. Industrial 1234, Piso 5, Oficina 501",
+        "type": "Oficina Principal",
+        "departament": "Lima",
+        "province": "Lima",
+        "city": "Lima",
+        "ubigeo": "150101"
+      },
+      {
+        "address": "Calle Secundaria 789, Local 3",
+        "type": "Sucursal",
+        "departament": "Lima",
+        "province": "Callao",
+        "city": "Callao",
+        "ubigeo": "070101"
+      }
+    ],
+    "contactPerson": "Lopez Saldaño Miguel",
+    "contactEmail": "contacto@gmail.com",
+    "contactPhone": "963852741",
+    "listaContactos": [
+      {
+        "name": "Lopez Saldaño Miguel",
+        "email": "lsaldaño@gmail.com",
+        "phone": "963852741",
+        "active": true,
+        "position": "Gerente de Compras"
+      },
+      {
+        "name": "Diana Morales",
+        "email": "dmorales@fineartsolutions.com",
+        "phone": "+51 987 654 123",
+        "active": true,
+        "position": "Asistente Comercial"
+      }
+    ],
+    "ServiciosOfrecidos": [
+      "Consultoría en arte y diseño",
+      "Soluciones de impresión digital",
+      "Galería y distribución de obras"
+    ],
+    "Documentos": {
+      "certificaciones": [
+        {
+          "cargado": true,
+          "uploadDate": "2024-01-10T09:00:00Z",
+          "archivo": {
+            "name": "iso9001_2015.pdf",
+            "type": "application/pdf",
+            "base64": "JVBERi0xLjUKJcTl8uXrp/Og0MTGCjEgMCBvYmoKPDwvTGluZWFyaXplZCAxL0wgNjg0MTYvTyAzL0..."
+          }
+        }
+      ],
+      "licenciaMunicipal": [
+        {
+          "cargado": true,
+          "uploadDate": "2023-11-20T11:30:00Z",
+          "archivo": {
+            "name": "licencia_municipal.pdf",
+            "type": "application/pdf",
+            "base64": "JVBERi0xLjMKJSVFT0YKMSAwIG9iago8PC9UeXBlL0NvbmRpY2lvbkxpc3QvQ29kZVJhbmdlIDAg..."
+          }
+        }
+      ],
+      "referenciasComerciales": [
+        {
+          "cargado": true,
+          "uploadDate": "2024-02-15T07:45:00Z",
+          "archivo": {
+            "name": "referencias_comerciales.pdf",
+            "type": "application/pdf",
+            "base64": "JVBERi0xLjMKJSVFT0YKMSAwIG9iagpbMC4uXQovUHJvZHVjdHMvRHJhd2luZy9UZW5kZXJcb..."
+          }
+        }
+      ],
+      "referenciasBancarias": [
+        {
+          "cargado": true,
+          "uploadDate": "2024-03-01T08:15:00Z",
+          "archivo": {
+            "name": "referencias_bancarias.pdf",
+            "type": "application/pdf",
+            "base64": "JVBERi0xLjMKJSVFT0YKMSAwIG9iago8PC9MZW5ndGggMTIzPj5zdHJlYW0KVGhpcyBpcyBhIHRlc3QgYmFuayByZWY..."
+          }
+        }
+      ],
+      "historialPrecios": {
+        "cargado": true,
+        "uploadDate": "2025-06-10T10:00:00Z",
+        "archivo": {
+          "name": "historico_precios.xlsx",
+          "type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "base64": "UEsDBBQABgAIAAAAIQCnFQs0DwEAAHgFAAATAAgCW0NvbnRlbnRfVHlwZXNdLnhtbCCiBAIooAAC..."
+        }
+      },
+      "condicionesPago": {
+        "cargado": true,
+        "uploadDate": "2025-07-01T09:00:00Z",
+        "archivo": {
+          "name": "condiciones_pago.pdf",
+          "type": "application/pdf",
+          "base64": "JVBERi0xLjMKJSVFT0YKMSAwIG9iago8PC9UeXBlL0NvbmRpY2lvbkxpc3QvQ29kZVJhbmdlIDAg..."
+        }
+      },
+      "vigenciaPoder": {
+        "cargado": true,
+        "uploadDate": "2024-12-15T14:20:00Z",
+        "archivo": {
+          "name": "vigencia_poder.pdf",
+          "type": "application/pdf",
+          "base64": "JVBERi0xLjMKJSVFT0YKMSAwIG9iagpbMSAxXS9PcmRlcmVkU291cmNlIDIgMCBSL0NvbnRlbnRzIDMgMCBSCj4+CmVuZG9iag=="
+        }
+      },
+      "fichaRuc": {
+        "cargado": true,
+        "uploadDate": "2019-07-22T08:00:00Z",
+        "archivo": {
+          "name": "ficha_ruc.pdf",
+          "type": "application/pdf",
+          "base64": "JVBERi0xLjMKJSVFT0YKMSAwIG9iagpbXS9BaWRFcmVnaXN0ZXJlZCAyIDAgUi9GcmFtZSAzIDAgUi9D..."
+        }
+      },
+      "matrizAmbiental": {
+        "cargado": true,
+        "uploadDate": "2024-05-05T13:00:00Z",
+        "archivo": {
+          "name": "matriz_ambiental.pdf",
+          "type": "application/pdf",
+          "base64": "JVBERi0xLjMKJSVFT0YKMSAwIG9iagpbXS9CYWwzX0VsZW1lbnRPUkQgMiAwIFIvQ29udGVudHMgMyAwIFIKPj4KZW5kb2JqCg=="
+        }
+      },
+      "matrizIperc": {
+        "cargado": true,
+        "uploadDate": "2025-01-08T09:15:00Z",
+        "archivo": {
+          "name": "matriz_iperc.pdf",
+          "type": "application/pdf",
+          "base64": "JVBERi0xLjMKJSVFT0YKMSAwIG9iago8PC9UeXBlL1BhZ2UvUGFyZW50IDEgMCBSL0NvbnRlbnRzIDIgMCBS..."
+        }
+      }
+    }
+  }
+}
+
+{
+  "ServiciosOfrecidos": {
+    "mainActivity": "Personal and business banking, loans and credits, investments, payments and transfers.",
+    "lineaServicios": [
+      {
+        "description": "Cuenta de ahorros, cuenta corriente, tarjetas de crédito, préstamos hipotecarios."
+      },
+      {
+        "description": "Transferencias interbancarias inmediatas y pagos en línea."
+      }
+    ],
+    "paymentCondition": "30 dias"
+  }
+}
+
