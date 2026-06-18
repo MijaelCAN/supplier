@@ -17,14 +17,14 @@ ensureAdminSeeded().catch((error) => {
   console.error('[Firebase Seed] Error al preparar el usuario administrador.', error);
 });
 
-// Una sola vez por carga: probe /health en paralelo (si no hay base en localStorage)
-// antes de montar React, para que login y el resto usen la URL correcta sin reintentos por petición.
-void waitForApiBaseResolution().then(() => {
-  ReactDOM.createRoot(document.getElementById("root")!).render(
-    <React.StrictMode>
-      <Provider>
-        <App />
-      </Provider>
-    </React.StrictMode>,
-  );
-});
+// Probe en background: el httpClient ya espera por esta promesa antes de cada petición,
+// así que no hay necesidad de bloquear el render de React.
+void waitForApiBaseResolution();
+
+ReactDOM.createRoot(document.getElementById("root")!).render(
+  <React.StrictMode>
+    <Provider>
+      <App />
+    </Provider>
+  </React.StrictMode>,
+);
