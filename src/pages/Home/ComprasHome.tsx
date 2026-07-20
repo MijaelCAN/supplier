@@ -468,7 +468,7 @@ const ComprasHome = () => {
                                                     />
                                                     <div>
                                                         <p className="font-semibold text-sm text-gray-900 dark:text-white">{proveedor.cardName}</p>
-                                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{proveedor.businessType}</p>
+                                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{proveedor.cardCode}</p>
                                                     </div>
                                                 </div>
                                                 <div className="text-right">
