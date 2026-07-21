@@ -193,8 +193,8 @@ const ProveedorHome = () => {
                 };
         }
     };
-    const isPagosEnabled = false;
-    const isAgendaEnabled = false;
+    const isPagosEnabled = true;
+    const isAgendaEnabled = true;
 
     const statusConfig = getStatusConfig(realStats.status);
 
@@ -305,7 +305,7 @@ const ProveedorHome = () => {
                                         ? 'cursor-pointer hover:shadow-lg hover:border-gris/50 dark:hover:border-gris/50'
                                         : 'cursor-not-allowed pointer-events-none opacity-50'
                                     }`}
-                                    onClick={() => navigate('/pagos')}
+                                    onClick={() => navigate('/cronograma')}
                                 >
                                     <div className="p-2 rounded-lg bg-gradient-to-br from-gris to-gris/80">
                                         <BanknotesIcon className="h-5 w-5 text-white"/>
