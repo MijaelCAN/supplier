@@ -34,6 +34,8 @@ const SideBar: FC<SideBarProps> = ({sidebarOpen,setSidebarOpen}) => {
         return location.pathname === href || location.pathname.startsWith(href + '/');
     };
 
+    const isExternalLink = (href: string) => /^https?:\/\//i.test(href);
+
     return (
         <aside
             className={`bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 fixed inset-y-0 left-0 z-50 transform w-72 transition-transform duration-300 ease-in-out shadow-lg ${
@@ -112,26 +114,45 @@ const SideBar: FC<SideBarProps> = ({sidebarOpen,setSidebarOpen}) => {
                                         }
                                     >
                                         <div className="space-y-1 ml-11">
-                                            {item.items!.map((subItem, subIndex) => (
-                                                <Link
-                                                    key={subIndex}
-                                                    to={subItem.href!}
-                                                    className={`flex items-center space-x-3 px-3 py-2 rounded-lg text-sm transition-all duration-200 group ${
-                                                        isActive(subItem.href!)
-                                                            ? 'bg-rojo/10 text-rojo dark:bg-rojo/20 dark:text-rojo/80 border-l-2 border-rojo'
-                                                            : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white'
-                                                    }`}
-                                                >
-                                                    <span className={`transition-colors ${
-                                                        isActive(subItem.href!)
-                                                            ? 'text-rojo'
-                                                            : 'text-gray-400 group-hover:text-rojo dark:group-hover:text-rojo'
-                                                    }`}>
-                                                        {subItem.icon}
-                                                    </span>
-                                                    <span>{subItem.title}</span>
-                                                </Link>
-                                            ))}
+                                            {item.items!.map((subItem, subIndex) => {
+                                                const external = isExternalLink(subItem.href!);
+                                                const linkClassName = `flex items-center space-x-3 px-3 py-2 rounded-lg text-sm transition-all duration-200 group ${
+                                                    !external && isActive(subItem.href!)
+                                                        ? 'bg-rojo/10 text-rojo dark:bg-rojo/20 dark:text-rojo/80 border-l-2 border-rojo'
+                                                        : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white'
+                                                }`;
+                                                const iconClassName = `transition-colors ${
+                                                    !external && isActive(subItem.href!)
+                                                        ? 'text-rojo'
+                                                        : 'text-gray-400 group-hover:text-rojo dark:group-hover:text-rojo'
+                                                }`;
+
+                                                return external ? (
+                                                    <a
+                                                        key={subIndex}
+                                                        href={subItem.href!}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className={linkClassName}
+                                                    >
+                                                        <span className={iconClassName}>
+                                                            {subItem.icon}
+                                                        </span>
+                                                        <span>{subItem.title}</span>
+                                                    </a>
+                                                ) : (
+                                                    <Link
+                                                        key={subIndex}
+                                                        to={subItem.href!}
+                                                        className={linkClassName}
+                                                    >
+                                                        <span className={iconClassName}>
+                                                            {subItem.icon}
+                                                        </span>
+                                                        <span>{subItem.title}</span>
+                                                    </Link>
+                                                );
+                                            })}
                                         </div>
                                     </AccordionItem>
                                 </Accordion>

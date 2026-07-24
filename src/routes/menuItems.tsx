@@ -281,19 +281,19 @@ export const menuItems: MenuItem[] = [
     {
         title: "Guia de Ayuda",
         icon: <InformationCircleIcon className="h-5 w-5" />,
-        roles: [UserRole.ADMIN, UserRole.COMPRAS ],
+        roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.FINANZAS, UserRole.SOLICITANTE, UserRole.CALIDAD, UserRole.ALMACEN, UserRole.SEGURIDAD, UserRole.PLANEAMIENTO],
         items: [
             {
                 title: "Manual de uso",
                 icon: <DocumentTextIcon className="h-4 w-4" />,
-                href: "/ayuda/manual",
-                roles: [UserRole.ADMIN, UserRole.COMPRAS]
+                href: "http://190.12.79.132:8046/api/S3?Name=VISTOLINK%20MANUAL%20DEL%20PROVEEDOR.pdf&RutaS3=ManuelUsoPortal/",
+                roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.FINANZAS, UserRole.SOLICITANTE, UserRole.CALIDAD, UserRole.ALMACEN, UserRole.SEGURIDAD, UserRole.PLANEAMIENTO]
             },
             {
                 title: "Video",
                 icon: <VideoCameraIcon className="h-4 w-4" />,
-                href: "/ayuda/video",
-                roles: [UserRole.ADMIN, UserRole.COMPRAS]
+                href: "http://190.12.79.132:8046/api/S3?Name=VISTOLINK%20MANUAL%20DE%20USUARIO%20INTERNO%20%28COMPRAS%29.pdf&RutaS3=ManuelUsoPortal/",
+                roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.FINANZAS, UserRole.SOLICITANTE, UserRole.CALIDAD, UserRole.ALMACEN, UserRole.SEGURIDAD, UserRole.PLANEAMIENTO]
             }
         ]
     }
