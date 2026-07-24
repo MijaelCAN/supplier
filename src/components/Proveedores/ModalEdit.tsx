@@ -165,7 +165,8 @@ import {
     Input,
     Select,
     SelectItem,
-    Divider
+    Divider,
+    addToast
 } from "@heroui/react";
 import {Supplier} from "@/store/types";
 import {useExtendedStore} from "@/store/extendedStore.ts";
@@ -360,9 +361,23 @@ const ModalEdit: FC<ModalEditProps> = ({
                 await onUpdated();
             }
 
+            addToast({
+                title: 'Proveedor actualizado',
+                description: 'Los cambios se guardaron correctamente.',
+                color: 'success',
+                timeout: 3000,
+            });
+
             onEditClose();
         } catch (error) {
             console.error('Error al actualizar el proveedor:', error)
+            const message = error instanceof Error ? error.message : 'No se pudo actualizar el proveedor.';
+            addToast({
+                title: 'Error al actualizar',
+                description: message,
+                color: 'danger',
+                timeout: 4000,
+            });
         }
     }
 
