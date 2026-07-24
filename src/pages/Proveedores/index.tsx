@@ -16,6 +16,7 @@ import {
     Card,
     CardBody,
     Alert,
+    addToast,
 } from "@heroui/react";
 import {
     ChevronDownIcon,
@@ -43,6 +44,8 @@ import {getPersonTypeEnumKey} from "@/pages/Proveedores/Profile/CardProfile.tsx"
 import { useAuthStore } from '@/store/authStore';
 import { UserRole } from '@/routes/menuTypes';
 import { DateInput } from "@/components/DateInput";
+import * as XLSX from 'xlsx';
+import { saveAs } from 'file-saver';
 
 const statusColorMap: Record<string, ChipProps["color"]> = {
     Activo: "success",
@@ -371,6 +374,66 @@ export default function SupplierManagement() {
         setPage(1);
     };
 
+    const handleExport = () => {
+        // Si hay filas seleccionadas, exportamos solo esas; si no hay ninguna
+        // seleccionada, exportamos todo lo que está filtrado en la tabla.
+        const suppliersToExport = selectedKeys === "all"
+            ? filteredItems
+            : selectedKeys.size > 0
+                ? filteredItems.filter((supplier) => (selectedKeys as Set<Key>).has(supplier.docEntry))
+                : filteredItems;
+
+        if (suppliersToExport.length === 0) {
+            addToast({ title: 'No hay proveedores para exportar', color: 'warning' });
+            return;
+        }
+
+        try {
+            const dataToExport = suppliersToExport.map((supplier) => ({
+                'RUC': supplier.RUC || supplier.cardCode,
+                'Razón Social': supplier.cardName,
+                'Email': supplier.email,
+                'Teléfono': supplier.phone,
+                'Contacto': supplier.contactPerson?.[0]?.name || '-',
+                'Email de contacto': supplier.contactPerson?.[0]?.email || supplier.contactEmail || '-',
+                'Tipo de negocio': getPersonTypeEnumKey(supplier.businessType),
+                'Rating': supplier.rating,
+                'Órdenes': supplier.totalOrders,
+                'Monto total (S/)': supplier.totalAmount,
+                'Estado': statusLabels[supplier.status] || supplier.status,
+                'Fecha de registro': supplier.registrationDate || '-',
+            }));
+
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.json_to_sheet(dataToExport);
+            ws['!cols'] = [
+                { wch: 15 }, // RUC
+                { wch: 35 }, // Razón Social
+                { wch: 28 }, // Email
+                { wch: 16 }, // Teléfono
+                { wch: 25 }, // Contacto
+                { wch: 28 }, // Email de contacto
+                { wch: 22 }, // Tipo de negocio
+                { wch: 10 }, // Rating
+                { wch: 10 }, // Órdenes
+                { wch: 16 }, // Monto total
+                { wch: 14 }, // Estado
+                { wch: 16 }, // Fecha de registro
+            ];
+            XLSX.utils.book_append_sheet(wb, ws, 'Proveedores');
+
+            const fechaActual = new Date().toISOString().split('T')[0].replace(/-/g, '');
+            const fileName = `Proveedores_${fechaActual}.xlsx`;
+
+            const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+            const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+            saveAs(blob, fileName);
+        } catch (error) {
+            console.error('Error al exportar proveedores:', error);
+            addToast({ title: 'Error al exportar proveedores', color: 'danger' });
+        }
+    };
+
     const topContent = useMemo(() => {
         return (
             <div className="flex flex-col gap-4">
@@ -527,7 +590,7 @@ export default function SupplierManagement() {
         <Dashboard>
             <div className="w-full space-y-6">
 
-                <HeaderComponent title={title} subtitle={subtitle} isOptions={true} onRegisterOpen={onRegisterOpen} canCreate={canCreateSupplier} />
+                <HeaderComponent title={title} subtitle={subtitle} isOptions={true} onRegisterOpen={onRegisterOpen} onExport={handleExport} canCreate={canCreateSupplier} />
                 {/* Stats Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"   >
                     <Card>

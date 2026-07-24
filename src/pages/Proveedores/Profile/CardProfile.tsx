@@ -27,6 +27,7 @@ import { fetchSupplierByCardCode, updateSupplierProfile, type SupplierApiRecord,
 import { fetchCondicionesPago, type CondicionPago } from '@/services/maestros/condicionesPagoApi';
 import { generateSupplierPDF, openSupplierPDFInNewTab } from '@/utils/pdfGenerator';
 import { UbigeoSelector } from '@/components/UbigeoSelector';
+import {undefined} from "zod";
 
 export enum PersonaTypeCode {
     JURIDICA = 'TPJ',
@@ -871,6 +872,15 @@ const SupplierProfileCard = () => {
         try {
             const payload: SupplierApiRecord = {
                 ...formData,
+                // tipo_persona, tipo_documento y condicion_pago ahora vienen del API como texto legible
+                // (antes venían como código). El backend sigue esperando el código en el PATCH, así que
+                // se envía desde los campos cod_* que trae el API para mostrar el valor real.
+                cod_tipo_persona: undefined,
+                cod_tipo_documeto: undefined,
+                cod_condicion_pago: undefined,
+                tipo_persona: formData.cod_tipo_persona || formData.tipo_persona,
+                tipo_documento:formData.cod_tipo_documeto || formData.tipo_documento,
+                condicion_pago: formData.cod_condicion_pago || formData.condicion_pago,
                 cover_image: normalizeImagePayloadValue(savedCoverImageRef.current || formData.cover_image || ''),
                 avatar: normalizeImagePayloadValue(savedAvatarRef.current || formData.avatar || ''),
             };
@@ -1097,21 +1107,21 @@ const SupplierProfileCard = () => {
                                                 onValueChange={(value) => handleFieldChange('ruc', value)}
                                                 isDisabled
                                             />
-                                            <Input 
-                                                label="Tipo de Persona" 
-                                                value={getPersonTypeLabel(formData.tipo_persona || '')} 
+                                            <Input
+                                                label="Tipo de Persona"
+                                                value={formData.tipo_persona || getPersonTypeLabel(formData.cod_tipo_persona || '')}
                                                 onValueChange={(value) => handleFieldChange('tipo_persona', value)}
                                                 isReadOnly
                                                 isDisabled
-                                                description={formData.tipo_persona ? `Código: ${formData.tipo_persona}` : undefined}
+                                                description={formData.cod_tipo_persona ? `Código: ${formData.cod_tipo_persona}` : undefined}
                                             />
-                                            <Input 
-                                                label="Tipo de Documento" 
-                                                value={getDocumentTypeLabel(formData.tipo_documento || '')} 
+                                            <Input
+                                                label="Tipo de Documento"
+                                                value={formData.tipo_documento || getDocumentTypeLabel(formData.cod_tipo_documeto || '')}
                                                 onValueChange={(value) => handleFieldChange('tipo_documento', value)}
                                                 isReadOnly
                                                 isDisabled
-                                                description={formData.tipo_documento ? `Código: ${formData.tipo_documento}` : undefined}
+                                                description={formData.cod_tipo_documeto ? `Código: ${formData.cod_tipo_documeto}` : undefined}
                                             />
                                             <Input 
                                                 label="Moneda"
@@ -1147,7 +1157,7 @@ const SupplierProfileCard = () => {
                                             <Select
                                                 label="Condición de Pago"
                                                 placeholder={isLoadingCondicionesPago ? "Cargando..." : "Seleccione una condición"}
-                                                selectedKeys={formData.condicion_pago ? [formData.condicion_pago] : []}
+                                                selectedKeys={formData.cod_condicion_pago ? [formData.cod_condicion_pago] : (formData.condicion_pago ? [formData.condicion_pago] : [])}
                                                 onSelectionChange={(keys) => {
                                                     if (keys === 'all') return;
                                                     const selectedKey = Array.from(keys)[0] as string | undefined;

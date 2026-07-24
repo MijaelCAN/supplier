@@ -53,18 +53,21 @@ export interface SupplierApiRecord {
     nombre_sn: string;
     ruc: string;
     tipo_persona: string;
+    cod_tipo_persona?: string;
     moneda: string;
     telefono1: string;
     telefono2: string;
     telefono_movil: string;
     correo: string;
     tipo_documento: string;
+    cod_tipo_documeto?: string;
     direccion: string; // falta
     distrito: string;
     provincia: string;
     departamento: string;
     ubigeo: string;
     condicion_pago: string;
+    cod_condicion_pago?: string;
     direccion_sunat: string;
     resolucion_agente_retencion: string;
     resolucion_agente_percepcion: string;

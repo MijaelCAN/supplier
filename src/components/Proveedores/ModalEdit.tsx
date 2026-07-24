@@ -341,6 +341,10 @@ const ModalEdit: FC<ModalEditProps> = ({
                 departamento: data.department,
                 provincia: data.province,
                 distrito: data.district,
+                // tipo_persona y tipo_documento ahora vienen del API como texto legible
+                // (antes venían como código). El backend sigue esperando el código en el PATCH.
+                tipo_persona: apiRecord.cod_tipo_persona || apiRecord.tipo_persona,
+                tipo_documento: apiRecord.cod_tipo_documeto || apiRecord.tipo_documento,
                 condicion_pago: data.paymentTerms,
                 status: data.status,
                 contactos: contactos,

@@ -79,6 +79,36 @@ const ScheduleInvoices: React.FC = () => {
     return dateStr.replace(/-/g, '');
   };
 
+  // La retención (3%) solo aplica a proveedores/facturas sujetos a retención.
+  // Usamos como señal el monto de retención que envía el backend para la factura completa:
+  // si viene en 0, el proveedor no está sujeto y no se retiene nada.
+  const RETENTION_RATE = 0.03;
+
+  const isInvoiceSubjectToRetention = (invoice: Invoice & { retention?: number }): boolean => {
+    return (invoice.retention || 0) > 0;
+  };
+
+  // Calcula la retención (3%) proporcional al monto que se va a programar ahora,
+  // no sobre el total de la factura (relevante para pagos parciales/en cuotas).
+  const calculateRetentionAmount = (invoice: Invoice & { retention?: number }, rawAmount: string): number => {
+    if (!isInvoiceSubjectToRetention(invoice)) return 0;
+    const amount = parseFloat(rawAmount) || 0;
+    return Math.round(amount * RETENTION_RATE * 100) / 100;
+  };
+
+  // Tope máximo de "Importe a Pagar":
+  // - Sin retención: no puede superar el importe de la factura.
+  // - Con retención: el importe a pagar P y su retención (3% de P) no pueden sumar
+  //   más que el importe de la factura, es decir P <= ImporteFactura / (1 + 3%).
+  // Cuando no hay retención esta misma fórmula se reduce al caso anterior (P <= ImporteFactura).
+  const getMaxImportePagar = (invoice: Invoice & { retention?: number }): number => {
+    const facturaAmount = invoice.amount || 0;
+    if (!isInvoiceSubjectToRetention(invoice)) return facturaAmount;
+    return Math.floor((facturaAmount / (1 + RETENTION_RATE)) * 100) / 100;
+  };
+
+  const AMOUNT_EPSILON = 0.005;
+
   // Load invoices function
   const loadInvoicesForSchedule = useCallback(async () => {
     if (!isProvider) {
@@ -236,6 +266,16 @@ const ScheduleInvoices: React.FC = () => {
     return filteredInvoices.slice(start, end);
   }, [invoicePage, filteredInvoices, rowsPerPage]);
 
+  const hasInvalidSelectedAmounts = useMemo(() => {
+    return invoiceItems.some(inv => {
+      if (!selectedInvoices.has(inv.id)) return false;
+      const rawAmount = editedImportePagar[inv.id];
+      const amount = parseFloat(rawAmount ?? '');
+      if (!rawAmount || rawAmount.trim() === '' || isNaN(amount) || amount <= 0) return true;
+      return amount > getMaxImportePagar(inv) + AMOUNT_EPSILON;
+    });
+  }, [invoiceItems, selectedInvoices, editedImportePagar]);
+
   const handleSelectAll = (isSelected: boolean) => {
     if (isSelected) {
       const allIds = new Set(invoiceItems.map(inv => inv.id));
@@ -273,13 +313,49 @@ const ScheduleInvoices: React.FC = () => {
       return;
     }
 
+    const invoicesWithInvalidAmount = invoiceItems.filter(inv => {
+      if (!selectedInvoices.has(inv.id)) return false;
+      const rawAmount = editedImportePagar[inv.id];
+      const amount = parseFloat(rawAmount ?? '');
+      return !rawAmount || rawAmount.trim() === '' || isNaN(amount) || amount <= 0;
+    });
+
+    if (invoicesWithInvalidAmount.length > 0) {
+      addToast({
+        title: 'Monto ingresado inválido',
+        description: 'Ingresa un monto mayor a 0 para cada factura seleccionada',
+        color: 'warning',
+      });
+      return;
+    }
+
+    const invoicesExceedingMax = invoiceItems.filter(inv => {
+      if (!selectedInvoices.has(inv.id)) return false;
+      const rawAmount = editedImportePagar[inv.id];
+      const amount = parseFloat(rawAmount ?? '') || 0;
+      return amount > getMaxImportePagar(inv) + AMOUNT_EPSILON;
+    });
+
+    if (invoicesExceedingMax.length > 0) {
+      addToast({
+        title: 'Monto ingresado supera lo permitido',
+        description: 'El importe a pagar no puede superar el importe de la factura (descontando la retención, si aplica)',
+        color: 'warning',
+      });
+      return;
+    }
+
     const invoicesToSchedule = invoiceItems
       .filter(inv => selectedInvoices.has(inv.id))
-      .map(inv => ({
-        invoice: inv,
-        scheduleDate: scheduleDate,
-        editedImportePagar: editedImportePagar[inv.id]
-      }));
+      .map(inv => {
+        const rawAmount = editedImportePagar[inv.id];
+        return {
+          invoice: inv,
+          scheduleDate: scheduleDate,
+          editedImportePagar: rawAmount,
+          retentionAmount: calculateRetentionAmount(inv, rawAmount)
+        };
+      });
 
     setIsScheduling(true);
     try {
@@ -532,6 +608,12 @@ const ScheduleInvoices: React.FC = () => {
                     <TableBody emptyContent="No se encontraron facturas">
                       {invoiceItems.map((invoice) => {
                         const isSelected = selectedInvoices.has(invoice.id);
+                        const currentAmountRaw = editedImportePagar[invoice.id] ?? String((invoice as Invoice & { importePagar?: number }).importePagar || 0);
+                        const currentAmount = parseFloat(currentAmountRaw) || 0;
+                        const currentRetention = calculateRetentionAmount(invoice, currentAmountRaw);
+                        const currentNetTotal = Math.max(currentAmount - currentRetention, 0);
+                        const maxImportePagar = getMaxImportePagar(invoice);
+                        const isAmountExceedingMax = currentAmount > maxImportePagar + AMOUNT_EPSILON;
                         return (
                           <TableRow key={invoice.id}>
                             <TableCell>
@@ -604,7 +686,7 @@ const ScheduleInvoices: React.FC = () => {
                               {new Intl.NumberFormat('es-PE', {
                                 style: 'currency',
                                 currency: invoice.currency === 'PEN' ? 'PEN' : 'USD'
-                              }).format(invoice.retention || 0)}
+                              }).format(currentRetention)}
                             </p>
                           </TableCell>
                           <TableCell 
@@ -621,6 +703,11 @@ const ScheduleInvoices: React.FC = () => {
                                 <Input
                                   type="number"
                                   size="sm"
+                                  min="0.01"
+                                  max={maxImportePagar.toFixed(2)}
+                                  step="0.01"
+                                  isInvalid={isAmountExceedingMax}
+                                  errorMessage={isAmountExceedingMax ? `Máximo: S/ ${maxImportePagar.toFixed(2)}` : undefined}
                                   value={editedImportePagar[invoice.id] ?? String((invoice as Invoice & { importePagar?: number }).importePagar || 0)}
                                   onValueChange={(value) => {
                                     setEditedImportePagar(prev => ({
@@ -628,7 +715,7 @@ const ScheduleInvoices: React.FC = () => {
                                       [invoice.id]: value
                                     }));
                                   }}
-                                  
+
                                   classNames={{
                                     base: "w-full flex justify-end",
                                     input: "text-right",
@@ -653,7 +740,7 @@ const ScheduleInvoices: React.FC = () => {
                               {new Intl.NumberFormat('es-PE', {
                                 style: 'currency',
                                 currency: invoice.currency === 'PEN' ? 'PEN' : 'USD'
-                              }).format(invoice.saldo || invoice.amount)}
+                              }).format(currentNetTotal)}
                             </p>
                           </TableCell>
                         </TableRow>
@@ -686,7 +773,7 @@ const ScheduleInvoices: React.FC = () => {
               <Button
                 color="primary"
                 onPress={handleScheduleInvoices}
-                isDisabled={selectedInvoices.size === 0 || !scheduleDate || isScheduling}
+                isDisabled={selectedInvoices.size === 0 || !scheduleDate || isScheduling || hasInvalidSelectedAmounts}
                 isLoading={isScheduling}
               >
                 Programar {selectedInvoices.size > 0 ? `${selectedInvoices.size} ` : ''}Factura(s)
