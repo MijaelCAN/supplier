@@ -27,7 +27,7 @@ import { fetchSupplierByCardCode, updateSupplierProfile, type SupplierApiRecord,
 import { fetchCondicionesPago, type CondicionPago } from '@/services/maestros/condicionesPagoApi';
 import { generateSupplierPDF, openSupplierPDFInNewTab } from '@/utils/pdfGenerator';
 import { UbigeoSelector } from '@/components/UbigeoSelector';
-import {undefined} from "zod";
+//import {undefined} from "zod";
 
 export enum PersonaTypeCode {
     JURIDICA = 'TPJ',

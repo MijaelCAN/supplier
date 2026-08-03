@@ -21,8 +21,8 @@ import {
     InformationCircleIcon,
     VideoCameraIcon
 } from "@heroicons/react/24/outline";
-import {MenuItem, UserRole} from "@/routes/menuTypes.ts";
-import {CalculatorIcon} from "@heroicons/react/16/solid";
+import { MenuItem, UserRole } from "@/routes/menuTypes.ts";
+import { CalculatorIcon } from "@heroicons/react/16/solid";
 
 /*export const menuItems: MenuItem[] = [
     {
@@ -137,7 +137,7 @@ export const menuItems: MenuItem[] = [
         items: [
             {
                 title: "Solicitud de compra",
-                icon: <ClipboardDocumentListIcon  className="h-4 w-4" />,
+                icon: <ClipboardDocumentListIcon className="h-4 w-4" />,
                 href: "/solicitud-compra",
                 roles: [UserRole.ADMIN,]
             },
@@ -194,7 +194,7 @@ export const menuItems: MenuItem[] = [
     {
         title: "Finanzas",
         icon: <CurrencyDollarIcon className="h-5 w-5" />,
-        roles: [UserRole.ADMIN, UserRole.FINANZAS],
+        roles: [UserRole.ADMIN, UserRole.FINANZAS, UserRole.COMPRAS,],
         items: [
             {
                 title: "Estado de Pagos",
@@ -213,13 +213,23 @@ export const menuItems: MenuItem[] = [
                 icon: <CalculatorIcon className="h-4 w-4" />,
                 href: "/finanzas/conciliacion",
                 roles: [UserRole.ADMIN, UserRole.FINANZAS]
-            }
+            },
+            {
+                title: "Confirmación RHE y FE",
+                icon: <DocumentTextIcon className="h-4 w-4" />,
+                href: "/finanzas/confirmacion-rhe-fe",
+                roles: [
+                    UserRole.ADMIN,
+                    UserRole.FINANZAS,
+                    UserRole.COMPRAS,
+                ],
+            },
         ]
     },
     {
         title: "Reportes",
         icon: <ChartBarIcon className="h-5 w-5" />,
-        roles: [UserRole.ADMIN, UserRole.PLANEAMIENTO ],
+        roles: [UserRole.ADMIN, UserRole.PLANEAMIENTO],
         items: [
             {
                 title: "Análisis de proveedores",
@@ -250,7 +260,7 @@ export const menuItems: MenuItem[] = [
     {
         title: "Configuración",
         icon: <Cog6ToothIcon className="h-5 w-5" />,
-        roles: [UserRole.ADMIN ],
+        roles: [UserRole.ADMIN],
         items: [
             {
                 title: "Perfil",
