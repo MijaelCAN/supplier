@@ -22,7 +22,6 @@ import {
   TableRow,
 } from "@heroui/react";
 import {
-  ArrowDownTrayIcon,
   EllipsisVerticalIcon,
   EyeIcon,
   MagnifyingGlassIcon,
