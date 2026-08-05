@@ -54,42 +54,43 @@ interface ComprobanteSunat {
 interface CuotaSunatApi {
   numero: string;
   monto: number;
-  fechaVencimiento: string | null;
+  fecha_vencimiento: string | null;
 }
 
 interface ComprobanteSunatApi {
-  rucEmisor: string;
-  rucAdquirente: string;
-  razonSocialAdquirente: string;
-  codigoTipoComprobante: string;
+  ruc_emisor: string;
+  razon_social_emisor: string;
+  ruc_adquirente: string;
+  razon_social_adquirente: string;
+  codigo_tipo_comprobante: string;
   serie: string;
-  numeroComprobante: number;
-  fechaEmision: string;
-  fechaPuestaDisposicion: string;
-  fechaPlazoPago: string;
-  plazoPendiente: number;
-  montoPendientePago: number;
-  codigoMoneda: string;
-  importeTotalFactura: number;
-  montoTotalRhe: number;
-  montoRetencionRhe: number;
-  montoNetoRhe: number;
+  numero_comprobante: number;
+  fecha_emision: string;
+  fecha_puesta_disposicion: string;
+  fecha_plazo_pago: string;
+  plazo_pendiente: number;
+  monto_pendiente_pago: number;
+  codigo_moneda: string;
+  importe_total_factura: number;
+  monto_total_rhe: number;
+  monto_retencion_rhe: number;
+  monto_neto_rhe: number;
   cuotas: CuotaSunatApi[];
-}
-
-interface ComprobantesPendientesResponse {
-  totalRegistros: number;
-  numeroPagina: number;
-  registrosPorPagina: number;
-  resumen: ResumenComprobantesApi;
-  comprobantes: ComprobanteSunatApi[];
 }
 
 interface ResumenComprobantesApi {
   vencidos: number;
-  venceHoyOMañana: number;
-  venceEnDosDias: number;
-  masDeDosDias: number;
+  "vence_hoy_o_mañana": number;
+  vence_en_dos_dias: number;
+  mas_de_dos_dias: number;
+}
+
+interface ComprobantesPendientesResponse {
+  total_registros: number;
+  numero_pagina: number;
+  registros_por_pagina: number;
+  resumen: ResumenComprobantesApi;
+  comprobantes: ComprobanteSunatApi[];
 }
 
 type EstadoPlazo = "dentro-plazo" | "por-vencer" | "vencido";
@@ -167,9 +168,9 @@ const ConfirmacionRheFe = () => {
   const [totalRegistros, setTotalRegistros] = useState(0);
   const [resumen, setResumen] = useState<ResumenComprobantesApi>({
     vencidos: 0,
-    venceHoyOMañana: 0,
-    venceEnDosDias: 0,
-    masDeDosDias: 0,
+    "vence_hoy_o_mañana": 0,
+    vence_en_dos_dias: 0,
+    mas_de_dos_dias: 0,
   });
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -251,28 +252,25 @@ const ConfirmacionRheFe = () => {
 
       const data: ComprobantesPendientesResponse = await response.json();
 
+      console.log("Resumen API:", data.resumen);
+
       const comprobantesMapeados: ComprobanteSunat[] =
         data.comprobantes.map((item) => ({
-          id: `${item.rucEmisor}-${item.codigoTipoComprobante}-${item.serie}-${item.numeroComprobante}`,
-          numero: `${item.serie}-${item.numeroComprobante}`,
-          rucEmisor: item.rucEmisor,
-          emisor: "Razón social no disponible",
-          rucAdquirente: item.rucAdquirente || "-",
-          adquirente: item.razonSocialAdquirente || "Adquirente no disponible",
-          fechaEmision: formatearFecha(item.fechaEmision),
+          id: `${item.ruc_emisor}-${item.codigo_tipo_comprobante}-${item.serie}-${item.numero_comprobante}`,
+
+          numero: `${item.serie}-${item.numero_comprobante}`,
+          rucEmisor: item.ruc_emisor,
+          emisor: item.razon_social_emisor || "Razón social no disponible",
+          rucAdquirente: item.ruc_adquirente || "-",
+          adquirente: item.razon_social_adquirente || "Adquirente no disponible",
+          fechaEmision: formatearFecha(item.fecha_emision),
           formaPago: item.cuotas?.length ? "Crédito" : "Contado",
-          fechaPuestaDisposicion: formatearFechaHora(item.fechaPuestaDisposicion),
-          plazoPendiente: item.plazoPendiente,
-          fechaPagoAcordado: formatearFecha(item.fechaPlazoPago),
-          montoPendiente:
-            item.codigoTipoComprobante === "02"
-              ? item.montoNetoRhe
-              : item.montoPendientePago,
-          moneda: item.codigoMoneda,
-          importeTotal:
-            item.codigoTipoComprobante === "02"
-              ? item.montoTotalRhe
-              : item.importeTotalFactura,
+          fechaPuestaDisposicion: formatearFechaHora(item.fecha_puesta_disposicion),
+          plazoPendiente: item.plazo_pendiente,
+          fechaPagoAcordado: formatearFecha(item.fecha_plazo_pago),
+          montoPendiente: item.codigo_tipo_comprobante === "02" ? item.monto_neto_rhe : item.monto_pendiente_pago,
+          moneda: item.codigo_moneda,
+          importeTotal: item.codigo_tipo_comprobante === "02" ? item.monto_total_rhe : item.importe_total_factura,
           marcaConformidad: "Sin evaluación",
           condicionConformidad: "Sin datos",
           estado: "Pendiente",
@@ -280,17 +278,17 @@ const ConfirmacionRheFe = () => {
         }));
 
       setComprobantes(comprobantesMapeados);
-      setTotalRegistros(data.totalRegistros);
+      setTotalRegistros(data.total_registros);
       setResumen(data.resumen);
-      setPagina(data.numeroPagina);
+      setPagina(data.numero_pagina);
     } catch (errorConsulta) {
       console.error(errorConsulta);
 
       setResumen({
         vencidos: 0,
-        venceHoyOMañana: 0,
-        venceEnDosDias: 0,
-        masDeDosDias: 0,
+        "vence_hoy_o_mañana": 0,
+        vence_en_dos_dias: 0,
+        mas_de_dos_dias: 0,
       });
 
       setComprobantes([]);
@@ -323,8 +321,7 @@ const ConfirmacionRheFe = () => {
       ? comprobantes.length
       : comprobantesSeleccionados.size;
 
-  const porVencer =
-    resumen.venceHoyOMañana + resumen.venceEnDosDias;
+  const porVencer = resumen["vence_hoy_o_mañana"] + resumen.vence_en_dos_dias;
 
   return (
     <Dashboard>
@@ -511,7 +508,7 @@ const ConfirmacionRheFe = () => {
                   </p>
 
                   <p className="mt-2 text-3xl font-bold text-success">
-                    {resumen.masDeDosDias}
+                    {resumen.mas_de_dos_dias}
                   </p>
 
                   <p className="mt-1 text-xs text-gray-500">
@@ -983,7 +980,7 @@ const ConfirmacionRheFe = () => {
                 {cantidadSeleccionada} comprobante(s) seleccionado(s)
               </p>
 
-             {/*
+              {/*
               <div className="flex flex-wrap justify-end gap-3">
                 <Button
                   color="primary"
