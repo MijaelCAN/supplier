@@ -232,6 +232,13 @@ const EvaluationPage: React.FC = () => {
         return 'danger';
     };
 
+    // Etiqueta visible del estado de calidad. El valor interno 'OBSERVADO' se mantiene
+    // (persistencia, transiciones de estado, etc.) por aclaración de Auditoría sobre términos.
+    const getEstadoMercaderiaLabel = (estado?: string) => {
+        if (estado === 'OBSERVADO') return 'APROBADO POR CONCESIÓN';
+        return estado;
+    };
+
     const getBadgeColor = (badge?: string) => {
         switch (badge) {
             case 'Excelente':
@@ -836,7 +843,7 @@ const EvaluationPage: React.FC = () => {
                                                             size="lg"
                                                             className="font-semibold"
                                                         >
-                                                            {criterion.data.estado}
+                                                            {getEstadoMercaderiaLabel(criterion.data.estado)}
                                                         </Chip>
                                                     </div>
                                                 )}
@@ -865,7 +872,7 @@ const EvaluationPage: React.FC = () => {
                                                         {detailModalType === 'estadoMercaderia' && criterion.data.estado === 'ACEPTADO'
                                                             ? 'Comentario'
                                                             : detailModalType === 'estadoMercaderia' && criterion.data.estado === 'OBSERVADO'
-                                                            ? 'Motivo de Observación'
+                                                            ? 'Motivo de Aprobación por Concesión'
                                                             : detailModalType === 'estadoMercaderia' && criterion.data.estado === 'RECHAZADO'
                                                             ? 'Motivo de Rechazo'
                                                             : 'Comentario'}

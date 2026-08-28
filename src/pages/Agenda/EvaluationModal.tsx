@@ -44,6 +44,14 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({
     const [estadoMercaderia, setEstadoMercaderia] = useState<'ACEPTADO' | 'OBSERVADO' | 'RECHAZADO' | ''>('');
     const [files, setFiles] = useState<File[]>([]); // Múltiples archivos para estadoMercaderia
 
+    // Etiquetas visibles para el estado de calidad. El valor interno 'OBSERVADO' se mantiene
+    // (persistencia, transiciones de estado, etc.) por aclaración de Auditoría sobre términos.
+    const ESTADO_MERCADERIA_LABELS: Record<'ACEPTADO' | 'OBSERVADO' | 'RECHAZADO', string> = {
+        ACEPTADO: 'ACEPTADO',
+        OBSERVADO: 'APROBADO POR CONCESIÓN',
+        RECHAZADO: 'RECHAZADO',
+    };
+
     // Títulos y descripciones según el tipo
     const getEvaluationConfig = () => {
         switch (evaluationType) {
@@ -137,11 +145,11 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({
         // Validaciones específicas para estadoMercaderia
         if (evaluationType === 'estadoMercaderia') {
             if (!estadoMercaderia) {
-                alert('Por favor seleccione un estado (ACEPTADO, OBSERVADO o RECHAZADO)');
+                alert('Por favor seleccione un estado (ACEPTADO, APROBADO POR CONCESIÓN o RECHAZADO)');
                 return;
             }
             if ((estadoMercaderia === 'OBSERVADO' || estadoMercaderia === 'RECHAZADO') && !comment.trim()) {
-                const tipoMotivo = estadoMercaderia === 'OBSERVADO' ? 'observación' : 'rechazo';
+                const tipoMotivo = estadoMercaderia === 'OBSERVADO' ? 'aprobación por concesión' : 'rechazo';
                 alert(`Por favor ingrese el motivo de ${tipoMotivo}`);
                 return;
             }
@@ -379,7 +387,7 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({
                                                                 }`}
                                                             >
                                                                 <div className="flex flex-col items-center gap-2">
-                                                                    <span className="font-semibold text-lg">{estado}</span>
+                                                                    <span className="font-semibold text-lg">{ESTADO_MERCADERIA_LABELS[estado]}</span>
                                                                 </div>
                                                             </button>
                                                         ))}
@@ -392,7 +400,7 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({
                                                         estadoMercaderia === 'ACEPTADO'
                                                             ? 'Comentario (Opcional)'
                                                             : estadoMercaderia === 'OBSERVADO'
-                                                            ? 'Motivo de Observación'
+                                                            ? 'Motivo de Aprobación por Concesión'
                                                             : estadoMercaderia === 'RECHAZADO'
                                                             ? 'Motivo de Rechazo'
                                                             : 'Comentario'
@@ -401,7 +409,7 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({
                                                         estadoMercaderia === 'ACEPTADO'
                                                             ? 'Agregue un comentario opcional sobre esta evaluación...'
                                                             : estadoMercaderia === 'OBSERVADO'
-                                                            ? 'Ingrese el motivo de la observación...'
+                                                            ? 'Ingrese el motivo de la aprobación por concesión...'
                                                             : estadoMercaderia === 'RECHAZADO'
                                                             ? 'Ingrese el motivo del rechazo...'
                                                             : 'Seleccione un estado primero...'

@@ -2143,7 +2143,7 @@ const Agenda: React.FC = () => {
                                     <SelectItem key="DOCUMENTOS_COMPLETOS">Documentos Completos</SelectItem>
                                     <SelectItem key="EN_EXPLANADA">En Explanada</SelectItem>
                                     <SelectItem key="CALIDAD_ACEPTADO">Calidad Aceptado</SelectItem>
-                                    <SelectItem key="CALIDAD_OBSERVADO">Calidad Observado</SelectItem>
+                                    <SelectItem key="CALIDAD_OBSERVADO">Calidad: Aprobado por Concesión</SelectItem>
                                     <SelectItem key="ALMACEN_ACEPTADO">Almacén Aceptado</SelectItem>
                                     <SelectItem key="ALMACEN_OBSERVADO">Almacén Observado</SelectItem>
                                     <SelectItem key="PARTE_DE_INGRESO_GENERADO">Parte de Ingreso Generado</SelectItem>
