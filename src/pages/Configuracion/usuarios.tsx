@@ -113,7 +113,7 @@ const DEFAULT_SETTINGS_BY_ROLE: Record<UserRole, string[]> = {
         'evaluate_providers',
     ],
     [UserRole.FINANZAS]: ['upload_invoices', 'validate_documents', 'schedule_payments'],
-    [UserRole.CONTABILIDAD]: ['view_documents'],
+    [UserRole.CONTABILIDAD]: ['view_visits', 'view_documents'],
     [UserRole.PROVEEDOR]: [
         'edit_profile',
         'view_visits',

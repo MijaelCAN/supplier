@@ -188,7 +188,7 @@ const router = createBrowserRouter([
   {
     path: "/agenda",
     element: (
-      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.ALMACEN, UserRole.SEGURIDAD, UserRole.CALIDAD, UserRole.PLANEAMIENTO]}>
+      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.CONTABILIDAD, UserRole.ALMACEN, UserRole.SEGURIDAD, UserRole.CALIDAD, UserRole.PLANEAMIENTO]}>
         <Lazy><AgendaPage /></Lazy>
       </ProtectedRoute>
     ),
@@ -196,7 +196,7 @@ const router = createBrowserRouter([
   {
     path: "/agenda/detail/:appointmentId",
     element: (
-      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.ALMACEN, UserRole.CALIDAD, UserRole.SEGURIDAD, UserRole.PLANEAMIENTO]}>
+      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.CONTABILIDAD, UserRole.ALMACEN, UserRole.CALIDAD, UserRole.SEGURIDAD, UserRole.PLANEAMIENTO]}>
         <Lazy><AppointmentDetail /></Lazy>
       </ProtectedRoute>
     ),
