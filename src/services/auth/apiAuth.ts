@@ -138,6 +138,7 @@ const mapRole = (role: string): UserRole => {
         'proveedor': UserRole.PROVEEDOR,
         'compras': UserRole.COMPRAS,
         'finanzas': UserRole.FINANZAS,
+        'contabilidad': UserRole.CONTABILIDAD,
         'almacen': UserRole.ALMACEN,
         'solicitante': UserRole.SOLICITANTE,
         'calidad': UserRole.CALIDAD,

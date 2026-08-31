@@ -125,7 +125,7 @@ const router = createBrowserRouter([
   {
     path: "/factura",
     element: (
-      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.FINANZAS, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.ALMACEN]}>
+      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.FINANZAS, UserRole.CONTABILIDAD, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.ALMACEN]}>
         <Lazy><InvoicesList /></Lazy>
       </ProtectedRoute>
     ),

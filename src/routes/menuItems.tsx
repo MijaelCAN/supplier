@@ -78,7 +78,7 @@ export const menuItems: MenuItem[] = [
         icon: <HomeIcon className="h-5 w-5" />,
         href: "/dashboard",
         single: true,
-        roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.FINANZAS, UserRole.ALMACEN, UserRole.SEGURIDAD, UserRole.CALIDAD, UserRole.PLANEAMIENTO]
+        roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.FINANZAS, UserRole.CONTABILIDAD, UserRole.ALMACEN, UserRole.SEGURIDAD, UserRole.CALIDAD, UserRole.PLANEAMIENTO]
     },
     {
         title: "Proveedores",
@@ -133,7 +133,7 @@ export const menuItems: MenuItem[] = [
     {
         title: "Procesos de Compra",
         icon: <ShoppingCartIcon className="h-5 w-5" />,
-        roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.FINANZAS, UserRole.ALMACEN, UserRole.SEGURIDAD, UserRole.CALIDAD, UserRole.PLANEAMIENTO],
+        roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.FINANZAS, UserRole.CONTABILIDAD, UserRole.ALMACEN, UserRole.SEGURIDAD, UserRole.CALIDAD, UserRole.PLANEAMIENTO],
         items: [
             {
                 title: "Solicitud de compra",
@@ -169,7 +169,7 @@ export const menuItems: MenuItem[] = [
                 title: "Facturas",
                 icon: <DocumentTextIcon className="h-4 w-4" />,
                 href: "/factura",
-                roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.FINANZAS, UserRole.COMPRAS, UserRole.ALMACEN]
+                roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.FINANZAS, UserRole.CONTABILIDAD, UserRole.COMPRAS, UserRole.ALMACEN]
             },
             {
                 title: "Cronograma de pago",
@@ -266,7 +266,7 @@ export const menuItems: MenuItem[] = [
                 title: "Perfil",
                 icon: <UserCircleIcon className="h-4 w-4" />,
                 href: "/configuracion/perfil",
-                roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.FINANZAS, UserRole.ALMACEN, UserRole.PLANEAMIENTO]
+                roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.FINANZAS, UserRole.CONTABILIDAD, UserRole.ALMACEN, UserRole.PLANEAMIENTO]
             },
             {
                 title: "Sistema",

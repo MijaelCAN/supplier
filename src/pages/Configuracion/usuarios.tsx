@@ -69,6 +69,7 @@ const ROLE_LABELS: Record<UserRole, { label: string; color: 'primary' | 'success
     [UserRole.PROVEEDOR]: { label: 'Proveedor', color: 'warning' },
     [UserRole.COMPRAS]: { label: 'Compras', color: 'primary' },
     [UserRole.FINANZAS]: { label: 'Finanzas', color: 'success' },
+    [UserRole.CONTABILIDAD]: { label: 'Contabilidad', color: 'secondary' },
     [UserRole.SOLICITANTE]: { label: 'Solicitante', color: 'secondary' },
     [UserRole.CALIDAD]: { label: 'Calidad', color: 'secondary' },
     [UserRole.ALMACEN]: { label: 'Almacén', color: 'warning' },
@@ -89,6 +90,7 @@ const SETTINGS_CATALOG = [
     { key: 'register_reception', label: 'Registrar recepción' },
     { key: 'upload_invoices', label: 'Subir facturas' },
     { key: 'validate_documents', label: 'Validar documentos' },
+    { key: 'view_documents', label: 'Ver y descargar documentos' },
     { key: 'schedule_payments', label: 'Programar pagos' },
     { key: 'create_bids', label: 'Crear licitaciones' },
     { key: 'participate_bids', label: 'Participar en licitaciones' },
@@ -111,6 +113,7 @@ const DEFAULT_SETTINGS_BY_ROLE: Record<UserRole, string[]> = {
         'evaluate_providers',
     ],
     [UserRole.FINANZAS]: ['upload_invoices', 'validate_documents', 'schedule_payments'],
+    [UserRole.CONTABILIDAD]: ['view_documents'],
     [UserRole.PROVEEDOR]: [
         'edit_profile',
         'view_visits',

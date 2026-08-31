@@ -164,5 +164,6 @@ export const useAuth = () => {
         isProveedor: store.currentUser?.role === UserRole.PROVEEDOR,
         isCompras: store.currentUser?.role === UserRole.COMPRAS,
         isFinanzas: store.currentUser?.role === UserRole.FINANZAS,
+        isContabilidad: store.currentUser?.role === UserRole.CONTABILIDAD,
     };
 };
