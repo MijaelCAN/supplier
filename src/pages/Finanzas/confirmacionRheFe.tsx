@@ -20,6 +20,13 @@ import {
   TableColumn,
   TableHeader,
   TableRow,
+  Checkbox,
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
+  Textarea,
 } from "@heroui/react";
 import {
   EllipsisVerticalIcon,
@@ -34,6 +41,9 @@ interface ComprobanteSunat {
   id: string;
   numero: string;
   rucEmisor: string;
+  codigoTipoComprobante: string;
+  serie: string;
+  numeroComprobante: number;
   emisor: string;
   rucAdquirente: string;
   adquirente: string;
@@ -49,6 +59,10 @@ interface ComprobanteSunat {
   condicionConformidad: string;
   estado: string;
   inconsistencias: number;
+  montoTotalRhe: number;
+  montoRetencionRhe: number;
+  montoNetoRhe: number;
+  cuotas: CuotaSunatApi[];
 }
 
 interface CuotaSunatApi {
@@ -91,6 +105,42 @@ interface ComprobantesPendientesResponse {
   registros_por_pagina: number;
   resumen: ResumenComprobantesApi;
   comprobantes: ComprobanteSunatApi[];
+}
+
+interface RegistrarConformidadData {
+  exitoso: boolean;
+  operacion_id: number;
+  numero_ticket: string | null;
+  codigo_estado_proceso: string | null;
+  descripcion_estado_proceso: string | null;
+  registros_enviados: number;
+  registros_correctos: number;
+  registros_con_error: number;
+  mensaje: string;
+}
+
+interface RegistrarConformidadResponse {
+  success: boolean;
+  message: string;
+  data?: RegistrarConformidadData;
+}
+
+interface RegistrarDisconformidadData {
+  exitoso: boolean;
+  operacion_id: number;
+  numero_ticket: string | null;
+  codigo_estado_proceso: string | null;
+  descripcion_estado_proceso: string | null;
+  registros_enviados: number;
+  registros_correctos: number;
+  registros_con_error: number;
+  mensaje: string;
+}
+
+interface RegistrarDisconformidadResponse {
+  success: boolean;
+  message: string;
+  data?: RegistrarDisconformidadData;
 }
 
 type EstadoPlazo = "dentro-plazo" | "por-vencer" | "vencido";
@@ -173,7 +223,27 @@ const ConfirmacionRheFe = () => {
     mas_de_dos_dias: 0,
   });
   const [cargando, setCargando] = useState(false);
+
+  const [procesandoConformidad, setProcesandoConformidad] = useState(false);
+
+  const [modalDisconformidadAbierto, setModalDisconformidadAbierto] = useState(false);
+
+  const [motivosDisconformidad, setMotivosDisconformidad] = useState<string[]>([]);
+
+  const [sustentoDisconformidad, setSustentoDisconformidad] = useState("");
+
+  const [archivoSustento, setArchivoSustento] = useState<File | null>(null);
+
+  const [procesandoDisconformidad, setProcesandoDisconformidad] = useState(false);
+
   const [error, setError] = useState<string | null>(null);
+
+  const [comprobanteDetalle, setComprobanteDetalle] = useState<ComprobanteSunat | null>(null);
+
+  const [modalDetalleAbierto, setModalDetalleAbierto] = useState(false);
+
+  const [importeDesde, setImporteDesde] = useState("");
+  const [importeHasta, setImporteHasta] = useState("");
 
   const handleBuscar = async (paginaSolicitada = 1) => {
     try {
@@ -193,9 +263,7 @@ const ConfirmacionRheFe = () => {
         );
       }
 
-      const codigoTipoComprobante = tipoComprobante
-        .trim()
-        .toLowerCase();
+      const codigoTipoComprobante = tipoComprobante.trim().toLowerCase();
 
       const parametros = new URLSearchParams({
         codigoTipoComprobante,
@@ -222,24 +290,20 @@ const ConfirmacionRheFe = () => {
         `https://localhost:7258/api/sunat/comprobantes-pendientes?${parametros.toString()}`
       );*/
 
-      const response = await fetch(
-        `${SUNAT_API_URL}/api/sunat/comprobantes/consultar-pendientes?${parametros.toString()}`
+      const response = await fetch(`${SUNAT_API_URL}/api/sunat/comprobantes/consultar-pendientes?${parametros.toString()}`
       );
 
       if (!response.ok) {
         const detalleTexto = await response.text();
 
         let mensaje = `No se pudieron consultar los comprobantes. Código HTTP: ${response.status}`;
-
         try {
           const detalleJson = JSON.parse(detalleTexto) as {
             message?: string;
             title?: string;
           };
 
-          mensaje =
-            detalleJson.message ??
-            detalleJson.title ??
+          mensaje = detalleJson.message ?? detalleJson.title ??
             mensaje;
         } catch {
           if (detalleTexto.trim()) {
@@ -257,9 +321,11 @@ const ConfirmacionRheFe = () => {
       const comprobantesMapeados: ComprobanteSunat[] =
         data.comprobantes.map((item) => ({
           id: `${item.ruc_emisor}-${item.codigo_tipo_comprobante}-${item.serie}-${item.numero_comprobante}`,
-
           numero: `${item.serie}-${item.numero_comprobante}`,
           rucEmisor: item.ruc_emisor,
+          codigoTipoComprobante: item.codigo_tipo_comprobante,
+          serie: item.serie,
+          numeroComprobante: item.numero_comprobante,
           emisor: item.razon_social_emisor || "Razón social no disponible",
           rucAdquirente: item.ruc_adquirente || "-",
           adquirente: item.razon_social_adquirente || "Adquirente no disponible",
@@ -275,9 +341,73 @@ const ConfirmacionRheFe = () => {
           condicionConformidad: "Sin datos",
           estado: "Pendiente",
           inconsistencias: 0,
+          montoTotalRhe: item.monto_total_rhe,
+          montoRetencionRhe: item.monto_retencion_rhe,
+          montoNetoRhe: item.monto_neto_rhe,
+          cuotas: item.cuotas ?? [],
         }));
 
-      setComprobantes(comprobantesMapeados);
+      //setComprobantes(comprobantesMapeados);
+      const importeDesdeNumero =
+        importeDesde.trim() !== ""
+          ? Number(importeDesde)
+          : null;
+
+      const importeHastaNumero =
+        importeHasta.trim() !== ""
+          ? Number(importeHasta)
+          : null;
+
+      if (
+        importeDesdeNumero !== null &&
+        (!Number.isFinite(importeDesdeNumero) || importeDesdeNumero < 0)
+      ) {
+        throw new Error(
+          "El importe desde debe ser un número válido mayor o igual a 0."
+        );
+      }
+
+      if (
+        importeHastaNumero !== null &&
+        (!Number.isFinite(importeHastaNumero) || importeHastaNumero < 0)
+      ) {
+        throw new Error(
+          "El importe hasta debe ser un número válido mayor o igual a 0."
+        );
+      }
+
+      if (
+        importeDesdeNumero !== null &&
+        importeHastaNumero !== null &&
+        importeDesdeNumero > importeHastaNumero
+      ) {
+        throw new Error(
+          "El importe desde no puede ser mayor que el importe hasta."
+        );
+      }
+
+      const comprobantesFiltrados =
+        comprobantesMapeados.filter((comprobante) => {
+          const importe = comprobante.importeTotal;
+
+          if (
+            importeDesdeNumero !== null &&
+            importe < importeDesdeNumero
+          ) {
+            return false;
+          }
+
+          if (
+            importeHastaNumero !== null &&
+            importe > importeHastaNumero
+          ) {
+            return false;
+          }
+
+          return true;
+        });
+
+      setComprobantes(comprobantesFiltrados);
       setTotalRegistros(data.total_registros);
       setResumen(data.resumen);
       setPagina(data.numero_pagina);
@@ -305,6 +435,263 @@ const ConfirmacionRheFe = () => {
     }
   };
 
+  const registrarConformidad = async (
+    comprobante: ComprobanteSunat
+  ): Promise<RegistrarConformidadResponse> => {
+    const response = await fetch(
+      `${SUNAT_API_URL}/api/sunat/comprobantes/registrar-conformidad`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "*/*",
+        },
+        body: JSON.stringify({
+          ruc_emisor: comprobante.rucEmisor,
+          codigo_tipo_comprobante:
+            comprobante.codigoTipoComprobante,
+          serie: comprobante.serie,
+          numero_comprobante:
+            comprobante.numeroComprobante,
+        }),
+      }
+    );
+
+    const data: RegistrarConformidadResponse =
+      await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(
+        data.message ||
+        `No se pudo registrar la conformidad. Código HTTP: ${response.status}`
+      );
+    }
+
+    return data;
+  };
+
+  const registrarDisconformidad = async (comprobante: ComprobanteSunat
+  ): Promise<RegistrarDisconformidadResponse> => {
+    const formData = new FormData();
+
+    formData.append("RucEmisor", comprobante.rucEmisor);
+    formData.append(
+      "CodigoTipoComprobante",
+      comprobante.codigoTipoComprobante
+    );
+    formData.append("Serie", comprobante.serie);
+    formData.append(
+      "NumeroComprobante",
+      String(comprobante.numeroComprobante)
+    );
+
+    motivosDisconformidad.forEach((motivo) => {
+      formData.append("Motivos", motivo);
+    });
+
+    formData.append(
+      "Sustento",
+      sustentoDisconformidad.trim()
+    );
+
+    if (archivoSustento) {
+      formData.append(
+        "ArchivoSustento",
+        archivoSustento
+      );
+    }
+
+    const response = await fetch(`${SUNAT_API_URL}/api/sunat/comprobantes/registrar-disconformidad`,
+      {
+        method: "POST",
+        headers: {
+          Accept: "*/*",
+        },
+        body: formData,
+      }
+    );
+
+    const data: RegistrarDisconformidadResponse =
+      await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(
+        data.message ||
+        `No se pudo registrar la disconformidad. Código HTTP: ${response.status}`
+      );
+    }
+
+    return data;
+  };
+
+  const handleRegistrarDisconformidad = async () => {
+    if (comprobantesSeleccionadosLista.length === 0) {
+      return;
+    }
+
+    if (motivosDisconformidad.length === 0) {
+      setError(
+        "Debe seleccionar al menos un motivo de disconformidad."
+      );
+      return;
+    }
+
+    if (!sustentoDisconformidad.trim()) {
+      setError(
+        "Debe ingresar el sustento de la disconformidad."
+      );
+      return;
+    }
+
+    const cantidad =
+      comprobantesSeleccionadosLista.length;
+
+    const confirmado = window.confirm(
+      cantidad === 1
+        ? `¿Está seguro de registrar disconformidad al comprobante ${comprobantesSeleccionadosLista[0].numero}?`
+        : `¿Está seguro de registrar disconformidad a los ${cantidad} comprobantes seleccionados?`
+    );
+
+    if (!confirmado) {
+      return;
+    }
+
+    try {
+      setProcesandoDisconformidad(true);
+      setError(null);
+
+      let exitosos = 0;
+      const errores: string[] = [];
+      const tickets: string[] = [];
+
+      for (const comprobante of comprobantesSeleccionadosLista) {
+        try {
+          const resultado =
+            await registrarDisconformidad(
+              comprobante
+            );
+
+          exitosos += 1;
+
+          if (resultado.data?.numero_ticket) {
+            tickets.push(
+              resultado.data.numero_ticket
+            );
+          }
+        } catch (errorDisconformidad) {
+          const mensaje =
+            errorDisconformidad instanceof Error
+              ? errorDisconformidad.message
+              : "Ocurrió un error desconocido.";
+
+          errores.push(
+            `${comprobante.numero}: ${mensaje}`
+          );
+        }
+      }
+
+      if (errores.length === 0) {
+        if (cantidad === 1) {
+          window.alert(
+            `La disconformidad fue enviada correctamente a SUNAT.${tickets.length > 0
+              ? ` Ticket: ${tickets[0]}`
+              : ""
+            }`
+          );
+        } else {
+          window.alert(
+            `${exitosos} disconformidades fueron enviadas correctamente a SUNAT.${tickets.length > 0
+              ? ` Se generaron ${tickets.length} ticket(s).`
+              : ""
+            }`
+          );
+        }
+
+        cerrarModalDisconformidad();
+        setComprobantesSeleccionados(
+          new Set()
+        );
+      } else {
+        setError(
+          `Disconformidades procesadas: ${exitosos} de ${cantidad}. ${errores.join(
+            " | "
+          )}`
+        );
+      }
+    } finally {
+      setProcesandoDisconformidad(false);
+    }
+  };
+
+  const handleRegistrarConformidad = async () => {
+    if (comprobantesSeleccionadosLista.length === 0) { return; }
+
+    const cantidad = comprobantesSeleccionadosLista.length;
+
+    const mensajeConfirmacion =
+      cantidad === 1
+        ? `¿Está seguro de registrar conformidad al comprobante ${comprobantesSeleccionadosLista[0].numero}?`
+        : `¿Está seguro de registrar conformidad a los ${cantidad} comprobantes seleccionados?`;
+
+    const confirmado = window.confirm(mensajeConfirmacion);
+
+    if (!confirmado) {
+      return;
+    }
+
+    try {
+      setProcesandoConformidad(true);
+      setError(null);
+
+      let exitosos = 0;
+      const errores: string[] = [];
+      const tickets: string[] = [];
+
+      for (const comprobante of comprobantesSeleccionadosLista) {
+        try {
+          const resultado =
+            await registrarConformidad(comprobante);
+
+          exitosos += 1;
+
+          if (resultado.data?.numero_ticket) {
+            tickets.push(resultado.data.numero_ticket);
+          }
+        } catch (errorConformidad) {
+          const mensaje =
+            errorConformidad instanceof Error
+              ? errorConformidad.message
+              : "Ocurrió un error desconocido.";
+
+          errores.push(
+            `${comprobante.numero}: ${mensaje}`
+          );
+        }
+      }
+
+      if (errores.length === 0) {
+        window.alert(
+          cantidad === 1
+            ? `La conformidad fue enviada correctamente a SUNAT.${tickets.length > 0
+              ? ` Ticket: ${tickets[0]}`
+              : ""
+            }`
+            : `${exitosos} conformidades fueron enviadas correctamente a SUNAT.`
+        );
+      } else {
+        setError(
+          `Conformidades procesadas: ${exitosos} de ${cantidad}. ${errores.join(
+            " | "
+          )}`
+        );
+      }
+
+      setComprobantesSeleccionados(new Set());
+    } finally {
+      setProcesandoConformidad(false);
+    }
+  };
+
   const formatearImporte = (monto: number) => {
     return new Intl.NumberFormat("es-PE", {
       minimumFractionDigits: 2,
@@ -321,7 +708,76 @@ const ConfirmacionRheFe = () => {
       ? comprobantes.length
       : comprobantesSeleccionados.size;
 
+  const comprobantesSeleccionadosLista =
+    comprobantesSeleccionados === "all"
+      ? comprobantes
+      : comprobantes.filter((comprobante) =>
+        comprobantesSeleccionados.has(comprobante.id)
+      );
+
   const porVencer = resumen["vence_hoy_o_mañana"] + resumen.vence_en_dos_dias;
+
+  const abrirModalDisconformidad = () => {
+    if (comprobantesSeleccionadosLista.length === 0) {
+      return;
+    }
+
+    setMotivosDisconformidad([]);
+    setSustentoDisconformidad("");
+    setArchivoSustento(null);
+    setModalDisconformidadAbierto(true);
+  };
+
+  const cerrarModalDisconformidad = () => {
+    if (procesandoDisconformidad) {
+      return;
+    }
+
+    setModalDisconformidadAbierto(false);
+    setMotivosDisconformidad([]);
+    setSustentoDisconformidad("");
+    setArchivoSustento(null);
+  };
+
+  const toggleMotivoDisconformidad = (motivo: string) => {
+    setMotivosDisconformidad((actuales) =>
+      actuales.includes(motivo)
+        ? actuales.filter((item) => item !== motivo)
+        : [...actuales, motivo]
+    );
+  };
+
+  const abrirDetalleComprobante = (
+    comprobante: ComprobanteSunat
+  ) => {
+    setComprobanteDetalle(comprobante);
+    setModalDetalleAbierto(true);
+  };
+
+  const cerrarDetalleComprobante = () => {
+    setModalDetalleAbierto(false);
+    setComprobanteDetalle(null);
+  };
+
+  const limpiarFiltros = () => {
+    setTipoFecha("emision");
+    setEstado("01");
+    setMoneda("todos");
+    setTipoComprobante("todos");
+    setRucEmisor("");
+    setSerieNumero("");
+    setTipoInconsistencia("todos");
+
+    setImporteDesde("");
+    setImporteHasta("");
+
+    // Conservamos ambas fechas en la fecha actual
+    setFechaDesde(today);
+    setFechaHasta(today);
+
+    setComprobantesSeleccionados(new Set());
+    setError(null);
+  };
 
   return (
     <Dashboard>
@@ -442,6 +898,50 @@ const ConfirmacionRheFe = () => {
                 }}
               />
 
+              <Input
+                label="Importe desde"
+                size="sm"
+                value={importeDesde}
+                placeholder="Ej. 300.00"
+                inputMode="decimal"
+                onValueChange={(valor) => {
+                  const normalizado = valor
+                    .replace(",", ".")
+                    .replace(/[^0-9.]/g, "");
+
+                  const partes = normalizado.split(".");
+
+                  const valorFinal =
+                    partes.length > 2
+                      ? `${partes[0]}.${partes.slice(1).join("")}`
+                      : normalizado;
+
+                  setImporteDesde(valorFinal);
+                }}
+              />
+
+              <Input
+                label="Importe hasta"
+                size="sm"
+                value={importeHasta}
+                placeholder="Ej. 500.00"
+                inputMode="decimal"
+                onValueChange={(valor) => {
+                  const normalizado = valor
+                    .replace(",", ".")
+                    .replace(/[^0-9.]/g, "");
+
+                  const partes = normalizado.split(".");
+
+                  const valorFinal =
+                    partes.length > 2
+                      ? `${partes[0]}.${partes.slice(1).join("")}`
+                      : normalizado;
+
+                  setImporteHasta(valorFinal);
+                }}
+              />
+
               <Select
                 label="Tipo de inconsistencia"
                 size="sm"
@@ -457,15 +957,27 @@ const ConfirmacionRheFe = () => {
                 <SelectItem key="todos">Todos</SelectItem>
               </Select>
 
-              <div className="flex items-end justify-end md:col-span-2 xl:col-span-1 xl:col-start-6">
+              <div className="flex items-end justify-end gap-2 md:col-span-2 xl:col-span-2">
+                <Button
+                  variant="bordered"
+                  size="sm"
+                  onPress={limpiarFiltros}
+                >
+                  Limpiar
+                </Button>
+
                 <Button
                   color="primary"
                   size="sm"
                   isLoading={cargando}
                   startContent={
-                    !cargando ? <MagnifyingGlassIcon className="h-5 w-5" /> : undefined
+                    !cargando
+                      ? <MagnifyingGlassIcon className="h-5 w-5" />
+                      : undefined
                   }
-                  onPress={() => handleBuscar(1)}
+                  onPress={() => {
+                    void handleBuscar(1);
+                  }}
                 >
                   Buscar
                 </Button>
@@ -813,29 +1325,17 @@ const ConfirmacionRheFe = () => {
 
                       <TableCell>
                         <div className="w-full min-w-0 leading-tight">
-                          <p className="whitespace-nowrap text-[10px] text-gray-500">
-                            RUC: {comprobante.rucAdquirente}
-                          </p>
-
-                          <p
-                            className="mt-1 truncate text-xs font-medium"
-                            title={comprobante.adquirente}
-                          >
-                            {comprobante.adquirente}
-                          </p>
+                          <p className="whitespace-nowrap text-[10px] text-gray-500"> RUC: {comprobante.rucAdquirente} </p>
+                          <p className="mt-1 truncate text-xs font-medium" title={comprobante.adquirente} > {comprobante.adquirente} </p>
                         </div>
                       </TableCell>
 
                       <TableCell>
-                        <div className="text-center text-xs leading-tight">
-                          {comprobante.fechaEmision}
-                        </div>
+                        <div className="text-center text-xs leading-tight"> {comprobante.fechaEmision} </div>
                       </TableCell>
 
                       <TableCell>
-                        <div className="text-center">
-                          {comprobante.formaPago}
-                        </div>
+                        <div className="text-center"> {comprobante.formaPago} </div>
                       </TableCell>
 
                       <TableCell>
@@ -845,9 +1345,7 @@ const ConfirmacionRheFe = () => {
                           </div>
 
                           {puestaDisposicion.hora && (
-                            <div className="mt-1 whitespace-nowrap text-[10px] text-gray-500">
-                              {puestaDisposicion.hora}
-                            </div>
+                            <div className="mt-1 whitespace-nowrap text-[10px] text-gray-500"> {puestaDisposicion.hora} </div>
                           )}
                         </div>
                       </TableCell>
@@ -875,56 +1373,38 @@ const ConfirmacionRheFe = () => {
                       </TableCell>
 
                       <TableCell>
-                        <div className="text-center text-xs leading-tight">
-                          {comprobante.fechaPagoAcordado}
-                        </div>
+                        <div className="text-center text-xs leading-tight"> {comprobante.fechaPagoAcordado} </div>
                       </TableCell>
 
                       <TableCell>
-                        <div className="whitespace-nowrap text-right text-xs tabular-nums">
-                          {formatearImporte(comprobante.montoPendiente)}
-                        </div>
+                        <div className="whitespace-nowrap text-right text-xs tabular-nums"> {formatearImporte(comprobante.montoPendiente)} </div>
                       </TableCell>
 
                       <TableCell>
-                        <div className="text-center text-xs">
-                          {comprobante.moneda}
-                        </div>
+                        <div className="text-center text-xs"> {comprobante.moneda} </div>
                       </TableCell>
 
                       <TableCell>
-                        <div className="whitespace-nowrap text-right text-xs tabular-nums">
-                          {formatearImporte(comprobante.importeTotal)}
-                        </div>
+                        <div className="whitespace-nowrap text-right text-xs tabular-nums"> {formatearImporte(comprobante.importeTotal)} </div>
                       </TableCell>
 
                       <TableCell>
-                        <div className="text-center">
-                          {comprobante.marcaConformidad}
-                        </div>
+                        <div className="text-center"> {comprobante.marcaConformidad} </div>
                       </TableCell>
 
                       <TableCell>
-                        <div className="text-center">
-                          {comprobante.condicionConformidad}
+                        <div className="text-center"> {comprobante.condicionConformidad} </div>
+                      </TableCell>
+
+                      <TableCell>
+                        <div className="flex justify-center">
+                          <Chip color="warning" size="sm" variant="flat"> {comprobante.estado} </Chip>
                         </div>
                       </TableCell>
 
                       <TableCell>
                         <div className="flex justify-center">
-                          <Chip color="warning" size="sm" variant="flat">
-                            {comprobante.estado}
-                          </Chip>
-                        </div>
-                      </TableCell>
-
-                      <TableCell>
-                        <div className="flex justify-center">
-                          <Chip
-                            size="sm"
-                            variant="flat"
-                            className="min-w-[26px] justify-center px-1"
-                          >
+                          <Chip size="sm" variant="flat" className="min-w-[26px] justify-center px-1" >
                             {comprobante.inconsistencias}
                           </Chip>
                         </div>
@@ -942,7 +1422,12 @@ const ConfirmacionRheFe = () => {
                             <DropdownMenu aria-label="Acciones del comprobante">
                               <DropdownItem
                                 key="detalle"
-                                startContent={<EyeIcon className="h-4 w-4" />}
+                                startContent={
+                                  <EyeIcon className="h-4 w-4" />
+                                }
+                                onPress={() => {
+                                  abrirDetalleComprobante(comprobante);
+                                }}
                               >
                                 Ver detalle
                               </DropdownItem>
@@ -961,7 +1446,6 @@ const ConfirmacionRheFe = () => {
                 <p className="text-sm text-gray-600">
                   Página {pagina} de {totalPaginas} · {totalRegistros} registros
                 </p>
-
                 <Pagination
                   page={pagina}
                   total={totalPaginas}
@@ -969,40 +1453,557 @@ const ConfirmacionRheFe = () => {
                   showControls
                   onChange={(nuevaPagina) => {
                     void handleBuscar(nuevaPagina);
-                  }}
-                />
+                  }} />
               </div>
             )}
 
 
-            <div className="flex flex-col gap-3 border-t border-default-200 pt-4 md:flex-row md:items-center md:justify-between">
-              <p className="text-sm text-gray-600">
-                {cantidadSeleccionada} comprobante(s) seleccionado(s)
-              </p>
+            {cantidadSeleccionada > 0 && (
+              <div className="fixed bottom-4 right-6 z-50 flex w-auto max-w-[calc(100vw-2rem)] flex-col gap-3 rounded-xl border border-default-200 bg-white/95 px-4 py-3 shadow-xl backdrop-blur-md md:min-w-[470px] md:flex-row md:items-center md:justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-gray-700">
+                    {cantidadSeleccionada} comprobante(s) seleccionado(s)
+                  </span>
 
-              {/*
-              <div className="flex flex-wrap justify-end gap-3">
-                <Button
-                  color="primary"
-                  isDisabled={cantidadSeleccionada === 0}
-                >
-                  Conformidad
-                </Button>
+                  <Chip color="primary" size="sm" variant="flat">
+                    {cantidadSeleccionada}
+                  </Chip>
+                </div>
 
-                <Button
-                  color="primary"
-                  variant="bordered"
-                  isDisabled={cantidadSeleccionada === 0}
-                >
-                  Disconformidad
-                </Button>
+                <div className="flex flex-wrap justify-end gap-3">
+                  <Button
+                    color="primary"
+                    isDisabled={procesandoConformidad}
+                    isLoading={procesandoConformidad}
+                    onPress={() => { void handleRegistrarConformidad(); }} >
+                    Conformidad
+                  </Button>
+
+                  <Button
+                    color="primary"
+                    variant="bordered"
+                    isDisabled={
+                      cantidadSeleccionada === 0 ||
+                      procesandoConformidad ||
+                      procesandoDisconformidad
+                    }
+                    onPress={abrirModalDisconformidad} >
+                    Disconformidad
+                  </Button>
+                </div>
               </div>
-              */}
+            )}
 
-            </div>
           </CardBody>
         </Card>
       </div>
+
+      <Modal
+        isOpen={modalDetalleAbierto}
+        onClose={cerrarDetalleComprobante}
+        size="5xl"
+        scrollBehavior="inside"
+        classNames={{
+          base: "max-h-[92vh]",
+          header: "border-b border-default-200",
+          footer: "border-t border-default-200",
+        }}
+      >
+        <ModalContent>
+          {() => (
+            <>
+              <ModalHeader className="flex flex-col gap-1">
+                <h2 className="text-lg font-semibold text-gray-900">
+                  Detalle del Comprobante:
+                  {" "}
+                  {comprobanteDetalle?.codigoTipoComprobante === "01"
+                    ? "FACTURA"
+                    : "RHE"}
+                  {" "}
+                  {comprobanteDetalle?.numero}
+                </h2>
+              </ModalHeader>
+
+              <ModalBody className="py-6">
+                {comprobanteDetalle && (
+                  <div className="space-y-8">
+
+                    {/* PARTE SUPERIOR */}
+                    <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
+
+                      {/* DATOS DEL COMPROBANTE */}
+                      <div>
+                        <h3 className="mb-4 text-sm font-bold text-gray-900">
+                          Datos del comprobante
+                        </h3>
+
+                        <div className="grid grid-cols-1 gap-x-8 gap-y-3 sm:grid-cols-2">
+
+                          <div>
+                            <p className="text-xs font-semibold text-gray-700">
+                              Tipo Comprobante
+                            </p>
+
+                            <p className="text-sm text-gray-900">
+                              {comprobanteDetalle.codigoTipoComprobante === "01"
+                                ? "Factura"
+                                : "Recibo por honorarios"}
+                            </p>
+                          </div>
+
+                          <div>
+                            <p className="text-xs font-semibold text-gray-700">
+                              Serie y Número
+                            </p>
+
+                            <p className="text-sm text-gray-900">
+                              {comprobanteDetalle.numero}
+                            </p>
+                          </div>
+
+                          <div>
+                            <p className="text-xs font-semibold text-gray-700">
+                              Fecha de Emisión
+                            </p>
+
+                            <p className="text-sm text-gray-900">
+                              {comprobanteDetalle.fechaEmision}
+                            </p>
+                          </div>
+
+                          <div>
+                            <p className="text-xs font-semibold text-gray-700">
+                              Fecha de Vencimiento
+                            </p>
+
+                            <p className="text-sm text-gray-900">
+                              {comprobanteDetalle.fechaPagoAcordado}
+                            </p>
+                          </div>
+
+                          <div>
+                            <p className="text-xs font-semibold text-gray-700">
+                              Forma de Pago
+                            </p>
+
+                            <p className="text-sm text-gray-900">
+                              {comprobanteDetalle.formaPago}
+                            </p>
+                          </div>
+
+                          <div>
+                            <p className="text-xs font-semibold text-gray-700">
+                              Moneda
+                            </p>
+
+                            <p className="text-sm text-gray-900">
+                              {comprobanteDetalle.moneda}
+                            </p>
+                          </div>
+
+                          <div className="sm:col-span-2">
+                            <p className="text-xs font-semibold text-gray-700">
+                              RUC Emisor
+                            </p>
+
+                            <p className="text-sm text-gray-900">
+                              {comprobanteDetalle.rucEmisor}
+                              {" - "}
+                              {comprobanteDetalle.emisor}
+                            </p>
+                          </div>
+
+                          <div className="sm:col-span-2">
+                            <p className="text-xs font-semibold text-gray-700">
+                              Tipo y Número Doc. Adquirente
+                            </p>
+
+                            <p className="text-sm text-gray-900">
+                              RUC - {comprobanteDetalle.rucAdquirente}
+                              {" - "}
+                              {comprobanteDetalle.adquirente}
+                            </p>
+                          </div>
+
+                        </div>
+                      </div>
+
+                      {/* TOTALES */}
+                      <div>
+                        <h3 className="mb-4 text-sm font-bold text-gray-900">
+                          Totales del Comprobante
+                        </h3>
+
+                        <div className="space-y-2">
+
+                          <div className="flex justify-between gap-4 text-sm">
+                            <span className="text-gray-700">
+                              Monto neto pendiente de pago
+                            </span>
+
+                            <span className="font-medium tabular-nums">
+                              {formatearImporte(
+                                comprobanteDetalle.montoPendiente
+                              )}
+                            </span>
+                          </div>
+
+                          {comprobanteDetalle.codigoTipoComprobante === "02" && (
+                            <>
+                              <div className="flex justify-between gap-4 text-sm">
+                                <span className="text-gray-700">
+                                  Retención RHE
+                                </span>
+
+                                <span className="font-medium tabular-nums">
+                                  {formatearImporte(
+                                    comprobanteDetalle.montoRetencionRhe
+                                  )}
+                                </span>
+                              </div>
+
+                              <div className="flex justify-between gap-4 text-sm">
+                                <span className="text-gray-700">
+                                  Monto total RHE
+                                </span>
+
+                                <span className="font-medium tabular-nums">
+                                  {formatearImporte(
+                                    comprobanteDetalle.montoTotalRhe
+                                  )}
+                                </span>
+                              </div>
+                            </>
+                          )}
+
+                          <div className="flex justify-between gap-4 border-t border-default-200 pt-2 text-sm">
+                            <span className="font-semibold text-gray-900">
+                              Importe Total
+                            </span>
+
+                            <span className="font-bold tabular-nums text-gray-900">
+                              {formatearImporte(
+                                comprobanteDetalle.importeTotal
+                              )}
+                            </span>
+                          </div>
+
+                        </div>
+                      </div>
+
+                    </div>
+
+                    {/* PARTE INFERIOR */}
+                    <div className="grid grid-cols-1 gap-8 border-t border-default-200 pt-6 lg:grid-cols-2">
+
+                      {/* CRÉDITO */}
+                      <div>
+                        <h3 className="mb-4 text-sm font-bold text-gray-900">
+                          Información del Crédito
+                        </h3>
+
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+
+                          <div>
+                            <p className="text-xs font-semibold text-gray-700">
+                              Monto Neto Pendiente de Pago
+                            </p>
+
+                            <p className="text-sm text-gray-900">
+                              {formatearImporte(
+                                comprobanteDetalle.montoPendiente
+                              )}
+                            </p>
+                          </div>
+
+                          <div>
+                            <p className="text-xs font-semibold text-gray-700">
+                              Número de Cuotas
+                            </p>
+
+                            <p className="text-sm text-gray-900">
+                              {comprobanteDetalle.cuotas.length}
+                            </p>
+                          </div>
+
+                          <div>
+                            <p className="text-xs font-semibold text-gray-700">
+                              Plazo de Pago acordado
+                            </p>
+
+                            <p className="text-sm text-gray-900">
+                              {comprobanteDetalle.fechaPagoAcordado}
+                            </p>
+                          </div>
+
+                        </div>
+
+                        {comprobanteDetalle.cuotas.length > 0 && (
+                          <div className="mt-5">
+                            <p className="mb-2 text-sm font-semibold text-gray-800">
+                              Información de las cuotas
+                            </p>
+
+                            <div className="overflow-hidden rounded-lg border border-default-200">
+                              <table className="w-full text-sm">
+                                <thead className="bg-default-50">
+                                  <tr>
+                                    <th className="px-3 py-2 text-left">
+                                      N° cuota
+                                    </th>
+
+                                    <th className="px-3 py-2 text-left">
+                                      Fecha vencimiento
+                                    </th>
+
+                                    <th className="px-3 py-2 text-right">
+                                      Monto cuota
+                                    </th>
+                                  </tr>
+                                </thead>
+
+                                <tbody>
+                                  {comprobanteDetalle.cuotas.map(
+                                    (cuota, index) => (
+                                      <tr
+                                        key={`${cuota.numero}-${index}`}
+                                        className="border-t border-default-200"
+                                      >
+                                        <td className="px-3 py-2">
+                                          {cuota.numero}
+                                        </td>
+
+                                        <td className="px-3 py-2">
+                                          {formatearFecha(
+                                            cuota.fecha_vencimiento
+                                          )}
+                                        </td>
+
+                                        <td className="px-3 py-2 text-right tabular-nums">
+                                          {formatearImporte(
+                                            cuota.monto
+                                          )}
+                                        </td>
+                                      </tr>
+                                    )
+                                  )}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* OTROS DATOS */}
+                      <div>
+                        <h3 className="mb-4 text-sm font-bold text-gray-900">
+                          Otros Datos del Comprobante
+                        </h3>
+
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+
+                          <div>
+                            <p className="text-xs font-semibold text-gray-700">
+                              Fecha Puesta a Disposición
+                            </p>
+
+                            <p className="text-sm text-gray-900">
+                              {comprobanteDetalle.fechaPuestaDisposicion}
+                            </p>
+                          </div>
+
+                          <div>
+                            <p className="text-xs font-semibold text-gray-700">
+                              Estado
+                            </p>
+
+                            <p className="text-sm text-gray-900">
+                              {comprobanteDetalle.estado}
+                            </p>
+                          </div>
+
+                          <div>
+                            <p className="text-xs font-semibold text-gray-700">
+                              Condición de Conformidad
+                            </p>
+
+                            <p className="text-sm text-gray-900">
+                              {comprobanteDetalle.condicionConformidad}
+                            </p>
+                          </div>
+
+                          <div>
+                            <p className="text-xs font-semibold text-gray-700">
+                              Marca de Conformidad/Disconformidad
+                            </p>
+
+                            <p className="text-sm text-gray-900">
+                              {comprobanteDetalle.marcaConformidad}
+                            </p>
+                          </div>
+
+                          <div className="sm:col-span-2">
+                            <p className="text-xs font-semibold text-gray-700">
+                              Inconsistencias
+                            </p>
+
+                            <Chip
+                              size="sm"
+                              variant="flat"
+                              className="mt-1 min-w-[34px] justify-center"
+                            >
+                              {comprobanteDetalle.inconsistencias}
+                            </Chip>
+                          </div>
+
+                        </div>
+                      </div>
+
+                    </div>
+
+                  </div>
+                )}
+              </ModalBody>
+
+              <ModalFooter>
+                <Button
+                  color="primary"
+                  variant="bordered"
+                  onPress={cerrarDetalleComprobante}
+                >
+                  Cerrar
+                </Button>
+              </ModalFooter>
+            </>
+          )}
+        </ModalContent>
+      </Modal>
+
+      <Modal isOpen={modalDisconformidadAbierto} onClose={cerrarModalDisconformidad} size="2xl" scrollBehavior="inside" >
+        <ModalContent>
+          <ModalHeader>
+            Disconformidad de Comprobantes
+          </ModalHeader>
+
+          <ModalBody>
+            <div className="space-y-5">
+              <div>
+                <p className="mb-2 text-sm font-medium text-gray-700"> Comprobantes seleccionados</p>
+                <div className="min-h-[70px] rounded-lg border border-default-200 p-3">
+                  <div className="flex flex-wrap gap-2">
+                    {comprobantesSeleccionadosLista.map(
+                      (comprobante) => (
+                        <Chip key={comprobante.id} color="warning" variant="solid">
+                          {comprobante.numero}
+                        </Chip>
+                      )
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <p className="mb-2 text-sm font-medium text-gray-700"> Motivos de Disconformidad </p>
+                <div className="flex flex-col gap-2 rounded-lg border border-default-200 p-3">
+                  <div className="w-full">
+                    <Checkbox isSelected={motivosDisconformidad.includes("1")} onValueChange={() => toggleMotivoDisconformidad("1")}>
+                      1. Plazo de pago acordado
+                    </Checkbox>
+                  </div>
+
+                  <div className="w-full">
+                    <Checkbox isSelected={motivosDisconformidad.includes("2")} onValueChange={() => toggleMotivoDisconformidad("2")} >
+                      2. Monto neto pendiente de pago
+                    </Checkbox>
+                  </div>
+
+                  <div className="w-full">
+                    <Checkbox isSelected={motivosDisconformidad.includes("3")} onValueChange={() => toggleMotivoDisconformidad("3")} >
+                      3. Reclamo respecto a bienes adquiridos o servicios prestados
+                    </Checkbox>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <Textarea
+                  label="Sustento de Disconformidad"
+                  placeholder="Ingrese el sustento de la disconformidad"
+                  value={sustentoDisconformidad}
+                  onValueChange={setSustentoDisconformidad}
+                  minRows={3}
+                  isRequired />
+              </div>
+
+              <div>
+                <p className="mb-2 text-sm font-medium text-gray-700">
+                  Documento de sustento
+                  <span className="ml-1 font-normal text-gray-500"> (opcional) </span>
+                </p>
+
+                <input
+                  type="file"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png,.txt"
+                  onChange={(event) => {
+                    const archivo =
+                      event.target.files?.[0] ?? null;
+
+                    if (!archivo) {
+                      setArchivoSustento(null);
+                      return;
+                    }
+
+                    const maximoBytes = 1024 * 1024;
+
+                    if (archivo.size > maximoBytes) {
+                      setError(
+                        "El archivo de sustento no puede superar 1 MB."
+                      );
+                      event.target.value = "";
+                      setArchivoSustento(null);
+                      return;
+                    }
+
+                    setError(null);
+                    setArchivoSustento(archivo);
+                  }}
+                  className="block w-full rounded-lg border border-default-200 bg-white px-3 py-2 text-sm" />
+
+                <div className="mt-2 rounded-lg bg-default-100 px-3 py-2 text-xs text-gray-600">
+                  <p> Tipos permitidos: pdf, doc, docx, xls, xlsx, ppt, pptx, jpg, png, txt </p>
+                  <p>Tamaño máximo: 1 MB</p>
+                </div>
+
+                {archivoSustento && (
+                  <p className="mt-2 text-xs text-gray-600"> Archivo seleccionado: {archivoSustento.name} </p>
+                )}
+              </div>
+
+              <div className="rounded-lg bg-default-50 px-3 py-2 text-sm text-gray-600">
+                Los comprobantes seleccionados se registrarán con el mismo
+                motivo o conjunto de motivos y el mismo sustento.
+              </div>
+            </div>
+          </ModalBody>
+
+          <ModalFooter>
+            <Button variant="light" onPress={cerrarModalDisconformidad}> Cancelar </Button>
+            <Button
+              color="primary"
+              isDisabled={
+                motivosDisconformidad.length === 0 ||
+                sustentoDisconformidad.trim().length === 0 ||
+                procesandoDisconformidad
+              }
+              isLoading={procesandoDisconformidad}
+              onPress={() => {
+                void handleRegistrarDisconformidad();
+              }}>
+              Registrar
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </Dashboard>
   );
 };

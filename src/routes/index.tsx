@@ -25,7 +25,8 @@ const EvaluationPage = lazy(() => import("@/pages/Agenda/EvaluationPage"));
 const ReceptionPage = lazy(() => import("@/pages/Recepcion"));
 const PaymentCalendar = lazy(() => import("@/pages/Pagos/Paymentcalendar "));
 const ScheduleInvoices = lazy(() => import("@/pages/Pagos/ScheduleInvoices"));
-const ConfirmacionRheFe = lazy(() => import("@/pages/Finanzas/confirmacionRheFe")
+const ConfirmacionRheFe = lazy(() => import("@/pages/Finanzas/confirmacionRheFe"));
+const ConsultaEnviosSunat = lazy(() => import("@/pages/Finanzas/consultaEnviosSunat")
 );
 
 // ── Fallback de carga ─────────────────────────────────────────────────────────
@@ -255,10 +256,26 @@ const router = createBrowserRouter([
     path: "/finanzas/confirmacion-rhe-fe",
     element: (
       <ProtectedRoute
-        requiredRoles={[UserRole.ADMIN, UserRole.FINANZAS,  UserRole.COMPRAS,]}
+        requiredRoles={[UserRole.ADMIN, UserRole.FINANZAS, UserRole.COMPRAS,]}
       >
         <Lazy>
           <ConfirmacionRheFe />
+        </Lazy>
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/finanzas/consulta-envios-sunat",
+    element: (
+      <ProtectedRoute
+        requiredRoles={[
+          UserRole.ADMIN,
+          UserRole.FINANZAS,
+          UserRole.COMPRAS,
+        ]}
+      >
+        <Lazy>
+          <ConsultaEnviosSunat />
         </Lazy>
       </ProtectedRoute>
     ),
