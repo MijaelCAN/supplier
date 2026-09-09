@@ -218,11 +218,13 @@ export const menuItems: MenuItem[] = [
                 title: "Confirmación RHE y FE",
                 icon: <DocumentTextIcon className="h-4 w-4" />,
                 href: "/finanzas/confirmacion-rhe-fe",
-                roles: [
-                    UserRole.ADMIN,
-                    UserRole.FINANZAS,
-                    UserRole.COMPRAS,
-                ],
+                roles: [UserRole.ADMIN, UserRole.FINANZAS, UserRole.COMPRAS,],
+            },
+            {
+                title: "Consulta de Envíos SUNAT",
+                icon: <ClipboardDocumentListIcon className="h-4 w-4" />,
+                href: "/finanzas/consulta-envios-sunat",
+                roles: [ UserRole.ADMIN, UserRole.FINANZAS, UserRole.COMPRAS,],
             },
         ]
     },
