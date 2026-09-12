@@ -36,6 +36,11 @@ import {
 import Dashboard from "@/layouts/Dashboard";
 import { DateInput } from "@/components/DateInput";
 import type { Selection } from "@react-types/shared";
+import { httpClient } from "@/services/http/httpClient";
+import {
+  getApiBaseUrl,
+  waitForApiBaseResolution,
+} from "@/config/api";
 
 interface ComprobanteSunat {
   id: string;
@@ -197,8 +202,6 @@ const separarFechaHora = (
   };
 };
 
-const SUNAT_API_URL = import.meta.env.VITE_SUNAT_API_URL;
-
 const ConfirmacionRheFe = () => {
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
@@ -290,7 +293,19 @@ const ConfirmacionRheFe = () => {
         `https://localhost:7258/api/sunat/comprobantes-pendientes?${parametros.toString()}`
       );*/
 
-      const response = await fetch(`${SUNAT_API_URL}/api/sunat/comprobantes/consultar-pendientes?${parametros.toString()}`
+      //const response = await fetch(`${SUNAT_API_URL}/api/sunat/comprobantes/consultar-pendientes?${parametros.toString()}`);
+
+      await waitForApiBaseResolution();
+
+      const response = await httpClient(
+        `${getApiBaseUrl()}/api/sunat/comprobantes/consultar-pendientes?${parametros.toString()}`,
+        {
+          method: "GET",
+          headers: {
+            Accept: "application/json",
+          },
+          skipObfuscation: true,
+        }
       );
 
       if (!response.ok) {
@@ -438,8 +453,11 @@ const ConfirmacionRheFe = () => {
   const registrarConformidad = async (
     comprobante: ComprobanteSunat
   ): Promise<RegistrarConformidadResponse> => {
-    const response = await fetch(
-      `${SUNAT_API_URL}/api/sunat/comprobantes/registrar-conformidad`,
+
+    await waitForApiBaseResolution();
+
+    const response = await httpClient(
+      `${getApiBaseUrl()}/api/sunat/comprobantes/registrar-conformidad`,
       {
         method: "POST",
         headers: {
@@ -454,6 +472,7 @@ const ConfirmacionRheFe = () => {
           numero_comprobante:
             comprobante.numeroComprobante,
         }),
+        skipObfuscation: true,
       }
     );
 
@@ -501,13 +520,17 @@ const ConfirmacionRheFe = () => {
       );
     }
 
-    const response = await fetch(`${SUNAT_API_URL}/api/sunat/comprobantes/registrar-disconformidad`,
+    await waitForApiBaseResolution();
+
+    const response = await httpClient(
+      `${getApiBaseUrl()}/api/sunat/comprobantes/registrar-disconformidad`,
       {
         method: "POST",
         headers: {
           Accept: "*/*",
         },
         body: formData,
+        skipObfuscation: true,
       }
     );
 
