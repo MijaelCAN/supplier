@@ -136,8 +136,8 @@ const EvaluationPage: React.FC = () => {
         if (!appointment) return false;
         
         // Verificar documentos del API si están disponibles
-        if ((appointment as any).Documents && Array.isArray((appointment as any).Documents)) {
-            return (appointment as any).Documents.length > 0;
+        if (appointment.rawDocuments && Array.isArray(appointment.rawDocuments)) {
+            return appointment.rawDocuments.length > 0;
         }
         
         // Verificar documentos mapeados

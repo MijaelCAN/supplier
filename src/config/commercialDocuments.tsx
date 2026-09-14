@@ -92,6 +92,15 @@ export const COMMERCIAL_DOCUMENT_TYPES: CommercialDocumentType[] = [
         description: 'PDF, XML, CDR, JPG, PNG',
         prefix: 'CA',
         keywords: ['analisis', 'analysis', 'certificado analisis', 'analysis certificate', 'coa']
+    },
+    {
+        key: 'technicalSheet',
+        label: 'Ficha Técnica',
+        accept: '.pdf,.xml,.cdr,.jpg,.jpeg,.png',
+        icon: <DocumentTextIcon className="w-5 h-5" />,
+        description: 'PDF, XML, CDR, JPG, PNG',
+        prefix: 'FT',
+        keywords: ['ficha', 'tecnica', 'ficha tecnica', 'technical', 'sheet', 'technical sheet', 'datasheet']
     }
 ];
 

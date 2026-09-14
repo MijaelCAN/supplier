@@ -62,7 +62,7 @@ import {getPCPValidations, PCPValidationRecord} from "@/services/agenda/pcpApi";
 import {STATUS_CONFIG} from "@/services/agenda/appointmentStatus";
 import {DeliveryAppointment, DeliveryEvaluation, PackingListItem, SupplierClaim} from "@/store/types";
 import DocumentsModal from './DocumentsModal';
-import { COMMERCIAL_DOCUMENT_TYPES } from '@/config/commercialDocuments';
+import { COMMERCIAL_DOCUMENT_TYPES, mapFileNameToDocumentType } from '@/config/commercialDocuments';
 import EvaluationModal from './EvaluationModal';
 import ClaimModal from './ClaimModal';
 import PCPValidationModal from './PCPValidationModal';
@@ -177,8 +177,8 @@ const AppointmentDetail: React.FC = () => {
                     const foundApiAppointment = apiAppointments.find(
                         (apt) => apt.docEntry === appointment.docEntry
                     );
-                    if (foundApiAppointment && (foundApiAppointment as any).Documents) {
-                        setAppointmentDocuments((foundApiAppointment as any).Documents || []);
+                    if (foundApiAppointment && foundApiAppointment.rawDocuments) {
+                        setAppointmentDocuments(foundApiAppointment.rawDocuments || []);
                     } else {
                         // Si no se encuentra en el API, limpiar documentos
                         setAppointmentDocuments([]);
@@ -248,11 +248,24 @@ const AppointmentDetail: React.FC = () => {
     const [documentSearchFilter, setDocumentSearchFilter] = useState<string>('');
     const documentSearchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     
+    // Obtiene los tipos de documento (keys) que ya tienen al menos un archivo cargado.
+    // Se basa en cobertura por tipo (no en cantidad total) para soportar múltiples
+    // archivos del mismo tipo sin dar falsos positivos de "completo".
+    const getCompletedDocumentTypeKeys = (docs: AppointmentDocument[]): Set<string> => {
+        const keys = new Set<string>();
+        docs.forEach((doc) => {
+            const typeKey = mapFileNameToDocumentType(doc.u_name_file);
+            if (typeKey) keys.add(typeKey);
+        });
+        return keys;
+    };
+
     // Verificar si todos los documentos requeridos están completos
     const areAllDocumentsComplete = (): boolean => {
-        // Completo = todos los tipos disponibles en el modal han sido cargados
+        // Completo = todos los tipos disponibles en el modal tienen al menos un archivo cargado
         if (appointmentDocuments.length > 0) {
-            return appointmentDocuments.length >= COMMERCIAL_DOCUMENT_TYPES.length;
+            const completedTypeKeys = getCompletedDocumentTypeKeys(appointmentDocuments);
+            return COMMERCIAL_DOCUMENT_TYPES.every((docType) => completedTypeKeys.has(docType.key));
         }
 
         // Fallback legacy: los 3 tipos requeridos del appointment están presentes
@@ -1041,12 +1054,14 @@ const AppointmentDetail: React.FC = () => {
             const foundApiAppointment = apiAppointments.find(
                 (apt) => apt.docEntry === appointment.docEntry
             );
-            if (foundApiAppointment && (foundApiAppointment as any).Documents) {
-                setAppointmentDocuments((foundApiAppointment as any).Documents || []);
-                
+            if (foundApiAppointment && foundApiAppointment.rawDocuments) {
+                setAppointmentDocuments(foundApiAppointment.rawDocuments || []);
+
                 // Verificar si todos los documentos están completos y actualizar estado
-                const documents = (foundApiAppointment as any).Documents || [];
-                if (documents.length >= 5 && appointment.status !== 'DOCUMENTOS_COMPLETOS' && appointment.docEntry && currentUser) {
+                const documents: AppointmentDocument[] = foundApiAppointment.rawDocuments || [];
+                const completedTypeKeys = getCompletedDocumentTypeKeys(documents);
+                const allTypesComplete = COMMERCIAL_DOCUMENT_TYPES.every((docType) => completedTypeKeys.has(docType.key));
+                if (allTypesComplete && appointment.status !== 'DOCUMENTOS_COMPLETOS' && appointment.docEntry && currentUser) {
                     const { updateAppointmentStatus } = await import('@/services/agenda/appointmentStatus');
                     const userId = currentUser.userCode || currentUser.id || currentUser.username || 'system';
                     await updateAppointmentStatus(appointment.docEntry, 'DOCUMENTOS_COMPLETOS', userId);
@@ -1906,7 +1921,7 @@ const AppointmentDetail: React.FC = () => {
                                         );
                                     })()}
 
-                                    {canManageDocuments && appointmentDocuments.length < COMMERCIAL_DOCUMENT_TYPES.length && (
+                                    {canManageDocuments && getCompletedDocumentTypeKeys(appointmentDocuments).size < COMMERCIAL_DOCUMENT_TYPES.length && (
                                         <div className="mt-4">
                                             <Button
                                                 color="primary"
@@ -2459,8 +2474,8 @@ const AppointmentDetail: React.FC = () => {
                                     const foundApiAppointment = apiAppointments.find(
                                         (apt) => apt.docEntry === appointment.docEntry
                                     );
-                                    if (foundApiAppointment && (foundApiAppointment as any).Documents) {
-                                        setAppointmentDocuments((foundApiAppointment as any).Documents || []);
+                                    if (foundApiAppointment && foundApiAppointment.rawDocuments) {
+                                        setAppointmentDocuments(foundApiAppointment.rawDocuments || []);
                                     }
                                 } catch (error) {
                                     console.error('Error al recargar documentos:', error);

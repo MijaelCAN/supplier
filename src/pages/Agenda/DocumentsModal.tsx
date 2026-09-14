@@ -17,6 +17,7 @@ import {
 } from "@/config/commercialDocuments";
 
 interface DocumentFile {
+    id: string;
     file: File | null;
     uploaded: boolean;
     progress: number;
@@ -38,6 +39,9 @@ interface DocumentsModalProps {
     loadedDocuments?: LoadedDocument[];
 }
 
+const generateEntryId = (type: string): string =>
+    `${type}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
 const DocumentsModal: React.FC<DocumentsModalProps> = ({
     isOpen,
     onOpenChange,
@@ -55,25 +59,27 @@ const DocumentsModal: React.FC<DocumentsModalProps> = ({
         // loadDocumentTypesFromApi().then(setDocumentTypes);
     }, []);
 
-    // Función para mapear documentos cargados a tipos del modal
-    const mapLoadedDocumentsToTypes = (docs: LoadedDocument[]): Record<string, DocumentFile> => {
-        // Inicializar todos los tipos de documentos
-        const mapped: Record<string, DocumentFile> = {};
+    // Función para mapear documentos cargados a tipos del modal.
+    // Cada tipo ahora es un arreglo: un mismo tipo puede tener múltiples archivos cargados.
+    const mapLoadedDocumentsToTypes = (docs: LoadedDocument[]): Record<string, DocumentFile[]> => {
+        // Inicializar todos los tipos de documentos con arreglo vacío
+        const mapped: Record<string, DocumentFile[]> = {};
         documentTypes.forEach(docType => {
-            mapped[docType.key] = { file: null, uploaded: false, progress: 0 };
+            mapped[docType.key] = [];
         });
 
-        // Mapear documentos cargados según sus nombres
+        // Mapear documentos cargados según sus nombres, acumulando por tipo
         docs.forEach(doc => {
             const documentTypeKey = mapFileNameToDocumentType(doc.name);
             if (documentTypeKey && mapped[documentTypeKey]) {
-                mapped[documentTypeKey] = { 
-                    file: null, 
-                    uploaded: true, 
+                mapped[documentTypeKey].push({
+                    id: generateEntryId(documentTypeKey),
+                    file: null,
+                    uploaded: true,
                     progress: 100,
                     loadedName: doc.name,
                     loadedUrl: doc.url
-                };
+                });
             }
         });
 
@@ -81,7 +87,7 @@ const DocumentsModal: React.FC<DocumentsModalProps> = ({
     };
 
     // Inicializar con documentos cargados cuando se abre el modal
-    const [documents, setDocuments] = useState<Record<string, DocumentFile>>(() => 
+    const [documents, setDocuments] = useState<Record<string, DocumentFile[]>>(() =>
         mapLoadedDocumentsToTypes(loadedDocuments)
     );
 
@@ -95,35 +101,43 @@ const DocumentsModal: React.FC<DocumentsModalProps> = ({
     const handleFileSelect = async (type: string, file: File) => {
         if (!selectedAppointment) return;
 
+        const entryId = generateEntryId(type);
+        const newEntry: DocumentFile = { id: entryId, file, uploaded: false, progress: 0 };
+
         setDocuments((prev) => ({
             ...prev,
-            [type]: { file, uploaded: false, progress: 0 },
+            [type]: [...(prev[type] || []), newEntry],
         }));
 
         try {
             setDocuments((prev) => ({
                 ...prev,
-                [type]: { ...prev[type], progress: 50 },
+                [type]: (prev[type] || []).map((entry) =>
+                    entry.id === entryId ? { ...entry, progress: 50 } : entry
+                ),
             }));
 
             await handleUploadDocument(type, file);
 
             setDocuments((prev) => ({
                 ...prev,
-                [type]: { file, uploaded: true, progress: 100 },
+                [type]: (prev[type] || []).map((entry) =>
+                    entry.id === entryId ? { ...entry, uploaded: true, progress: 100 } : entry
+                ),
             }));
         } catch (error) {
+            // Si falla la subida, se descarta solo esta entrada (no afecta a los demás archivos del tipo)
             setDocuments((prev) => ({
                 ...prev,
-                [type]: { file: null, uploaded: false, progress: 0 },
+                [type]: (prev[type] || []).filter((entry) => entry.id !== entryId),
             }));
         }
     };
 
-    const handleRemoveFile = (type: string) => {
+    const handleRemoveFile = (type: string, entryId: string) => {
         setDocuments((prev) => ({
             ...prev,
-            [type]: { file: null, uploaded: false, progress: 0 },
+            [type]: (prev[type] || []).filter((entry) => entry.id !== entryId),
         }));
     };
 
@@ -159,139 +173,127 @@ const DocumentsModal: React.FC<DocumentsModalProps> = ({
                         <ModalBody>
                             <div className="space-y-4">
                                 {documentTypes.map((docType) => {
-                                    const doc = documents[docType.key];
-                                    const hasFile = doc.file !== null;
+                                    const entries = documents[docType.key] || [];
+                                    const hasUploaded = entries.some((entry) => entry.uploaded);
 
                                     return (
                                         <div
                                             key={docType.key}
                                             className="relative rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-700 p-4 transition-all hover:border-blue-400 dark:hover:border-blue-600"
                                         >
-                                            <div className="flex items-start justify-between gap-4">
-                                                <div className="flex items-start gap-3 flex-1">
-                                                    <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400">
-                                                        {docType.icon}
-                                                    </div>
-                                                    <div className="flex-1 min-w-0">
-                                                        <div className="flex items-center gap-2 mb-1">
-                                                            <p className="font-semibold text-sm">
-                                                                {docType.label}
-                                                            </p>
-                                                            {doc.uploaded ? (
-                                                                <Chip
-                                                                    size="sm"
-                                                                    color="success"
-                                                                    variant="flat"
-                                                                    startContent={
-                                                                        <CheckCircleIcon className="w-3 h-3" />
-                                                                    }
-                                                                >
-                                                                    Cargado
-                                                                </Chip>
-                                                            ) : (
-                                                                <Chip
-                                                                    size="sm"
-                                                                    color="warning"
-                                                                    variant="flat"
-                                                                    startContent={
-                                                                        <ClockIcon className="w-3 h-3" />
-                                                                    }
-                                                                >
-                                                                    Pendiente
-                                                                </Chip>
-                                                            )}
-                                                        </div>
-                                                        <p className="text-xs text-gray-500 mb-3">
-                                                            {docType.description}
+                                            <div className="flex items-start gap-3">
+                                                <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400">
+                                                    {docType.icon}
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <p className="font-semibold text-sm">
+                                                            {docType.label}
                                                         </p>
-
-                                                        {(hasFile || doc.uploaded) ? (
-                                                            <div className="space-y-2 space-x-2">
-                                                                <div className="flex items-center justify-between">
-                                                                    <p className="text-sm text-gray-700 dark:text-gray-300 truncate">
-                                                                        {doc.file ? doc.file.name : (doc.loadedName || 'Documento cargado')}
-                                                                    </p>
-                                                                    {doc.file && (
-                                                                        <p className="text-xs text-gray-500 ml-2">
-                                                                            {formatFileSize(doc.file.size)}
-                                                                        </p>
-                                                                    )}
-                                                                </div>
-                                                                {doc.progress > 0 && doc.progress < 100 && (
-                                                                    <Progress
-                                                                        value={doc.progress}
-                                                                        size="sm"
-                                                                        color="primary"
-                                                                        classNames={{
-                                                                            indicator: 'bg-gradient-to-r from-blue-500 to-blue-600',
-                                                                        }}
-                                                                    />
-                                                                )}
-                                                                {doc.uploaded && doc.loadedUrl && (
-                                                                    <a 
-                                                                        href={doc.loadedUrl} 
-                                                                        target="_blank" 
-                                                                        rel="noopener noreferrer"
-                                                                        className="text-xs text-blue-600 hover:text-blue-800 underline"
-                                                                    >
-                                                                        Ver documento
-                                                                    </a>
-                                                                )}
-                                                                {doc.uploaded && !doc.file && (
-                                                                    <label className="cursor-pointer inline-block">
-                                                                        <input
-                                                                            type="file"
-                                                                            accept={docType.accept}
-                                                                            onChange={(e) => {
-                                                                                const file = e.target.files?.[0];
-                                                                                if (file) {
-                                                                                    handleFileSelect(docType.key, file);
-                                                                                }
-                                                                            }}
-                                                                            className="hidden"
-                                                                        />
-                                                                        <span className="text-xs text-blue-600 hover:text-blue-800 underline">
-                                                                            Cambiar archivo
-                                                                        </span>
-                                                                    </label>
-                                                                )}
-                                                            </div>
+                                                        {hasUploaded ? (
+                                                            <Chip
+                                                                size="sm"
+                                                                color="success"
+                                                                variant="flat"
+                                                                startContent={
+                                                                    <CheckCircleIcon className="w-3 h-3" />
+                                                                }
+                                                            >
+                                                                Cargado
+                                                            </Chip>
                                                         ) : (
-                                                            <label className="cursor-pointer">
-                                                                <input
-                                                                    type="file"
-                                                                    accept={docType.accept}
-                                                                    onChange={(e) => {
-                                                                        const file = e.target.files?.[0];
-                                                                        if (file) {
-                                                                            handleFileSelect(docType.key, file);
-                                                                        }
-                                                                    }}
-                                                                    className="hidden"
-                                                                />
-                                                                <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300">
-                                                                    <UploadIcon className="w-4 h-4" />
-                                                                    <span className="text-sm font-medium">
-                                                                        Seleccionar archivo
-                                                                    </span>
-                                                                </div>
-                                                            </label>
+                                                            <Chip
+                                                                size="sm"
+                                                                color="warning"
+                                                                variant="flat"
+                                                                startContent={
+                                                                    <ClockIcon className="w-3 h-3" />
+                                                                }
+                                                            >
+                                                                Pendiente
+                                                            </Chip>
                                                         )}
                                                     </div>
-                                                </div>
+                                                    <p className="text-xs text-gray-500 mb-3">
+                                                        {docType.description}
+                                                    </p>
 
-                                                {hasFile && (
-                                                    <Button
-                                                        isIconOnly
-                                                        size="sm"
-                                                        variant="light"
-                                                        color="danger"
-                                                        onPress={() => handleRemoveFile(docType.key)}
-                                                        className="min-w-0"
-                                                    >
-                                                        <XMarkIcon className="w-4 h-4" />
-                                                    </Button>
-                                                )}
+                                                    {entries.length > 0 && (
+                                                        <div className="space-y-2 mb-3">
+                                                            {entries.map((entry) => (
+                                                                <div
+                                                                    key={entry.id}
+                                                                    className="flex items-center justify-between gap-2 bg-gray-50 dark:bg-gray-800 rounded-md px-3 py-2"
+                                                                >
+                                                                    <div className="flex-1 min-w-0">
+                                                                        <div className="flex items-center justify-between gap-2">
+                                                                            <p className="text-sm text-gray-700 dark:text-gray-300 truncate">
+                                                                                {entry.file ? entry.file.name : (entry.loadedName || 'Documento cargado')}
+                                                                            </p>
+                                                                            {entry.file && (
+                                                                                <p className="text-xs text-gray-500 flex-shrink-0">
+                                                                                    {formatFileSize(entry.file.size)}
+                                                                                </p>
+                                                                            )}
+                                                                        </div>
+                                                                        {entry.progress > 0 && entry.progress < 100 && (
+                                                                            <Progress
+                                                                                value={entry.progress}
+                                                                                size="sm"
+                                                                                color="primary"
+                                                                                classNames={{
+                                                                                    indicator: 'bg-gradient-to-r from-blue-500 to-blue-600',
+                                                                                }}
+                                                                                className="mt-1"
+                                                                            />
+                                                                        )}
+                                                                        {entry.uploaded && entry.loadedUrl && (
+                                                                            <a
+                                                                                href={entry.loadedUrl}
+                                                                                target="_blank"
+                                                                                rel="noopener noreferrer"
+                                                                                className="text-xs text-blue-600 hover:text-blue-800 underline"
+                                                                            >
+                                                                                Ver documento
+                                                                            </a>
+                                                                        )}
+                                                                    </div>
+                                                                    <Button
+                                                                        isIconOnly
+                                                                        size="sm"
+                                                                        variant="light"
+                                                                        color="danger"
+                                                                        onPress={() => handleRemoveFile(docType.key, entry.id)}
+                                                                        className="min-w-0 flex-shrink-0"
+                                                                    >
+                                                                        <XMarkIcon className="w-4 h-4" />
+                                                                    </Button>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+
+                                                    <label className="cursor-pointer inline-block">
+                                                        <input
+                                                            type="file"
+                                                            accept={docType.accept}
+                                                            onChange={(e) => {
+                                                                const file = e.target.files?.[0];
+                                                                if (file) {
+                                                                    handleFileSelect(docType.key, file);
+                                                                }
+                                                                e.target.value = '';
+                                                            }}
+                                                            className="hidden"
+                                                        />
+                                                        <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300">
+                                                            <UploadIcon className="w-4 h-4" />
+                                                            <span className="text-sm font-medium">
+                                                                {entries.length === 0 ? 'Seleccionar archivo' : 'Agregar otro archivo'}
+                                                            </span>
+                                                        </div>
+                                                    </label>
+                                                </div>
                                             </div>
                                         </div>
                                     );
@@ -300,7 +302,7 @@ const DocumentsModal: React.FC<DocumentsModalProps> = ({
 
                             <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-950 rounded-lg">
                                 <p className="text-sm text-blue-800 dark:text-blue-200">
-                                    <strong>Nota:</strong> Los archivos se cargan automáticamente al seleccionarlos
+                                    <strong>Nota:</strong> Los archivos se cargan automáticamente al seleccionarlos. Puedes agregar más de un archivo por tipo de documento.
                                 </p>
                             </div>
                         </ModalBody>
