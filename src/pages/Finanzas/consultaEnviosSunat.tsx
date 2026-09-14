@@ -20,16 +20,17 @@ import {
     TableHeader,
     TableRow,
 } from "@heroui/react";
-
 import {
     MagnifyingGlassIcon,
     DocumentDuplicateIcon,
 } from "@heroicons/react/24/outline";
-
 import Dashboard from "@/layouts/Dashboard";
 import { DateInput } from "@/components/DateInput";
-
-const SUNAT_API_URL = import.meta.env.VITE_SUNAT_API_URL;
+import { httpClient } from "@/services/http/httpClient";
+import {
+    getApiBaseUrl,
+    waitForApiBaseResolution,
+} from "@/config/api";
 
 type TipoOperacionFiltro = | "todos" | "conformidad" | "disconformidad";
 
@@ -124,7 +125,20 @@ const ConsultaEnviosSunat = () => {
     const consultarTipoOperacion = async (tipo: "conformidad" | "disconformidad", numeroPagina: number, cantidadRegistros: number): Promise<ConsultarEnviosResponse> => {
         const parametros = construirParametros(numeroPagina, cantidadRegistros);
         const endpoint = tipo === "conformidad" ? "/api/sunat/comprobantes/conformidad/consultar-envios" : "/api/sunat/comprobantes/disconformidad/consultar-envios";
-        const response = await fetch(`${SUNAT_API_URL}${endpoint}?${parametros.toString()}`, { headers: { Accept: "*/*", }, });
+        //const response = await fetch(`${SUNAT_API_URL}${endpoint}?${parametros.toString()}`, { headers: { Accept: "*/*", }, });
+
+        await waitForApiBaseResolution();
+
+        const response = await httpClient(
+            `${getApiBaseUrl()}${endpoint}?${parametros.toString()}`,
+            {
+                method: "GET",
+                headers: {
+                    Accept: "application/json",
+                },
+                skipObfuscation: true,
+            }
+        );
         const data: ConsultarEnviosResponse = await response.json();
 
         if (!response.ok || !data.success) { throw new Error(data.message || `No se pudieron consultar los envíos. Código HTTP: ${response.status}`); }
@@ -165,13 +179,16 @@ const ConsultaEnviosSunat = () => {
         const parametros = new URLSearchParams();
         parametros.append("numeroTicket", envio.numero_ticket);
 
-        const response = await fetch(
-            `${SUNAT_API_URL}${endpoint}?${parametros.toString()}`,
+        await waitForApiBaseResolution();
+
+        const response = await httpClient(
+            `${getApiBaseUrl()}${endpoint}?${parametros.toString()}`,
             {
                 method: "GET",
                 headers: {
-                    Accept: "*/*",
+                    Accept: "application/json",
                 },
+                skipObfuscation: true,
             }
         );
 
