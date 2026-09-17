@@ -50,6 +50,14 @@ import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { STATUS_CONFIG } from '@/services/agenda/appointmentStatus';
 import {ScheduleAppointmentModal} from "@/pages/Agenda/Scheduleappointmentmodal.tsx";
+import { sendAppointmentConfirmation } from "@/services/email/emailApi.ts";
+
+const WAREHOUSE_LABELS: Record<string, string> = {
+    ALM001: 'Sede Ancon',
+    ALM002: 'Sede Villas',
+    ALM003: 'Sede AN030',
+    ALM004: 'Sede AN043',
+};
 
 const Agenda: React.FC = () => {
     const navigate = useNavigate();
@@ -1080,6 +1088,24 @@ const Agenda: React.FC = () => {
                 });
 
                 alert(`Cita programada exitosamente. Número de cita: ${newAppointment.appointmentNumber}`);
+
+                // Enviar correo de confirmación al proveedor (no bloquea el flujo si falla)
+                if (data.supplierEmail) {
+                    sendAppointmentConfirmation({
+                        to: data.supplierEmail,
+                        appointmentData: {
+                            appointmentNumber: newAppointment.appointmentNumber,
+                            supplierName: data.supplierName,
+                            deliveryDate: data.deliveryDate,
+                            deliveryTime: data.deliveryTime,
+                            deliveryTimeEnd: data.deliveryTimeEnd,
+                            warehouseName: WAREHOUSE_LABELS[data.warehouse] || data.warehouse,
+                            notes: data.notes,
+                        },
+                    }).catch((error) => {
+                        console.error('Error al enviar correo de confirmación de cita:', error);
+                    });
+                }
             }
             
             // Recargar citas del API según el rol del usuario

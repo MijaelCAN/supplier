@@ -374,6 +374,19 @@ export interface GenericNotificationRequest {
     actionText?: string;
 }
 
+export interface AppointmentConfirmationRequest {
+    to: string;
+    appointmentData: {
+        appointmentNumber: string;
+        supplierName: string;
+        deliveryDate: string; // Formato: "YYYY-MM-DD"
+        deliveryTime: string;
+        deliveryTimeEnd: string;
+        warehouseName?: string;
+        notes?: string;
+    };
+}
+
 /**
  * Envía credenciales de nuevo proveedor
  */
@@ -528,6 +541,131 @@ export const sendOrderNotification = async (
     return sendNotificationEmail({
         to: to,
         subject: `Nueva Orden de Compra - ${request.orderData.orderNumber}`,
+        html: html,
+    });
+}
+
+/**
+ * Envía confirmación de cita agendada al proveedor
+ */
+export const sendAppointmentConfirmation = async (
+    request: AppointmentConfirmationRequest
+): Promise<EmailResponse> => {
+    const { appointmentData } = request;
+    const [year, month, day] = appointmentData.deliveryDate.split('-');
+    const formattedDate = year && month && day ? `${day}/${month}/${year}` : appointmentData.deliveryDate;
+
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Confirmación de Cita</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .container {
+            background-color: #ffffff;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #d6001c;
+        }
+        .header h1 {
+            color: #d6001c;
+            margin: 0;
+        }
+        .details-box {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .detail-item {
+            margin: 12px 0;
+        }
+        .detail-label {
+            font-weight: bold;
+            color: #495057;
+            display: inline-block;
+            width: 140px;
+        }
+        .detail-value {
+            color: #212529;
+        }
+        .footer {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #dee2e6;
+            text-align: center;
+            color: #6c757d;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Cita Programada</h1>
+        </div>
+
+        <p>Estimado/a <strong>${appointmentData.supplierName}</strong>,</p>
+
+        <p>Se ha programado una cita de entrega con los siguientes detalles:</p>
+
+        <div class="details-box">
+            <div class="detail-item">
+                <span class="detail-label">N° de Cita:</span>
+                <span class="detail-value">${appointmentData.appointmentNumber}</span>
+            </div>
+            <div class="detail-item">
+                <span class="detail-label">Fecha:</span>
+                <span class="detail-value">${formattedDate}</span>
+            </div>
+            <div class="detail-item">
+                <span class="detail-label">Horario:</span>
+                <span class="detail-value">${appointmentData.deliveryTime} - ${appointmentData.deliveryTimeEnd}</span>
+            </div>
+            ${appointmentData.warehouseName ? `
+            <div class="detail-item">
+                <span class="detail-label">Almacén:</span>
+                <span class="detail-value">${appointmentData.warehouseName}</span>
+            </div>` : ''}
+            ${appointmentData.notes ? `
+            <div class="detail-item">
+                <span class="detail-label">Notas:</span>
+                <span class="detail-value">${appointmentData.notes}</span>
+            </div>` : ''}
+        </div>
+
+        <p>Por favor, tenga en cuenta la fecha y hora programadas para su entrega.</p>
+
+        <p>Saludos cordiales,<br>
+        <strong>Equipo de Portal de Proveedores</strong></p>
+
+        <div class="footer">
+            <p>Este es un correo automático, por favor no responda a este mensaje.</p>
+        </div>
+    </div>
+</body>
+</html>`;
+
+    return sendNotificationEmail({
+        to: request.to,
+        subject: `Cita Programada - N° ${appointmentData.appointmentNumber}`,
         html: html,
     });
 }
