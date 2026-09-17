@@ -191,14 +191,6 @@ export const loginWithAPI = async (
         );
     }
 
-    // Validar si la contraseña es igual al usuario
-    if (password === username) {
-        throw new AuthError(
-            'PASSWORD_EQUALS_USERNAME',
-            'La contraseña no puede ser igual al usuario. Por favor, actualice su contraseña.',
-        );
-    }
-
     const baseUrl = getAuthApiBaseUrl();
     const url = `${baseUrl}/api/Login`;
 

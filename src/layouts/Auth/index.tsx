@@ -98,22 +98,6 @@ const Login = () => {
             return;
         }
 
-        // Validar si la contraseña es igual al usuario (primera vez)
-        if (password === username.trim()) {
-            setFormError("La contraseña no puede ser igual al usuario. Por favor, actualice su contraseña.");
-            addToast({
-                title: "Contraseña inválida",
-                description: "La contraseña no puede ser igual al usuario. Por favor, use la opción 'Recuperar Contraseña' para actualizarla.",
-                timeout: 5000,
-                color: "warning",
-                shouldShowTimeoutProgress: true,
-            });
-            // Abrir el drawer de recuperación de contraseña
-            handleBackdropChange("opaque");
-            setResetUsername(username.trim());
-            return;
-        }
-
         const selectedRole: RoleType = activeTab === "proveedor" ? "provider" : "internal";
         const result = await login(username.trim().toLowerCase(), password, selectedRole);
 
