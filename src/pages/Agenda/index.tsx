@@ -393,6 +393,13 @@ const Agenda: React.FC = () => {
         return horario;
     };
 
+    // Formatea de forma segura la cobertura (a veces la API la envía como string en vez de number)
+    const formatCobertura = (value: number | string | null | undefined): string => {
+        if (value === undefined || value === null || value === '') return '-';
+        const num = typeof value === 'number' ? value : parseFloat(value);
+        return isNaN(num) ? '-' : num.toFixed(2);
+    };
+
     // Filtrar datos según los filtros de búsqueda
     const filteredListViewData = useMemo(() => {
         return listViewData.filter(product => {
@@ -441,8 +448,8 @@ const Agenda: React.FC = () => {
                 'Cantidad': product.quantity,
                 'Horario': formatHorario(product.horario),
                 'Confirmación PCP': product.confirmacion_pcp || '-',
-                'Cobertura Actual (meses)': product.cobertura_actual !== undefined && product.cobertura_actual !== null ? product.cobertura_actual.toFixed(2) : '-',
-                'Cobertura con Ingresos (meses)': product.cobertura_ingreso !== undefined && product.cobertura_ingreso !== null ? product.cobertura_ingreso.toFixed(2) : '-',
+                'Cobertura Actual (meses)': formatCobertura(product.cobertura_actual),
+                'Cobertura con Ingresos (meses)': formatCobertura(product.cobertura_ingreso),
                 'Comentario PCP': product.comentario || '-'
             }));
 
@@ -605,8 +612,8 @@ const Agenda: React.FC = () => {
                                     <td>${product.quantity}</td>
                                     <td>${formatHorario(product.horario)}</td>
                                     <td>${product.confirmacion_pcp || '-'}</td>
-                                    <td>${product.cobertura_actual !== undefined && product.cobertura_actual !== null ? product.cobertura_actual.toFixed(2) + ' meses' : '-'}</td>
-                                    <td>${product.cobertura_ingreso !== undefined && product.cobertura_ingreso !== null ? product.cobertura_ingreso.toFixed(2) + ' meses' : '-'}</td>
+                                    <td>${formatCobertura(product.cobertura_actual) !== '-' ? formatCobertura(product.cobertura_actual) + ' meses' : '-'}</td>
+                                    <td>${formatCobertura(product.cobertura_ingreso) !== '-' ? formatCobertura(product.cobertura_ingreso) + ' meses' : '-'}</td>
                                     <td>${product.comentario || '-'}</td>
                                 </tr>
                             `).join('')}
