@@ -57,6 +57,7 @@ import {
 } from "@/services/agenda/packingListApi";
 import {AppointmentDocument, fetchAppointmentsFromApi, formatDateForAPI} from "@/services/agenda/appointmentsApi";
 import {createChoferInApi} from "@/services/agenda/choferesApi";
+import {createLocalDate} from "@/utils/dateUtils";
 import {fetchEvaluationByCodCita} from "@/services/agenda/evaluationsApi";
 import {getPCPValidations, PCPValidationRecord} from "@/services/agenda/pcpApi";
 import {STATUS_CONFIG} from "@/services/agenda/appointmentStatus";
@@ -1274,7 +1275,7 @@ const AppointmentDetail: React.FC = () => {
                                             <div>
                                                 <span className="text-xs text-gray-500">Fecha: </span>
                                                 <span className="font-medium text-gray-900">
-                                                    {new Date(appointment.deliveryDate).toLocaleDateString('es-PE', {
+                                                    {createLocalDate(appointment.deliveryDate).toLocaleDateString('es-PE', {
                                                         day: '2-digit',
                                                         month: '2-digit',
                                                         year: 'numeric'
