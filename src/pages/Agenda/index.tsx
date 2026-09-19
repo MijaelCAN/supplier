@@ -650,11 +650,11 @@ const Agenda: React.FC = () => {
         }
     };
 
-    // Get days of the week
+    // Get days of the week (Lunes a Sábado: no se agendan citas los domingos)
     const weekDays = useMemo(() => {
         const days = [];
         const start = new Date(weekStart);
-        for (let i = 0; i < 7; i++) {
+        for (let i = 0; i < 6; i++) {
             const day = new Date(start);
             day.setDate(start.getDate() + i);
             days.push(day);
@@ -2236,7 +2236,7 @@ const Agenda: React.FC = () => {
                                     <div 
                                         className="grid border-b border-gray-200 bg-white sticky top-0 z-20 rounded-none"
                                         style={{ 
-                                            gridTemplateColumns: '80px repeat(7, 1fr)',
+                                            gridTemplateColumns: `80px repeat(${weekDays.length}, 1fr)`,
                                             boxSizing: 'border-box',
                                             width: '100%',
                                             paddingRight: `${scrollbarWidth}px` // Compensar el scrollbar del body
@@ -2282,7 +2282,7 @@ const Agenda: React.FC = () => {
                                                 key={time} 
                                                 className="grid border-b border-gray-100 hover:bg-gray-50 transition-colors"
                                                 style={{ 
-                                                    gridTemplateColumns: '80px repeat(7, 1fr)',
+                                                    gridTemplateColumns: `80px repeat(${weekDays.length}, 1fr)`,
                                                     boxSizing: 'border-box'
                                                 }}
                                             >
