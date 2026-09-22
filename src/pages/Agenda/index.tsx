@@ -29,6 +29,8 @@ import {
     PlusIcon,
     ArrowLeftIcon,
     ArrowRightIcon,
+    ChevronLeftIcon,
+    ChevronRightIcon,
     CalendarDaysIcon,
     Squares2X2Icon,
     ListBulletIcon,
@@ -92,7 +94,19 @@ const Agenda: React.FC = () => {
     const [filterStatus, setFilterStatus] = useState<string>('all');
     const [scrollbarWidth, setScrollbarWidth] = useState<number>(0);
     const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar'); // Toggle entre calendario y lista
-    
+
+    // Mobile: el calendario muestra un solo día (seleccionado desde la tira de días)
+    const [isMobile, setIsMobile] = useState<boolean>(() =>
+        typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches
+    );
+    // Restaurar el día abierto (mobile) si se vuelve desde el detalle de una cita
+    const restoredDayIndex = (location.state as { dayIndex?: number } | null)?.dayIndex;
+    const [selectedDayIndex, setSelectedDayIndex] = useState<number>(restoredDayIndex ?? 0);
+    // Mobile: true = lista de todos los días; false = solo el día elegido con opción de regresar
+    const [isDayPickerOpen, setIsDayPickerOpen] = useState<boolean>(restoredDayIndex === undefined);
+    const skipDayResetRef = useRef<boolean>(restoredDayIndex !== undefined);
+    const timeSlotsContainerRef = useRef<HTMLDivElement | null>(null);
+
     // Estado para vista ampliada
     const [extendedViewAppointments, setExtendedViewAppointments] = useState<DeliveryAppointment[]>([]);
     const [isLoadingExtendedView, setIsLoadingExtendedView] = useState(false);
@@ -662,6 +676,41 @@ const Agenda: React.FC = () => {
         return days;
     }, [weekStart]);
 
+    // Detectar modo mobile (< md de Tailwind)
+    useEffect(() => {
+        const mql = window.matchMedia('(max-width: 767px)');
+        const handleChange = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+        mql.addEventListener('change', handleChange);
+        return () => mql.removeEventListener('change', handleChange);
+    }, []);
+
+    // Al cambiar de semana, seleccionar el día de hoy si pertenece a la semana; si no, el lunes
+    useEffect(() => {
+        if (skipDayResetRef.current) {
+            skipDayResetRef.current = false;
+            return;
+        }
+        const todayIndex = weekDays.findIndex(day => day.toDateString() === new Date().toDateString());
+        setSelectedDayIndex(todayIndex >= 0 ? todayIndex : 0);
+        setIsDayPickerOpen(true);
+    }, [currentWeek, weekDays]);
+
+    // Días visibles en el calendario: uno solo en mobile, la semana completa en desktop
+    const visibleDays = useMemo(
+        () => (isMobile ? [weekDays[selectedDayIndex] ?? weekDays[0]] : weekDays),
+        [isMobile, weekDays, selectedDayIndex]
+    );
+
+    // Posicionar el calendario en las 07:00 al mostrarse (las entregas no empiezan de madrugada)
+    useEffect(() => {
+        if (viewMode !== 'calendar' || isLoadingAppointments || (isMobile && isDayPickerOpen)) return;
+        const container = timeSlotsContainerRef.current;
+        const startRow = container?.querySelector<HTMLElement>('[data-time="07:00"]');
+        if (container && startRow) {
+            container.scrollTop = startRow.offsetTop;
+        }
+    }, [viewMode, isLoadingAppointments, isMobile, isDayPickerOpen, selectedDayIndex]);
+
     // Time slots - expandido para cubrir 24 horas
     const timeSlots = useMemo(() => {
         const slots = [];
@@ -941,6 +990,21 @@ const Agenda: React.FC = () => {
         setCurrentWeek(newDate);
     };
 
+    // Mobile: pasar al día anterior/siguiente sin volver a la lista (cruza de semana en los extremos)
+    const goToAdjacentDay = (direction: -1 | 1) => {
+        const nextIndex = selectedDayIndex + direction;
+        if (nextIndex >= 0 && nextIndex < weekDays.length) {
+            setSelectedDayIndex(nextIndex);
+            return;
+        }
+        // Lunes -> sábado de la semana anterior / sábado -> lunes de la semana siguiente
+        skipDayResetRef.current = true;
+        setSelectedDayIndex(direction === 1 ? 0 : weekDays.length - 1);
+        const newDate = new Date(currentWeek);
+        newDate.setDate(newDate.getDate() + 7 * direction);
+        setCurrentWeek(newDate);
+    };
+
     const goToToday = () => {
         setCurrentWeek(new Date());
     };
@@ -1203,7 +1267,12 @@ const Agenda: React.FC = () => {
         setSelectedAppointment(appointment);
         // Navegar a la página de detalle usando docEntry o appointmentNumber
         const appointmentId = appointment.docEntry || appointment.appointmentNumber;
-        navigate(`/agenda/detail/${appointmentId}`, { state: { weekDate: currentWeek.toISOString() } });
+        navigate(`/agenda/detail/${appointmentId}`, {
+            state: {
+                weekDate: currentWeek.toISOString(),
+                dayIndex: isMobile && !isDayPickerOpen ? selectedDayIndex : undefined
+            }
+        });
     };
 
     // Función para buscar cita relacionada con un producto y navegar al detalle
@@ -1845,10 +1914,10 @@ const Agenda: React.FC = () => {
         <Dashboard>
             <div className="relative min-h-screen pb-8">
                 {/* Header */}
-                <div className="flex justify-between items-center">
-                    <div>
-                        <h1 className="text-3xl font-bold text-gray-900">Agenda de Entregas</h1>
-                        <p className="text-gray-600 mt-1">Gestiona las entregas programadas de proveedores</p>
+                <div className="flex justify-between items-center gap-2">
+                    <div className="min-w-0">
+                        <h1 className="text-xl md:text-3xl font-bold text-gray-900">Agenda de Entregas</h1>
+                        <p className="hidden sm:block text-gray-600 mt-1">Gestiona las entregas programadas de proveedores</p>
                     </div>
                     <div className="flex items-center gap-2">
                         {/* Toggle entre vista calendario y lista */}
@@ -1866,13 +1935,24 @@ const Agenda: React.FC = () => {
                             )}
                         </Button>
                         {canCreateAppointment && (
-                            <Button
-                                color="primary"
-                                startContent={<PlusIcon className="w-5 h-5" />}
-                                onPress={onScheduleOpen}
-                            >
-                                Programar Entrega
-                            </Button>
+                            isMobile ? (
+                                <Button
+                                    isIconOnly
+                                    color="primary"
+                                    onPress={onScheduleOpen}
+                                    title="Programar Entrega"
+                                >
+                                    <PlusIcon className="w-5 h-5" />
+                                </Button>
+                            ) : (
+                                <Button
+                                    color="primary"
+                                    startContent={<PlusIcon className="w-5 h-5" />}
+                                    onPress={onScheduleOpen}
+                                >
+                                    Programar Entrega
+                                </Button>
+                            )
                         )}
                     </div>
                 </div>
@@ -2120,10 +2200,10 @@ const Agenda: React.FC = () => {
                             height: 'calc(100vh - 100px)',   // Opcional, asegura altura mínima y fija
                         }}
                     >
-                    <CardHeader className="border-b border-gray-200 bg-gray-50 py-2 px-4 rounded-none">
+                    <CardHeader className="border-b border-gray-200 bg-gray-50 py-2 px-2 md:px-4 rounded-none">
                         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 w-full">
                             {/* Left section: Navigation and Title */}
-                            <div className="flex items-center gap-2 flex-shrink-0">
+                            <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
                                 <Button
                                     isIconOnly
                                     variant="light"
@@ -2134,8 +2214,8 @@ const Agenda: React.FC = () => {
                                 >
                                     <ArrowLeftIcon className="w-5 h-5" />
                                 </Button>
-                                <span className="block min-w-[160px] px-2 text-center">
-                                    <h2 className="text-xl font-bold text-gray-900 whitespace-nowrap leading-none">
+                                <span className="block min-w-[120px] md:min-w-[160px] px-1 md:px-2 text-center">
+                                    <h2 className="text-base md:text-xl font-bold text-gray-900 whitespace-nowrap leading-none capitalize">
                                         {weekStart.toLocaleDateString('es-PE', { month: 'long', year: 'numeric' })}
                                     </h2>
                                 </span>
@@ -2153,19 +2233,23 @@ const Agenda: React.FC = () => {
                                     variant="light"
                                     size="sm"
                                     onPress={goToToday}
-                                    className="ml-2"
+                                    className="ml-0 md:ml-2 min-w-0"
                                     isDisabled={isLoadingAppointments}
                                 >
                                     Hoy
                                 </Button>
+                                {/* Contador de citas (mobile) */}
+                                <Chip color="primary" variant="flat" size="sm" className="md:hidden ml-auto">
+                                    {isLoadingAppointments ? '...' : `${filteredAppointments.length} ${filteredAppointments.length === 1 ? 'cita' : 'citas'}`}
+                                </Chip>
                             </div>
                             {/* Center section: Status Filter */}
-                            <div className="flex items-center flex-1 min-w-[180px] justify-center gap-2">
+                            <div className="flex items-center flex-1 md:min-w-[180px] justify-center gap-2">
                                 <Select
                                     label="Estado"
                                     selectedKeys={[filterStatus]}
                                     onSelectionChange={(keys) => setFilterStatus(Array.from(keys)[0] as string)}
-                                    className="max-w-xs min-w-[170px]"
+                                    className="flex-1 md:flex-none md:max-w-xs md:min-w-[170px]"
                                     size="sm"
                                 >
                                     <SelectItem key="all">Todos</SelectItem>
@@ -2189,13 +2273,13 @@ const Agenda: React.FC = () => {
                                     color="primary"
                                     startContent={<CalendarDaysIcon className="w-4 h-4" />}
                                     onPress={onExtendedViewOpen}
-                                    className="min-w-[140px]"
+                                    className="md:min-w-[140px] flex-shrink-0"
                                 >
-                                    Ver Todas las Citas
+                                    {isMobile ? 'Todas' : 'Ver Todas las Citas'}
                                 </Button>
                             </div>
                             {/* Right section: Info */}
-                            <div className="flex items-center gap-2 flex-shrink-0 justify-end min-w-[150px]">
+                            <div className="hidden md:flex items-center gap-2 flex-shrink-0 justify-end min-w-[150px]">
                                 {isLoadingAppointments && (
                                     <Chip color="primary" variant="flat" size="sm">
                                         Cargando...
@@ -2232,11 +2316,115 @@ const Agenda: React.FC = () => {
                             <div className="overflow-x-auto rounded-none flex-1 flex flex-col min-h-0">
                                 {/* Contenedor común para mantener el mismo ancho */}
                                 <div className="min-w-full w-full flex-1 flex flex-col min-h-0" style={{ position: 'relative', minHeight: 0 }}>
+                                    {/* Mobile: día seleccionado con opción de regresar a la lista de días */}
+                                    {isMobile && !isDayPickerOpen && (() => {
+                                        const day = visibleDays[0];
+                                        const isToday = day.toDateString() === new Date().toDateString();
+                                        const dayKey = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
+                                        const dayCount = filteredAppointments.filter(apt => apt.deliveryDate === dayKey).length;
+                                        return (
+                                            <div className="flex items-center gap-2 p-2 border-b border-gray-200 bg-white">
+                                                {/* Botón nativo con onClick: evita que el "click fantasma" del táctil seleccione un día de la lista al redibujarse */}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setIsDayPickerOpen(true)}
+                                                    title="Ver todos los días"
+                                                    className="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-100 active:bg-gray-200 text-gray-700"
+                                                >
+                                                    <ArrowLeftIcon className="w-5 h-5" />
+                                                </button>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className={`text-sm font-bold capitalize truncate ${isToday ? 'text-blue-600' : 'text-gray-900'}`}>
+                                                        {day.toLocaleDateString('es-PE', { weekday: 'long', day: 'numeric', month: 'long' })}
+                                                        {isToday && <span className="ml-1 font-medium normal-case">(Hoy)</span>}
+                                                    </div>
+                                                    <div className="text-xs text-gray-500">
+                                                        {dayCount} {dayCount === 1 ? 'cita' : 'citas'}
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-1 flex-shrink-0">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => goToAdjacentDay(-1)}
+                                                        title="Día anterior"
+                                                        className="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-100 active:bg-gray-200 text-gray-700"
+                                                    >
+                                                        <ChevronLeftIcon className="w-5 h-5" />
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => goToAdjacentDay(1)}
+                                                        title="Día siguiente"
+                                                        className="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-100 active:bg-gray-200 text-gray-700"
+                                                    >
+                                                        <ChevronRightIcon className="w-5 h-5" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
+
+                                    {/* Mobile: lista de días de la semana (con resumen de citas) para elegir el día */}
+                                    {isMobile && isDayPickerOpen && (
+                                        <div className="flex-1 min-h-0 overflow-y-auto p-2 space-y-2 bg-gray-50">
+                                            {weekDays.map((day, index) => {
+                                                const isToday = day.toDateString() === new Date().toDateString();
+                                                const dayKey = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
+                                                const dayAppointments = filteredAppointments
+                                                    .filter(apt => apt.deliveryDate === dayKey)
+                                                    .sort((a, b) => timeToMinutes(a.deliveryTime) - timeToMinutes(b.deliveryTime));
+                                                return (
+                                                    <button
+                                                        key={index}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setSelectedDayIndex(index);
+                                                            setIsDayPickerOpen(false);
+                                                        }}
+                                                        className={`w-full text-left rounded-lg border bg-white p-3 active:bg-gray-100 transition-colors ${
+                                                            isToday ? 'border-blue-400' : 'border-gray-200'
+                                                        }`}
+                                                    >
+                                                        <div className="flex items-center justify-between gap-2">
+                                                            <div className={`text-sm font-bold capitalize ${isToday ? 'text-blue-600' : 'text-gray-900'}`}>
+                                                                {day.toLocaleDateString('es-PE', { weekday: 'long', day: 'numeric', month: 'long' })}
+                                                                {isToday && <span className="ml-1 font-medium normal-case">(Hoy)</span>}
+                                                            </div>
+                                                            <div className="flex items-center gap-1 flex-shrink-0">
+                                                                <Chip size="sm" variant="flat" color={dayAppointments.length > 0 ? 'primary' : 'default'}>
+                                                                    {dayAppointments.length} {dayAppointments.length === 1 ? 'cita' : 'citas'}
+                                                                </Chip>
+                                                                <ArrowRightIcon className="w-4 h-4 text-gray-400" />
+                                                            </div>
+                                                        </div>
+                                                        {dayAppointments.length > 0 && (
+                                                            <div className="mt-2 space-y-1">
+                                                                {dayAppointments.slice(0, 3).map(apt => (
+                                                                    <div key={apt.id} className="flex items-center gap-2 text-xs text-gray-600">
+                                                                        <span className="font-medium text-gray-800 whitespace-nowrap">
+                                                                            {apt.deliveryTime}{apt.deliveryTimeEnd ? ` - ${apt.deliveryTimeEnd}` : ''}
+                                                                        </span>
+                                                                        <span className="truncate">{apt.supplierName}</span>
+                                                                    </div>
+                                                                ))}
+                                                                {dayAppointments.length > 3 && (
+                                                                    <div className="text-xs text-gray-400">
+                                                                        +{dayAppointments.length - 3} más
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+
                                     {/* Header with days - Fijo en la parte superior */}
-                                    <div 
-                                        className="grid border-b border-gray-200 bg-white sticky top-0 z-20 rounded-none"
-                                        style={{ 
-                                            gridTemplateColumns: `80px repeat(${weekDays.length}, 1fr)`,
+                                    <div
+                                        className={`${isMobile ? 'hidden' : 'grid'} border-b border-gray-200 bg-white sticky top-0 z-20 rounded-none`}
+                                        style={{
+                                            gridTemplateColumns: `80px repeat(${visibleDays.length}, 1fr)`,
                                             boxSizing: 'border-box',
                                             width: '100%',
                                             paddingRight: `${scrollbarWidth}px` // Compensar el scrollbar del body
@@ -2245,7 +2433,7 @@ const Agenda: React.FC = () => {
                                         <div className="p-2 text-xs font-semibold text-gray-500 border-r border-gray-200">
                                             Hora
                                         </div>
-                                        {weekDays.map((day, index) => {
+                                        {visibleDays.map((day, index) => {
                                             const isToday = day.toDateString() === new Date().toDateString();
                                             const dayName = day.toLocaleDateString('es-PE', { weekday: 'short' }).toUpperCase();
                                             const dayNumber = day.getDate();
@@ -2269,20 +2457,22 @@ const Agenda: React.FC = () => {
                                     </div>
 
                                     {/* Time slots - Contenedor con scroll vertical */}
-                                    <div 
-                                        className="relative overflow-y-auto overflow-x-hidden flex-1 min-h-0"
-                                        style={{ 
+                                    <div
+                                        ref={timeSlotsContainerRef}
+                                        className={`relative overflow-y-auto overflow-x-hidden flex-1 min-h-0 ${isMobile && isDayPickerOpen ? 'hidden' : ''}`}
+                                        style={{
                                             // El CardBody/Flex asegura que esto siempre llene todo el espacio vertical disponible
                                             height: '100%',
                                             width: '100%',
                                         }}
                                     >
                                         {timeSlots.map((time) => (
-                                            <div 
-                                                key={time} 
+                                            <div
+                                                key={time}
+                                                data-time={time}
                                                 className="grid border-b border-gray-100 hover:bg-gray-50 transition-colors"
-                                                style={{ 
-                                                    gridTemplateColumns: `80px repeat(${weekDays.length}, 1fr)`,
+                                                style={{
+                                                    gridTemplateColumns: `${isMobile ? '56px' : '80px'} repeat(${visibleDays.length}, 1fr)`,
                                                     boxSizing: 'border-box'
                                                 }}
                                             >
@@ -2292,7 +2482,7 @@ const Agenda: React.FC = () => {
                                                 </div>
 
                                                 {/* Columnas de días */}
-                                                {weekDays.map((day, dayIndex) => {
+                                                {visibleDays.map((day, dayIndex) => {
                                                     const isToday = day.toDateString() === new Date().toDateString();
                                                     
                                                     // Obtener citas para este día específico
@@ -2403,15 +2593,17 @@ const Agenda: React.FC = () => {
                                                                             }}
                                                                         >
                                                                             
-                                                                            <div className="font-semibold truncate text-[10px] leading-tight">
+                                                                            <div className={`font-semibold truncate leading-tight ${isMobile ? 'text-xs' : 'text-[10px]'}`}>
                                                                                 {apt.supplierName}
                                                                             </div>
-                                                                            <div className="text-[9px] opacity-90 mt-0.5">
+                                                                            <div className={`opacity-90 mt-0.5 ${isMobile ? 'text-[11px]' : 'text-[9px]'}`}>
                                                                                 {apt.deliveryTime} {apt.deliveryTimeEnd ? `- ${apt.deliveryTimeEnd}` : ''}
                                                                             </div>
                                                                             {slotsToSpan > 1 && (
-                                                                                <div className="text-[9px] opacity-75 mt-0.5 truncate">
-                                                                                    {apt.docEntry}
+                                                                                <div className={`opacity-75 mt-0.5 truncate ${isMobile ? 'text-[11px]' : 'text-[9px]'}`}>
+                                                                                    {isMobile
+                                                                                        ? [STATUS_CONFIG[apt.status as keyof typeof STATUS_CONFIG]?.label, apt.docEntry].filter(Boolean).join(' · ')
+                                                                                        : apt.docEntry}
                                                                                 </div>
                                                                             )}
                                                                         </div>

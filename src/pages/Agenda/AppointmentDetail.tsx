@@ -85,7 +85,7 @@ const AppointmentDetail: React.FC = () => {
     const { appointmentId } = useParams<{ appointmentId: string }>();
     const navigate = useNavigate();
     const location = useLocation();
-    const weekDate = (location.state as { weekDate?: string } | null)?.weekDate;
+    const { weekDate, dayIndex } = (location.state as { weekDate?: string; dayIndex?: number } | null) ?? {};
     const { currentUser } = useAuth();
     const isProvider = currentUser?.role === UserRole.PROVEEDOR;
     const { setSelectedAppointment } = useAgendaStore(); // Solo usamos setSelectedAppointment, no el store local de appointments
@@ -446,7 +446,7 @@ const AppointmentDetail: React.FC = () => {
     useEffect(() => {
         if (!isLoadingAppointment && !appointment) {
             const timer = setTimeout(() => {
-                navigate('/agenda', { state: { weekDate } });
+                navigate('/agenda', { state: { weekDate, dayIndex } });
             }, 2000);
             return () => clearTimeout(timer);
         }
