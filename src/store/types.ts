@@ -381,6 +381,16 @@ interface File{
     base64: string
 }
 
+// Documento crudo tal como lo devuelve el API de citas (un registro por archivo físico,
+// sin agrupar por tipo). Se usa para poder mostrar múltiples archivos del mismo tipo
+// de documento sin perder ninguno.
+export interface AppointmentDocumentRecord {
+    document_doc_entry: string;
+    u_cod_cita: string;
+    u_name_file: string;
+    u_link_documento: string;
+}
+
 // Agenda Module Types
 export interface DeliveryAppointment {
     id: string;
@@ -404,6 +414,9 @@ export interface DeliveryAppointment {
     packingList?: PackingList;
     transportData?: TransportData;
     documents?: DeliveryDocuments;
+    // Lista cruda de documentos del API (uno por archivo físico, sin agrupar por tipo).
+    // Permite soportar múltiples archivos del mismo tipo de documento.
+    rawDocuments?: AppointmentDocumentRecord[];
     notificationSent: boolean;
     evaluation?: DeliveryEvaluation; // Calificación de la entrega
 }

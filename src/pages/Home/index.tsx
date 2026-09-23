@@ -4,6 +4,7 @@ import AdminHome from './AdminHome';
 import ProveedorHome from './ProveedorHome';
 import ComprasHome from './ComprasHome';
 import FinanzasHome from './FinanzasHome';
+import ContabilidadHome from './ContabilidadHome';
 import UnauthorizedHome from "@/pages/Home/UnauthorizedHome.tsx";
 import AlmacenHome from "@/pages/Home/AlmacenHome.tsx";
 import SeguridadHome from "@/pages/Home/SeguridadHome.tsx";
@@ -28,6 +29,8 @@ const Home = () => {
             return <ComprasHome />;
         case UserRole.FINANZAS:
             return <FinanzasHome />;
+        case UserRole.CONTABILIDAD:
+            return <ContabilidadHome />;
         case UserRole.ALMACEN:
             return <AlmacenHome />;
         case UserRole.SEGURIDAD:

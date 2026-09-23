@@ -165,7 +165,8 @@ import {
     Input,
     Select,
     SelectItem,
-    Divider
+    Divider,
+    addToast
 } from "@heroui/react";
 import {Supplier} from "@/store/types";
 import {useExtendedStore} from "@/store/extendedStore.ts";
@@ -341,6 +342,10 @@ const ModalEdit: FC<ModalEditProps> = ({
                 departamento: data.department,
                 provincia: data.province,
                 distrito: data.district,
+                // tipo_persona y tipo_documento ahora vienen del API como texto legible
+                // (antes venían como código). El backend sigue esperando el código en el PATCH.
+                tipo_persona: apiRecord.cod_tipo_persona || apiRecord.tipo_persona,
+                tipo_documento: apiRecord.cod_tipo_documeto || apiRecord.tipo_documento,
                 condicion_pago: data.paymentTerms,
                 status: data.status,
                 contactos: contactos,
@@ -356,9 +361,23 @@ const ModalEdit: FC<ModalEditProps> = ({
                 await onUpdated();
             }
 
+            addToast({
+                title: 'Proveedor actualizado',
+                description: 'Los cambios se guardaron correctamente.',
+                color: 'success',
+                timeout: 3000,
+            });
+
             onEditClose();
         } catch (error) {
             console.error('Error al actualizar el proveedor:', error)
+            const message = error instanceof Error ? error.message : 'No se pudo actualizar el proveedor.';
+            addToast({
+                title: 'Error al actualizar',
+                description: message,
+                color: 'danger',
+                timeout: 4000,
+            });
         }
     }
 

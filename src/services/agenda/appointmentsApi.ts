@@ -209,6 +209,9 @@ const mapApiRecordToAppointment = (record: AppointmentApiRecord, index: number):
         warehouse: record.u_almacen,
         transportData,
         documents,
+        // Se conserva el arreglo tal como lo devuelve el API (sin agrupar por tipo)
+        // para poder mostrar/soportar múltiples archivos del mismo tipo de documento.
+        rawDocuments: record.documents || [],
         notificationSent: false,
     };
 };

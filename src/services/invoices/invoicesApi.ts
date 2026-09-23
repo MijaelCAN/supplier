@@ -271,19 +271,25 @@ export const schedulePaymentInvoices = async (
         invoice: Invoice & { supplierRUC?: string; taxDate?: string; importePagar?: number };
         scheduleDate: string;
         editedImportePagar?: string;
+        retentionAmount?: number;
     }>
 ): Promise<SchedulePaymentResponse> => {
     const BASE_URL = getApiBaseUrl();
     const ENDPOINT = '/api/Pagos/ProgramarFacturas';
-    
+
     // El request es directamente un array de facturas, sin etiqueta "facturas"
-    const requestData: SchedulePaymentInvoice[] = invoices.map(({ invoice, scheduleDate, editedImportePagar }) => {
+    const requestData: SchedulePaymentInvoice[] = invoices.map(({ invoice, scheduleDate, editedImportePagar, retentionAmount }) => {
         const supplierId = invoice.supplierId?.replace('P', '') || '';
         const supplierRUC = (invoice as Invoice & { supplierRUC?: string }).supplierRUC || supplierId;
-        const importePagar = editedImportePagar 
-            ? parseFloat(editedImportePagar).toFixed(2)
-            : String((invoice as Invoice & { importePagar?: number }).importePagar || 0);
-        
+        const importePagarNum = editedImportePagar
+            ? parseFloat(editedImportePagar)
+            : ((invoice as Invoice & { importePagar?: number }).importePagar || 0);
+        const importePagar = importePagarNum.toFixed(2);
+        // La retención se recalcula proporcional al importe que se está programando ahora
+        // (no el total de la factura), para reflejar correctamente pagos parciales/en cuotas.
+        const retencion = (retentionAmount ?? 0).toFixed(2);
+        const totalPagar = Math.max(importePagarNum - (retentionAmount ?? 0), 0).toFixed(2);
+
         return {
             u_cod_proveedor: supplierId,
             u_fecha_compromiso_pago: scheduleDate,
@@ -292,11 +298,11 @@ export const schedulePaymentInvoices = async (
             u_ruc: supplierRUC,
             u_fecha_emision: invoice.receivedDate || '',
             u_fecha_vencimiento: invoice.dueDate || '',
-            u_retencion: String(invoice.retention || 0),
+            u_retencion: retencion,
             u_fecha_contabilicacion: (invoice as Invoice & { taxDate?: string }).taxDate || invoice.receivedDate || '',
             u_importe_factura: String(invoice.amount || 0),
             u_importe_pagar: importePagar,
-            u_total_pagar: String(invoice.saldo || invoice.amount || 0),
+            u_total_pagar: totalPagar,
             u_estado: 'Y',
             u_comentario: ''
         };

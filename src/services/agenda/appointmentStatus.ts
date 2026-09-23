@@ -58,7 +58,7 @@ export const STATUS_CONFIG: Record<AppointmentStatus, {
     },
     CALIDAD_OBSERVADO: {
         color: 'warning',
-        label: 'Calidad Observado',
+        label: 'Calidad: Aprobado por Concesión',
         description: 'Calidad detectó problemas menores. Se acepta por necesidad operativa.'
     },
     CALIDAD_RECHAZADO: {

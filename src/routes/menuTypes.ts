@@ -5,6 +5,7 @@ export enum UserRole {
     PROVEEDOR = 'proveedor',
     COMPRAS = 'compras',
     FINANZAS = 'finanzas',
+    CONTABILIDAD = 'contabilidad',
     SOLICITANTE = 'solicitante',
     CALIDAD = 'calidad',
     ALMACEN = 'almacen',

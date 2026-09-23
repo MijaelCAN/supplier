@@ -21,8 +21,8 @@ import {
     InformationCircleIcon,
     VideoCameraIcon
 } from "@heroicons/react/24/outline";
-import {MenuItem, UserRole} from "@/routes/menuTypes.ts";
-import {CalculatorIcon} from "@heroicons/react/16/solid";
+import { MenuItem, UserRole } from "@/routes/menuTypes.ts";
+import { CalculatorIcon } from "@heroicons/react/16/solid";
 
 /*export const menuItems: MenuItem[] = [
     {
@@ -78,7 +78,7 @@ export const menuItems: MenuItem[] = [
         icon: <HomeIcon className="h-5 w-5" />,
         href: "/dashboard",
         single: true,
-        roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.FINANZAS, UserRole.ALMACEN, UserRole.SEGURIDAD, UserRole.CALIDAD, UserRole.PLANEAMIENTO]
+        roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.FINANZAS, UserRole.CONTABILIDAD, UserRole.ALMACEN, UserRole.SEGURIDAD, UserRole.CALIDAD, UserRole.PLANEAMIENTO]
     },
     {
         title: "Proveedores",
@@ -133,11 +133,11 @@ export const menuItems: MenuItem[] = [
     {
         title: "Procesos de Compra",
         icon: <ShoppingCartIcon className="h-5 w-5" />,
-        roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.FINANZAS, UserRole.ALMACEN, UserRole.SEGURIDAD, UserRole.CALIDAD, UserRole.PLANEAMIENTO],
+        roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.FINANZAS, UserRole.CONTABILIDAD, UserRole.ALMACEN, UserRole.SEGURIDAD, UserRole.CALIDAD, UserRole.PLANEAMIENTO],
         items: [
             {
                 title: "Solicitud de compra",
-                icon: <ClipboardDocumentListIcon  className="h-4 w-4" />,
+                icon: <ClipboardDocumentListIcon className="h-4 w-4" />,
                 href: "/solicitud-compra",
                 roles: [UserRole.ADMIN,]
             },
@@ -151,7 +151,7 @@ export const menuItems: MenuItem[] = [
                 title: "Agenda - Citas",
                 icon: <BookOpenIcon className="h-4 w-4" />,
                 href: "/agenda",
-                roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.SEGURIDAD, UserRole.CALIDAD, UserRole.ALMACEN, UserRole.PLANEAMIENTO]
+                roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.CONTABILIDAD, UserRole.SEGURIDAD, UserRole.CALIDAD, UserRole.ALMACEN, UserRole.PLANEAMIENTO]
             },
             {
                 title: "Fecha de entrega",
@@ -169,7 +169,7 @@ export const menuItems: MenuItem[] = [
                 title: "Facturas",
                 icon: <DocumentTextIcon className="h-4 w-4" />,
                 href: "/factura",
-                roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.FINANZAS, UserRole.COMPRAS, UserRole.ALMACEN]
+                roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.FINANZAS, UserRole.CONTABILIDAD, UserRole.COMPRAS, UserRole.ALMACEN]
             },
             {
                 title: "Cronograma de pago",
@@ -194,7 +194,7 @@ export const menuItems: MenuItem[] = [
     {
         title: "Finanzas",
         icon: <CurrencyDollarIcon className="h-5 w-5" />,
-        roles: [UserRole.ADMIN, UserRole.FINANZAS],
+        roles: [UserRole.ADMIN, UserRole.FINANZAS, UserRole.COMPRAS,],
         items: [
             {
                 title: "Estado de Pagos",
@@ -213,13 +213,25 @@ export const menuItems: MenuItem[] = [
                 icon: <CalculatorIcon className="h-4 w-4" />,
                 href: "/finanzas/conciliacion",
                 roles: [UserRole.ADMIN, UserRole.FINANZAS]
-            }
+            },
+            {
+                title: "Confirmación RHE y FE",
+                icon: <DocumentTextIcon className="h-4 w-4" />,
+                href: "/finanzas/confirmacion-rhe-fe",
+                roles: [UserRole.ADMIN, UserRole.FINANZAS, UserRole.COMPRAS,],
+            },
+            {
+                title: "Consulta de Envíos SUNAT",
+                icon: <ClipboardDocumentListIcon className="h-4 w-4" />,
+                href: "/finanzas/consulta-envios-sunat",
+                roles: [ UserRole.ADMIN, UserRole.FINANZAS, UserRole.COMPRAS,],
+            },
         ]
     },
     {
         title: "Reportes",
         icon: <ChartBarIcon className="h-5 w-5" />,
-        roles: [UserRole.ADMIN, UserRole.PLANEAMIENTO ],
+        roles: [UserRole.ADMIN, UserRole.PLANEAMIENTO],
         items: [
             {
                 title: "Análisis de proveedores",
@@ -250,13 +262,13 @@ export const menuItems: MenuItem[] = [
     {
         title: "Configuración",
         icon: <Cog6ToothIcon className="h-5 w-5" />,
-        roles: [UserRole.ADMIN ],
+        roles: [UserRole.ADMIN],
         items: [
             {
                 title: "Perfil",
                 icon: <UserCircleIcon className="h-4 w-4" />,
                 href: "/configuracion/perfil",
-                roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.FINANZAS, UserRole.ALMACEN, UserRole.PLANEAMIENTO]
+                roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.FINANZAS, UserRole.CONTABILIDAD, UserRole.ALMACEN, UserRole.PLANEAMIENTO]
             },
             {
                 title: "Sistema",
@@ -281,19 +293,19 @@ export const menuItems: MenuItem[] = [
     {
         title: "Guia de Ayuda",
         icon: <InformationCircleIcon className="h-5 w-5" />,
-        roles: [UserRole.ADMIN, UserRole.COMPRAS ],
+        roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.FINANZAS, UserRole.SOLICITANTE, UserRole.CALIDAD, UserRole.ALMACEN, UserRole.SEGURIDAD, UserRole.PLANEAMIENTO],
         items: [
             {
                 title: "Manual de uso",
                 icon: <DocumentTextIcon className="h-4 w-4" />,
-                href: "/ayuda/manual",
-                roles: [UserRole.ADMIN, UserRole.COMPRAS]
+                href: "http://190.12.79.132:8046/api/S3?Name=VISTOLINK%20MANUAL%20DEL%20PROVEEDOR.pdf&RutaS3=ManuelUsoPortal/",
+                roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.FINANZAS, UserRole.SOLICITANTE, UserRole.CALIDAD, UserRole.ALMACEN, UserRole.SEGURIDAD, UserRole.PLANEAMIENTO]
             },
             {
                 title: "Video",
                 icon: <VideoCameraIcon className="h-4 w-4" />,
-                href: "/ayuda/video",
-                roles: [UserRole.ADMIN, UserRole.COMPRAS]
+                href: "http://190.12.79.132:8046/api/S3?Name=VISTOLINK%20MANUAL%20DE%20USUARIO%20INTERNO%20%28COMPRAS%29.pdf&RutaS3=ManuelUsoPortal/",
+                roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.FINANZAS, UserRole.SOLICITANTE, UserRole.CALIDAD, UserRole.ALMACEN, UserRole.SEGURIDAD, UserRole.PLANEAMIENTO]
             }
         ]
     }

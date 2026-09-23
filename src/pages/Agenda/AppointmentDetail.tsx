@@ -57,12 +57,14 @@ import {
 } from "@/services/agenda/packingListApi";
 import {AppointmentDocument, fetchAppointmentsFromApi, formatDateForAPI} from "@/services/agenda/appointmentsApi";
 import {createChoferInApi} from "@/services/agenda/choferesApi";
+import {createLocalDate} from "@/utils/dateUtils";
 import {fetchEvaluationByCodCita} from "@/services/agenda/evaluationsApi";
 import {getPCPValidations, PCPValidationRecord} from "@/services/agenda/pcpApi";
 import {STATUS_CONFIG} from "@/services/agenda/appointmentStatus";
 import {DeliveryAppointment, DeliveryEvaluation, PackingListItem, SupplierClaim} from "@/store/types";
+import {getMaxPackingListQuantity} from "@/utils/packingList";
 import DocumentsModal from './DocumentsModal';
-import { COMMERCIAL_DOCUMENT_TYPES } from '@/config/commercialDocuments';
+import { COMMERCIAL_DOCUMENT_TYPES, mapFileNameToDocumentType } from '@/config/commercialDocuments';
 import EvaluationModal from './EvaluationModal';
 import ClaimModal from './ClaimModal';
 import PCPValidationModal from './PCPValidationModal';
@@ -84,7 +86,7 @@ const AppointmentDetail: React.FC = () => {
     const { appointmentId } = useParams<{ appointmentId: string }>();
     const navigate = useNavigate();
     const location = useLocation();
-    const weekDate = (location.state as { weekDate?: string } | null)?.weekDate;
+    const { weekDate, dayIndex } = (location.state as { weekDate?: string; dayIndex?: number } | null) ?? {};
     const { currentUser } = useAuth();
     const isProvider = currentUser?.role === UserRole.PROVEEDOR;
     const { setSelectedAppointment } = useAgendaStore(); // Solo usamos setSelectedAppointment, no el store local de appointments
@@ -177,8 +179,8 @@ const AppointmentDetail: React.FC = () => {
                     const foundApiAppointment = apiAppointments.find(
                         (apt) => apt.docEntry === appointment.docEntry
                     );
-                    if (foundApiAppointment && (foundApiAppointment as any).Documents) {
-                        setAppointmentDocuments((foundApiAppointment as any).Documents || []);
+                    if (foundApiAppointment && foundApiAppointment.rawDocuments) {
+                        setAppointmentDocuments(foundApiAppointment.rawDocuments || []);
                     } else {
                         // Si no se encuentra en el API, limpiar documentos
                         setAppointmentDocuments([]);
@@ -248,11 +250,24 @@ const AppointmentDetail: React.FC = () => {
     const [documentSearchFilter, setDocumentSearchFilter] = useState<string>('');
     const documentSearchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     
+    // Obtiene los tipos de documento (keys) que ya tienen al menos un archivo cargado.
+    // Se basa en cobertura por tipo (no en cantidad total) para soportar múltiples
+    // archivos del mismo tipo sin dar falsos positivos de "completo".
+    const getCompletedDocumentTypeKeys = (docs: AppointmentDocument[]): Set<string> => {
+        const keys = new Set<string>();
+        docs.forEach((doc) => {
+            const typeKey = mapFileNameToDocumentType(doc.u_name_file);
+            if (typeKey) keys.add(typeKey);
+        });
+        return keys;
+    };
+
     // Verificar si todos los documentos requeridos están completos
     const areAllDocumentsComplete = (): boolean => {
-        // Completo = todos los tipos disponibles en el modal han sido cargados
+        // Completo = todos los tipos disponibles en el modal tienen al menos un archivo cargado
         if (appointmentDocuments.length > 0) {
-            return appointmentDocuments.length >= COMMERCIAL_DOCUMENT_TYPES.length;
+            const completedTypeKeys = getCompletedDocumentTypeKeys(appointmentDocuments);
+            return COMMERCIAL_DOCUMENT_TYPES.every((docType) => completedTypeKeys.has(docType.key));
         }
 
         // Fallback legacy: los 3 tipos requeridos del appointment están presentes
@@ -432,7 +447,7 @@ const AppointmentDetail: React.FC = () => {
     useEffect(() => {
         if (!isLoadingAppointment && !appointment) {
             const timer = setTimeout(() => {
-                navigate('/agenda', { state: { weekDate } });
+                navigate('/agenda', { state: { weekDate, dayIndex } });
             }, 2000);
             return () => clearTimeout(timer);
         }
@@ -565,11 +580,6 @@ const AppointmentDetail: React.FC = () => {
         return enableFrom <= now;
     };
 
-    const canEvaluateCalidadYCantidad = (): boolean => {
-        // Debe haberse calificado puntualidad primero
-        return isCriterionEvaluated('puntualidad');
-    };
-
     const canOpenEvaluationModal = (type: EvaluationModalType): boolean => {
         // Primero verificar que no esté ya evaluado
         console.log("validacion: ", isCriterionEvaluated(type));
@@ -584,10 +594,8 @@ const AppointmentDetail: React.FC = () => {
                 return canEvaluateDocumentacion();
             case 'puntualidad':
                 return canEvaluatePuntualidad();
-            case 'estadoMercaderia':
-            case 'cantidadCorrecta':
-                return canEvaluateCalidadYCantidad();
             default:
+                // Calidad y Almacén no dependen de la evaluación de Seguridad (OBS-001)
                 return true;
         }
     };
@@ -598,9 +606,6 @@ const AppointmentDetail: React.FC = () => {
                 return 'No se puede calificar Documentación: aún no hay documentos cargados.';
             case 'puntualidad':
                 return 'No se puede calificar Puntualidad: la fecha y hora de la cita aún no han llegado.';
-            case 'estadoMercaderia':
-            case 'cantidadCorrecta':
-                return 'No se puede calificar: primero debe calificarse la Puntualidad (asistencia).';
             default:
                 return 'No se puede evaluar en este momento.';
         }
@@ -1041,12 +1046,14 @@ const AppointmentDetail: React.FC = () => {
             const foundApiAppointment = apiAppointments.find(
                 (apt) => apt.docEntry === appointment.docEntry
             );
-            if (foundApiAppointment && (foundApiAppointment as any).Documents) {
-                setAppointmentDocuments((foundApiAppointment as any).Documents || []);
-                
+            if (foundApiAppointment && foundApiAppointment.rawDocuments) {
+                setAppointmentDocuments(foundApiAppointment.rawDocuments || []);
+
                 // Verificar si todos los documentos están completos y actualizar estado
-                const documents = (foundApiAppointment as any).Documents || [];
-                if (documents.length >= 5 && appointment.status !== 'DOCUMENTOS_COMPLETOS' && appointment.docEntry && currentUser) {
+                const documents: AppointmentDocument[] = foundApiAppointment.rawDocuments || [];
+                const completedTypeKeys = getCompletedDocumentTypeKeys(documents);
+                const allTypesComplete = COMMERCIAL_DOCUMENT_TYPES.every((docType) => completedTypeKeys.has(docType.key));
+                if (allTypesComplete && appointment.status !== 'DOCUMENTOS_COMPLETOS' && appointment.docEntry && currentUser) {
                     const { updateAppointmentStatus } = await import('@/services/agenda/appointmentStatus');
                     const userId = currentUser.userCode || currentUser.id || currentUser.username || 'system';
                     await updateAppointmentStatus(appointment.docEntry, 'DOCUMENTOS_COMPLETOS', userId);
@@ -1259,7 +1266,7 @@ const AppointmentDetail: React.FC = () => {
                                             <div>
                                                 <span className="text-xs text-gray-500">Fecha: </span>
                                                 <span className="font-medium text-gray-900">
-                                                    {new Date(appointment.deliveryDate).toLocaleDateString('es-PE', {
+                                                    {createLocalDate(appointment.deliveryDate).toLocaleDateString('es-PE', {
                                                         day: '2-digit',
                                                         month: '2-digit',
                                                         year: 'numeric'
@@ -1906,7 +1913,7 @@ const AppointmentDetail: React.FC = () => {
                                         );
                                     })()}
 
-                                    {canManageDocuments && appointmentDocuments.length < COMMERCIAL_DOCUMENT_TYPES.length && (
+                                    {canManageDocuments && getCompletedDocumentTypeKeys(appointmentDocuments).size < COMMERCIAL_DOCUMENT_TYPES.length && (
                                         <div className="mt-4">
                                             <Button
                                                 color="primary"
@@ -2139,7 +2146,9 @@ const AppointmentDetail: React.FC = () => {
                                                                                 ));
                                                                             }}
                                                                             min={0}
-                                                                            max={item.pendingQuantity}
+                                                                            max={getMaxPackingListQuantity(item)}
+                                                                            isInvalid={item.quantity > getMaxPackingListQuantity(item)}
+                                                                            errorMessage={`Máx. ${getMaxPackingListQuantity(item)}`}
                                                                         />
                                                                     </TableCell>
                                                                 </TableRow>
@@ -2197,7 +2206,7 @@ const AppointmentDetail: React.FC = () => {
                                                 item =>
                                                     item.marca === true &&
                                                     item.quantity > 0 &&
-                                                    item.quantity > item.pendingQuantity
+                                                    item.quantity > getMaxPackingListQuantity(item)
                                             )
                                         }
                                     >
@@ -2459,8 +2468,8 @@ const AppointmentDetail: React.FC = () => {
                                     const foundApiAppointment = apiAppointments.find(
                                         (apt) => apt.docEntry === appointment.docEntry
                                     );
-                                    if (foundApiAppointment && (foundApiAppointment as any).Documents) {
-                                        setAppointmentDocuments((foundApiAppointment as any).Documents || []);
+                                    if (foundApiAppointment && foundApiAppointment.rawDocuments) {
+                                        setAppointmentDocuments(foundApiAppointment.rawDocuments || []);
                                     }
                                 } catch (error) {
                                     console.error('Error al recargar documentos:', error);

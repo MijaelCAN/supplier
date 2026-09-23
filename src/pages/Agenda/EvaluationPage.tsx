@@ -136,8 +136,8 @@ const EvaluationPage: React.FC = () => {
         if (!appointment) return false;
         
         // Verificar documentos del API si están disponibles
-        if ((appointment as any).Documents && Array.isArray((appointment as any).Documents)) {
-            return (appointment as any).Documents.length > 0;
+        if (appointment.rawDocuments && Array.isArray(appointment.rawDocuments)) {
+            return appointment.rawDocuments.length > 0;
         }
         
         // Verificar documentos mapeados
@@ -165,20 +165,12 @@ const EvaluationPage: React.FC = () => {
         return appointmentDateTime <= now;
     };
 
-    const canEvaluateCalidadYCantidad = (): boolean => {
-        // Debe haberse calificado puntualidad primero
-        return isCriterionEvaluated('puntualidad');
-    };
-
     const getEvaluationErrorMessage = (type: EvaluationModalType): string => {
         switch (type) {
             case 'documentacion':
                 return 'No se puede calificar Documentación: aún no hay documentos cargados.';
             case 'puntualidad':
                 return 'No se puede calificar Puntualidad: la fecha y hora de la cita aún no han llegado.';
-            case 'estadoMercaderia':
-            case 'cantidadCorrecta':
-                return 'No se puede calificar: primero debe calificarse la Puntualidad (asistencia).';
             default:
                 return 'No se puede evaluar en este momento.';
         }
@@ -199,10 +191,7 @@ const EvaluationPage: React.FC = () => {
             case 'puntualidad':
                 canOpen = canEvaluatePuntualidad();
                 break;
-            case 'estadoMercaderia':
-            case 'cantidadCorrecta':
-                canOpen = canEvaluateCalidadYCantidad();
-                break;
+            // Calidad y Almacén no dependen de la evaluación de Seguridad (OBS-001)
         }
 
         if (!canOpen) {
@@ -230,6 +219,13 @@ const EvaluationPage: React.FC = () => {
         if (score >= 7.0) return 'primary';
         if (score >= 5.0) return 'warning';
         return 'danger';
+    };
+
+    // Etiqueta visible del estado de calidad. El valor interno 'OBSERVADO' se mantiene
+    // (persistencia, transiciones de estado, etc.) por aclaración de Auditoría sobre términos.
+    const getEstadoMercaderiaLabel = (estado?: string) => {
+        if (estado === 'OBSERVADO') return 'APROBADO POR CONCESIÓN';
+        return estado;
     };
 
     const getBadgeColor = (badge?: string) => {
@@ -836,7 +832,7 @@ const EvaluationPage: React.FC = () => {
                                                             size="lg"
                                                             className="font-semibold"
                                                         >
-                                                            {criterion.data.estado}
+                                                            {getEstadoMercaderiaLabel(criterion.data.estado)}
                                                         </Chip>
                                                     </div>
                                                 )}
@@ -865,7 +861,7 @@ const EvaluationPage: React.FC = () => {
                                                         {detailModalType === 'estadoMercaderia' && criterion.data.estado === 'ACEPTADO'
                                                             ? 'Comentario'
                                                             : detailModalType === 'estadoMercaderia' && criterion.data.estado === 'OBSERVADO'
-                                                            ? 'Motivo de Observación'
+                                                            ? 'Motivo de Aprobación por Concesión'
                                                             : detailModalType === 'estadoMercaderia' && criterion.data.estado === 'RECHAZADO'
                                                             ? 'Motivo de Rechazo'
                                                             : 'Comentario'}

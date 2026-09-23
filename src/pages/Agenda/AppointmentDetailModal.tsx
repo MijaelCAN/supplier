@@ -40,6 +40,7 @@ import { DeliveryAppointment } from "@/store/types";
 import { UserRole } from "@/routes/menuTypes";
 import { fetchPackingListFromApi, PackingListApiRecord, PackingListDetailApiRecord } from "@/services/agenda/packingListApi";
 import { formatDateForAPI } from "@/services/agenda/appointmentsApi";
+import { createLocalDate } from "@/utils/dateUtils";
 import { getPCPValidations, PCPValidationRecord } from "@/services/agenda/pcpApi";
 
 interface AppointmentDetailModalProps {
@@ -360,7 +361,7 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
                                                         Fecha y Hora
                                                     </p>
                                                     <p className="text-sm font-bold text-gray-900 mt-1">
-                                                        {new Date(appointment.deliveryDate).toLocaleDateString('es-PE', {
+                                                        {createLocalDate(appointment.deliveryDate).toLocaleDateString('es-PE', {
                                                             weekday: 'long',
                                                             year: 'numeric',
                                                             month: 'long',
