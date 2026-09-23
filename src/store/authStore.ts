@@ -12,6 +12,7 @@ import {
     getProviderEmailByRuc,
     ProviderEmailInfo,
 } from '@/services/auth/apiAuth';
+import { resetAuthErrorGuard } from '@/services/auth/sessionToken';
 // Mantener imports de Firestore para funciones que aún se usan
 import {
     createSupplierUserDocument,
@@ -95,6 +96,9 @@ export const useAuthStore = create<AuthState>()(
 
                     const loginResult = mapLoginSuccess(result);
 
+                    // Rehabilita la detección de sesión vencida para la nueva sesión
+                    resetAuthErrorGuard();
+
                     set({
                         currentUser: loginResult.user,
                         isAuthenticated: true,
@@ -160,5 +164,6 @@ export const useAuth = () => {
         isProveedor: store.currentUser?.role === UserRole.PROVEEDOR,
         isCompras: store.currentUser?.role === UserRole.COMPRAS,
         isFinanzas: store.currentUser?.role === UserRole.FINANZAS,
+        isContabilidad: store.currentUser?.role === UserRole.CONTABILIDAD,
     };
 };

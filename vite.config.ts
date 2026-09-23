@@ -1,10 +1,17 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tsconfigPaths from 'vite-tsconfig-paths'
+import { readFileSync } from 'node:fs'
+
+const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf-8'))
 
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react(), tsconfigPaths()],
+  define: {
+    // Versión de la app tomada de package.json (se muestra en el sidebar)
+    __APP_VERSION__: JSON.stringify(pkg.version),
+  },
   build: {
     outDir: 'dist',
     assetsDir: 'assets',
@@ -12,25 +19,23 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: (id) => {
-          // Firebase en su propio chunk (muy pesado)
+          // Firebase: no usa React en absoluto → puede ir solo sin riesgo de TDZ
           if (id.includes('node_modules/firebase') || id.includes('node_modules/@firebase')) {
             return 'vendor-firebase';
           }
-          // React core
-          if (id.includes('node_modules/react') || id.includes('node_modules/react-dom') || id.includes('node_modules/react-router-dom')) {
-            return 'vendor-react';
-          }
-          // HeroUI / NextUI
-          if (id.includes('node_modules/@heroui') || id.includes('node_modules/@nextui-org')) {
-            return 'vendor-heroui';
-          }
-          // PDF / chart libs
-          if (id.includes('node_modules/@react-pdf') || id.includes('node_modules/recharts') || id.includes('node_modules/d3')) {
+          // recharts/d3: solo se cargan desde páginas lazy (reportes)
+          // Para cuando se cargan, vendor (con React) ya está inicializado → sin TDZ
+          if (id.includes('node_modules/recharts') || id.includes('node_modules/d3')) {
             return 'vendor-charts';
           }
-          // Resto de node_modules
+          // react-pdf: igual, solo en páginas lazy
+          if (id.includes('node_modules/@react-pdf')) {
+            return 'vendor-pdf';
+          }
+          // TODO lo demás (React + HeroUI + framer-motion + react-aria + misc)
+          // va junto en un solo chunk para evitar cualquier problema de inicialización cruzada
           if (id.includes('node_modules')) {
-            return 'vendor-misc';
+            return 'vendor';
           }
         },
       },

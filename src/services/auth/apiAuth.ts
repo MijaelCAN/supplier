@@ -138,6 +138,7 @@ const mapRole = (role: string): UserRole => {
         'proveedor': UserRole.PROVEEDOR,
         'compras': UserRole.COMPRAS,
         'finanzas': UserRole.FINANZAS,
+        'contabilidad': UserRole.CONTABILIDAD,
         'almacen': UserRole.ALMACEN,
         'solicitante': UserRole.SOLICITANTE,
         'calidad': UserRole.CALIDAD,
@@ -187,14 +188,6 @@ export const loginWithAPI = async (
         throw new AuthError(
             'MISSING_FIELDS',
             "Los campos 'username', 'password' y 'role_type' son obligatorios.",
-        );
-    }
-
-    // Validar si la contraseña es igual al usuario
-    if (password === username) {
-        throw new AuthError(
-            'PASSWORD_EQUALS_USERNAME',
-            'La contraseña no puede ser igual al usuario. Por favor, actualice su contraseña.',
         );
     }
 

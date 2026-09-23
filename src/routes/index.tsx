@@ -8,23 +8,26 @@ import { UserRole } from "./menuTypes";
 import { Spinner } from "@heroui/react";
 
 // ── Lazy pages ────────────────────────────────────────────────────────────────
-const Home                = lazy(() => import("@/pages/Home"));
-const ProveedorProfile    = lazy(() => import("@/pages/Proveedores/Profile/CardProfile"));
+const Home = lazy(() => import("@/pages/Home"));
+const ProveedorProfile = lazy(() => import("@/pages/Proveedores/Profile/CardProfile"));
 const EvaluationSuppliers = lazy(() => import("@/pages/Proveedores/evaluations"));
-const EvaluationForm      = lazy(() => import("@/pages/Proveedores/evalForm"));
-const ExecutiveDashboard  = lazy(() => import("@/pages/Reportes/dashboard"));
-const SupplierManagement  = lazy(() => import("@/pages/Proveedores/index"));
-const PurchaseOrdersList  = lazy(() => import("@/pages/OrdenCompra"));
-const InvoicesList        = lazy(() => import("@/pages/Facturas"));
-const UserManagement      = lazy(() => import("@/pages/Configuracion/usuarios"));
-const PaymentsList        = lazy(() => import("@/pages/Finanzas/pagos"));
-const SolicitudCompra     = lazy(() => import("@/pages/SolicitudCompra").then(m => ({ default: m.SolicitudCompra })));
-const AgendaPage          = lazy(() => import("@/pages/Agenda"));
-const AppointmentDetail   = lazy(() => import("@/pages/Agenda/AppointmentDetail"));
-const EvaluationPage      = lazy(() => import("@/pages/Agenda/EvaluationPage"));
-const ReceptionPage       = lazy(() => import("@/pages/Recepcion"));
-const PaymentCalendar     = lazy(() => import("@/pages/Pagos/Paymentcalendar "));
-const ScheduleInvoices    = lazy(() => import("@/pages/Pagos/ScheduleInvoices"));
+const EvaluationForm = lazy(() => import("@/pages/Proveedores/evalForm"));
+const ExecutiveDashboard = lazy(() => import("@/pages/Reportes/dashboard"));
+const SupplierManagement = lazy(() => import("@/pages/Proveedores/index"));
+const PurchaseOrdersList = lazy(() => import("@/pages/OrdenCompra"));
+const InvoicesList = lazy(() => import("@/pages/Facturas"));
+const UserManagement = lazy(() => import("@/pages/Configuracion/usuarios"));
+const PaymentsList = lazy(() => import("@/pages/Finanzas/pagos"));
+const SolicitudCompra = lazy(() => import("@/pages/SolicitudCompra").then(m => ({ default: m.SolicitudCompra })));
+const AgendaPage = lazy(() => import("@/pages/Agenda"));
+const AppointmentDetail = lazy(() => import("@/pages/Agenda/AppointmentDetail"));
+const EvaluationPage = lazy(() => import("@/pages/Agenda/EvaluationPage"));
+const ReceptionPage = lazy(() => import("@/pages/Recepcion"));
+const PaymentCalendar = lazy(() => import("@/pages/Pagos/Paymentcalendar "));
+const ScheduleInvoices = lazy(() => import("@/pages/Pagos/ScheduleInvoices"));
+const ConfirmacionRheFe = lazy(() => import("@/pages/Finanzas/confirmacionRheFe"));
+const ConsultaEnviosSunat = lazy(() => import("@/pages/Finanzas/consultaEnviosSunat")
+);
 
 // ── Fallback de carga ─────────────────────────────────────────────────────────
 const PageLoader = () => (
@@ -99,7 +102,7 @@ const router = createBrowserRouter([
   {
     path: "/reportes/ejecutivo",
     element: (
-      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.FINANZAS]}>
+      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.FINANZAS, UserRole.COMPRAS,]}>
         <Lazy><ExecutiveDashboard /></Lazy>
       </ProtectedRoute>
     ),
@@ -123,7 +126,7 @@ const router = createBrowserRouter([
   {
     path: "/factura",
     element: (
-      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.FINANZAS, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.ALMACEN]}>
+      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.FINANZAS, UserRole.CONTABILIDAD, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.ALMACEN]}>
         <Lazy><InvoicesList /></Lazy>
       </ProtectedRoute>
     ),
@@ -186,7 +189,7 @@ const router = createBrowserRouter([
   {
     path: "/agenda",
     element: (
-      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.ALMACEN, UserRole.SEGURIDAD, UserRole.CALIDAD, UserRole.PLANEAMIENTO]}>
+      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.CONTABILIDAD, UserRole.ALMACEN, UserRole.SEGURIDAD, UserRole.CALIDAD, UserRole.PLANEAMIENTO]}>
         <Lazy><AgendaPage /></Lazy>
       </ProtectedRoute>
     ),
@@ -194,7 +197,7 @@ const router = createBrowserRouter([
   {
     path: "/agenda/detail/:appointmentId",
     element: (
-      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.ALMACEN, UserRole.CALIDAD, UserRole.SEGURIDAD, UserRole.PLANEAMIENTO]}>
+      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.CONTABILIDAD, UserRole.ALMACEN, UserRole.CALIDAD, UserRole.SEGURIDAD, UserRole.PLANEAMIENTO]}>
         <Lazy><AppointmentDetail /></Lazy>
       </ProtectedRoute>
     ),
@@ -245,6 +248,35 @@ const router = createBrowserRouter([
             <p className="text-gray-600">Página en construcción - Estado de pagos del proveedor</p>
           </div>
         </Dashboard>
+      </ProtectedRoute>
+    ),
+  },
+
+  {
+    path: "/finanzas/confirmacion-rhe-fe",
+    element: (
+      <ProtectedRoute
+        requiredRoles={[UserRole.ADMIN, UserRole.FINANZAS, UserRole.COMPRAS,]}
+      >
+        <Lazy>
+          <ConfirmacionRheFe />
+        </Lazy>
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/finanzas/consulta-envios-sunat",
+    element: (
+      <ProtectedRoute
+        requiredRoles={[
+          UserRole.ADMIN,
+          UserRole.FINANZAS,
+          UserRole.COMPRAS,
+        ]}
+      >
+        <Lazy>
+          <ConsultaEnviosSunat />
+        </Lazy>
       </ProtectedRoute>
     ),
   },

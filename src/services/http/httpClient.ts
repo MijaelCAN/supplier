@@ -16,6 +16,12 @@ import {
     setApiBaseUrl,
     waitForApiBaseResolution,
 } from '@/config/api';
+import {
+    emitAuthError,
+    getStoredSessionToken,
+    isSessionExpired,
+    SESSION_EXPIRED_MESSAGE,
+} from '@/services/auth/sessionToken';
 
 // Detectar si estamos en producción
 const isProduction = import.meta.env.PROD || import.meta.env.MODE === 'production';
@@ -150,24 +156,8 @@ export interface FetchOptions extends RequestInit {
 }
 
 /**
- * Obtiene el token de autenticación del localStorage
- */
-const getAuthToken = (): string | null => {
-    try {
-        const authStorage = localStorage.getItem('auth-storage');
-        if (!authStorage) {
-            return null;
-        }
-        const parsed = JSON.parse(authStorage);
-        return parsed?.state?.sessionToken || null;
-    } catch (error) {
-        console.warn('Error al obtener token de autenticación:', error);
-        return null;
-    }
-};
-
-/**
- * Maneja errores de autenticación (401, 403) limpiando la sesión y redirigiendo al login
+ * Maneja errores de autenticación (401, 403) limpiando la sesión y avisando a la
+ * app. El componente AuthErrorHandler es quien muestra el modal y redirige.
  */
 const handleAuthError = (status: number, statusText: string) => {
     // Solo manejar errores de autenticación
@@ -175,39 +165,33 @@ const handleAuthError = (status: number, statusText: string) => {
         return;
     }
 
-    // Limpiar el estado de autenticación del localStorage
-    try {
-        const authStorage = localStorage.getItem('auth-storage');
-        if (authStorage) {
-            const parsed = JSON.parse(authStorage);
-            // Actualizar el estado para limpiar la sesión
-            const updatedState = {
-                ...parsed,
-                state: {
-                    ...parsed.state,
-                    currentUser: null,
-                    isAuthenticated: false,
-                    sessionToken: null,
-                    error: 'Tu sesión ha expirado. Por favor, inicia sesión nuevamente.',
-                },
-            };
-            localStorage.setItem('auth-storage', JSON.stringify(updatedState));
-        }
-    } catch (error) {
-        console.error('Error al limpiar sesión:', error);
-    }
-
-    // Disparar evento personalizado para que los componentes React puedan reaccionar
-    // El componente AuthErrorHandler se encargará de mostrar el toast y redirigir
-    const authErrorEvent = new CustomEvent('auth-error', {
-        detail: {
-            status,
-            statusText,
-            message: 'Tu sesión ha expirado. Por favor, inicia sesión nuevamente.',
-        },
+    emitAuthError({
+        reason: 'unauthorized',
+        message: SESSION_EXPIRED_MESSAGE,
+        status,
+        statusText,
     });
-    window.dispatchEvent(authErrorEvent);
 };
+
+/**
+ * Respuesta 401 sintética para las peticiones que ni siquiera llegamos a enviar
+ * por tener el token vencido. Así los llamadores siguen viendo un `response`
+ * normal y sus comprobaciones de `!response.ok` funcionan igual.
+ */
+const buildExpiredSessionResponse = (): Response =>
+    new Response(
+        JSON.stringify({
+            status_code: 401,
+            success: false,
+            message: SESSION_EXPIRED_MESSAGE,
+            data: null,
+        }),
+        {
+            status: 401,
+            statusText: 'Unauthorized',
+            headers: { 'Content-Type': 'application/json' },
+        }
+    );
 
 const API_REQUEST_TIMEOUT_MS = 120_000; // 2 minutos por defecto
 
@@ -299,8 +283,14 @@ export const httpClient = async (
     
     // Agregar token de autenticación si no se especifica skipAuth
     if (!options.skipAuth) {
-        const token = getAuthToken();
+        const token = getStoredSessionToken();
         if (token) {
+            // Cortamos aquí si el token ya venció: no dependemos de que el
+            // endpoint valide el Bearer para enterarnos de que la sesión murió.
+            if (isSessionExpired()) {
+                handleAuthError(401, 'Unauthorized');
+                return buildExpiredSessionResponse();
+            }
             headers.set('Authorization', `Bearer ${token}`);
         }
     }

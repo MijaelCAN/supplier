@@ -164,7 +164,12 @@ const InvoicesList = () => {
     const formatDate = (dateStr?: string) => {
         if (!dateStr) return 'N/A';
         try {
-            const date = new Date(dateStr);
+            // El API entrega las fechas en formato DD-MM-YYYY (ej. "20-07-2026"),
+            // que `new Date(dateStr)` no interpreta correctamente.
+            const [day, month, year] = dateStr.split('-').map(Number);
+            if (!day || !month || !year) return dateStr;
+            const date = new Date(year, month - 1, day);
+            if (isNaN(date.getTime())) return dateStr;
             return date.toLocaleDateString('es-PE');
         } catch {
             return dateStr;

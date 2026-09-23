@@ -1,21 +1,17 @@
-    import {
-    Card,
-    CardBody,
-    CardHeader,
-    Button,
+import {
     Chip,
     Avatar
 } from "@heroui/react";
 import {
-    BanknotesIcon,
+    CurrencyDollarIcon,
     DocumentTextIcon,
     CreditCardIcon,
-    CurrencyDollarIcon,
+    CalculatorIcon,
+    BanknotesIcon,
     EyeIcon,
     ArrowRightIcon,
-    ExclamationTriangleIcon,
-    ChartBarIcon,
-    CalculatorIcon
+    CheckCircleIcon,
+    ChartBarIcon
 } from "@heroicons/react/24/outline";
 import Dashboard from "@/layouts/Dashboard";
 import { useAuth } from '@/store/authStore';
@@ -25,329 +21,200 @@ const FinanzasHome = () => {
     const { currentUser } = useAuth();
     const navigate = useNavigate();
 
-    // Estadísticas específicas para finanzas
-    const finanzasStats = {
-        facturasPendientes: 12,
-        facturasDelMes: 156,
-        pagosPendientes: 8,
-        pagosVencidos: 3,
-        montoFacturado: 1850000,
-        montoPagado: 1620000,
-        cuentasPorPagar: 230000,
-        conciliacionesPendientes: 5
-    };
-
-    const facturasPendientes = [
-        { id: 'F-2024-001', proveedor: 'TechCorp Solutions', monto: 15000, vencimiento: '2024-06-25' },
-        { id: 'F-2024-002', proveedor: 'Industrial Supplies', monto: 8500, vencimiento: '2024-06-28' },
-        { id: 'F-2024-003', proveedor: 'Medical Equipment', monto: 22000, vencimiento: '2024-07-01' }
-    ];
-
-    const pagosVencidos = [
-        { id: 'P-2024-001', proveedor: 'Construction Materials', monto: 12000, vencimiento: '2024-06-15' },
-        { id: 'P-2024-002', proveedor: 'Office Supplies', monto: 3500, vencimiento: '2024-06-18' }
-    ];
-
-    const formatCurrency = (amount: number) => {
-        return new Intl.NumberFormat('es-PE', {
-            style: 'currency',
-            currency: 'PEN'
-        }).format(amount);
-    };
-
-    const getDaysUntilDue = (dateString: string) => {
-        const today = new Date();
-        const dueDate = new Date(dateString);
-        const diffTime = dueDate.getTime() - today.getTime();
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        return diffDays;
-    };
-
     return (
         <Dashboard>
-            <div className="space-y-6">
-                {/* Header de bienvenida */}
-                <div className="flex items-center justify-between">
-                    <div>
-                        <h1 className="text-2xl font-bold text-gray-900">
-                            ¡Bienvenido, {currentUser?.firstName}!
-                        </h1>
-                        <p className="text-gray-600">
-                            Panel de Gestión Financiera y Pagos
-                        </p>
+            <div className="relative min-h-screen pb-8">
+                {/* Background con imagen de tanques - Efecto glassmorphism */}
+                <div className="fixed inset-0 -z-10 overflow-hidden">
+                    <div
+                        className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-80 dark:opacity-10"
+                        style={{ backgroundImage: 'url(/tanques.webp)' }}
+                    ></div>
+                    <div
+                        className="absolute inset-0 bg-gradient-to-br from-white via-white/95 to-white dark:from-gray-900 dark:via-gray-900/95 dark:to-gray-900"></div>
+                    <div
+                        className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(34,197,94,0.05),transparent_50%)]"></div>
+                </div>
+
+                <div className="relative z-10 space-y-8">
+                    {/* Hero Section */}
+                    <div className="relative mt-6">
+                        <div
+                            className="absolute -inset-4 bg-gradient-to-r from-green-500/10 via-emerald-500/10 to-teal-500/10 rounded-3xl blur-2xl opacity-50"></div>
+                        <div>
+                            <div className="flex flex-col md:flex-row items-start md:items-center gap-8">
+                                <div className="relative">
+                                    <div
+                                        className="absolute -inset-2 bg-gradient-to-br from-green-500/20 to-emerald-500/20 rounded-full blur-lg"></div>
+                                    <Avatar
+                                        src={currentUser?.avatar}
+                                        name={currentUser?.firstName || ''}
+                                        className="w-28 h-28 md:w-32 md:h-32 relative z-10 border-4 border-white dark:border-gray-800 shadow-xl"
+                                    />
+                                </div>
+                                <div className="flex-1 space-y-4">
+                                    <div>
+                                        <h1 className="text-4xl md:text-5xl font-extrabold bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 dark:from-white dark:via-gray-100 dark:to-white bg-clip-text text-transparent mb-2">
+                                            ¡Bienvenido!
+                                        </h1>
+                                        <h2 className="text-2xl md:text-3xl font-bold text-gray-800 dark:text-gray-100 mb-2">
+                                            {currentUser?.fullName}
+                                        </h2>
+                                        <p className="text-lg text-gray-600 dark:text-gray-400">Departamento de Finanzas</p>
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-4">
+                                        <span
+                                            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-green-500/20 text-green-700 dark:text-green-400 font-semibold text-sm backdrop-blur-sm">
+                                            <CheckCircleIcon className="h-4 w-4" />
+                                            {currentUser?.role.toUpperCase()}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <Avatar
-                        src={currentUser?.avatar}
-                        name={`${currentUser?.firstName} ${currentUser?.lastName}`}
-                        size="lg"
-                    />
-                </div>
 
-                {/* KPIs específicos para finanzas */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <Card className="cursor-pointer hover:shadow-lg transition-shadow" isPressable onPress={() => navigate('/factura')}>
-                        <CardBody className="flex flex-row items-center gap-4">
-                            <div className="p-3 bg-purple-100 rounded-lg">
-                                <DocumentTextIcon className="h-8 w-8 text-purple-600" />
-                            </div>
-                            <div className="flex-1">
-                                <p className="text-sm text-gray-500">Facturas Pendientes</p>
-                                <p className="text-2xl font-bold">{finanzasStats.facturasPendientes}</p>
-                                <p className="text-xs text-green-600">{finanzasStats.facturasDelMes} este mes</p>
-                            </div>
-                        </CardBody>
-                    </Card>
+                    {/* Accesos Directos */}
+                    <div className="mt-8 mb-32">
+                        <div className="flex justify-center">
+                            <div className="w-full max-w-[60%] grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                {/* Facturas */}
+                                <div
+                                    className="group flex items-center gap-4 px-4 py-3 rounded-xl bg-white/70 dark:bg-gray-800/70 backdrop-blur-sm border border-gray-200/50 dark:border-gray-700/50 hover:border-purple-500/50 dark:hover:border-purple-500/50 cursor-pointer hover:shadow-lg transition-all duration-300"
+                                    onClick={() => navigate('/factura')}
+                                >
+                                    <div className="p-2 rounded-lg bg-gradient-to-br from-purple-500 to-purple-600">
+                                        <DocumentTextIcon className="h-5 w-5 text-white" />
+                                    </div>
+                                    <span className="flex-1 text-sm font-semibold text-gray-700 dark:text-gray-300">Facturas</span>
+                                    <ArrowRightIcon className="h-4 w-4 text-gray-400 group-hover:text-purple-500 group-hover:translate-x-1 transition-all" />
+                                </div>
 
-                    <Card className="cursor-pointer hover:shadow-lg transition-shadow" isPressable onPress={() => navigate('/finanzas/pagos')}>
-                        <CardBody className="flex flex-row items-center gap-4">
-                            <div className="p-3 bg-green-100 rounded-lg">
-                                <BanknotesIcon className="h-8 w-8 text-green-600" />
-                            </div>
-                            <div className="flex-1">
-                                <p className="text-sm text-gray-500">Pagos Pendientes</p>
-                                <p className="text-2xl font-bold">{finanzasStats.pagosPendientes}</p>
-                                <p className="text-xs text-red-600">{finanzasStats.pagosVencidos} vencidos</p>
-                            </div>
-                        </CardBody>
-                    </Card>
+                                {/* Estado de Pagos */}
+                                <div
+                                    className="group flex items-center gap-4 px-4 py-3 rounded-xl bg-white/70 dark:bg-gray-800/70 backdrop-blur-sm border border-gray-200/50 dark:border-gray-700/50 hover:border-green-500/50 dark:hover:border-green-500/50 cursor-pointer hover:shadow-lg transition-all duration-300"
+                                    onClick={() => navigate('/finanzas/pagos')}
+                                >
+                                    <div className="p-2 rounded-lg bg-gradient-to-br from-green-500 to-green-600">
+                                        <BanknotesIcon className="h-5 w-5 text-white" />
+                                    </div>
+                                    <span className="flex-1 text-sm font-semibold text-gray-700 dark:text-gray-300">Estado de Pagos</span>
+                                    <ArrowRightIcon className="h-4 w-4 text-gray-400 group-hover:text-green-500 group-hover:translate-x-1 transition-all" />
+                                </div>
 
-                    <Card className="cursor-pointer hover:shadow-lg transition-shadow" isPressable onPress={() => navigate('/finanzas/cuentas-por-pagar')}>
-                        <CardBody className="flex flex-row items-center gap-4">
-                            <div className="p-3 bg-orange-100 rounded-lg">
-                                <CreditCardIcon className="h-8 w-8 text-orange-600" />
-                            </div>
-                            <div className="flex-1">
-                                <p className="text-sm text-gray-500">Cuentas por Pagar</p>
-                                <p className="text-2xl font-bold">{formatCurrency(finanzasStats.cuentasPorPagar)}</p>
-                                <p className="text-xs text-orange-600">Total pendiente</p>
-                            </div>
-                        </CardBody>
-                    </Card>
+                                {/* Cuentas por Pagar */}
+                                <div
+                                    className="group flex items-center gap-4 px-4 py-3 rounded-xl bg-white/70 dark:bg-gray-800/70 backdrop-blur-sm border border-gray-200/50 dark:border-gray-700/50 hover:border-orange-500/50 dark:hover:border-orange-500/50 cursor-pointer hover:shadow-lg transition-all duration-300"
+                                    onClick={() => navigate('/finanzas/cuentas-por-pagar')}
+                                >
+                                    <div className="p-2 rounded-lg bg-gradient-to-br from-orange-500 to-orange-600">
+                                        <CreditCardIcon className="h-5 w-5 text-white" />
+                                    </div>
+                                    <span className="flex-1 text-sm font-semibold text-gray-700 dark:text-gray-300">Cuentas por Pagar</span>
+                                    <ArrowRightIcon className="h-4 w-4 text-gray-400 group-hover:text-orange-500 group-hover:translate-x-1 transition-all" />
+                                </div>
 
-                    <Card className="cursor-pointer hover:shadow-lg transition-shadow" isPressable onPress={() => navigate('/finanzas/conciliacion')}>
-                        <CardBody className="flex flex-row items-center gap-4">
-                            <div className="p-3 bg-blue-100 rounded-lg">
-                                <CalculatorIcon className="h-8 w-8 text-blue-600" />
-                            </div>
-                            <div className="flex-1">
-                                <p className="text-sm text-gray-500">Conciliaciones</p>
-                                <p className="text-2xl font-bold">{finanzasStats.conciliacionesPendientes}</p>
-                                <p className="text-xs text-blue-600">Pendientes</p>
-                            </div>
-                        </CardBody>
-                    </Card>
-                </div>
-
-                {/* Resumen financiero */}
-                <Card>
-                    <CardHeader>
-                        <h3 className="text-lg font-semibold">Resumen Financiero del Mes</h3>
-                    </CardHeader>
-                    <CardBody>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            <div className="text-center p-4 bg-green-50 rounded-lg">
-                                <CurrencyDollarIcon className="h-8 w-8 text-green-600 mx-auto mb-2" />
-                                <p className="text-sm text-gray-600">Total Facturado</p>
-                                <p className="text-xl font-bold text-green-700">{formatCurrency(finanzasStats.montoFacturado)}</p>
-                            </div>
-                            <div className="text-center p-4 bg-blue-50 rounded-lg">
-                                <BanknotesIcon className="h-8 w-8 text-blue-600 mx-auto mb-2" />
-                                <p className="text-sm text-gray-600">Total Pagado</p>
-                                <p className="text-xl font-bold text-blue-700">{formatCurrency(finanzasStats.montoPagado)}</p>
-                            </div>
-                            <div className="text-center p-4 bg-orange-50 rounded-lg">
-                                <ExclamationTriangleIcon className="h-8 w-8 text-orange-600 mx-auto mb-2" />
-                                <p className="text-sm text-gray-600">Pendiente de Pago</p>
-                                <p className="text-xl font-bold text-orange-700">
-                                    {formatCurrency(finanzasStats.montoFacturado - finanzasStats.montoPagado)}
-                                </p>
+                                {/* Conciliación */}
+                                <div
+                                    className="group flex items-center gap-4 px-4 py-3 rounded-xl bg-white/70 dark:bg-gray-800/70 backdrop-blur-sm border border-gray-200/50 dark:border-gray-700/50 hover:border-blue-500/50 dark:hover:border-blue-500/50 cursor-pointer hover:shadow-lg transition-all duration-300"
+                                    onClick={() => navigate('/finanzas/conciliacion')}
+                                >
+                                    <div className="p-2 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600">
+                                        <CalculatorIcon className="h-5 w-5 text-white" />
+                                    </div>
+                                    <span className="flex-1 text-sm font-semibold text-gray-700 dark:text-gray-300">Conciliación</span>
+                                    <ArrowRightIcon className="h-4 w-4 text-gray-400 group-hover:text-blue-500 group-hover:translate-x-1 transition-all" />
+                                </div>
                             </div>
                         </div>
-                    </CardBody>
-                </Card>
+                    </div>
 
-                {/* Alertas críticas */}
-                {(finanzasStats.pagosVencidos > 0 || finanzasStats.conciliacionesPendientes > 0) && (
-                    <Card>
-                        <CardHeader>
-                            <div className="flex items-center gap-2">
-                                <ExclamationTriangleIcon className="h-5 w-5 text-red-500" />
-                                <h3 className="text-lg font-semibold text-red-700">Atención Urgente</h3>
-                            </div>
-                        </CardHeader>
-                        <CardBody>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {finanzasStats.pagosVencidos > 0 && (
-                                    <div className="flex items-center justify-between p-3 bg-red-50 rounded-lg">
+                    {/* Información de Funciones */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div className="relative overflow-hidden rounded-3xl bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl shadow-xl border border-white/30 dark:border-gray-700/30 p-8">
+                            <div className="absolute top-0 right-0 w-40 h-40 bg-green-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
+                            <div className="relative z-10">
+                                <div className="flex items-center gap-3 mb-6">
+                                    <div className="p-2 rounded-xl bg-gradient-to-br from-green-500 to-green-600">
+                                        <CurrencyDollarIcon className="h-6 w-6 text-white" />
+                                    </div>
+                                    <h3 className="text-xl font-bold text-gray-900 dark:text-white">Funciones Principales</h3>
+                                </div>
+                                <div className="space-y-4">
+                                    <div className="flex items-start gap-3 p-3 rounded-lg bg-purple-50/50 dark:bg-purple-900/20">
+                                        <DocumentTextIcon className="h-5 w-5 text-purple-600 dark:text-purple-400 mt-0.5" />
                                         <div>
-                                            <p className="font-medium text-red-800">{finanzasStats.pagosVencidos} Pagos Vencidos</p>
-                                            <p className="text-sm text-red-600">Requieren procesamiento inmediato</p>
+                                            <p className="font-semibold text-sm text-gray-900 dark:text-white">Subir Facturas</p>
+                                            <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">Cargar facturas de proveedores para su procesamiento</p>
                                         </div>
-                                        <Button 
-                                            size="sm" 
-                                            color="danger" 
-                                            variant="flat"
-                                            endContent={<ArrowRightIcon className="h-4 w-4" />}
-                                            onPress={() => navigate('/finanzas/pagos')}
-                                        >
-                                            Procesar
-                                        </Button>
                                     </div>
-                                )}
-                                {finanzasStats.conciliacionesPendientes > 0 && (
-                                    <div className="flex items-center justify-between p-3 bg-yellow-50 rounded-lg">
+                                    <div className="flex items-start gap-3 p-3 rounded-lg bg-green-50/50 dark:bg-green-900/20">
+                                        <CheckCircleIcon className="h-5 w-5 text-green-600 dark:text-green-400 mt-0.5" />
                                         <div>
-                                            <p className="font-medium text-yellow-800">{finanzasStats.conciliacionesPendientes} Conciliaciones Pendientes</p>
-                                            <p className="text-sm text-yellow-600">Cierres contables pendientes</p>
+                                            <p className="font-semibold text-sm text-gray-900 dark:text-white">Validar Documentos</p>
+                                            <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">Revisar y validar la documentación de facturación</p>
                                         </div>
-                                        <Button 
-                                            size="sm" 
-                                            color="warning" 
-                                            variant="flat"
-                                            endContent={<ArrowRightIcon className="h-4 w-4" />}
-                                            onPress={() => navigate('/finanzas/conciliacion')}
-                                        >
-                                            Revisar
-                                        </Button>
                                     </div>
-                                )}
+                                    <div className="flex items-start gap-3 p-3 rounded-lg bg-blue-50/50 dark:bg-blue-900/20">
+                                        <BanknotesIcon className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5" />
+                                        <div>
+                                            <p className="font-semibold text-sm text-gray-900 dark:text-white">Programar Pagos</p>
+                                            <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">Gestionar el cronograma de pagos a proveedores</p>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-                        </CardBody>
-                    </Card>
-                )}
-
-                {/* Acciones rápidas */}
-                <Card>
-                    <CardHeader>
-                        <h3 className="text-lg font-semibold">Acciones Rápidas</h3>
-                    </CardHeader>
-                    <CardBody>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <Card 
-                                className="cursor-pointer hover:shadow-md transition-all"
-                                isPressable
-                                onPress={() => navigate('/finanzas/pagos')}
-                            >
-                                <CardBody className="text-center p-6">
-                                    <div className="bg-green-500 text-white p-3 rounded-lg inline-flex mb-3">
-                                        <BanknotesIcon className="h-6 w-6" />
-                                    </div>
-                                    <h4 className="font-semibold mb-2">Procesar Pagos</h4>
-                                    <p className="text-sm text-gray-600">Gestionar pagos pendientes</p>
-                                </CardBody>
-                            </Card>
-
-                            <Card 
-                                className="cursor-pointer hover:shadow-md transition-all"
-                                isPressable
-                                onPress={() => navigate('/factura')}
-                            >
-                                <CardBody className="text-center p-6">
-                                    <div className="bg-purple-500 text-white p-3 rounded-lg inline-flex mb-3">
-                                        <DocumentTextIcon className="h-6 w-6" />
-                                    </div>
-                                    <h4 className="font-semibold mb-2">Revisar Facturas</h4>
-                                    <p className="text-sm text-gray-600">Aprobar o rechazar facturas</p>
-                                </CardBody>
-                            </Card>
-
-                            <Card 
-                                className="cursor-pointer hover:shadow-md transition-all"
-                                isPressable
-                                onPress={() => navigate('/reportes/financieros')}
-                            >
-                                <CardBody className="text-center p-6">
-                                    <div className="bg-blue-500 text-white p-3 rounded-lg inline-flex mb-3">
-                                        <ChartBarIcon className="h-6 w-6" />
-                                    </div>
-                                    <h4 className="font-semibold mb-2">Reportes Financieros</h4>
-                                    <p className="text-sm text-gray-600">Ver análisis y reportes</p>
-                                </CardBody>
-                            </Card>
                         </div>
-                    </CardBody>
-                </Card>
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {/* Facturas pendientes de aprobación */}
-                    <Card>
-                        <CardHeader className="flex justify-between items-center">
-                            <h3 className="text-lg font-semibold">Facturas Pendientes</h3>
-                            <Button 
-                                size="sm" 
-                                variant="light" 
-                                endContent={<EyeIcon className="h-4 w-4" />}
-                                onPress={() => navigate('/factura')}
-                            >
-                                Ver todas
-                            </Button>
-                        </CardHeader>
-                        <CardBody>
-                            <div className="space-y-3">
-                                {facturasPendientes.map((factura) => {
-                                    const dias = getDaysUntilDue(factura.vencimiento);
-                                    return (
-                                        <div key={factura.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                                            <div>
-                                                <p className="font-medium text-sm">{factura.id}</p>
-                                                <p className="text-xs text-gray-500">{factura.proveedor}</p>
-                                            </div>
-                                            <div className="text-right">
-                                                <p className="font-bold text-sm">{formatCurrency(factura.monto)}</p>
-                                                <Chip 
-                                                    size="sm"
-                                                    color={dias < 0 ? 'danger' : dias <= 3 ? 'warning' : 'success'}
-                                                    variant="flat"
-                                                >
-                                                    {dias < 0 ? `${Math.abs(dias)} días vencido` : `${dias} días`}
-                                                </Chip>
-                                            </div>
+                        <div className="relative overflow-hidden rounded-3xl bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl shadow-xl border border-white/30 dark:border-gray-700/30 p-8">
+                            <div className="absolute top-0 right-0 w-40 h-40 bg-emerald-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
+                            <div className="relative z-10">
+                                <div className="flex items-center gap-3 mb-6">
+                                    <div className="p-2 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600">
+                                        <EyeIcon className="h-6 w-6 text-white" />
+                                    </div>
+                                    <h3 className="text-xl font-bold text-gray-900 dark:text-white">Accesos Disponibles</h3>
+                                </div>
+                                <div className="space-y-3">
+                                    <div className="flex items-center justify-between p-3 rounded-lg bg-white/50 dark:bg-gray-900/50 border border-gray-200/50 dark:border-gray-700/50">
+                                        <div className="flex items-center gap-3">
+                                            <DocumentTextIcon className="h-5 w-5 text-purple-600" />
+                                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Facturas</span>
                                         </div>
-                                    );
-                                })}
-                            </div>
-                        </CardBody>
-                    </Card>
-
-                    {/* Pagos vencidos */}
-                    <Card>
-                        <CardHeader className="flex justify-between items-center">
-                            <h3 className="text-lg font-semibold">Pagos Vencidos</h3>
-                            <Button 
-                                size="sm" 
-                                variant="light" 
-                                endContent={<EyeIcon className="h-4 w-4" />}
-                                onPress={() => navigate('/finanzas/pagos')}
-                            >
-                                Ver todos
-                            </Button>
-                        </CardHeader>
-                        <CardBody>
-                            <div className="space-y-3">
-                                {pagosVencidos.map((pago) => {
-                                    const diasVencido = Math.abs(getDaysUntilDue(pago.vencimiento));
-                                    return (
-                                        <div key={pago.id} className="flex items-center justify-between p-3 bg-red-50 rounded-lg">
-                                            <div>
-                                                <p className="font-medium text-sm">{pago.id}</p>
-                                                <p className="text-xs text-gray-500">{pago.proveedor}</p>
-                                            </div>
-                                            <div className="text-right">
-                                                <p className="font-bold text-sm text-red-700">{formatCurrency(pago.monto)}</p>
-                                                <Chip 
-                                                    size="sm"
-                                                    color="danger"
-                                                    variant="flat"
-                                                >
-                                                    {diasVencido} días vencido
-                                                </Chip>
-                                            </div>
+                                        <Chip size="sm" color="success" variant="flat">Activo</Chip>
+                                    </div>
+                                    <div className="flex items-center justify-between p-3 rounded-lg bg-white/50 dark:bg-gray-900/50 border border-gray-200/50 dark:border-gray-700/50">
+                                        <div className="flex items-center gap-3">
+                                            <BanknotesIcon className="h-5 w-5 text-green-600" />
+                                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Estado de Pagos</span>
                                         </div>
-                                    );
-                                })}
+                                        <Chip size="sm" color="success" variant="flat">Activo</Chip>
+                                    </div>
+                                    <div className="flex items-center justify-between p-3 rounded-lg bg-white/50 dark:bg-gray-900/50 border border-gray-200/50 dark:border-gray-700/50">
+                                        <div className="flex items-center gap-3">
+                                            <CreditCardIcon className="h-5 w-5 text-orange-600" />
+                                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Cuentas por Pagar</span>
+                                        </div>
+                                        <Chip size="sm" color="success" variant="flat">Activo</Chip>
+                                    </div>
+                                    <div className="flex items-center justify-between p-3 rounded-lg bg-white/50 dark:bg-gray-900/50 border border-gray-200/50 dark:border-gray-700/50">
+                                        <div className="flex items-center gap-3">
+                                            <CalculatorIcon className="h-5 w-5 text-blue-600" />
+                                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Conciliación</span>
+                                        </div>
+                                        <Chip size="sm" color="success" variant="flat">Activo</Chip>
+                                    </div>
+                                    <div className="flex items-center justify-between p-3 rounded-lg bg-white/50 dark:bg-gray-900/50 border border-gray-200/50 dark:border-gray-700/50">
+                                        <div className="flex items-center gap-3">
+                                            <ChartBarIcon className="h-5 w-5 text-indigo-600" />
+                                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Reportes Financieros</span>
+                                        </div>
+                                        <Chip size="sm" color="success" variant="flat">Activo</Chip>
+                                    </div>
+                                </div>
                             </div>
-                        </CardBody>
-                    </Card>
+                        </div>
+                    </div>
                 </div>
             </div>
         </Dashboard>
