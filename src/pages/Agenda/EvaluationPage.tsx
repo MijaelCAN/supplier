@@ -165,20 +165,12 @@ const EvaluationPage: React.FC = () => {
         return appointmentDateTime <= now;
     };
 
-    const canEvaluateCalidadYCantidad = (): boolean => {
-        // Debe haberse calificado puntualidad primero
-        return isCriterionEvaluated('puntualidad');
-    };
-
     const getEvaluationErrorMessage = (type: EvaluationModalType): string => {
         switch (type) {
             case 'documentacion':
                 return 'No se puede calificar Documentación: aún no hay documentos cargados.';
             case 'puntualidad':
                 return 'No se puede calificar Puntualidad: la fecha y hora de la cita aún no han llegado.';
-            case 'estadoMercaderia':
-            case 'cantidadCorrecta':
-                return 'No se puede calificar: primero debe calificarse la Puntualidad (asistencia).';
             default:
                 return 'No se puede evaluar en este momento.';
         }
@@ -199,10 +191,7 @@ const EvaluationPage: React.FC = () => {
             case 'puntualidad':
                 canOpen = canEvaluatePuntualidad();
                 break;
-            case 'estadoMercaderia':
-            case 'cantidadCorrecta':
-                canOpen = canEvaluateCalidadYCantidad();
-                break;
+            // Calidad y Almacén no dependen de la evaluación de Seguridad (OBS-001)
         }
 
         if (!canOpen) {

@@ -42,6 +42,7 @@ import { useAgendaStore } from "@/store/agendaStore";
 import { useAuth } from "@/store/authStore";
 import { UserRole } from "@/routes/menuTypes";
 import { DeliveryAppointment, PackingListItem } from "@/store/types";
+import { getMaxPackingListQuantity } from "@/utils/packingList";
 import { useNavigate, useLocation } from 'react-router-dom';
 import { fetchPackingListFromApi, createPackingListInApi, fetchWarehousesFromApi, WarehouseApiRecord, fetchDocumentsFromApi, DocumentApiRecord, fetchDocumentDetailFromApi, uploadFileToPackingList, fetchProductsFromApi, ProductApiRecord } from "@/services/agenda/packingListApi";
 import { formatDateForAPI } from "@/services/agenda/appointmentsApi";
@@ -2853,7 +2854,9 @@ const Agenda: React.FC = () => {
                                                                                 ));
                                                                             }}
                                                                             min={0}
-                                                                            max={item.pendingQuantity}
+                                                                            max={getMaxPackingListQuantity(item)}
+                                                                            isInvalid={item.quantity > getMaxPackingListQuantity(item)}
+                                                                            errorMessage={`Máx. ${getMaxPackingListQuantity(item)}`}
                                                                         />
                                                                     </TableCell>
                                                                 </TableRow>
@@ -2911,12 +2914,12 @@ const Agenda: React.FC = () => {
                                             packingListItems.length === 0 ||
                                             // Si ningún item está seleccionado (marca = true) y con cantidad > 0, desactivar el botón
                                             packingListItems.filter(item => item.marca === true && item.quantity > 0).length === 0 ||
-                                            // Si algún item seleccionado tiene cantidad inválida (mayor a pendiente), desactivar
+                                            // Si algún item seleccionado supera el máximo permitido (pendiente + 20% de tolerancia), desactivar
                                             packingListItems.some(
                                                 item =>
                                                     item.marca === true &&
                                                     item.quantity > 0 &&
-                                                    item.quantity > item.pendingQuantity
+                                                    item.quantity > getMaxPackingListQuantity(item)
                                             )
                                         }
                                     >

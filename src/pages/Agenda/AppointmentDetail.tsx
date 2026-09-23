@@ -62,6 +62,7 @@ import {fetchEvaluationByCodCita} from "@/services/agenda/evaluationsApi";
 import {getPCPValidations, PCPValidationRecord} from "@/services/agenda/pcpApi";
 import {STATUS_CONFIG} from "@/services/agenda/appointmentStatus";
 import {DeliveryAppointment, DeliveryEvaluation, PackingListItem, SupplierClaim} from "@/store/types";
+import {getMaxPackingListQuantity} from "@/utils/packingList";
 import DocumentsModal from './DocumentsModal';
 import { COMMERCIAL_DOCUMENT_TYPES, mapFileNameToDocumentType } from '@/config/commercialDocuments';
 import EvaluationModal from './EvaluationModal';
@@ -579,11 +580,6 @@ const AppointmentDetail: React.FC = () => {
         return enableFrom <= now;
     };
 
-    const canEvaluateCalidadYCantidad = (): boolean => {
-        // Debe haberse calificado puntualidad primero
-        return isCriterionEvaluated('puntualidad');
-    };
-
     const canOpenEvaluationModal = (type: EvaluationModalType): boolean => {
         // Primero verificar que no esté ya evaluado
         console.log("validacion: ", isCriterionEvaluated(type));
@@ -598,10 +594,8 @@ const AppointmentDetail: React.FC = () => {
                 return canEvaluateDocumentacion();
             case 'puntualidad':
                 return canEvaluatePuntualidad();
-            case 'estadoMercaderia':
-            case 'cantidadCorrecta':
-                return canEvaluateCalidadYCantidad();
             default:
+                // Calidad y Almacén no dependen de la evaluación de Seguridad (OBS-001)
                 return true;
         }
     };
@@ -612,9 +606,6 @@ const AppointmentDetail: React.FC = () => {
                 return 'No se puede calificar Documentación: aún no hay documentos cargados.';
             case 'puntualidad':
                 return 'No se puede calificar Puntualidad: la fecha y hora de la cita aún no han llegado.';
-            case 'estadoMercaderia':
-            case 'cantidadCorrecta':
-                return 'No se puede calificar: primero debe calificarse la Puntualidad (asistencia).';
             default:
                 return 'No se puede evaluar en este momento.';
         }
@@ -2155,7 +2146,9 @@ const AppointmentDetail: React.FC = () => {
                                                                                 ));
                                                                             }}
                                                                             min={0}
-                                                                            max={item.pendingQuantity}
+                                                                            max={getMaxPackingListQuantity(item)}
+                                                                            isInvalid={item.quantity > getMaxPackingListQuantity(item)}
+                                                                            errorMessage={`Máx. ${getMaxPackingListQuantity(item)}`}
                                                                         />
                                                                     </TableCell>
                                                                 </TableRow>
@@ -2213,7 +2206,7 @@ const AppointmentDetail: React.FC = () => {
                                                 item =>
                                                     item.marca === true &&
                                                     item.quantity > 0 &&
-                                                    item.quantity > item.pendingQuantity
+                                                    item.quantity > getMaxPackingListQuantity(item)
                                             )
                                         }
                                     >

@@ -55,7 +55,7 @@ const SideBar: FC<SideBarProps> = ({sidebarOpen,setSidebarOpen}) => {
                 {/* Versión centrada con badge */}
                 <div className="w-full text-center">
                     <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-rojo/10 text-rojo dark:bg-rojo/20 dark:text-rojo/80">
-                        v1.0.0
+                        v{__APP_VERSION__}
                     </span>
                 </div>
                 {/* Botón cerrar - esquina superior derecha */}
