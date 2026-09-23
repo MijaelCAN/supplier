@@ -41,7 +41,7 @@ import { useAuth } from "@/store/authStore";
 import { UserRole } from "@/routes/menuTypes";
 import { DeliveryAppointment, PackingListItem } from "@/store/types";
 import { useNavigate, useLocation } from 'react-router-dom';
-import ScheduleAppointmentModal from './Scheduleappointmentmodal';
+import { ScheduleAppointmentModal }from './Scheduleappointmentmodal';
 import { fetchPackingListFromApi, createPackingListInApi, fetchWarehousesFromApi, WarehouseApiRecord, fetchDocumentsFromApi, DocumentApiRecord, fetchDocumentDetailFromApi, uploadFileToPackingList, fetchProductsFromApi, ProductApiRecord } from "@/services/agenda/packingListApi";
 import { formatDateForAPI } from "@/services/agenda/appointmentsApi";
 
