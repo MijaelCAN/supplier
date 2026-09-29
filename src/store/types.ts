@@ -440,6 +440,7 @@ export interface PackingListItem {
     productCode: string;
     productName: string;
     quantity: number;
+    quantityText?: string; // Texto digitado en el input de cantidad (solo UI, permite "12." mientras se escribe)
     pendingQuantity: number;
     unit: string;
     category?: string;

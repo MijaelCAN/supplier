@@ -42,7 +42,7 @@ import { useAgendaStore } from "@/store/agendaStore";
 import { useAuth } from "@/store/authStore";
 import { UserRole } from "@/routes/menuTypes";
 import { DeliveryAppointment, PackingListItem } from "@/store/types";
-import { getMaxPackingListQuantity } from "@/utils/packingList";
+import { getMaxPackingListQuantity, getPackingListQuantityText, parsePackingListQuantityInput } from "@/utils/packingList";
 import { useNavigate, useLocation } from 'react-router-dom';
 import { fetchPackingListFromApi, createPackingListInApi, fetchWarehousesFromApi, WarehouseApiRecord, fetchDocumentsFromApi, DocumentApiRecord, fetchDocumentDetailFromApi, uploadFileToPackingList, fetchProductsFromApi, ProductApiRecord } from "@/services/agenda/packingListApi";
 import { formatDateForAPI } from "@/services/agenda/appointmentsApi";
@@ -2843,18 +2843,19 @@ const Agenda: React.FC = () => {
                                                                     <TableCell>{item.pendingQuantity}</TableCell>
                                                                     <TableCell>
                                                                         <Input
-                                                                            type="number"
+                                                                            type="text"
+                                                                            inputMode="decimal"
                                                                             size="sm"
-                                                                            value={item.quantity.toString()}
+                                                                            value={getPackingListQuantityText(item)}
                                                                             disabled ={!item.marca}
                                                                             onValueChange={(value) => {
-                                                                                const qty = parseInt(value) || 0;
+                                                                                // Hasta 2 decimales (OBS-004); se ignora lo que no sea una cantidad válida
+                                                                                const parsed = parsePackingListQuantityInput(value);
+                                                                                if (!parsed) return;
                                                                                 setPackingListItems(prev => prev.map(pi =>
-                                                                                    pi.id === item.id ? { ...pi, quantity: qty } : pi
+                                                                                    pi.id === item.id ? { ...pi, quantity: parsed.quantity, quantityText: parsed.text } : pi
                                                                                 ));
                                                                             }}
-                                                                            min={0}
-                                                                            max={getMaxPackingListQuantity(item)}
                                                                             isInvalid={item.quantity > getMaxPackingListQuantity(item)}
                                                                             errorMessage={`Máx. ${getMaxPackingListQuantity(item)}`}
                                                                         />

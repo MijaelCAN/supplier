@@ -13,6 +13,7 @@ Se agregan con el comando `/obs <texto>`.
 | OBS-001 | 2026-09-23 | Almacén y Calidad no deben depender de la evaluación de Seguridad | Agenda / Detalle de cita – Evaluación | Alta | 🟢 Resuelto |
 | OBS-002 | 2026-09-23 | PackingList: permitir cantidad hasta 20% sobre lo pendiente | Agenda / Crear PackingList | Media | 🟢 Resuelto |
 | OBS-003 | 2026-09-23 | Versión del sidebar en duro, no se toma de package.json | Layout / Sidebar | Baja | 🟢 Resuelto |
+| OBS-004 | 2026-09-29 | PackingList: permitir registrar cantidades con decimales | Agenda / Crear PackingList | Alta | 🟢 Resuelto |
 
 ---
 
@@ -91,6 +92,8 @@ Solución probable: calcular un máximo permitido = `pendingQuantity * 1.2` (ide
 Nuevo helper `getMaxPackingListQuantity(item)` con constante `PACKING_LIST_TOLERANCE = 0.2`. Máximo = `floor(pendiente + 20% de la cantidad OC)` (si no hay cantidad OC, 20% sobre lo pendiente). Así, una OC de 100 sin entregas permite hasta 120, y el total entregado nunca supera el 120% de la OC. Se usa en el `max` del input y en la validación del botón "Crear PackingList"; además el input se marca en rojo con "Máx. N" cuando se excede.
 Pendiente de confirmar: que SAP/backend acepte cantidades mayores a lo pendiente.
 
+**Corrección 2026-09-29:** el 20% se calculaba sobre la cantidad OC (fija), por lo que tras un parcial el margen no bajaba (OC 100, pendiente 40 → máx. 60). A pedido del usuario, ahora el 20% se aplica **sobre lo pendiente**: máximo = `pendiente × 1.2` (pendiente 100 → 120; pendiente 40 → 48). Ya no se usa `cantidadOC` en el cálculo. Registrado junto con OBS-004.
+
 **Archivos modificados:**
 - `src/utils/packingList.ts` (nuevo)
 - `src/pages/Agenda/index.tsx`
@@ -124,3 +127,39 @@ Solución probable: en `vite.config.ts` exponer la versión con `define: { __APP
 
 **Fecha solución:** 2026-09-23
 **Commit:** fae4ba0
+
+### OBS-004 — PackingList: permitir registrar cantidades con decimales
+- **Fecha registro:** 2026-09-29
+- **Módulo / pantalla:** Agenda → modal Crear PackingList (`index.tsx`) y detalle de cita (`AppointmentDetail.tsx`)
+- **Prioridad:** Alta (sugerida — impide registrar cantidades fraccionadas, p. ej. kg/litros, y se guarda un valor distinto al real)
+- **Estado:** 🟢 Resuelto
+- **Rama:** develop
+
+**Observación (texto original):**
+> En el paquinlist debe registrarse los decimales
+
+**Análisis / causa:**
+El input de cantidad convierte lo digitado con `parseInt(value) || 0`, que descarta la parte decimal (`12.5` → `12`). Aparece duplicado en:
+- `src/pages/Agenda/index.tsx:2851`
+- `src/pages/Agenda/AppointmentDetail.tsx:2143`
+
+Además, el máximo permitido `getMaxPackingListQuantity()` (`src/utils/packingList.ts:13`) aplica `Math.floor`, por lo que el tope también se trunca a entero (p. ej. OC de 10.5 → máx. 12 en vez de 12.6).
+El payload de creación envía `item.quantity` como número (`index.tsx:1588`, `:1608`), así que el front no lo limita más allá del input.
+Solución probable: usar `parseFloat` (aceptando coma o punto decimal), agregar `step` al input, quitar el `Math.floor` del máximo (o redondear a N decimales) y definir la cantidad de decimales permitidos (p. ej. 2 o 3). Verificar que el backend/SAP acepte y guarde decimales en la cantidad del PackingList.
+
+**Solución:**
+Se permiten hasta 2 decimales (`PACKING_LIST_DECIMALS = 2`). El input pasa a `type="text"` con `inputMode="decimal"` (teclado numérico en móvil) y usa dos helpers nuevos en `src/utils/packingList.ts`:
+- `parsePackingListQuantityInput()`: acepta punto o coma, ignora lo que no sea cantidad válida (letras, más de 2 decimales) y redondea a 2 decimales.
+- `getPackingListQuantityText()`: conserva lo que el usuario escribe (p. ej. `12.`) mediante el campo UI `quantityText` de `PackingListItem`, y vuelve a mostrar la cantidad si se resetea (desmarcar el ítem → 0).
+`getMaxPackingListQuantity()` ya no trunca a entero: trunca a 2 decimales (pendiente 10.5 → máx. 12.6; pendiente 100 → 120).
+Además, en la misma entrega se corrigió la regla de OBS-002: el 20% ahora se calcula sobre lo pendiente y no sobre la cantidad OC (pendiente 40 de una OC de 100 → máx. 48, antes 60).
+Pendiente de confirmar: que el backend/SAP acepte y guarde decimales en la cantidad del PackingList.
+
+**Archivos modificados:**
+- `src/utils/packingList.ts`
+- `src/store/types.ts`
+- `src/pages/Agenda/index.tsx`
+- `src/pages/Agenda/AppointmentDetail.tsx`
+
+**Fecha solución:** 2026-09-29
+**Commit:**
