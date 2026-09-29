@@ -624,7 +624,7 @@ const Login = () => {
                                             {verificationDigits.map((digit, index) => (
                                                 <Input
                                                     key={index}
-                                                    ref={(el) => {
+                                                    ref={(el: HTMLInputElement | null) => {
                                                         codeInputRefs.current[index] = el;
                                                     }}
                                                     value={digit}
