@@ -621,6 +621,8 @@ export interface ProductApiRecord {
     packing_list_number?: string;
     line_number?: number;
     document?: number;
+    // Cantidad de archivos adjuntos (no eliminados) de la cita a la que pertenece el producto
+    cantidad_adjuntos?: number | null;
     // Campos de validación PCP
     confirmacion_pcp?: 'CONFORME' | 'NO_CONFORME' | null;
     cobertura_actual?: number | null;

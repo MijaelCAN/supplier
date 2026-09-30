@@ -462,6 +462,7 @@ const Agenda: React.FC = () => {
                 'Proveedor': product.u_razon_social,
                 'Cantidad': product.quantity,
                 'Horario': formatHorario(product.horario),
+                'Adjuntos': product.cantidad_adjuntos ?? '-',
                 'Confirmación PCP': product.confirmacion_pcp || '-',
                 'Cobertura Actual (meses)': formatCobertura(product.cobertura_actual),
                 'Cobertura con Ingresos (meses)': formatCobertura(product.cobertura_ingreso),
@@ -483,6 +484,7 @@ const Agenda: React.FC = () => {
                 { wch: 40 }, // Proveedor
                 { wch: 12 }, // Cantidad
                 { wch: 15 }, // Horario
+                { wch: 10 }, // Adjuntos
                 { wch: 18 }, // Confirmación PCP
                 { wch: 22 }, // Cobertura Actual
                 { wch: 28 }, // Cobertura con Ingresos
@@ -610,6 +612,7 @@ const Agenda: React.FC = () => {
                                 <th>Proveedor</th>
                                 <th>Cantidad</th>
                                 <th>Horario</th>
+                                <th>Adjuntos</th>
                                 <th>Confirmación PCP</th>
                                 <th>Cobertura Actual</th>
                                 <th>Cobertura con Ingresos</th>
@@ -626,6 +629,7 @@ const Agenda: React.FC = () => {
                                     <td>${product.u_razon_social}</td>
                                     <td>${product.quantity}</td>
                                     <td>${formatHorario(product.horario)}</td>
+                                    <td>${product.cantidad_adjuntos ?? '-'}</td>
                                     <td>${product.confirmacion_pcp || '-'}</td>
                                     <td>${formatCobertura(product.cobertura_actual) !== '-' ? formatCobertura(product.cobertura_actual) + ' meses' : '-'}</td>
                                     <td>${formatCobertura(product.cobertura_ingreso) !== '-' ? formatCobertura(product.cobertura_ingreso) + ' meses' : '-'}</td>
@@ -2118,6 +2122,7 @@ const Agenda: React.FC = () => {
                                             <TableColumn>PROVEEDOR</TableColumn>
                                                 <TableColumn className="w-[100px] min-w-[100px]">CANTIDAD</TableColumn>
                                                 <TableColumn className="w-[120px] min-w-[120px]">HORARIO</TableColumn>
+                                                <TableColumn className="w-[100px] min-w-[100px]">ADJUNTOS</TableColumn>
                                                 <TableColumn className="w-[120px] min-w-[120px]">CONFIRMACIÓN PCP</TableColumn>
                                                 <TableColumn className="w-[120px] min-w-[120px]">COBERTURA ACTUAL</TableColumn>
                                                 <TableColumn className="w-[150px] min-w-[150px]">COBERTURA CON INGRESOS</TableColumn>
@@ -2147,6 +2152,7 @@ const Agenda: React.FC = () => {
                                                     </TableCell>
                                                         <TableCell className="whitespace-nowrap">{row.quantity}</TableCell>
                                                         <TableCell className="whitespace-nowrap">{formatHorario(row.horario)}</TableCell>
+                                                        <TableCell className="whitespace-nowrap">{row.cantidad_adjuntos ?? '-'}</TableCell>
                                                         <TableCell>
                                                             {row.confirmacion_pcp ? (
                                                                 <Chip 
