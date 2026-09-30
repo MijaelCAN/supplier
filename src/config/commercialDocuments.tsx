@@ -123,11 +123,17 @@ export const getDocumentTypeByKey = (key: string): CommercialDocumentType | unde
 
 /**
  * Función para mapear un nombre de archivo a un tipo de documento
- * Basado en las palabras clave de cada tipo
+ * Primero por el prefijo con que se guarda al subir (`FAC_...`, `OC_...`, ver generateFileName);
+ * las palabras clave quedan como respaldo para archivos antiguos sin prefijo.
  */
 export const mapFileNameToDocumentType = (fileName: string): string | null => {
     const lowerFileName = fileName.toLowerCase();
-    
+
+    const byPrefix = COMMERCIAL_DOCUMENT_TYPES.find(docType =>
+        lowerFileName.startsWith(`${docType.prefix.toLowerCase()}_`)
+    );
+    if (byPrefix) return byPrefix.key;
+
     for (const docType of COMMERCIAL_DOCUMENT_TYPES) {
         if (docType.keywords.some(keyword => lowerFileName.includes(keyword))) {
             return docType.key;

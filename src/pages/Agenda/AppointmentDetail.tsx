@@ -64,6 +64,7 @@ import {STATUS_CONFIG} from "@/services/agenda/appointmentStatus";
 import {DeliveryAppointment, DeliveryEvaluation, PackingListItem, SupplierClaim} from "@/store/types";
 import {getMaxPackingListQuantity, getPackingListQuantityText, parsePackingListQuantityInput} from "@/utils/packingList";
 import DocumentsModal from './DocumentsModal';
+import DocumentGroupTabs from './DocumentGroupTabs';
 import { COMMERCIAL_DOCUMENT_TYPES, mapFileNameToDocumentType } from '@/config/commercialDocuments';
 import EvaluationModal from './EvaluationModal';
 import ClaimModal from './ClaimModal';
@@ -1845,27 +1846,25 @@ const AppointmentDetail: React.FC = () => {
                                 <div className="bg-white rounded-lg p-4 border border-gray-200">
                                     {(() => {
                                         const allDocuments = getAllDocuments();
+                                        // Agrupar por tipo en el mismo orden del modal de carga; lo que no se reconoce va a "Otros".
+                                        // Los tipos sin archivos se muestran como faltantes solo con documentos del API,
+                                        // que es cuando "completo" exige todos los tipos.
+                                        const showMissingTypes = appointmentDocuments.length > 0;
+                                        const documentGroups = [
+                                            ...COMMERCIAL_DOCUMENT_TYPES.map((docType) => ({
+                                                key: docType.key,
+                                                label: docType.label,
+                                                docs: allDocuments.filter((doc) => mapFileNameToDocumentType(doc.name) === docType.key),
+                                            })),
+                                            {
+                                                key: 'other',
+                                                label: 'Otros',
+                                                docs: allDocuments.filter((doc) => !mapFileNameToDocumentType(doc.name)),
+                                            },
+                                        ].filter((group) => group.docs.length > 0 || (showMissingTypes && group.key !== 'other'));
+
                                         return allDocuments.length > 0 ? (
-                                            <div className="space-y-2">
-                                                {allDocuments.map((doc, index) => (
-                                                    <div
-                                                        key={index}
-                                                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100 hover:bg-blue-50 hover:border-blue-300 cursor-pointer transition-colors"
-                                                        onClick={() => handleDocumentClick(doc)}
-                                                    >
-                                                        <div className="flex items-center gap-3 flex-1 min-w-0">
-                                                            <DocumentTextIcon className="w-5 h-5 text-gray-600 flex-shrink-0" />
-                                                            <span className="text-sm font-medium text-gray-900 truncate" title={doc.name}>
-                                                                {doc.name}
-                                                            </span>
-                                                        </div>
-                                                        <div className="flex items-center gap-2 flex-shrink-0">
-                                                            <span className="text-xs text-gray-500 uppercase">{doc.type}</span>
-                                                            <CheckCircleIcon className="w-5 h-5 text-emerald-500" />
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
+                                            <DocumentGroupTabs groups={documentGroups} onDocumentClick={handleDocumentClick} />
                                         ) : (
                                             <div className="grid grid-cols-2 gap-3">
                                                 {/* Factura */}
