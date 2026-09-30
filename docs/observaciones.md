@@ -14,6 +14,7 @@ Se agregan con el comando `/obs <texto>`.
 | OBS-002 | 2026-09-23 | PackingList: permitir cantidad hasta 20% sobre lo pendiente | Agenda / Crear PackingList | Media | 🟢 Resuelto |
 | OBS-003 | 2026-09-23 | Versión del sidebar en duro, no se toma de package.json | Layout / Sidebar | Baja | 🟢 Resuelto |
 | OBS-004 | 2026-09-29 | PackingList: permitir registrar cantidades con decimales | Agenda / Crear PackingList | Alta | 🟢 Resuelto |
+| OBS-005 | 2026-09-29 | Permitir eliminar documentos adjuntos cargados por el proveedor | Agenda / Documentos de la cita | Media | 🟡 En progreso |
 
 ---
 
@@ -162,4 +163,82 @@ Pendiente de confirmar: que el backend/SAP acepte y guarde decimales en la canti
 - `src/pages/Agenda/AppointmentDetail.tsx`
 
 **Fecha solución:** 2026-09-29
+**Commit:**
+
+### OBS-005 — Permitir eliminar documentos adjuntos cargados por el proveedor
+- **Fecha registro:** 2026-09-29
+- **Módulo / pantalla:** Agenda → modal "Cargar Documentos" (`src/pages/Agenda/DocumentsModal.tsx`), usado desde el detalle de cita (`AppointmentDetail.tsx`) y la Agenda (`index.tsx`)
+- **Prioridad:** Media (sugerida — si el proveedor sube un archivo equivocado no puede corregirlo; no bloquea el flujo)
+- **Estado:** 🟡 En progreso (front listo detrás de interruptor; falta el endpoint en el backend)
+- **Rama:** develop
+
+**Observación (texto original):**
+> Habilitar funcionalidad para eliminar adjuntos (Hace referencia de poder eliminar los documentos que se cargan desde el proveedor)
+
+**Análisis / causa:**
+El modal ya muestra un botón ✕ por cada archivo, pero `handleRemoveFile()` (`DocumentsModal.tsx:137`) solo lo quita del estado local del modal: no llama a ningún API, así que el archivo sigue guardado y reaparece al volver a abrir el modal o recargar la cita.
+- La subida usa `uploadFileToPackingList()` → `POST /api/PackingList/Archivos` (`src/services/agenda/packingListApi.ts:554`). No existe en el front ninguna función de eliminación (no hay llamadas `DELETE` para archivos).
+- Los documentos cargados llegan como `rawDocuments` de la cita (`AppointmentDocument`: `document_doc_entry`, `u_cod_cita`, `u_name_file`, `u_link_documento`). Confirmado por el usuario: `document_doc_entry` identifica a cada documento y `u_cod_cita` a la cita a la que pertenece; es suficiente para eliminar.
+- El modal mapea los documentos cargados a entradas con un `id` generado localmente, sin conservar ningún identificador del backend.
+
+Solución probable:
+1. **Backend:** confirmar o crear un endpoint para eliminar (p. ej. `DELETE /api/PackingList/Archivos/{id}` o por `cod_cita` + `name_file`) que borre el registro y el archivo físico.
+2. **Front:** agregar `deleteFileFromPackingList()` en `packingListApi.ts`; conservar el identificador del documento en `DocumentsModal`; en ✕ pedir confirmación, llamar al API y recargar los documentos de la cita (y recalcular el estado de "documentos completos").
+3. **Reglas por definir:** quién puede eliminar (solo el proveedor dueño y/o roles internos) y hasta cuándo (p. ej. no permitir eliminar si la cita ya fue evaluada o atendida).
+
+**Decisiones (2026-09-29):**
+- Eliminación **lógica** (el registro se marca como eliminado; no se borra el archivo).
+- Pueden eliminar: **proveedor** (dueño de la cita) y **administrador**.
+- Se bloquea una vez **evaluada la Documentación**.
+- Si al eliminar faltan documentos, la cita **vuelve a incompleta** (sale de `DOCUMENTOS_COMPLETOS`).
+
+**Contrato del API (a implementar en backend):**
+`POST /api/PackingList/Archivos/Eliminar`
+Request:
+```json
+{
+  "document_doc_entry": "1234",
+  "cod_cita": "567",
+  "usuario": "20123456789",
+  "motivo": "Se cargó la factura equivocada"
+}
+```
+- `document_doc_entry` (string, requerido): DocEntry del documento.
+- `cod_cita` (string, requerido): DocEntry de la cita; el documento debe pertenecer a ella.
+- `usuario` (string, requerido): código del usuario que elimina (mismo valor que se envía en `ActualizarEstado`).
+- `motivo` (string, opcional, máx. 250).
+
+Response 200:
+```json
+{
+  "status_code": 200,
+  "success": true,
+  "message": "Documento eliminado correctamente",
+  "data": {
+    "document_doc_entry": "1234",
+    "cod_cita": "567",
+    "name_file": "FACT_factura_001_1727640000000.pdf",
+    "fecha_eliminacion": "2026-09-29T10:15:00-05:00"
+  }
+}
+```
+Errores (mismo formato, `success: false`): 400 datos faltantes · 404 el documento no existe o no pertenece a la cita · 403 el usuario no es el proveedor de la cita ni administrador, o la Documentación ya fue evaluada. Si el documento ya estaba eliminado, responder 200 (idempotente).
+Backend además: guardar estado eliminado + usuario + fecha + motivo, y **excluir los eliminados** del listado de documentos de la cita.
+
+**Solución:**
+Front listo detrás del interruptor `VITE_ENABLE_DELETE_DOCUMENTS` (apagado por defecto; con él apagado todo se comporta como antes, salvo que la ✕ engañosa de los archivos ya guardados deja de mostrarse).
+- `packingListApi.ts`: `deleteFileFromPackingList()` + tipos `DeleteFileRequest`/`DeleteFileResponse` + constante `DELETE_DOCUMENTS_ENABLED`.
+- `DeleteDocumentModal.tsx` (nuevo): confirmación con motivo opcional; si el API falla muestra el error y no cierra.
+- `AppointmentDetail.tsx`: ícono de papelera en cada documento de la tarjeta "Documentos" y ✕ en el modal de carga, solo para proveedor/administrador y si la Documentación no está evaluada. Al eliminar recarga los documentos y, si la cita estaba en `DOCUMENTOS_COMPLETOS` y ya no están todos, la regresa a `TRANSPORTE_COMPLETO` (o `PROGRAMADA` si no tiene transporte).
+- `DocumentsModal.tsx`: conserva el DocEntry de cada documento; la ✕ de un archivo ya guardado solo aparece si se puede eliminar en el API.
+Para activar: agregar `VITE_ENABLE_DELETE_DOCUMENTS=true` al `.env` y volver a compilar. Pendiente: endpoint en backend y prueba integrada.
+
+**Archivos modificados:**
+- `src/services/agenda/packingListApi.ts`
+- `src/pages/Agenda/DeleteDocumentModal.tsx` (nuevo)
+- `src/pages/Agenda/DocumentsModal.tsx`
+- `src/pages/Agenda/AppointmentDetail.tsx`
+- `src/vite-env.d.ts`
+
+**Fecha solución:**
 **Commit:**

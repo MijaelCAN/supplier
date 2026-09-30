@@ -37,6 +37,7 @@ import {
     DocumentTextIcon,
     ExclamationTriangleIcon,
     StarIcon,
+    TrashIcon,
     TruckIcon,
     XCircleIcon
 } from "@heroicons/react/24/outline";
@@ -46,6 +47,8 @@ import {useAuth} from "@/store/authStore";
 import {UserRole} from "@/routes/menuTypes";
 import {
     createPackingListInApi,
+    DELETE_DOCUMENTS_ENABLED,
+    deleteFileFromPackingList,
     DocumentApiRecord,
     fetchDocumentDetailFromApi,
     fetchDocumentsFromApi,
@@ -63,7 +66,8 @@ import {getPCPValidations, PCPValidationRecord} from "@/services/agenda/pcpApi";
 import {STATUS_CONFIG} from "@/services/agenda/appointmentStatus";
 import {DeliveryAppointment, DeliveryEvaluation, PackingListItem, SupplierClaim} from "@/store/types";
 import {getMaxPackingListQuantity, getPackingListQuantityText, parsePackingListQuantityInput} from "@/utils/packingList";
-import DocumentsModal from './DocumentsModal';
+import DocumentsModal, {LoadedDocument} from './DocumentsModal';
+import DeleteDocumentModal from './DeleteDocumentModal';
 import { COMMERCIAL_DOCUMENT_TYPES, mapFileNameToDocumentType } from '@/config/commercialDocuments';
 import EvaluationModal from './EvaluationModal';
 import ClaimModal from './ClaimModal';
@@ -208,6 +212,8 @@ const AppointmentDetail: React.FC = () => {
     // Estado para visualizar documentos
     const [selectedDocument, setSelectedDocument] = useState<{ name: string; url: string; type: string } | null>(null);
     const { isOpen: isDocumentViewerOpen, onOpen: onDocumentViewerOpen, onClose: onDocumentViewerClose } = useDisclosure();
+    // Documento seleccionado para eliminar (OBS-005)
+    const [documentToDelete, setDocumentToDelete] = useState<LoadedDocument | null>(null);
     
     // Estados para modales de gestión
     const { isOpen: isPackingListOpen, onOpen: onPackingListOpen, onClose: onPackingListClose } = useDisclosure();
@@ -282,19 +288,20 @@ const AppointmentDetail: React.FC = () => {
     };
 
     // Obtener todos los documentos disponibles (priorizar documentos del API, luego los mapeados)
-    const getAllDocuments = (): Array<{ name: string; url: string; type: string }> => {
+    const getAllDocuments = (): LoadedDocument[] => {
         // Si hay documentos del API, usarlos directamente
         if (appointmentDocuments.length > 0) {
             return appointmentDocuments.map(doc => ({
                 name: doc.u_name_file,
                 url: doc.u_link_documento,
-                type: doc.u_name_file.split('.').pop()?.toLowerCase() || 'unknown'
+                type: doc.u_name_file.split('.').pop()?.toLowerCase() || 'unknown',
+                docEntry: doc.document_doc_entry
             }));
         }
-        
+
         // Si no, usar los documentos mapeados
         if (!appointment?.documents) return [];
-        const docs: Array<{ name: string; url: string; type: string }> = [];
+        const docs: LoadedDocument[] = [];
         
         if (appointment.documents.invoice?.url) {
             docs.push({
@@ -559,6 +566,12 @@ const AppointmentDetail: React.FC = () => {
                 return false;
         }
     };
+
+    // OBS-005: el proveedor y el administrador pueden eliminar documentos mientras la Documentación no esté evaluada
+    const canDeleteDocuments =
+        DELETE_DOCUMENTS_ENABLED &&
+        [UserRole.PROVEEDOR, UserRole.COMPRAS].includes(currentUser?.role as UserRole) &&
+        !isCriterionEvaluated('documentacion');
 
     // Validaciones para abrir modales de evaluación
     const canEvaluateDocumentacion = (): boolean => {
@@ -1064,6 +1077,46 @@ const AppointmentDetail: React.FC = () => {
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Error desconocido al subir archivo';
             throw new Error(errorMessage);
+        }
+    };
+
+    // Handler para eliminar (lógicamente) un documento de la cita (OBS-005)
+    const handleDeleteDocument = async (motivo: string): Promise<void> => {
+        if (!appointment?.docEntry || !documentToDelete?.docEntry || !currentUser) {
+            throw new Error('No se puede eliminar el documento: faltan datos de la cita o del documento.');
+        }
+
+        const userId = currentUser.userCode || currentUser.id || currentUser.username || 'system';
+
+        await deleteFileFromPackingList({
+            document_doc_entry: documentToDelete.docEntry,
+            cod_cita: appointment.docEntry,
+            usuario: userId,
+            motivo: motivo || undefined,
+        });
+
+        // Recargar documentos de la cita (el API ya no devuelve el eliminado)
+        const apiAppointments = await fetchAppointmentsFromApi();
+        const foundApiAppointment = apiAppointments.find(
+            (apt) => apt.docEntry === appointment.docEntry
+        );
+        const documents: AppointmentDocument[] = foundApiAppointment?.rawDocuments || [];
+        setAppointmentDocuments(documents);
+
+        // Si la cita estaba con documentos completos y ahora falta alguno, vuelve al estado anterior
+        const completedTypeKeys = getCompletedDocumentTypeKeys(documents);
+        const allTypesComplete = COMMERCIAL_DOCUMENT_TYPES.every((docType) => completedTypeKeys.has(docType.key));
+        if (!allTypesComplete && appointment.status === 'DOCUMENTOS_COMPLETOS') {
+            const { updateAppointmentStatus } = await import('@/services/agenda/appointmentStatus');
+            const previousStatus = appointment.transportData ? 'TRANSPORTE_COMPLETO' : 'PROGRAMADA';
+            try {
+                await updateAppointmentStatus(appointment.docEntry, previousStatus, userId);
+                await reloadAppointmentFromApi();
+            } catch (error) {
+                // El documento ya se eliminó: no se reporta como fallo de la eliminación
+                console.error('Error al revertir el estado de la cita:', error);
+                alert('El documento se eliminó, pero no se pudo actualizar el estado de la cita. Recarga la página.');
+            }
         }
     };
 
@@ -1862,6 +1915,22 @@ const AppointmentDetail: React.FC = () => {
                                                         <div className="flex items-center gap-2 flex-shrink-0">
                                                             <span className="text-xs text-gray-500 uppercase">{doc.type}</span>
                                                             <CheckCircleIcon className="w-5 h-5 text-emerald-500" />
+                                                            {canDeleteDocuments && doc.docEntry && (
+                                                                // stopPropagation: que no abra el visor de la fila al eliminar
+                                                                <span onClick={(e) => e.stopPropagation()}>
+                                                                <Button
+                                                                    isIconOnly
+                                                                    size="sm"
+                                                                    variant="light"
+                                                                    color="danger"
+                                                                    aria-label="Eliminar documento"
+                                                                    onPress={() => setDocumentToDelete(doc)}
+                                                                    className="min-w-0"
+                                                                >
+                                                                    <TrashIcon className="w-4 h-4" />
+                                                                </Button>
+                                                                </span>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 ))}
@@ -2481,6 +2550,15 @@ const AppointmentDetail: React.FC = () => {
                     selectedAppointment={appointment}
                     handleUploadDocument={handleUploadDocument}
                     loadedDocuments={getAllDocuments()}
+                    onDeleteDocument={canDeleteDocuments ? setDocumentToDelete : undefined}
+                />
+
+                {/* Confirmación para eliminar documento (OBS-005) */}
+                <DeleteDocumentModal
+                    isOpen={!!documentToDelete}
+                    documentName={documentToDelete?.name || ''}
+                    onClose={() => setDocumentToDelete(null)}
+                    onConfirm={handleDeleteDocument}
                 />
 
                 {/* Modal de Evaluación */}
