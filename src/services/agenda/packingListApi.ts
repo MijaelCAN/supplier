@@ -616,8 +616,7 @@ export const uploadFileToPackingList = async (
  * Interfaz para la petición de eliminación (lógica) de un documento de la cita
  */
 export interface DeleteFileRequest {
-    document_doc_entry: string; // DocEntry del documento a eliminar
-    cod_cita: string;           // DocEntry de la cita a la que pertenece
+    document_doc_entry: string; // DocEntry del documento a eliminar (va como query param)
     usuario: string;            // Usuario que elimina
     motivo?: string;            // Motivo de la eliminación (opcional)
 }
@@ -629,34 +628,34 @@ export interface DeleteFileResponse {
     status_code: number;
     success: boolean;
     message: string;
-    data: {
-        document_doc_entry: string;
-        cod_cita: string;
-        name_file: string;
-        fecha_eliminacion: string;
-    };
+    data?: unknown;
 }
 
 /**
  * Elimina (lógicamente) un documento cargado a la cita
- * @param request - DocEntry del documento, código de cita, usuario y motivo opcional
- * @returns Promise con los datos del documento eliminado
+ * DELETE /api/Documentos/PackinList/Eliminar?DocEntry={docEntry} con body { usuario, motivo }
+ * @param request - DocEntry del documento, usuario y motivo opcional
  */
 export const deleteFileFromPackingList = async (
     request: DeleteFileRequest
-): Promise<DeleteFileResponse['data']> => {
-    if (!request.document_doc_entry || !request.cod_cita) {
-        throw new Error('El documento y el código de cita son requeridos');
+): Promise<void> => {
+    if (!request.document_doc_entry) {
+        throw new Error('El documento a eliminar es requerido');
     }
 
-    const url = `${DEFAULT_API_BASE_URL}${DELETE_FILE_ENDPOINT}`;
+    const url = buildSecureUrl(DEFAULT_API_BASE_URL, DELETE_FILE_ENDPOINT, {
+        DocEntry: request.document_doc_entry,
+    });
 
     const response = await httpClient(url, {
-        method: 'POST',
+        method: 'DELETE',
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify(request),
+        body: JSON.stringify({
+            usuario: request.usuario,
+            motivo: request.motivo || '',
+        }),
     });
 
     if (!response.ok) {
@@ -669,8 +668,6 @@ export const deleteFileFromPackingList = async (
     if (!json || !json.success) {
         throw new Error(json?.message || 'Error al eliminar el archivo');
     }
-
-    return json.data;
 };
 
 /**

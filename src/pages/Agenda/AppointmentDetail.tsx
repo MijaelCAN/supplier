@@ -1090,7 +1090,6 @@ const AppointmentDetail: React.FC = () => {
 
         await deleteFileFromPackingList({
             document_doc_entry: documentToDelete.docEntry,
-            cod_cita: appointment.docEntry,
             usuario: userId,
             motivo: motivo || undefined,
         });
