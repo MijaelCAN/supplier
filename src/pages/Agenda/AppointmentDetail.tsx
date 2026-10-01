@@ -64,6 +64,7 @@ import {STATUS_CONFIG} from "@/services/agenda/appointmentStatus";
 import {DeliveryAppointment, DeliveryEvaluation, PackingListItem, SupplierClaim} from "@/store/types";
 import {getMaxPackingListQuantity, getPackingListQuantityText, parsePackingListQuantityInput} from "@/utils/packingList";
 import DocumentsModal from './DocumentsModal';
+import type { ProductEvaluationResult } from './EvaluationModal';
 import DocumentGroupTabs from './DocumentGroupTabs';
 import { COMMERCIAL_DOCUMENT_TYPES, mapFileNameToDocumentType } from '@/config/commercialDocuments';
 import EvaluationModal from './EvaluationModal';
@@ -809,14 +810,22 @@ const AppointmentDetail: React.FC = () => {
         setIsEvaluationModalOpen(true);
     };
 
-    const handleEvaluationSaved = async (updatedEvaluation: DeliveryEvaluation) => {
+    const handleEvaluationSaved = async (updatedEvaluation: DeliveryEvaluation, productResult?: ProductEvaluationResult) => {
         setEvaluation(updatedEvaluation);
-        
+
         // Actualizar estado de la cita según el tipo de evaluación
         if (!appointment?.docEntry) return;
-        
+
         const { updateAppointmentStatus } = await import('@/services/agenda/appointmentStatus');
-        
+
+        // Evaluación por producto (OBS-008): el estado sale de las líneas evaluadas por el área
+        if (productResult) {
+            const userId = currentUser?.userCode || currentUser?.id || currentUser?.username || 'system';
+            await updateAppointmentStatus(appointment.docEntry, productResult.appointmentStatus, userId);
+            await reloadAppointmentFromApi();
+            return;
+        }
+
         // Si se evaluó estado de mercadería, actualizar estado de calidad
         if (updatedEvaluation.estadoMercaderia?.estado) {
             const calidadEstado = updatedEvaluation.estadoMercaderia.estado;
@@ -1175,7 +1184,7 @@ const AppointmentDetail: React.FC = () => {
                                         </Button>
                                     )}
                                     {canEvaluateWarehouse && appointment?.docEntry && 
-                                     (appointment.status === 'ALMACEN_ACEPTADO' || appointment.status === 'ALMACEN_OBSERVADO') && (
+                                     (appointment.status === 'ALMACEN_ACEPTADO' || appointment.status === 'ALMACEN_OBSERVADO' || appointment.status === 'ALMACEN_PARCIAL') && (
                                         <Button
                                             color="success"
                                             variant="solid"

@@ -510,10 +510,12 @@ export type AppointmentStatus =
     // Fase 5: Control de Calidad
     | 'CALIDAD_ACEPTADO'
     | 'CALIDAD_OBSERVADO'
+    | 'CALIDAD_PARCIAL' // Evaluación por producto: parte aceptada y parte rechazada (OBS-008)
     | 'CALIDAD_RECHAZADO'
     // Fase 6: Almacén
     | 'ALMACEN_ACEPTADO'
     | 'ALMACEN_OBSERVADO'
+    | 'ALMACEN_PARCIAL' // Evaluación por producto: parte aceptada y parte rechazada (OBS-008)
     | 'ALMACEN_RECHAZADO'
     // Fase 7: Cierre
     | 'PARTE_DE_INGRESO_GENERADO'
