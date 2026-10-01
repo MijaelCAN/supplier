@@ -862,7 +862,68 @@ export const getValidacionPCP = async (
         }
         throw new Error(json.message || 'Error al obtener la validación PCP');
     }
-    
+
     // Retornar los datos o null si no existen
     return json.data || null;
+};
+
+/**
+ * ELIMINACIÓN LÓGICA DE PACKINGLIST (OBS-009)
+ * En SAP se marca como eliminado (deja de aparecer en el portal y libera lo pendiente de la OC).
+ * En WMS se elimina a mano: quien elimina avisa el ticket al encargado.
+ */
+
+/** Interruptor mientras el backend no publique el endpoint de eliminación. */
+export const DELETE_PACKING_LIST_ENABLED = import.meta.env.VITE_ENABLE_DELETE_PACKING_LIST === 'true';
+
+/** Estados de la cita en los que se puede eliminar: antes de que el proveedor llegue. */
+export const PACKING_LIST_DELETABLE_STATUSES = [
+    'REGISTRADA',
+    'PROGRAMADA',
+    'REPROGRAMADA',
+    'TRANSPORTE_COMPLETO',
+    'DOCUMENTOS_COMPLETOS',
+] as const;
+
+export interface DeletePackingListRequest {
+    id: string;           // Id (DocEntry) del PackingList
+    number: string;       // Número del PackingList
+    cod_cita: string;     // DocEntry de la cita
+    usuario: string;      // Usuario que elimina
+    motivo: string;
+}
+
+export interface DeletePackingListResponse {
+    status_code: number;
+    success: boolean;
+    message: string;
+    data?: {
+        id: string;
+        number: string;
+        ticket: string;
+        fecha_eliminacion: string;
+    };
+}
+
+/** Elimina lógicamente un PackingList y devuelve el ticket WMS a comunicar. */
+export const deletePackingList = async (request: DeletePackingListRequest): Promise<{ ticket: string }> => {
+    const url = `${DEFAULT_API_BASE_URL}${PACKING_LIST_ENDPOINT}/Eliminar`;
+
+    const response = await httpClient(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(request),
+    });
+
+    if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Error desconocido');
+        throw new Error(`Error al eliminar el PackingList (${response.status}): ${errorText}`);
+    }
+
+    const json = (await response.json()) as DeletePackingListResponse;
+    if (!json || !json.success) {
+        throw new Error(json?.message || 'Error al eliminar el PackingList');
+    }
+
+    return { ticket: json.data?.ticket != null ? String(json.data.ticket) : '' };
 };

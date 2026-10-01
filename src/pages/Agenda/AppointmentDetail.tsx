@@ -37,6 +37,7 @@ import {
     DocumentTextIcon,
     ExclamationTriangleIcon,
     StarIcon,
+    TrashIcon,
     TruckIcon,
     XCircleIcon
 } from "@heroicons/react/24/outline";
@@ -46,7 +47,9 @@ import {useAuth} from "@/store/authStore";
 import {UserRole} from "@/routes/menuTypes";
 import {
     createPackingListInApi,
+    DELETE_PACKING_LIST_ENABLED,
     DocumentApiRecord,
+    PACKING_LIST_DELETABLE_STATUSES,
     fetchDocumentDetailFromApi,
     fetchDocumentsFromApi,
     fetchPackingListFromApi,
@@ -64,6 +67,7 @@ import {STATUS_CONFIG} from "@/services/agenda/appointmentStatus";
 import {DeliveryAppointment, DeliveryEvaluation, PackingListItem, SupplierClaim} from "@/store/types";
 import {getMaxPackingListQuantity, getPackingListQuantityText, parsePackingListQuantityInput} from "@/utils/packingList";
 import DocumentsModal from './DocumentsModal';
+import DeletePackingListModal from './DeletePackingListModal';
 import DocumentGroupTabs from './DocumentGroupTabs';
 import { COMMERCIAL_DOCUMENT_TYPES, mapFileNameToDocumentType } from '@/config/commercialDocuments';
 import EvaluationModal from './EvaluationModal';
@@ -98,6 +102,8 @@ const AppointmentDetail: React.FC = () => {
     const [isEvaluationModalOpen, setIsEvaluationModalOpen] = useState(false);
     const [evaluationModalType, setEvaluationModalType] = useState<'puntualidad' | 'documentacion' | 'estadoMercaderia' | 'cantidadCorrecta'>('puntualidad');
     const [isClaimModalOpen, setIsClaimModalOpen] = useState(false);
+    // PackingList a eliminar (OBS-009); el modal queda abierto mientras haya uno seleccionado
+    const [packingListToDelete, setPackingListToDelete] = useState<PackingListApiRecord | null>(null);
 
     // Función helper para recargar el appointment desde el API
     const reloadAppointmentFromApi = async () => {
@@ -534,7 +540,11 @@ const AppointmentDetail: React.FC = () => {
     type EvaluationModalType = 'puntualidad' | 'documentacion' | 'estadoMercaderia' | 'cantidadCorrecta';
 
     // Verificar permisos según rol
-    const canManagePackingList = [UserRole.ADMIN, UserRole.COMPRAS, UserRole.ALMACEN].includes(currentUser?.role || UserRole.ADMIN);
+    // Registrar y eliminar PackingList: solo Admin y Compras (OBS-009)
+    const canManagePackingList = [UserRole.ADMIN, UserRole.COMPRAS].includes(currentUser?.role || UserRole.ADMIN);
+    // Eliminar solo antes de que el proveedor llegue
+    const canDeletePackingList = DELETE_PACKING_LIST_ENABLED && canManagePackingList &&
+        (PACKING_LIST_DELETABLE_STATUSES as readonly string[]).includes(appointment.status);
     const canManageTransport = currentUser?.role === UserRole.PROVEEDOR;
     const canManageDocuments = currentUser?.role === UserRole.PROVEEDOR;
     const canEditAppointment = [UserRole.ADMIN, UserRole.ALMACEN, UserRole.COMPRAS].includes(currentUser?.role || UserRole.ADMIN);
@@ -609,6 +619,21 @@ const AppointmentDetail: React.FC = () => {
                 return 'No se puede calificar Puntualidad: la fecha y hora de la cita aún no han llegado.';
             default:
                 return 'No se puede evaluar en este momento.';
+        }
+    };
+
+    const reloadPackingLists = async () => {
+        if (!appointment?.docEntry) return;
+        try {
+            const today = new Date();
+            const startDate = new Date(today);
+            startDate.setDate(startDate.getDate() - 30);
+            const endDate = new Date(today);
+            endDate.setDate(endDate.getDate() + 30);
+            const packingLists = await fetchPackingListFromApi(formatDateForAPI(startDate), formatDateForAPI(endDate), appointment.docEntry);
+            setPackingListsFromApi(packingLists);
+        } catch (error) {
+            console.error('Error al recargar PackingList:', error);
         }
     };
 
@@ -1585,6 +1610,18 @@ const AppointmentDetail: React.FC = () => {
                                                                 )}
                                                             </TableCell>
                                                             <TableCell data-action-cell onClick={(e) => e.stopPropagation()}>
+                                                                <div className="flex items-center gap-2">
+                                                                {canDeletePackingList && (
+                                                                    <Button
+                                                                        size="sm"
+                                                                        color="danger"
+                                                                        variant="flat"
+                                                                        startContent={<TrashIcon className="w-4 h-4" />}
+                                                                        onPress={() => setPackingListToDelete(pl)}
+                                                                    >
+                                                                        Eliminar
+                                                                    </Button>
+                                                                )}
                                                                 {canValidatePCP ? (
                                                                     <div onClick={(e) => e.stopPropagation()}>
                                                                         <Button
@@ -1605,9 +1642,10 @@ const AppointmentDetail: React.FC = () => {
                                                                             Validar PCP
                                                                         </Button>
                                                                     </div>
-                                                                ) : (
+                                                                ) : !canDeletePackingList && (
                                                                     <span className="text-gray-400 text-sm">-</span>
                                                                 )}
+                                                                </div>
                                                             </TableCell>
                                                         </TableRow>
                                                 );
@@ -2481,6 +2519,20 @@ const AppointmentDetail: React.FC = () => {
                     handleUploadDocument={handleUploadDocument}
                     loadedDocuments={getAllDocuments()}
                 />
+
+                {/* Modal de eliminación de PackingList (OBS-009) */}
+                {appointment?.docEntry && (
+                    <DeletePackingListModal
+                        isOpen={!!packingListToDelete}
+                        onOpenChange={(open) => {
+                            if (!open) setPackingListToDelete(null);
+                        }}
+                        packingList={packingListToDelete}
+                        codCita={appointment.docEntry}
+                        usuario={currentUser?.userCode || currentUser?.id || currentUser?.username || 'system'}
+                        onDeleted={reloadPackingLists}
+                    />
+                )}
 
                 {/* Modal de Evaluación */}
                 {appointment?.docEntry && (

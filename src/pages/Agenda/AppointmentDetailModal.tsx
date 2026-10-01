@@ -210,7 +210,8 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
     const progress = calculateProgress();
 
     // Verificar permisos según rol
-    const canManagePackingList = [UserRole.ADMIN, UserRole.COMPRAS, UserRole.ALMACEN].includes(currentUserRole);
+    // Registrar PackingList: solo Admin y Compras (OBS-009)
+    const canManagePackingList = [UserRole.ADMIN, UserRole.COMPRAS].includes(currentUserRole);
     const canManageTransport = currentUserRole === UserRole.PROVEEDOR;
     const canManageDocuments = currentUserRole === UserRole.PROVEEDOR;
 
