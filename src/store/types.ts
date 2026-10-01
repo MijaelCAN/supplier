@@ -596,11 +596,32 @@ export const EVALUATION_RANGES = {
     Deficiente: { min: 1.0, max: 4.99 },
 };
 
+// Producto rechazado incluido en un reclamo (línea del PackingList)
+export interface ClaimProduct {
+    document: number; // DocEntry del PackingList
+    lineNumber: number;
+    itemCode: string;
+    itemName: string;
+    cantidadRechazada: number;
+    motivo: string;
+}
+
+// Evidencia adjunta al reclamo: `url` si ya está guardada, `file` si está por subir
+export interface ClaimAttachment {
+    nameFile: string;
+    url?: string;
+    file?: globalThis.File; // File del navegador (este archivo define otra interfaz File)
+}
+
 // Reclamo a Proveedor
 export interface SupplierClaim {
     id?: string;
+    docEntry?: string; // DocEntry del reclamo en SAP (UDO VIS_RECLAMO)
     codCita: string; // DocEntry de la cita
     numeroReclamo: string; // Número único del reclamo
+    rucProveedor?: string;
+    productos?: ClaimProduct[];
+    adjuntos?: ClaimAttachment[];
     fechaReclamo: string; // Fecha de creación del reclamo
     areaEmite: string; // Área que emite el reclamo (ej: Calidad)
     responsable: string; // Responsable que emite el reclamo

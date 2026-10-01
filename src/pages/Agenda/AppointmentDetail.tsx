@@ -61,7 +61,8 @@ import {createLocalDate} from "@/utils/dateUtils";
 import {fetchEvaluationByCodCita} from "@/services/agenda/evaluationsApi";
 import {getPCPValidations, PCPValidationRecord} from "@/services/agenda/pcpApi";
 import {STATUS_CONFIG} from "@/services/agenda/appointmentStatus";
-import {DeliveryAppointment, DeliveryEvaluation, PackingListItem, SupplierClaim} from "@/store/types";
+import {ClaimProduct, DeliveryAppointment, DeliveryEvaluation, PackingListItem, SupplierClaim} from "@/store/types";
+import {CLAIMS_API_ENABLED, fetchClaimByCita} from "@/services/agenda/claimsApi";
 import {getMaxPackingListQuantity, getPackingListQuantityText, parsePackingListQuantityInput} from "@/utils/packingList";
 import DocumentsModal from './DocumentsModal';
 import type { ProductEvaluationResult } from './EvaluationModal';
@@ -99,6 +100,9 @@ const AppointmentDetail: React.FC = () => {
     const [isEvaluationModalOpen, setIsEvaluationModalOpen] = useState(false);
     const [evaluationModalType, setEvaluationModalType] = useState<'puntualidad' | 'documentacion' | 'estadoMercaderia' | 'cantidadCorrecta'>('puntualidad');
     const [isClaimModalOpen, setIsClaimModalOpen] = useState(false);
+    // Reclamo guardado en el API (OBS-008); un reclamo por cita
+    const [appointmentClaim, setAppointmentClaim] = useState<SupplierClaim | null>(null);
+    const [claimRejectedProducts, setClaimRejectedProducts] = useState<ClaimProduct[]>([]);
 
     // Función helper para recargar el appointment desde el API
     const reloadAppointmentFromApi = async () => {
@@ -462,6 +466,13 @@ const AppointmentDetail: React.FC = () => {
         }
     }, [appointment?.docEntry]);
 
+    // Cargar el reclamo de la cita (OBS-008)
+    useEffect(() => {
+        setAppointmentClaim(null);
+        if (!CLAIMS_API_ENABLED || !appointment?.docEntry) return;
+        fetchClaimByCita(appointment.docEntry).then(setAppointmentClaim).catch(console.error);
+    }, [appointment?.docEntry]);
+
     if (isLoadingAppointment || !appointment) {
         return (
             <Dashboard>
@@ -544,6 +555,10 @@ const AppointmentDetail: React.FC = () => {
     const canEvaluateWarehouse = [UserRole.ALMACEN, UserRole.ADMIN].includes(currentUser?.role || UserRole.ADMIN);
     const canValidatePCP = [UserRole.PLANEAMIENTO, UserRole.ADMIN].includes(currentUser?.role || UserRole.ADMIN);
     const canViewEvaluation = [UserRole.PROVEEDOR, UserRole.ALMACEN, UserRole.CALIDAD, UserRole.SEGURIDAD, UserRole.PLANEAMIENTO].includes(currentUser?.role || UserRole.ADMIN);
+    // Reclamo (OBS-008): lo registran/editan Calidad y Almacén; se puede crear si hubo rechazo
+    const canManageClaim = canEvaluateQuality || canEvaluateWarehouse;
+    const hasRejection = ['CALIDAD_PARCIAL', 'CALIDAD_RECHAZADO', 'ALMACEN_PARCIAL', 'ALMACEN_RECHAZADO'].includes(appointment.status);
+    const showClaimCard = CLAIMS_API_ENABLED && (!!appointmentClaim || (canManageClaim && hasRejection));
 
     const isCriterionEvaluated = (type: EvaluationModalType): boolean => {
         if (!evaluation) return false;
@@ -881,10 +896,29 @@ const AppointmentDetail: React.FC = () => {
         }
     };
 
-    const handleRejectEvaluation = () => {
-        // Abrir modal de reclamo cuando se rechaza
-        console.log('handleRejectEvaluation llamado, abriendo modal de reclamo...');
+    const handleRejectEvaluation = (_evaluation?: DeliveryEvaluation, rejectedProducts?: ClaimProduct[]) => {
+        // Abrir modal de reclamo cuando se rechaza, con los productos rechazados (OBS-008)
+        setClaimRejectedProducts(rejectedProducts ?? []);
         setIsClaimModalOpen(true);
+    };
+
+    const handleOpenClaim = () => {
+        setClaimRejectedProducts([]);
+        setIsClaimModalOpen(true);
+    };
+
+    const handleClaimSaved = (claim: SupplierClaim) => {
+        setAppointmentClaim(claim);
+        setClaimRejectedProducts([]);
+    };
+
+    const handleViewClaimPDF = async () => {
+        if (!appointmentClaim) return;
+        try {
+            await openClaimPDFInNewTab(appointmentClaim);
+        } catch (error) {
+            alert(error instanceof Error ? error.message : 'No se pudo abrir el PDF del reclamo');
+        }
     };
 
     // Handler para marcar proveedor como llegado (EN_EXPLANADA)
@@ -1958,6 +1992,67 @@ const AppointmentDetail: React.FC = () => {
                             )}
                         </CardBody>
                     </Card>
+
+                    {/* Claim Section (OBS-008) */}
+                    {showClaimCard && (
+                        <Card className="border-2 border-red-200">
+                            <CardBody className="p-6">
+                                <div className="flex items-center justify-between mb-4">
+                                    <h4 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                                        <ExclamationTriangleIcon className="w-5 h-5 text-red-600" />
+                                        Reclamo
+                                    </h4>
+                                    {appointmentClaim?.status && (
+                                        <Chip
+                                            variant="flat"
+                                            color={appointmentClaim.status === 'Abierto' ? 'danger' : appointmentClaim.status === 'En Respuesta' ? 'warning' : 'success'}
+                                        >
+                                            {appointmentClaim.status}
+                                        </Chip>
+                                    )}
+                                </div>
+                                {appointmentClaim ? (
+                                    <div className="space-y-3">
+                                        <div className="grid grid-cols-2 gap-2 text-sm">
+                                            <div>
+                                                <span className="text-gray-600">Número:</span>
+                                                <span className="ml-2 font-medium">{appointmentClaim.numeroReclamo}</span>
+                                            </div>
+                                            <div>
+                                                <span className="text-gray-600">Fecha:</span>
+                                                <span className="ml-2 font-medium">{appointmentClaim.fechaReclamo}</span>
+                                            </div>
+                                            <div>
+                                                <span className="text-gray-600">Área:</span>
+                                                <span className="ml-2 font-medium">{appointmentClaim.areaEmite}</span>
+                                            </div>
+                                            <div>
+                                                <span className="text-gray-600">Productos:</span>
+                                                <span className="ml-2 font-medium">{appointmentClaim.productos?.length ?? 0}</span>
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <Button size="sm" variant="flat" onPress={handleViewClaimPDF}>
+                                                Ver PDF
+                                            </Button>
+                                            {canManageClaim && (
+                                                <Button size="sm" color="danger" variant="flat" onPress={handleOpenClaim}>
+                                                    {appointmentClaim.status === 'Abierto' ? 'Editar reclamo' : 'Ver reclamo'}
+                                                </Button>
+                                            )}
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-3">
+                                        <p className="text-sm text-gray-600">La cita tiene productos rechazados y aún no tiene reclamo registrado.</p>
+                                        <Button size="sm" color="danger" onPress={handleOpenClaim}>
+                                            Registrar reclamo
+                                        </Button>
+                                    </div>
+                                )}
+                            </CardBody>
+                        </Card>
+                    )}
                 </div>
 
                 {/* Modal de PackingList */}
@@ -2510,6 +2605,8 @@ const AppointmentDetail: React.FC = () => {
                             onOpenChange={setIsClaimModalOpen}
                             appointment={appointment}
                             onGenerateClaim={handleGenerateClaim}
+                            rejectedProducts={claimRejectedProducts}
+                            onClaimSaved={handleClaimSaved}
                         />
                     </>
                 )}

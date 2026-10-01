@@ -8,7 +8,7 @@ import {
     Button,
     Textarea,
 } from '@heroui/react';
-import { AppointmentStatus, DeliveryEvaluation } from '@/store/types';
+import { AppointmentStatus, ClaimProduct, DeliveryEvaluation } from '@/store/types';
 import { saveEvaluation, EVALUATION_CRITERIA_CODES } from '@/services/agenda/evaluationsApi';
 import {
     computeCriterionScore,
@@ -50,7 +50,8 @@ interface EvaluationModalProps {
     currentEvaluation?: DeliveryEvaluation;
     onEvaluationSaved?: (evaluation: DeliveryEvaluation, productResult?: ProductEvaluationResult) => void;
     appointment?: any; // DeliveryAppointment - para generar reclamo
-    onReject?: (evaluation: DeliveryEvaluation) => void; // Callback cuando se rechaza
+    // Callback cuando se rechaza; con evaluación por producto incluye los productos rechazados
+    onReject?: (evaluation: DeliveryEvaluation, rejectedProducts?: ClaimProduct[]) => void;
 }
 
 const EvaluationModal: React.FC<EvaluationModalProps> = ({
@@ -315,8 +316,18 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({
 
             onOpenChange(false);
             if (hasRejections && onReject) {
+                const rejectedProducts: ClaimProduct[] = lines
+                    .filter((line) => line.cantidad_rechazada > 0)
+                    .map((line) => ({
+                        document: line.document,
+                        lineNumber: line.line_number,
+                        itemCode: line.item_code,
+                        itemName: productLines.find((p) => getProductLineKey(p) === getProductLineKey(line))?.item_name ?? '',
+                        cantidadRechazada: line.cantidad_rechazada,
+                        motivo: line.motivo,
+                    }));
                 // Pequeño delay para que se cierre el modal actual
-                setTimeout(() => onReject(savedEvaluation), 300);
+                setTimeout(() => onReject(savedEvaluation, rejectedProducts), 300);
             } else {
                 alert('Evaluación guardada exitosamente');
             }

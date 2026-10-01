@@ -374,7 +374,7 @@ export const fetchEvaluationByCodCita = async (codCita: string): Promise<Deliver
 /**
  * Convierte un archivo a base64
  */
-const fileToBase64 = (file: File): Promise<string> => {
+export const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.readAsDataURL(file);
