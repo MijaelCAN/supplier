@@ -19,9 +19,11 @@ import {
     UserCircleIcon,
     UsersIcon,
     InformationCircleIcon,
-    VideoCameraIcon
+    VideoCameraIcon,
+    ExclamationTriangleIcon
 } from "@heroicons/react/24/outline";
 import { MenuItem, UserRole } from "@/routes/menuTypes.ts";
+import { CLAIMS_API_ENABLED } from "@/services/agenda/claimsApi";
 import { CalculatorIcon } from "@heroicons/react/16/solid";
 
 /*export const menuItems: MenuItem[] = [
@@ -152,6 +154,13 @@ export const menuItems: MenuItem[] = [
                 icon: <BookOpenIcon className="h-4 w-4" />,
                 href: "/agenda",
                 roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.CONTABILIDAD, UserRole.SEGURIDAD, UserRole.CALIDAD, UserRole.ALMACEN, UserRole.PLANEAMIENTO]
+            },
+            {
+                title: "Reclamos",
+                icon: <ExclamationTriangleIcon className="h-4 w-4" />,
+                href: "/reclamos",
+                // Visible solo cuando el API de reclamos está activo (OBS-008)
+                roles: CLAIMS_API_ENABLED ? [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.CALIDAD, UserRole.ALMACEN] : []
             },
             {
                 title: "Fecha de entrega",

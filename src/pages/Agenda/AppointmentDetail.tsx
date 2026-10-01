@@ -70,6 +70,7 @@ import DocumentGroupTabs from './DocumentGroupTabs';
 import { COMMERCIAL_DOCUMENT_TYPES, mapFileNameToDocumentType } from '@/config/commercialDocuments';
 import EvaluationModal from './EvaluationModal';
 import ClaimModal from './ClaimModal';
+import ClaimDetailModal from '@/pages/Reclamos/ClaimDetailModal';
 import PCPValidationModal from './PCPValidationModal';
 import {generateClaimPDF, openClaimPDFInNewTab} from '@/utils/pdfGenerator';
 
@@ -103,6 +104,7 @@ const AppointmentDetail: React.FC = () => {
     // Reclamo guardado en el API (OBS-008); un reclamo por cita
     const [appointmentClaim, setAppointmentClaim] = useState<SupplierClaim | null>(null);
     const [claimRejectedProducts, setClaimRejectedProducts] = useState<ClaimProduct[]>([]);
+    const [isClaimDetailOpen, setIsClaimDetailOpen] = useState(false);
 
     // Función helper para recargar el appointment desde el API
     const reloadAppointmentFromApi = async () => {
@@ -2035,9 +2037,17 @@ const AppointmentDetail: React.FC = () => {
                                             <Button size="sm" variant="flat" onPress={handleViewClaimPDF}>
                                                 Ver PDF
                                             </Button>
-                                            {canManageClaim && (
+                                            {canManageClaim && appointmentClaim.status === 'Abierto' ? (
                                                 <Button size="sm" color="danger" variant="flat" onPress={handleOpenClaim}>
-                                                    {appointmentClaim.status === 'Abierto' ? 'Editar reclamo' : 'Ver reclamo'}
+                                                    Editar reclamo
+                                                </Button>
+                                            ) : (
+                                                <Button size="sm" color="primary" variant="flat" onPress={() => setIsClaimDetailOpen(true)}>
+                                                    {isProvider && appointmentClaim.status === 'Abierto'
+                                                        ? 'Responder reclamo'
+                                                        : canManageClaim && appointmentClaim.status === 'En Respuesta'
+                                                            ? 'Revisar y cerrar'
+                                                            : 'Ver reclamo'}
                                                 </Button>
                                             )}
                                         </div>
@@ -2607,6 +2617,13 @@ const AppointmentDetail: React.FC = () => {
                             onGenerateClaim={handleGenerateClaim}
                             rejectedProducts={claimRejectedProducts}
                             onClaimSaved={handleClaimSaved}
+                        />
+                        <ClaimDetailModal
+                            isOpen={isClaimDetailOpen}
+                            onOpenChange={setIsClaimDetailOpen}
+                            claim={appointmentClaim}
+                            onClaimUpdated={setAppointmentClaim}
+                            hideGoToAppointment
                         />
                     </>
                 )}
