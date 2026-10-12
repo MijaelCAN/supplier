@@ -13,6 +13,12 @@ const PUBLIC_URL = trimTrailingSlash(
     import.meta.env.VITE_BASE_URL_PUBLIC || 'http://190.12.79.132:8046'
 );
 
+/**
+ * Prefijo del ambiente: "/test" apunta todo el API a TEST (/test/api/...).
+ * Vacío = producción. Se define en .env.development para que `npm run build` no lo lleve.
+ */
+const API_PATH_PREFIX = trimTrailingSlash(import.meta.env.VITE_API_PATH_PREFIX || '');
+
 const URL_CACHE_KEY = 'supplier_portal_api_url';
 
 /**
@@ -64,6 +70,9 @@ export const rewriteRequestUrlToCurrentBase = (absoluteUrl: string): string => {
         const cur = new URL(getApiBaseUrl());
         u.protocol = cur.protocol;
         u.host = cur.host;
+        if (API_PATH_PREFIX && u.pathname.startsWith('/api/')) {
+            u.pathname = `${API_PATH_PREFIX}${u.pathname}`;
+        }
         return u.toString();
     } catch {
         return absoluteUrl;
