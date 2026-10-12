@@ -6,6 +6,7 @@ import {
     ChevronLeftIcon,
     ChevronRightIcon,
     DocumentTextIcon,
+    TrashIcon,
     XCircleIcon
 } from "@heroicons/react/24/outline";
 
@@ -13,6 +14,7 @@ export interface GroupedDocument {
     name: string;
     url: string;
     type: string;
+    docEntry?: string; // DocEntry del documento en el API (necesario para eliminarlo)
 }
 
 export interface DocumentGroup {
@@ -24,6 +26,8 @@ export interface DocumentGroup {
 interface DocumentGroupTabsProps {
     groups: DocumentGroup[];
     onDocumentClick: (doc: GroupedDocument) => void;
+    /** Si se pasa, muestra la papelera en los documentos guardados (con docEntry) - OBS-005 */
+    onDeleteDocument?: (doc: GroupedDocument) => void;
 }
 
 const SCROLL_STEP = 200;
@@ -33,7 +37,7 @@ const SCROLL_STEP = 200;
  * HeroUI oculta la barra de scroll de las pestañas, así que con muchos tipos se agregan
  * flechas ‹ › para llegar a las que no caben en pantalla.
  */
-const DocumentGroupTabs = ({groups, onDocumentClick}: DocumentGroupTabsProps) => {
+const DocumentGroupTabs = ({groups, onDocumentClick, onDeleteDocument}: DocumentGroupTabsProps) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const [canScrollLeft, setCanScrollLeft] = useState(false);
     const [canScrollRight, setCanScrollRight] = useState(false);
@@ -135,6 +139,22 @@ const DocumentGroupTabs = ({groups, onDocumentClick}: DocumentGroupTabsProps) =>
                                         <div className="flex items-center gap-2 flex-shrink-0">
                                             <span className="text-xs text-gray-500 uppercase">{doc.type}</span>
                                             <CheckCircleIcon className="w-5 h-5 text-emerald-500" />
+                                            {onDeleteDocument && doc.docEntry && (
+                                                // stopPropagation: que no abra el visor de la fila al eliminar
+                                                <span onClick={(e) => e.stopPropagation()}>
+                                                    <Button
+                                                        isIconOnly
+                                                        size="sm"
+                                                        variant="light"
+                                                        color="danger"
+                                                        aria-label="Eliminar documento"
+                                                        onPress={() => onDeleteDocument(doc)}
+                                                        className="min-w-0"
+                                                    >
+                                                        <TrashIcon className="w-4 h-4" />
+                                                    </Button>
+                                                </span>
+                                            )}
                                         </div>
                                     </div>
                                 ))}

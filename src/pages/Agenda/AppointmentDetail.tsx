@@ -47,7 +47,9 @@ import {useAuth} from "@/store/authStore";
 import {UserRole} from "@/routes/menuTypes";
 import {
     createPackingListInApi,
+    DELETE_DOCUMENTS_ENABLED,
     DELETE_PACKING_LIST_ENABLED,
+    deleteFileFromPackingList,
     DocumentApiRecord,
     PACKING_LIST_DELETABLE_STATUSES,
     fetchDocumentDetailFromApi,
@@ -64,14 +66,18 @@ import {createLocalDate} from "@/utils/dateUtils";
 import {fetchEvaluationByCodCita} from "@/services/agenda/evaluationsApi";
 import {getPCPValidations, PCPValidationRecord} from "@/services/agenda/pcpApi";
 import {STATUS_CONFIG} from "@/services/agenda/appointmentStatus";
-import {DeliveryAppointment, DeliveryEvaluation, PackingListItem, SupplierClaim} from "@/store/types";
+import {ClaimProduct, DeliveryAppointment, DeliveryEvaluation, PackingListItem, SupplierClaim} from "@/store/types";
+import {CLAIMS_API_ENABLED, fetchClaimByCita} from "@/services/agenda/claimsApi";
 import {getMaxPackingListQuantity, getPackingListQuantityText, parsePackingListQuantityInput} from "@/utils/packingList";
-import DocumentsModal from './DocumentsModal';
 import DeletePackingListModal from './DeletePackingListModal';
+import type { ProductEvaluationResult } from './EvaluationModal';
 import DocumentGroupTabs from './DocumentGroupTabs';
+import DocumentsModal, {LoadedDocument} from './DocumentsModal';
+import DeleteDocumentModal from './DeleteDocumentModal';
 import { COMMERCIAL_DOCUMENT_TYPES, mapFileNameToDocumentType } from '@/config/commercialDocuments';
 import EvaluationModal from './EvaluationModal';
 import ClaimModal from './ClaimModal';
+import ClaimDetailModal from '@/pages/Reclamos/ClaimDetailModal';
 import PCPValidationModal from './PCPValidationModal';
 import {generateClaimPDF, openClaimPDFInNewTab} from '@/utils/pdfGenerator';
 
@@ -104,6 +110,10 @@ const AppointmentDetail: React.FC = () => {
     const [isClaimModalOpen, setIsClaimModalOpen] = useState(false);
     // PackingList a eliminar (OBS-009); el modal queda abierto mientras haya uno seleccionado
     const [packingListToDelete, setPackingListToDelete] = useState<PackingListApiRecord | null>(null);
+    // Reclamo guardado en el API (OBS-008); un reclamo por cita
+    const [appointmentClaim, setAppointmentClaim] = useState<SupplierClaim | null>(null);
+    const [claimRejectedProducts, setClaimRejectedProducts] = useState<ClaimProduct[]>([]);
+    const [isClaimDetailOpen, setIsClaimDetailOpen] = useState(false);
 
     // Función helper para recargar el appointment desde el API
     const reloadAppointmentFromApi = async () => {
@@ -215,7 +225,9 @@ const AppointmentDetail: React.FC = () => {
     // Estado para visualizar documentos
     const [selectedDocument, setSelectedDocument] = useState<{ name: string; url: string; type: string } | null>(null);
     const { isOpen: isDocumentViewerOpen, onOpen: onDocumentViewerOpen, onClose: onDocumentViewerClose } = useDisclosure();
-    
+    // Documento seleccionado para eliminar (OBS-005)
+    const [documentToDelete, setDocumentToDelete] = useState<LoadedDocument | null>(null);
+
     // Estados para modales de gestión
     const { isOpen: isPackingListOpen, onOpen: onPackingListOpen, onClose: onPackingListClose } = useDisclosure();
     const { isOpen: isTransportOpen, onOpen: onTransportOpen, onClose: onTransportClose } = useDisclosure();
@@ -289,19 +301,20 @@ const AppointmentDetail: React.FC = () => {
     };
 
     // Obtener todos los documentos disponibles (priorizar documentos del API, luego los mapeados)
-    const getAllDocuments = (): Array<{ name: string; url: string; type: string }> => {
+    const getAllDocuments = (): LoadedDocument[] => {
         // Si hay documentos del API, usarlos directamente
         if (appointmentDocuments.length > 0) {
             return appointmentDocuments.map(doc => ({
                 name: doc.u_name_file,
                 url: doc.u_link_documento,
-                type: doc.u_name_file.split('.').pop()?.toLowerCase() || 'unknown'
+                type: doc.u_name_file.split('.').pop()?.toLowerCase() || 'unknown',
+                docEntry: doc.document_doc_entry
             }));
         }
-        
+
         // Si no, usar los documentos mapeados
         if (!appointment?.documents) return [];
-        const docs: Array<{ name: string; url: string; type: string }> = [];
+        const docs: LoadedDocument[] = [];
         
         if (appointment.documents.invoice?.url) {
             docs.push({
@@ -467,6 +480,13 @@ const AppointmentDetail: React.FC = () => {
         }
     }, [appointment?.docEntry]);
 
+    // Cargar el reclamo de la cita (OBS-008)
+    useEffect(() => {
+        setAppointmentClaim(null);
+        if (!CLAIMS_API_ENABLED || !appointment?.docEntry) return;
+        fetchClaimByCita(appointment.docEntry).then(setAppointmentClaim).catch(console.error);
+    }, [appointment?.docEntry]);
+
     if (isLoadingAppointment || !appointment) {
         return (
             <Dashboard>
@@ -553,6 +573,10 @@ const AppointmentDetail: React.FC = () => {
     const canEvaluateWarehouse = [UserRole.ALMACEN, UserRole.ADMIN].includes(currentUser?.role || UserRole.ADMIN);
     const canValidatePCP = [UserRole.PLANEAMIENTO, UserRole.ADMIN].includes(currentUser?.role || UserRole.ADMIN);
     const canViewEvaluation = [UserRole.PROVEEDOR, UserRole.ALMACEN, UserRole.CALIDAD, UserRole.SEGURIDAD, UserRole.PLANEAMIENTO].includes(currentUser?.role || UserRole.ADMIN);
+    // Reclamo (OBS-008): lo registran/editan Calidad y Almacén; se puede crear si hubo rechazo
+    const canManageClaim = canEvaluateQuality || canEvaluateWarehouse;
+    const hasRejection = ['CALIDAD_PARCIAL', 'CALIDAD_RECHAZADO', 'ALMACEN_PARCIAL', 'ALMACEN_RECHAZADO'].includes(appointment.status);
+    const showClaimCard = CLAIMS_API_ENABLED && (!!appointmentClaim || (canManageClaim && hasRejection));
 
     const isCriterionEvaluated = (type: EvaluationModalType): boolean => {
         if (!evaluation) return false;
@@ -570,6 +594,12 @@ const AppointmentDetail: React.FC = () => {
                 return false;
         }
     };
+
+    // OBS-005: el proveedor y el administrador pueden eliminar documentos mientras la Documentación no esté evaluada
+    const canDeleteDocuments =
+        DELETE_DOCUMENTS_ENABLED &&
+        [UserRole.PROVEEDOR, UserRole.COMPRAS].includes(currentUser?.role as UserRole) &&
+        !isCriterionEvaluated('documentacion');
 
     // Validaciones para abrir modales de evaluación
     const canEvaluateDocumentacion = (): boolean => {
@@ -834,14 +864,22 @@ const AppointmentDetail: React.FC = () => {
         setIsEvaluationModalOpen(true);
     };
 
-    const handleEvaluationSaved = async (updatedEvaluation: DeliveryEvaluation) => {
+    const handleEvaluationSaved = async (updatedEvaluation: DeliveryEvaluation, productResult?: ProductEvaluationResult) => {
         setEvaluation(updatedEvaluation);
-        
+
         // Actualizar estado de la cita según el tipo de evaluación
         if (!appointment?.docEntry) return;
-        
+
         const { updateAppointmentStatus } = await import('@/services/agenda/appointmentStatus');
-        
+
+        // Evaluación por producto (OBS-008): el estado sale de las líneas evaluadas por el área
+        if (productResult) {
+            const userId = currentUser?.userCode || currentUser?.id || currentUser?.username || 'system';
+            await updateAppointmentStatus(appointment.docEntry, productResult.appointmentStatus, userId);
+            await reloadAppointmentFromApi();
+            return;
+        }
+
         // Si se evaluó estado de mercadería, actualizar estado de calidad
         if (updatedEvaluation.estadoMercaderia?.estado) {
             const calidadEstado = updatedEvaluation.estadoMercaderia.estado;
@@ -897,10 +935,29 @@ const AppointmentDetail: React.FC = () => {
         }
     };
 
-    const handleRejectEvaluation = () => {
-        // Abrir modal de reclamo cuando se rechaza
-        console.log('handleRejectEvaluation llamado, abriendo modal de reclamo...');
+    const handleRejectEvaluation = (_evaluation?: DeliveryEvaluation, rejectedProducts?: ClaimProduct[]) => {
+        // Abrir modal de reclamo cuando se rechaza, con los productos rechazados (OBS-008)
+        setClaimRejectedProducts(rejectedProducts ?? []);
         setIsClaimModalOpen(true);
+    };
+
+    const handleOpenClaim = () => {
+        setClaimRejectedProducts([]);
+        setIsClaimModalOpen(true);
+    };
+
+    const handleClaimSaved = (claim: SupplierClaim) => {
+        setAppointmentClaim(claim);
+        setClaimRejectedProducts([]);
+    };
+
+    const handleViewClaimPDF = async () => {
+        if (!appointmentClaim) return;
+        try {
+            await openClaimPDFInNewTab(appointmentClaim);
+        } catch (error) {
+            alert(error instanceof Error ? error.message : 'No se pudo abrir el PDF del reclamo');
+        }
     };
 
     // Handler para marcar proveedor como llegado (EN_EXPLANADA)
@@ -1093,6 +1150,45 @@ const AppointmentDetail: React.FC = () => {
         }
     };
 
+    // Handler para eliminar (lógicamente) un documento de la cita (OBS-005)
+    const handleDeleteDocument = async (motivo: string): Promise<void> => {
+        if (!appointment?.docEntry || !documentToDelete?.docEntry || !currentUser) {
+            throw new Error('No se puede eliminar el documento: faltan datos de la cita o del documento.');
+        }
+
+        const userId = currentUser.userCode || currentUser.id || currentUser.username || 'system';
+
+        await deleteFileFromPackingList({
+            document_doc_entry: documentToDelete.docEntry,
+            usuario: userId,
+            motivo: motivo || undefined,
+        });
+
+        // Recargar documentos de la cita (el API ya no devuelve el eliminado)
+        const apiAppointments = await fetchAppointmentsFromApi();
+        const foundApiAppointment = apiAppointments.find(
+            (apt) => apt.docEntry === appointment.docEntry
+        );
+        const documents: AppointmentDocument[] = foundApiAppointment?.rawDocuments || [];
+        setAppointmentDocuments(documents);
+
+        // Si la cita estaba con documentos completos y ahora falta alguno, vuelve al estado anterior
+        const completedTypeKeys = getCompletedDocumentTypeKeys(documents);
+        const allTypesComplete = COMMERCIAL_DOCUMENT_TYPES.every((docType) => completedTypeKeys.has(docType.key));
+        if (!allTypesComplete && appointment.status === 'DOCUMENTOS_COMPLETOS') {
+            const { updateAppointmentStatus } = await import('@/services/agenda/appointmentStatus');
+            const previousStatus = appointment.transportData ? 'TRANSPORTE_COMPLETO' : 'PROGRAMADA';
+            try {
+                await updateAppointmentStatus(appointment.docEntry, previousStatus, userId);
+                await reloadAppointmentFromApi();
+            } catch (error) {
+                // El documento ya se eliminó: no se reporta como fallo de la eliminación
+                console.error('Error al revertir el estado de la cita:', error);
+                alert('El documento se eliminó, pero no se pudo actualizar el estado de la cita. Recarga la página.');
+            }
+        }
+    };
+
     return (
         <Dashboard>
             <div className="py-6">
@@ -1200,7 +1296,7 @@ const AppointmentDetail: React.FC = () => {
                                         </Button>
                                     )}
                                     {canEvaluateWarehouse && appointment?.docEntry && 
-                                     (appointment.status === 'ALMACEN_ACEPTADO' || appointment.status === 'ALMACEN_OBSERVADO') && (
+                                     (appointment.status === 'ALMACEN_ACEPTADO' || appointment.status === 'ALMACEN_OBSERVADO' || appointment.status === 'ALMACEN_PARCIAL') && (
                                         <Button
                                             color="success"
                                             variant="solid"
@@ -1902,7 +1998,11 @@ const AppointmentDetail: React.FC = () => {
                                         ].filter((group) => group.docs.length > 0 || (showMissingTypes && group.key !== 'other'));
 
                                         return allDocuments.length > 0 ? (
-                                            <DocumentGroupTabs groups={documentGroups} onDocumentClick={handleDocumentClick} />
+                                            <DocumentGroupTabs
+                                                groups={documentGroups}
+                                                onDocumentClick={handleDocumentClick}
+                                                onDeleteDocument={canDeleteDocuments ? setDocumentToDelete : undefined}
+                                            />
                                         ) : (
                                             <div className="grid grid-cols-2 gap-3">
                                                 {/* Factura */}
@@ -1987,6 +2087,75 @@ const AppointmentDetail: React.FC = () => {
                             )}
                         </CardBody>
                     </Card>
+
+                    {/* Claim Section (OBS-008) */}
+                    {showClaimCard && (
+                        <Card className="border-2 border-red-200">
+                            <CardBody className="p-6">
+                                <div className="flex items-center justify-between mb-4">
+                                    <h4 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                                        <ExclamationTriangleIcon className="w-5 h-5 text-red-600" />
+                                        Reclamo
+                                    </h4>
+                                    {appointmentClaim?.status && (
+                                        <Chip
+                                            variant="flat"
+                                            color={appointmentClaim.status === 'Abierto' ? 'danger' : appointmentClaim.status === 'En Respuesta' ? 'warning' : 'success'}
+                                        >
+                                            {appointmentClaim.status}
+                                        </Chip>
+                                    )}
+                                </div>
+                                {appointmentClaim ? (
+                                    <div className="space-y-3">
+                                        <div className="grid grid-cols-2 gap-2 text-sm">
+                                            <div>
+                                                <span className="text-gray-600">Número:</span>
+                                                <span className="ml-2 font-medium">{appointmentClaim.numeroReclamo}</span>
+                                            </div>
+                                            <div>
+                                                <span className="text-gray-600">Fecha:</span>
+                                                <span className="ml-2 font-medium">{appointmentClaim.fechaReclamo}</span>
+                                            </div>
+                                            <div>
+                                                <span className="text-gray-600">Área:</span>
+                                                <span className="ml-2 font-medium">{appointmentClaim.areaEmite}</span>
+                                            </div>
+                                            <div>
+                                                <span className="text-gray-600">Productos:</span>
+                                                <span className="ml-2 font-medium">{appointmentClaim.productos?.length ?? 0}</span>
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <Button size="sm" variant="flat" onPress={handleViewClaimPDF}>
+                                                Ver PDF
+                                            </Button>
+                                            {canManageClaim && appointmentClaim.status === 'Abierto' ? (
+                                                <Button size="sm" color="danger" variant="flat" onPress={handleOpenClaim}>
+                                                    Editar reclamo
+                                                </Button>
+                                            ) : (
+                                                <Button size="sm" color="primary" variant="flat" onPress={() => setIsClaimDetailOpen(true)}>
+                                                    {isProvider && appointmentClaim.status === 'Abierto'
+                                                        ? 'Responder reclamo'
+                                                        : canManageClaim && appointmentClaim.status === 'En Respuesta'
+                                                            ? 'Revisar y cerrar'
+                                                            : 'Ver reclamo'}
+                                                </Button>
+                                            )}
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-3">
+                                        <p className="text-sm text-gray-600">La cita tiene productos rechazados y aún no tiene reclamo registrado.</p>
+                                        <Button size="sm" color="danger" onPress={handleOpenClaim}>
+                                            Registrar reclamo
+                                        </Button>
+                                    </div>
+                                )}
+                            </CardBody>
+                        </Card>
+                    )}
                 </div>
 
                 {/* Modal de PackingList */}
@@ -2518,6 +2687,15 @@ const AppointmentDetail: React.FC = () => {
                     selectedAppointment={appointment}
                     handleUploadDocument={handleUploadDocument}
                     loadedDocuments={getAllDocuments()}
+                    onDeleteDocument={canDeleteDocuments ? setDocumentToDelete : undefined}
+                />
+
+                {/* Confirmación para eliminar documento (OBS-005) */}
+                <DeleteDocumentModal
+                    isOpen={!!documentToDelete}
+                    documentName={documentToDelete?.name || ''}
+                    onClose={() => setDocumentToDelete(null)}
+                    onConfirm={handleDeleteDocument}
                 />
 
                 {/* Modal de eliminación de PackingList (OBS-009) */}
@@ -2553,6 +2731,15 @@ const AppointmentDetail: React.FC = () => {
                             onOpenChange={setIsClaimModalOpen}
                             appointment={appointment}
                             onGenerateClaim={handleGenerateClaim}
+                            rejectedProducts={claimRejectedProducts}
+                            onClaimSaved={handleClaimSaved}
+                        />
+                        <ClaimDetailModal
+                            isOpen={isClaimDetailOpen}
+                            onOpenChange={setIsClaimDetailOpen}
+                            claim={appointmentClaim}
+                            onClaimUpdated={setAppointmentClaim}
+                            hideGoToAppointment
                         />
                     </>
                 )}

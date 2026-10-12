@@ -23,12 +23,14 @@ interface DocumentFile {
     progress: number;
     loadedName?: string;
     loadedUrl?: string;
+    loadedDocEntry?: string;
 }
 
-interface LoadedDocument {
+export interface LoadedDocument {
     name: string;
     url: string;
     type: string;
+    docEntry?: string; // DocEntry del documento en el API (necesario para eliminarlo)
 }
 
 interface DocumentsModalProps {
@@ -37,6 +39,8 @@ interface DocumentsModalProps {
     selectedAppointment: any;
     handleUploadDocument: (type: string, file: File) => Promise<void>;
     loadedDocuments?: LoadedDocument[];
+    /** Si se pasa, los documentos ya cargados muestran la opción de eliminar (OBS-005) */
+    onDeleteDocument?: (doc: LoadedDocument) => void;
 }
 
 const generateEntryId = (type: string): string =>
@@ -48,6 +52,7 @@ const DocumentsModal: React.FC<DocumentsModalProps> = ({
     selectedAppointment,
     handleUploadDocument,
     loadedDocuments = [],
+    onDeleteDocument,
 }) => {
     // Estado para tipos de documentos (puede venir de API en el futuro)
     const [documentTypes ] = useState<CommercialDocumentType[]>(COMMERCIAL_DOCUMENT_TYPES);
@@ -78,7 +83,8 @@ const DocumentsModal: React.FC<DocumentsModalProps> = ({
                     uploaded: true,
                     progress: 100,
                     loadedName: doc.name,
-                    loadedUrl: doc.url
+                    loadedUrl: doc.url,
+                    loadedDocEntry: doc.docEntry
                 });
             }
         });
@@ -134,10 +140,26 @@ const DocumentsModal: React.FC<DocumentsModalProps> = ({
         }
     };
 
-    const handleRemoveFile = (type: string, entryId: string) => {
+    // Un archivo ya guardado solo se puede quitar eliminándolo en el API;
+    // quitarlo solo de pantalla hacía que reapareciera al volver a abrir el modal.
+    const canRemoveEntry = (entry: DocumentFile): boolean =>
+        !entry.uploaded || (!!onDeleteDocument && !!entry.loadedDocEntry);
+
+    const handleRemoveFile = (type: string, entry: DocumentFile) => {
+        if (entry.uploaded) {
+            if (onDeleteDocument && entry.loadedDocEntry) {
+                onDeleteDocument({
+                    name: entry.loadedName || '',
+                    url: entry.loadedUrl || '',
+                    type,
+                    docEntry: entry.loadedDocEntry,
+                });
+            }
+            return;
+        }
         setDocuments((prev) => ({
             ...prev,
-            [type]: (prev[type] || []).filter((entry) => entry.id !== entryId),
+            [type]: (prev[type] || []).filter((e) => e.id !== entry.id),
         }));
     };
 
@@ -258,16 +280,19 @@ const DocumentsModal: React.FC<DocumentsModalProps> = ({
                                                                             </a>
                                                                         )}
                                                                     </div>
-                                                                    <Button
-                                                                        isIconOnly
-                                                                        size="sm"
-                                                                        variant="light"
-                                                                        color="danger"
-                                                                        onPress={() => handleRemoveFile(docType.key, entry.id)}
-                                                                        className="min-w-0 flex-shrink-0"
-                                                                    >
-                                                                        <XMarkIcon className="w-4 h-4" />
-                                                                    </Button>
+                                                                    {canRemoveEntry(entry) && (
+                                                                        <Button
+                                                                            isIconOnly
+                                                                            size="sm"
+                                                                            variant="light"
+                                                                            color="danger"
+                                                                            aria-label="Eliminar documento"
+                                                                            onPress={() => handleRemoveFile(docType.key, entry)}
+                                                                            className="min-w-0 flex-shrink-0"
+                                                                        >
+                                                                            <XMarkIcon className="w-4 h-4" />
+                                                                        </Button>
+                                                                    )}
                                                                 </div>
                                                             ))}
                                                         </div>

@@ -9,7 +9,14 @@ const WAREHOUSE_LIST_ENDPOINT = '/api/PackingList/ListadoAlmacen';
 const DOCUMENTS_ENDPOINT = '/api/PackingList/Documentos';
 const DOCUMENT_DETAIL_ENDPOINT = '/api/PackingList/Documentos/Detalle';
 const FILES_ENDPOINT = '/api/PackingList/Archivos';
+const DELETE_FILE_ENDPOINT = '/api/PackingList/Archivos/Eliminar';
 const VALIDACION_PCP_ENDPOINT = '/api/ValidacionPCP';
+
+/**
+ * Habilita la eliminación de documentos de la cita (OBS-005).
+ * Se activa con VITE_ENABLE_DELETE_DOCUMENTS=true cuando el endpoint de eliminación esté disponible en el backend.
+ */
+export const DELETE_DOCUMENTS_ENABLED = import.meta.env.VITE_ENABLE_DELETE_DOCUMENTS === 'true';
 
 export interface DatosTransporte {
     u_empresa_transporte?: string;
@@ -603,6 +610,65 @@ export const uploadFileToPackingList = async (
     }
     
     return json.data;
+};
+
+/**
+ * Interfaz para la petición de eliminación (lógica) de un documento de la cita
+ */
+export interface DeleteFileRequest {
+    document_doc_entry: string; // DocEntry del documento a eliminar (va como query param)
+    usuario: string;            // Usuario que elimina
+    motivo?: string;            // Motivo de la eliminación (opcional)
+}
+
+/**
+ * Interfaz para la respuesta de eliminación de un documento
+ */
+export interface DeleteFileResponse {
+    status_code: number;
+    success: boolean;
+    message: string;
+    data?: unknown;
+}
+
+/**
+ * Elimina (lógicamente) un documento cargado a la cita
+ * DELETE /api/PackingList/Archivos/Eliminar?DocEntry={docEntry} con body { usuario, motivo }.
+ * El backend responde HTTP 200 y el código real viene en status_code (404 si no existe).
+ * @param request - DocEntry del documento, usuario y motivo opcional
+ */
+export const deleteFileFromPackingList = async (
+    request: DeleteFileRequest
+): Promise<void> => {
+    if (!request.document_doc_entry) {
+        throw new Error('El documento a eliminar es requerido');
+    }
+
+    const url = buildSecureUrl(DEFAULT_API_BASE_URL, DELETE_FILE_ENDPOINT, {
+        DocEntry: request.document_doc_entry,
+    });
+
+    const response = await httpClient(url, {
+        method: 'DELETE',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            usuario: request.usuario,
+            motivo: request.motivo || '',
+        }),
+    });
+
+    if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Error desconocido');
+        throw new Error(`Error al eliminar archivo (${response.status}): ${errorText}`);
+    }
+
+    const json = (await response.json()) as DeleteFileResponse;
+
+    if (!json || !json.success) {
+        throw new Error(json?.message || 'Error al eliminar el archivo');
+    }
 };
 
 /**
