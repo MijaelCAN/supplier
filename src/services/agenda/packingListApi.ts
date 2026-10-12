@@ -633,7 +633,8 @@ export interface DeleteFileResponse {
 
 /**
  * Elimina (lógicamente) un documento cargado a la cita
- * DELETE /api/Documentos/PackinList/Eliminar?DocEntry={docEntry} con body { usuario, motivo }
+ * DELETE /api/PackingList/Archivos/Eliminar?DocEntry={docEntry} con body { usuario, motivo }.
+ * El backend responde HTTP 200 y el código real viene en status_code (404 si no existe).
  * @param request - DocEntry del documento, usuario y motivo opcional
  */
 export const deleteFileFromPackingList = async (
