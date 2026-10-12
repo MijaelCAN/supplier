@@ -8,6 +8,4 @@ interface ImportMetaEnv {
     readonly VITE_ENABLE_PRODUCT_EVALUATION?: string;
     /** "true" guarda los reclamos en el API (/api/Reclamos); apagado solo genera el PDF */
     readonly VITE_ENABLE_CLAIMS_API?: string;
-    readonly VITE_CLAIMS_ENDPOINT?: string;
-    readonly VITE_CLAIMS_FIRST_DOC_ENTRY?: string;
-}
+    readonly VITE_CLAIMS_ENDPOINT?: string;}

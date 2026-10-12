@@ -23,7 +23,7 @@ import { useNavigate } from 'react-router-dom';
 import { ClaimAction, SupplierClaim } from '@/store/types';
 import { useAuth } from '@/store/authStore';
 import { UserRole } from '@/routes/menuTypes';
-import { closeClaim, saveClaimResponse } from '@/services/agenda/claimsApi';
+import { closeClaim, localDateString, saveClaimResponse } from '@/services/agenda/claimsApi';
 import { openClaimPDFInNewTab } from '@/utils/pdfGenerator';
 
 interface ClaimDetailModalProps {
@@ -41,7 +41,7 @@ export const CLAIM_STATUS_COLORS: Record<NonNullable<SupplierClaim['status']>, '
     'Cerrado': 'success',
 };
 
-const today = () => new Date().toISOString().split('T')[0];
+const today = () => localDateString();
 
 const SiNoSelector: React.FC<{
     label: string;

@@ -10,16 +10,24 @@ const DEFAULT_API_BASE_URL = getApiBaseUrl();
 const CLAIMS_ENDPOINT = import.meta.env.VITE_CLAIMS_ENDPOINT || '/api/Reclamos';
 
 /**
- * El número visible (REC-000001) se calcula desde el DocEntry: este es el DocEntry
- * del primer reclamo oficial. Los anteriores (pruebas) se muestran con su DocEntry.
+ * Número del reclamo: correlativo por proveedor, REC-{RUC}-0001. Los reclamos
+ * sin número (anteriores a este formato) se muestran como #DocEntry.
  */
-const FIRST_CLAIM_DOC_ENTRY = parseInt(import.meta.env.VITE_CLAIMS_FIRST_DOC_ENTRY || '1', 10) || 1;
+const claimNumberPrefix = (ruc: string) => `REC-${ruc}-`;
 
-export const formatClaimNumber = (docEntry?: string | number | null): string => {
-    const entry = Number(docEntry);
-    if (!Number.isFinite(entry) || entry <= 0) return '';
-    const sequence = entry - FIRST_CLAIM_DOC_ENTRY + 1;
-    return sequence > 0 ? `REC-${String(sequence).padStart(6, '0')}` : `#${entry}`;
+const displayClaimNumber = (raw: any): string =>
+    raw.numero_reclamo || (raw.doc_entry != null ? `#${raw.doc_entry}` : '');
+
+/** Siguiente correlativo del proveedor según los reclamos que ya tiene. */
+const nextClaimNumber = async (ruc?: string): Promise<string> => {
+    if (!ruc) throw new Error('El reclamo no tiene el RUC del proveedor');
+    const prefix = claimNumberPrefix(ruc);
+    const claims = await fetchClaims({ ruc });
+    const last = claims.reduce((max, c) => {
+        const sequence = c.numeroReclamo.startsWith(prefix) ? parseInt(c.numeroReclamo.slice(prefix.length), 10) : 0;
+        return Number.isFinite(sequence) && sequence > max ? sequence : max;
+    }, 0);
+    return `${prefix}${String(last + 1).padStart(4, '0')}`;
 };
 
 /**
@@ -65,8 +73,26 @@ const toNumber = (value: unknown): number => {
 const toOptionalNumber = (value: unknown): number | undefined =>
     value === null || value === undefined || value === '' ? undefined : toNumber(value);
 
-const localDateString = (date: Date): string =>
-    `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+const pad2 = (value: number) => String(value).padStart(2, '0');
+
+/** "YYYY-MM-DD" en hora local (toISOString da la fecha UTC: de noche ya es el día siguiente) */
+export const localDateString = (date: Date = new Date()): string =>
+    `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+
+/**
+ * Fechas que registra el sistema, en ISO con hora y zona ("2026-10-07T09:03:00-05:00").
+ * La fecha elegida ("YYYY-MM-DD") se completa con la hora actual. Las fechas de los
+ * documentos (fecha de arribo) no pasan por aquí.
+ */
+const toApiDateTime = (date?: string | null): string => {
+    if (!date) return '';
+    if (date.includes('T')) return date;
+    const now = new Date();
+    const offset = -now.getTimezoneOffset();
+    const sign = offset >= 0 ? '+' : '-';
+    const zone = `${sign}${pad2(Math.floor(Math.abs(offset) / 60))}:${pad2(Math.abs(offset) % 60)}`;
+    return `${date}T${pad2(now.getHours())}:${pad2(now.getMinutes())}:${pad2(now.getSeconds())}${zone}`;
+};
 
 /**
  * Fecha del API a "YYYY-MM-DD" para inputs y PDF. Llega como "2026-10-09",
@@ -119,7 +145,7 @@ export const mapClaimFromApi = (raw: any): SupplierClaim => {
 
     return {
         docEntry: raw.doc_entry != null ? String(raw.doc_entry) : undefined,
-        numeroReclamo: formatClaimNumber(raw.doc_entry),
+        numeroReclamo: displayClaimNumber(raw),
         codCita: raw.cod_cita != null ? String(raw.cod_cita) : '',
         rucProveedor: raw.ruc_proveedor ?? '',
         proveedor: raw.razon_social ?? '',
@@ -178,18 +204,18 @@ const mapNewAttachmentsToApi = async (adjuntos: ClaimAttachment[] = []) =>
         nombre_archivo: a.nameFile,
         base64: await fileToBase64(a.file as globalThis.File),
         url: '',
-        fecha: localDateString(new Date()),
+        fecha: toApiDateTime(localDateString()),
         estado: 'Y',
     })));
 
 /** Cabecera, secciones 1–2 y productos (lo que registra el área interna). */
 const mapClaimToApi = (claim: SupplierClaim) => ({
-    // El número visible sale del DocEntry (formatClaimNumber)
-    numero_reclamo: '',
+    // Se reenvía el guardado: el backend graba lo que llegue (vacío lo borraría)
+    numero_reclamo: claim.numeroReclamo?.startsWith('#') ? '' : claim.numeroReclamo ?? '',
     cod_cita: claim.codCita,
     ruc_proveedor: claim.rucProveedor ?? '',
     razon_social: claim.proveedor,
-    fecha_reclamo: claim.fechaReclamo,
+    fecha_reclamo: toApiDateTime(claim.fechaReclamo),
     area_emite: claim.areaEmite,
     responsable: claim.responsable,
     estado: STATUS_TO_API[claim.status ?? 'Abierto'],
@@ -216,12 +242,12 @@ const mapClaimToApi = (claim: SupplierClaim) => ({
 /** Secciones 3–5 (respuesta del proveedor). */
 const mapResponseToApi = (claim: SupplierClaim) => ({
     respuesta_inmediata: {
-        fecha_respuesta: claim.respuestaInmediata?.fechaRespuesta ?? '',
+        fecha_respuesta: toApiDateTime(claim.respuestaInmediata?.fechaRespuesta),
         responsable: claim.respuestaInmediata?.responsable ?? '',
         respuesta: claim.respuestaInmediata?.respuesta ?? '',
     },
     evaluacion_reclamo: {
-        fecha_evaluacion: claim.evaluacionReclamo?.fechaEvaluacion ?? '',
+        fecha_evaluacion: toApiDateTime(claim.evaluacionReclamo?.fechaEvaluacion),
         evaluado_por: claim.evaluacionReclamo?.evaluadoPor ?? '',
         reclamo_procede: claim.evaluacionReclamo?.reclamoProcede ?? '',
         descripcion: claim.evaluacionReclamo?.descripcion ?? '',
@@ -229,10 +255,10 @@ const mapResponseToApi = (claim: SupplierClaim) => ({
     plan_acciones: (claim.planAcciones ?? []).map((a) => ({
         ...(a.lineId != null ? { line_id: a.lineId } : {}),
         accion: a.accion,
-        fecha: a.fecha,
+        fecha: toApiDateTime(a.fecha),
         estado: a.estado === 'Cerrado' ? 'CERRADO' : 'ABIERTO',
         verificado_por: a.verificadoPor ?? '',
-        fecha_verificacion: a.fechaVerificacion ?? '',
+        fecha_verificacion: toApiDateTime(a.fechaVerificacion),
     })),
 });
 
@@ -240,7 +266,7 @@ const mapResponseToApi = (claim: SupplierClaim) => ({
 const mapClosureToApi = (claim: SupplierClaim) => ({
     cierre: {
         acciones_efectivas: claim.cierreReclamo?.accionesEfectivas ?? '',
-        fecha_cierre: claim.cierreReclamo?.fechaCierre ?? '',
+        fecha_cierre: toApiDateTime(claim.cierreReclamo?.fechaCierre),
         responsable_cierre: claim.cierreReclamo?.responsableCierre ?? '',
         observacion: claim.cierreReclamo?.observacion ?? '',
     },
@@ -310,10 +336,11 @@ export const fetchClaims = async ({ estado, ruc, fechaInicio, fechaFin }: ClaimL
 const refetch = async (claim: SupplierClaim): Promise<SupplierClaim> =>
     (claim.docEntry ? await fetchClaim(claim.docEntry) : await fetchClaimByCita(claim.codCita)) ?? claim;
 
-/** Crea el reclamo; el backend envía el correo al proveedor. */
+/** Crea el reclamo con el siguiente número del proveedor; el backend envía el correo al proveedor. */
 export const createClaim = async (claim: SupplierClaim): Promise<SupplierClaim> => {
+    const numeroReclamo = await nextClaimNumber(claim.rucProveedor);
     const body = {
-        ...mapClaimToApi({ ...claim, status: 'Abierto' }),
+        ...mapClaimToApi({ ...claim, numeroReclamo, status: 'Abierto' }),
         adjuntos: await mapNewAttachmentsToApi(claim.adjuntos),
     };
     await requestClaims<any>(

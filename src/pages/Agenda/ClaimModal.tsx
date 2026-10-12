@@ -20,6 +20,7 @@ import {
     CLAIMS_API_ENABLED,
     createClaim,
     fetchClaimByCita,
+    localDateString,
     mergeClaimProducts,
     updateClaim,
 } from '@/services/agenda/claimsApi';
@@ -41,6 +42,9 @@ interface ClaimModalProps {
 const MAX_ATTACHMENT_SIZE = 50 * 1024 * 1024;
 const ALLOWED_ATTACHMENT_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg', 'video/mp4', 'video/quicktime', 'video/x-msvideo'];
 
+/** Texto inicial de la sección 1 en un reclamo nuevo; el usuario lo puede editar */
+const DEFAULT_INSPECTION_DATA = 'La inspección fue realizada en base a la tabla MIL STD 105D.';
+
 const productKey = (p: Pick<ClaimProduct, 'document' | 'lineNumber'>) => `${p.document}-${p.lineNumber}`;
 
 const ClaimModal: React.FC<ClaimModalProps> = ({
@@ -61,7 +65,7 @@ const ClaimModal: React.FC<ClaimModalProps> = ({
         factura: '',
         insumoMaterial: '',
         fechaArribo: '',
-        datosRegistroInspeccion: '',
+        datosRegistroInspeccion: DEFAULT_INSPECTION_DATA,
         responsable: currentUser?.fullName || '',
         areaEmite: currentUser?.role || '',
     });
@@ -110,10 +114,10 @@ const ClaimModal: React.FC<ClaimModalProps> = ({
             factura: '',
             insumoMaterial: '',
             fechaArribo: appointment.deliveryDate || '',
-            datosRegistroInspeccion: '',
+            datosRegistroInspeccion: DEFAULT_INSPECTION_DATA,
             responsable: currentUser?.fullName || '',
             areaEmite: currentUser?.role || '',
-            fechaReclamo: new Date().toISOString().split('T')[0],
+            fechaReclamo: localDateString(),
             proveedor: appointment.supplierName,
             codCita: appointment.docEntry || appointment.id,
         };
@@ -247,8 +251,11 @@ const ClaimModal: React.FC<ClaimModalProps> = ({
 
     // --- Productos y adjuntos (con API de reclamos) ---
     const selectedPackingList = packingLists.find(pl => pl.number === selectedPackingListId || pl.id?.toString() === selectedPackingListId);
-    const availableLines = (selectedPackingList?.detalle_packin_list || selectedPackingList?.DetallePackinList || [])
-        .filter((item) => item.document != null && item.line_number != null)
+    // El API de PackinList manda el DocEntry del PackingList como id_document (no document)
+    const packingListLines = (selectedPackingList?.detalle_packin_list || selectedPackingList?.DetallePackinList || [])
+        .map((item) => ({ ...item, document: item.document ?? item.id_document }))
+        .filter((item) => item.document != null && item.line_number != null);
+    const availableLines = packingListLines
         .filter((item) => !products.some((p) => productKey(p) === `${item.document}-${item.line_number}`));
 
     const updateProduct = (index: number, changes: Partial<ClaimProduct>) => {
@@ -511,7 +518,10 @@ const ClaimModal: React.FC<ClaimModalProps> = ({
                                                         </SelectItem>
                                                     ))}
                                                 </Select>
-                                                {selectedPackingList && availableLines.length === 0 && (
+                                                {selectedPackingList && packingListLines.length === 0 && (
+                                                    <p className="text-xs text-gray-500">Este PackingList no trae el detalle de sus líneas; no se pueden agregar productos.</p>
+                                                )}
+                                                {packingListLines.length > 0 && availableLines.length === 0 && (
                                                     <p className="text-xs text-gray-500">Todos los productos de este PackingList ya están en el reclamo.</p>
                                                 )}
                                                 {availableLines.map((item) => (
