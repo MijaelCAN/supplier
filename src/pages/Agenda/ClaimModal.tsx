@@ -453,7 +453,8 @@ const ClaimModal: React.FC<ClaimModalProps> = ({
                                                             </p>
                                                             <p className="text-xs text-gray-500">{product.itemCode}</p>
                                                         </div>
-                                                        {!isReadOnly && (
+                                                        {/* El backend aún no quita productos ya guardados: solo se quitan los nuevos */}
+                                                        {!isReadOnly && product.lineId == null && (
                                                             <Button
                                                                 isIconOnly
                                                                 size="sm"

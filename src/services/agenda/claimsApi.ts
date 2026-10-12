@@ -1,12 +1,26 @@
 // src/services/agenda/claimsApi.ts
-// API de Reclamos a proveedor (OBS-008, partes 2 y 3). Contrato enviado al backend el 2026-09-30.
+// API de Reclamos a proveedor (OBS-008, partes 2 y 3). Ajustado al API publicado por el backend (2026-10-09).
 import { httpClient, buildSecureUrl } from "@/services/http/httpClient";
 import { getApiBaseUrl } from "@/config/api.ts";
 import { fileToBase64 } from "@/services/agenda/evaluationsApi";
 import { ClaimAction, ClaimAttachment, ClaimProduct, SupplierClaim } from "@/store/types";
 
 const DEFAULT_API_BASE_URL = getApiBaseUrl();
-const CLAIMS_ENDPOINT = '/api/Reclamos';
+/** En el ambiente de pruebas el backend lo publica en /test/api/Reclamos */
+const CLAIMS_ENDPOINT = import.meta.env.VITE_CLAIMS_ENDPOINT || '/api/Reclamos';
+
+/**
+ * El número visible (REC-000001) se calcula desde el DocEntry: este es el DocEntry
+ * del primer reclamo oficial. Los anteriores (pruebas) se muestran con su DocEntry.
+ */
+const FIRST_CLAIM_DOC_ENTRY = parseInt(import.meta.env.VITE_CLAIMS_FIRST_DOC_ENTRY || '1', 10) || 1;
+
+export const formatClaimNumber = (docEntry?: string | number | null): string => {
+    const entry = Number(docEntry);
+    if (!Number.isFinite(entry) || entry <= 0) return '';
+    const sequence = entry - FIRST_CLAIM_DOC_ENTRY + 1;
+    return sequence > 0 ? `REC-${String(sequence).padStart(6, '0')}` : `#${entry}`;
+};
 
 /**
  * Interruptor mientras el backend no publique /api/Reclamos.
@@ -28,6 +42,7 @@ const STATUS_TO_API: Record<NonNullable<SupplierClaim['status']>, ClaimEstadoApi
     'Cerrado': 'CERRADO',
 };
 
+/** El backend responde HTTP 200 y el código real viene en status_code (404, 409, ...) */
 interface ClaimsApiResponse<T> {
     status_code: number;
     success: boolean;
@@ -37,7 +52,7 @@ interface ClaimsApiResponse<T> {
 
 export interface ClaimListFilters {
     ruc?: string;
-    estado?: ClaimEstadoApi;
+    estado?: ClaimEstadoApi; // El backend no filtra por estado: se filtra aquí
     fechaInicio?: string; // YYYYMMDD
     fechaFin?: string; // YYYYMMDD
 }
@@ -47,19 +62,39 @@ const toNumber = (value: unknown): number => {
     return Number.isFinite(parsed) ? parsed : 0;
 };
 
-/** Fecha del API ("2026-09-30" o "2026-09-30T00:00:00") a "YYYY-MM-DD" para inputs y PDF. */
-const toDateOnly = (value?: string | null): string => (value ? String(value).split('T')[0] : '');
+const toOptionalNumber = (value: unknown): number | undefined =>
+    value === null || value === undefined || value === '' ? undefined : toNumber(value);
+
+const localDateString = (date: Date): string =>
+    `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+
+/**
+ * Fecha del API a "YYYY-MM-DD" para inputs y PDF. Llega como "2026-10-09",
+ * "2026-10-07T09:03:00-05:00" o en UTC ("2026-10-09T18:00:22Z"); esta última se pasa a la fecha local.
+ */
+const toDateOnly = (value?: string | null): string => {
+    if (!value) return '';
+    const text = String(value);
+    if (/Z$/i.test(text)) {
+        const date = new Date(text);
+        if (!Number.isNaN(date.getTime())) return localDateString(date);
+    }
+    return text.split('T')[0];
+};
 
 const mapProductFromApi = (raw: any): ClaimProduct => ({
-    document: toNumber(raw.document),
-    lineNumber: toNumber(raw.line_number),
-    itemCode: raw.item_code ?? '',
-    itemName: raw.item_name ?? '',
+    lineId: toOptionalNumber(raw.line_id),
+    document: toNumber(raw.doc_entry_packing_list),
+    // El backend publica el campo con tilde
+    lineNumber: toNumber(raw['línea_packing_list'] ?? raw.linea_packing_list),
+    itemCode: raw.codigo_articulo ?? '',
+    itemName: raw.descripcion_articulo ?? '',
     cantidadRechazada: toNumber(raw.cantidad_rechazada),
     motivo: raw.motivo ?? '',
 });
 
 const mapActionFromApi = (raw: any): ClaimAction => ({
+    lineId: toOptionalNumber(raw.line_id),
     accion: raw.accion ?? '',
     fecha: toDateOnly(raw.fecha),
     estado: raw.estado === 'CERRADO' ? 'Cerrado' : 'Abierto',
@@ -84,7 +119,7 @@ export const mapClaimFromApi = (raw: any): SupplierClaim => {
 
     return {
         docEntry: raw.doc_entry != null ? String(raw.doc_entry) : undefined,
-        numeroReclamo: raw.numero_reclamo ?? '',
+        numeroReclamo: formatClaimNumber(raw.doc_entry),
         codCita: raw.cod_cita != null ? String(raw.cod_cita) : '',
         rucProveedor: raw.ruc_proveedor ?? '',
         proveedor: raw.razon_social ?? '',
@@ -123,22 +158,34 @@ export const mapClaimFromApi = (raw: any): SupplierClaim => {
             responsableCierre: cierre.responsable_cierre ?? '',
             observacion: cierre.observacion ?? '',
         },
+        // Los quitados quedan con estado "N"
         adjuntos: Array.isArray(raw.adjuntos)
-            ? raw.adjuntos.map((a: any): ClaimAttachment => ({ nameFile: a.name_file ?? '', url: a.url ?? '' }))
+            ? raw.adjuntos
+                .filter((a: any) => a.estado !== 'N')
+                .map((a: any): ClaimAttachment => ({
+                    lineId: toOptionalNumber(a.line_id),
+                    nameFile: a.nombre_archivo ?? '',
+                    url: a.url ?? '',
+                    fecha: toDateOnly(a.fecha),
+                }))
             : [],
     };
 };
 
-/** Las guardadas se reenvían con su url; las nuevas en base64 (mismo criterio que /api/Evaluacion/Archivos). */
-const mapAttachmentsToApi = async (adjuntos: ClaimAttachment[] = []) =>
-    Promise.all(adjuntos.map(async (a) =>
-        a.file
-            ? { name_file: a.nameFile, base64: await fileToBase64(a.file) }
-            : { name_file: a.nameFile, url: a.url ?? '' }
-    ));
+/** Solo los adjuntos nuevos (en base64): los guardados el backend no los recibe por url. */
+const mapNewAttachmentsToApi = async (adjuntos: ClaimAttachment[] = []) =>
+    Promise.all(adjuntos.filter((a) => a.file).map(async (a) => ({
+        nombre_archivo: a.nameFile,
+        base64: await fileToBase64(a.file as globalThis.File),
+        url: '',
+        fecha: localDateString(new Date()),
+        estado: 'Y',
+    })));
 
-/** Cabecera, secciones 1–2, productos y adjuntos (lo que registra el área interna). */
-const mapClaimToApi = async (claim: SupplierClaim) => ({
+/** Cabecera, secciones 1–2 y productos (lo que registra el área interna). */
+const mapClaimToApi = (claim: SupplierClaim) => ({
+    // El número visible sale del DocEntry (formatClaimNumber)
+    numero_reclamo: '',
     cod_cita: claim.codCita,
     ruc_proveedor: claim.rucProveedor ?? '',
     razon_social: claim.proveedor,
@@ -153,17 +200,17 @@ const mapClaimToApi = async (claim: SupplierClaim) => ({
         fecha_arribo: claim.fechaArribo ?? '',
     },
     productos: (claim.productos ?? []).map((p) => ({
-        document: p.document,
-        line_number: p.lineNumber,
-        item_code: p.itemCode,
-        item_name: p.itemName,
-        cantidad_rechazada: p.cantidadRechazada,
+        ...(p.lineId != null ? { line_id: p.lineId } : {}),
+        doc_entry_packing_list: String(p.document),
+        'línea_packing_list': String(p.lineNumber),
+        codigo_articulo: p.itemCode,
+        descripcion_articulo: p.itemName,
+        cantidad_rechazada: String(p.cantidadRechazada),
         motivo: p.motivo,
     })),
     datos_registro_inspeccion: claim.datosRegistroInspeccion ?? '',
     motivo_reclamo: claim.motivoReclamo,
     impacto: claim.impacto ?? '',
-    adjuntos: await mapAttachmentsToApi(claim.adjuntos),
 });
 
 /** Secciones 3–5 (respuesta del proveedor). */
@@ -180,6 +227,7 @@ const mapResponseToApi = (claim: SupplierClaim) => ({
         descripcion: claim.evaluacionReclamo?.descripcion ?? '',
     },
     plan_acciones: (claim.planAcciones ?? []).map((a) => ({
+        ...(a.lineId != null ? { line_id: a.lineId } : {}),
         accion: a.accion,
         fecha: a.fecha,
         estado: a.estado === 'Cerrado' ? 'CERRADO' : 'ABIERTO',
@@ -205,87 +253,111 @@ const requestClaims = async <T>(url: string, init: RequestInit, action: string):
     });
 
     if (!response.ok) {
-        if (response.status === 404 && (init.method ?? 'GET') === 'GET') return undefined;
-        const errorText = await response.text().catch(() => 'Error desconocido');
-        throw new Error(`Error al ${action} (${response.status}): ${errorText}`);
+        const errorText = await response.text().catch(() => '');
+        throw new Error(`Error al ${action} (${response.status}): ${validationMessage(errorText) || errorText || 'Error desconocido'}`);
     }
 
     const json = (await response.json()) as ClaimsApiResponse<T>;
-    if (!json || !json.success) {
-        throw new Error(json?.message || `Error al ${action}`);
-    }
-    return json.data;
+    if (json?.success) return json.data;
+    // "No existe" en una consulta no es un error
+    if (json?.status_code === 404 && (init.method ?? 'GET') === 'GET') return undefined;
+    throw new Error(json?.message || `Error al ${action}`);
 };
 
-/** Reclamo de una cita (un reclamo por cita), o null si no tiene. */
+/** Errores de validación del modelo (HTTP 400): { title, errors: { campo: [mensajes] } } */
+const validationMessage = (text: string): string => {
+    try {
+        const errors = JSON.parse(text)?.errors;
+        return errors ? Object.values(errors).flat().join(' ') : '';
+    } catch {
+        return '';
+    }
+};
+
+const claimUrl = (docEntry: string, suffix = '') =>
+    `${DEFAULT_API_BASE_URL}${CLAIMS_ENDPOINT}/${encodeURIComponent(docEntry)}${suffix}`;
+
+/**
+ * Reclamo de una cita, o null si no tiene. El backend devuelve una lista (no impide
+ * más de uno por cita): se toma el que sigue en curso o, si no, el más reciente.
+ */
 export const fetchClaimByCita = async (codCita: string): Promise<SupplierClaim | null> => {
     const url = buildSecureUrl(DEFAULT_API_BASE_URL, `${CLAIMS_ENDPOINT}/Cita`, { codCita });
     const data = await requestClaims<any>(url, { method: 'GET' }, 'consultar el reclamo de la cita');
-    return data ? mapClaimFromApi(data) : null;
+    const claims = (Array.isArray(data) ? data : data ? [data] : [])
+        .map(mapClaimFromApi)
+        .sort((a, b) => Number(b.docEntry) - Number(a.docEntry));
+    return claims.find((c) => c.status !== 'Cerrado') ?? claims[0] ?? null;
 };
 
 export const fetchClaim = async (docEntry: string): Promise<SupplierClaim | null> => {
-    const url = `${DEFAULT_API_BASE_URL}${CLAIMS_ENDPOINT}/${encodeURIComponent(docEntry)}`;
-    const data = await requestClaims<any>(url, { method: 'GET' }, 'consultar el reclamo');
+    const data = await requestClaims<any>(claimUrl(docEntry), { method: 'GET' }, 'consultar el reclamo');
     return data ? mapClaimFromApi(data) : null;
 };
 
-/** Listado de reclamos; el backend limita al proveedor a los suyos. */
-export const fetchClaims = async (filters: ClaimListFilters = {}): Promise<SupplierClaim[]> => {
-    const params: Record<string, string> = {};
-    Object.entries(filters).forEach(([key, value]) => {
-        if (value) params[key] = value;
-    });
+/** Listado de reclamos (al proveedor se le envía su RUC). */
+export const fetchClaims = async ({ estado, ruc, fechaInicio, fechaFin }: ClaimListFilters = {}): Promise<SupplierClaim[]> => {
+    const params: Record<string, string> = { ruc: ruc ?? '' };
+    if (fechaInicio) params.FechaInicio = fechaInicio;
+    if (fechaFin) params.FechaFin = fechaFin;
     const url = buildSecureUrl(DEFAULT_API_BASE_URL, CLAIMS_ENDPOINT, params);
     const data = await requestClaims<any[]>(url, { method: 'GET' }, 'consultar los reclamos');
-    const records = Array.isArray(data) ? data : data ? [data] : [];
-    return records.map(mapClaimFromApi);
+    const claims = (Array.isArray(data) ? data : data ? [data] : []).map(mapClaimFromApi);
+    return estado ? claims.filter((c) => c.status === STATUS_FROM_API[estado]) : claims;
 };
 
-/** Crea el reclamo; el backend genera el número y envía el correo al proveedor. */
+/** Las escrituras no devuelven el reclamo completo: se vuelve a consultar. */
+const refetch = async (claim: SupplierClaim): Promise<SupplierClaim> =>
+    (claim.docEntry ? await fetchClaim(claim.docEntry) : await fetchClaimByCita(claim.codCita)) ?? claim;
+
+/** Crea el reclamo; el backend envía el correo al proveedor. */
 export const createClaim = async (claim: SupplierClaim): Promise<SupplierClaim> => {
-    const body = await mapClaimToApi({ ...claim, status: 'Abierto' });
-    const data = await requestClaims<any>(
+    const body = {
+        ...mapClaimToApi({ ...claim, status: 'Abierto' }),
+        adjuntos: await mapNewAttachmentsToApi(claim.adjuntos),
+    };
+    await requestClaims<any>(
         `${DEFAULT_API_BASE_URL}${CLAIMS_ENDPOINT}`,
         { method: 'POST', body: JSON.stringify(body) },
         'crear el reclamo'
     );
-    // Si el backend no devuelve el reclamo, se consulta por la cita
-    return data ? mapClaimFromApi(data) : (await fetchClaimByCita(claim.codCita)) ?? claim;
+    // No devuelve el DocEntry: se toma el reclamo en curso de la cita
+    return refetch({ ...claim, docEntry: undefined });
 };
 
-/** Edita cabecera, secciones 1–2, productos y adjuntos (solo en estado Abierto). */
+/**
+ * Edita cabecera, secciones 1–2 y productos (solo en estado Abierto): con line_id se
+ * actualizan y sin él se agregan. Solo se envían los adjuntos nuevos: los guardados
+ * exigen base64 y, si no se envían, el backend los conserva.
+ */
 export const updateClaim = async (claim: SupplierClaim): Promise<SupplierClaim> => {
     if (!claim.docEntry) throw new Error('El reclamo no tiene DocEntry');
-    const body = await mapClaimToApi(claim);
-    const data = await requestClaims<any>(
-        `${DEFAULT_API_BASE_URL}${CLAIMS_ENDPOINT}/${encodeURIComponent(claim.docEntry)}`,
-        { method: 'PUT', body: JSON.stringify(body) },
-        'actualizar el reclamo'
-    );
-    return data ? mapClaimFromApi(data) : (await fetchClaim(claim.docEntry)) ?? claim;
+    const body = { ...mapClaimToApi(claim), adjuntos: await mapNewAttachmentsToApi(claim.adjuntos) };
+    const url = buildSecureUrl(DEFAULT_API_BASE_URL, CLAIMS_ENDPOINT, { DocEntry: claim.docEntry });
+    await requestClaims<any>(url, { method: 'PATCH', body: JSON.stringify(body) }, 'actualizar el reclamo');
+    return refetch(claim);
 };
 
 /** Respuesta del proveedor (secciones 3–5); pasa a En Respuesta. */
 export const saveClaimResponse = async (claim: SupplierClaim): Promise<SupplierClaim> => {
     if (!claim.docEntry) throw new Error('El reclamo no tiene DocEntry');
-    const data = await requestClaims<any>(
-        `${DEFAULT_API_BASE_URL}${CLAIMS_ENDPOINT}/${encodeURIComponent(claim.docEntry)}/Respuesta`,
-        { method: 'PUT', body: JSON.stringify(mapResponseToApi(claim)) },
+    await requestClaims<any>(
+        claimUrl(claim.docEntry, '/Respuesta'),
+        { method: 'PATCH', body: JSON.stringify(mapResponseToApi(claim)) },
         'guardar la respuesta del reclamo'
     );
-    return data ? mapClaimFromApi(data) : (await fetchClaim(claim.docEntry)) ?? claim;
+    return refetch(claim);
 };
 
 /** Cierre del reclamo por el área interna (sección 6); pasa a Cerrado. */
 export const closeClaim = async (claim: SupplierClaim): Promise<SupplierClaim> => {
     if (!claim.docEntry) throw new Error('El reclamo no tiene DocEntry');
-    const data = await requestClaims<any>(
-        `${DEFAULT_API_BASE_URL}${CLAIMS_ENDPOINT}/${encodeURIComponent(claim.docEntry)}/Cierre`,
-        { method: 'PUT', body: JSON.stringify(mapClosureToApi(claim)) },
+    await requestClaims<any>(
+        claimUrl(claim.docEntry, '/Cierre'),
+        { method: 'PATCH', body: JSON.stringify(mapClosureToApi(claim)) },
         'cerrar el reclamo'
     );
-    return data ? mapClaimFromApi(data) : (await fetchClaim(claim.docEntry)) ?? claim;
+    return refetch(claim);
 };
 
 /** Junta productos nuevos con los del reclamo sin duplicar la misma línea con el mismo motivo. */

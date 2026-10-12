@@ -598,6 +598,7 @@ export const EVALUATION_RANGES = {
 
 // Producto rechazado incluido en un reclamo (línea del PackingList)
 export interface ClaimProduct {
+    lineId?: number; // Línea del producto en el reclamo (ya guardado)
     document: number; // DocEntry del PackingList
     lineNumber: number;
     itemCode: string;
@@ -608,7 +609,9 @@ export interface ClaimProduct {
 
 // Evidencia adjunta al reclamo: `url` si ya está guardada, `file` si está por subir
 export interface ClaimAttachment {
+    lineId?: number; // Línea del adjunto en el reclamo (ya guardado)
     nameFile: string;
+    fecha?: string;
     url?: string;
     file?: globalThis.File; // File del navegador (este archivo define otra interfaz File)
 }
@@ -670,6 +673,7 @@ export interface SupplierClaim {
 
 export interface ClaimAction {
     id?: string;
+    lineId?: number; // Línea de la acción en el reclamo: con ella el backend la actualiza en vez de agregarla
     accion: string;
     fecha: string;
     estado?: 'Abierto' | 'Cerrado'; // Para verificación
