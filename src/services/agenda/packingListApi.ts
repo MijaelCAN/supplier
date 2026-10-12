@@ -893,24 +893,26 @@ export interface DeletePackingListRequest {
     motivo: string;
 }
 
+/** El backend responde HTTP 200 y el código real en status_code; data es el id eliminado (sin ticket). */
 export interface DeletePackingListResponse {
     status_code: number;
     success: boolean;
     message: string;
-    data?: {
-        id: string;
-        number: string;
-        ticket: string;
-        fecha_eliminacion: string;
-    };
+    data?: string | { ticket?: string };
 }
 
-/** Elimina lógicamente un PackingList y devuelve el ticket WMS a comunicar. */
+/** Publicado con "PackingList" (a diferencia de PACKING_LIST_ENDPOINT, "PackinList") */
+const DELETE_PACKING_LIST_ENDPOINT = '/api/Documentos/PackingList/Eliminar';
+
+/**
+ * Elimina lógicamente un PackingList: DELETE ?id={id} con body { usuario, motivo, ... }.
+ * Devuelve el ticket WMS a comunicar si el API lo trae (hoy no: se usa el del PackingList).
+ */
 export const deletePackingList = async (request: DeletePackingListRequest): Promise<{ ticket: string }> => {
-    const url = `${DEFAULT_API_BASE_URL}${PACKING_LIST_ENDPOINT}/Eliminar`;
+    const url = buildSecureUrl(DEFAULT_API_BASE_URL, DELETE_PACKING_LIST_ENDPOINT, { id: request.id });
 
     const response = await httpClient(url, {
-        method: 'POST',
+        method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(request),
     });
@@ -925,5 +927,6 @@ export const deletePackingList = async (request: DeletePackingListRequest): Prom
         throw new Error(json?.message || 'Error al eliminar el PackingList');
     }
 
-    return { ticket: json.data?.ticket != null ? String(json.data.ticket) : '' };
+    const ticket = typeof json.data === 'object' ? json.data?.ticket : undefined;
+    return { ticket: ticket != null ? String(ticket) : '' };
 };
