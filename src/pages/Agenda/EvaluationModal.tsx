@@ -8,9 +8,38 @@ import {
     Button,
     Textarea,
 } from '@heroui/react';
-import { DeliveryEvaluation } from '@/store/types';
+import { AppointmentStatus, ClaimProduct, DeliveryEvaluation } from '@/store/types';
 import { saveEvaluation, EVALUATION_CRITERIA_CODES } from '@/services/agenda/evaluationsApi';
+import {
+    computeCriterionScore,
+    deriveAppointmentStatusFromLines,
+    deriveLineEstado,
+    fetchProductEvaluations,
+    getEvaluationBaseQuantity,
+    getProductLineKey,
+    PRODUCT_EVALUATION_ENABLED,
+    ProductEvaluationArea,
+    ProductEvaluationLine,
+    ProductEvaluationLineRequest,
+    roundEvaluationQuantity,
+    saveProductEvaluations,
+} from '@/services/agenda/productEvaluationsApi';
+import ProductEvaluationList, {
+    getDraftError,
+    getEvaluableLines,
+    parseRejectedQuantity,
+    ProductEvaluationDraft,
+} from './ProductEvaluationList';
 import { UserRole } from '@/routes/menuTypes';
+import { useAuth } from '@/store/authStore';
+
+/** Resultado de la evaluación por producto, para que el detalle actualice el estado de la cita. */
+export interface ProductEvaluationResult {
+    area: ProductEvaluationArea;
+    appointmentStatus: AppointmentStatus;
+    hasRejections: boolean;
+    lines: ProductEvaluationLineRequest[];
+}
 
 interface EvaluationModalProps {
     isOpen: boolean;
@@ -19,9 +48,10 @@ interface EvaluationModalProps {
     userRole: UserRole;
     evaluationType: 'puntualidad' | 'documentacion' | 'estadoMercaderia' | 'cantidadCorrecta' | 'full';
     currentEvaluation?: DeliveryEvaluation;
-    onEvaluationSaved?: (evaluation: DeliveryEvaluation) => void;
+    onEvaluationSaved?: (evaluation: DeliveryEvaluation, productResult?: ProductEvaluationResult) => void;
     appointment?: any; // DeliveryAppointment - para generar reclamo
-    onReject?: (evaluation: DeliveryEvaluation) => void; // Callback cuando se rechaza
+    // Callback cuando se rechaza; con evaluación por producto incluye los productos rechazados
+    onReject?: (evaluation: DeliveryEvaluation, rejectedProducts?: ClaimProduct[]) => void;
 }
 
 const EvaluationModal: React.FC<EvaluationModalProps> = ({
@@ -43,6 +73,20 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({
     // Estados específicos para estadoMercaderia
     const [estadoMercaderia, setEstadoMercaderia] = useState<'ACEPTADO' | 'OBSERVADO' | 'RECHAZADO' | ''>('');
     const [files, setFiles] = useState<File[]>([]); // Múltiples archivos para estadoMercaderia
+    const { currentUser } = useAuth();
+
+    // Evaluación por producto (OBS-008): Calidad evalúa Estado de mercadería, Almacén la Cantidad correcta
+    const productArea: ProductEvaluationArea | null = !PRODUCT_EVALUATION_ENABLED
+        ? null
+        : evaluationType === 'estadoMercaderia'
+            ? 'CALIDAD'
+            : evaluationType === 'cantidadCorrecta'
+                ? 'ALMACEN'
+                : null;
+    const [productLines, setProductLines] = useState<ProductEvaluationLine[]>([]);
+    const [productDrafts, setProductDrafts] = useState<Record<string, ProductEvaluationDraft>>({});
+    const [isLoadingProducts, setIsLoadingProducts] = useState(false);
+    const [productLoadError, setProductLoadError] = useState<string | null>(null);
 
     // Etiquetas visibles para el estado de calidad. El valor interno 'OBSERVADO' se mantiene
     // (persistencia, transiciones de estado, etc.) por aclaración de Auditoría sobre términos.
@@ -141,7 +185,168 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({
         }
     }, [isOpen, currentEvaluation, evaluationType]);
 
+    // Cargar los productos de la cita y lo que el área ya haya evaluado
+    useEffect(() => {
+        if (!isOpen || !productArea) return;
+
+        let isCancelled = false;
+        setProductLines([]);
+        setProductDrafts({});
+        setProductLoadError(null);
+        setIsLoadingProducts(true);
+
+        fetchProductEvaluations(codCita)
+            .then((lines) => {
+                if (isCancelled) return;
+                setProductLines(lines);
+                const drafts: Record<string, ProductEvaluationDraft> = {};
+                lines.forEach((line) => {
+                    const previous = productArea === 'CALIDAD' ? line.calidad : line.almacen;
+                    if (!previous) return;
+                    const isRejection = previous.estado === 'RECHAZADO' || previous.estado === 'PARCIAL';
+                    drafts[getProductLineKey(line)] = {
+                        decision: isRejection ? 'RECHAZADO' : previous.estado as 'ACEPTADO' | 'OBSERVADO',
+                        rejectedQuantityText: isRejection ? String(previous.cantidad_rechazada) : '',
+                        motivo: previous.motivo,
+                    };
+                });
+                setProductDrafts(drafts);
+            })
+            .catch((error) => {
+                if (isCancelled) return;
+                console.error('Error al cargar la evaluación por producto:', error);
+                setProductLoadError(error instanceof Error ? error.message : 'Error al cargar los productos de la cita');
+            })
+            .finally(() => {
+                if (!isCancelled) setIsLoadingProducts(false);
+            });
+
+        return () => {
+            isCancelled = true;
+        };
+    }, [isOpen, productArea, codCita]);
+
+    const evaluableProductLines = productArea ? getEvaluableLines(productLines, productArea) : [];
+    const productErrors = productArea
+        ? evaluableProductLines
+            .map((line) => getDraftError(productDrafts[getProductLineKey(line)], getEvaluationBaseQuantity(line, productArea)))
+            .filter((error): error is string => error !== null)
+        : [];
+    const isProductEvaluationIncomplete = !!productArea && (
+        isLoadingProducts || !!productLoadError || evaluableProductLines.length === 0 || productErrors.length > 0
+    );
+
+    const handleProductDraftChange = (lineKey: string, draft: ProductEvaluationDraft) => {
+        setProductDrafts((prev) => ({ ...prev, [lineKey]: draft }));
+    };
+
+    const handleAcceptAllProducts = () => {
+        const drafts: Record<string, ProductEvaluationDraft> = {};
+        evaluableProductLines.forEach((line) => {
+            drafts[getProductLineKey(line)] = { decision: 'ACEPTADO', rejectedQuantityText: '', motivo: '' };
+        });
+        setProductDrafts(drafts);
+    };
+
+    const buildProductLineRequests = (area: ProductEvaluationArea): ProductEvaluationLineRequest[] =>
+        evaluableProductLines.map((line) => {
+            const draft = productDrafts[getProductLineKey(line)];
+            const baseQuantity = getEvaluationBaseQuantity(line, area);
+            const rejectedQuantity = draft.decision === 'RECHAZADO' ? parseRejectedQuantity(draft) : 0;
+            return {
+                document: line.document,
+                line_number: line.line_number,
+                item_code: line.item_code,
+                estado: deriveLineEstado(draft.decision as 'ACEPTADO' | 'OBSERVADO' | 'RECHAZADO', baseQuantity, rejectedQuantity),
+                cantidad_aceptada: roundEvaluationQuantity(baseQuantity - rejectedQuantity),
+                cantidad_rechazada: rejectedQuantity,
+                motivo: draft.decision === 'ACEPTADO' ? '' : draft.motivo.trim(),
+            };
+        });
+
+    /** Resumen de los productos no aceptados, para el comentario del criterio. */
+    const buildProductSummary = (lines: ProductEvaluationLineRequest[]): string =>
+        lines
+            .filter((line) => line.estado !== 'ACEPTADO')
+            .map((line) => {
+                const detail = line.cantidad_rechazada > 0 ? ` rechazado ${line.cantidad_rechazada}` : ' concesión';
+                return `${line.item_code}:${detail} - ${line.motivo}`;
+            })
+            .join(' | ');
+
+    const handleSaveProducts = async (area: ProductEvaluationArea) => {
+        if (productErrors.length > 0) {
+            alert(`Complete la evaluación de todos los productos: ${productErrors[0]}`);
+            return;
+        }
+
+        setIsSaving(true);
+        try {
+            const lines = buildProductLineRequests(area);
+            const usuario = currentUser?.userCode || currentUser?.id || currentUser?.username || 'system';
+            await saveProductEvaluations(codCita, area, usuario, lines);
+
+            // El criterio general se sigue guardando para la calificación del proveedor
+            const hasRejections = lines.some((line) => line.cantidad_rechazada > 0);
+            const puntaje = computeCriterionScore(area, lines);
+            const criterionComment = [comment.trim(), buildProductSummary(lines)].filter(Boolean).join(' | ');
+            const evaluation: Partial<DeliveryEvaluation> = { codCita, comentario: criterionComment };
+            const score = {
+                puntaje,
+                comentario: criterionComment,
+                evaluadoPor: userRole,
+                fechaEvaluacion: new Date().toISOString(),
+            };
+            if (area === 'CALIDAD') evaluation.estadoMercaderia = score;
+            else evaluation.cantidadCorrecta = score;
+
+            const criterioCodigo = area === 'CALIDAD'
+                ? EVALUATION_CRITERIA_CODES.ESTADO_MERCADERIA
+                : EVALUATION_CRITERIA_CODES.CANTIDAD_CORRECTA;
+            const filesToSend = (area === 'CALIDAD' ? files : file ? [file] : []).map((f) => ({ criterioCodigo, file: f }));
+
+            const savedEvaluation = await saveEvaluation(evaluation, userRole, filesToSend.length > 0 ? filesToSend : undefined);
+
+            onEvaluationSaved?.(savedEvaluation, {
+                area,
+                appointmentStatus: deriveAppointmentStatusFromLines(area, lines),
+                hasRejections,
+                lines,
+            });
+
+            onOpenChange(false);
+            if (hasRejections && onReject) {
+                const rejectedProducts: ClaimProduct[] = lines
+                    .filter((line) => line.cantidad_rechazada > 0)
+                    .map((line) => ({
+                        document: line.document,
+                        lineNumber: line.line_number,
+                        itemCode: line.item_code,
+                        itemName: productLines.find((p) => getProductLineKey(p) === getProductLineKey(line))?.item_name ?? '',
+                        cantidadRechazada: line.cantidad_rechazada,
+                        motivo: line.motivo,
+                    }));
+                // Pequeño delay para que se cierre el modal actual
+                setTimeout(() => onReject(savedEvaluation, rejectedProducts), 300);
+            } else {
+                alert('Evaluación guardada exitosamente');
+            }
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Error al guardar evaluación';
+            console.error('Error al guardar evaluación por producto:', error);
+            alert(`Error al guardar la evaluación: ${errorMessage}\n\nPor favor, intente nuevamente.`);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
     const handleSave = async () => {
+        if (productArea) {
+            await handleSaveProducts(productArea);
+            return;
+        }
+
+
         // Validaciones específicas para estadoMercaderia
         if (evaluationType === 'estadoMercaderia') {
             if (!estadoMercaderia) {
@@ -347,7 +552,7 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({
         <Modal
             isOpen={isOpen}
             onOpenChange={onOpenChange}
-            size="2xl"
+            size={productArea ? '3xl' : '2xl'}
             scrollBehavior="inside"
         >
             <ModalContent>
@@ -361,7 +566,34 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({
                         </ModalHeader>
                         <ModalBody>
                             <div className="space-y-4">
-                                {evaluationType !== 'full' && (
+                                {productArea && (
+                                    <>
+                                        {isLoadingProducts ? (
+                                            <div className="p-3 text-sm text-gray-600">Cargando productos de la cita...</div>
+                                        ) : productLoadError ? (
+                                            <div className="p-3 text-sm text-red-700 bg-red-50 rounded-lg border border-red-200">
+                                                No se pudieron cargar los productos de la cita: {productLoadError}
+                                            </div>
+                                        ) : (
+                                            <ProductEvaluationList
+                                                area={productArea}
+                                                lines={productLines}
+                                                drafts={productDrafts}
+                                                onDraftChange={handleProductDraftChange}
+                                                onAcceptAll={handleAcceptAllProducts}
+                                                isDisabled={isSaving}
+                                            />
+                                        )}
+                                        <Textarea
+                                            label="Comentario general (opcional)"
+                                            placeholder="Agregue un comentario general sobre esta evaluación..."
+                                            value={comment}
+                                            onValueChange={setComment}
+                                            minRows={2}
+                                        />
+                                    </>
+                                )}
+                                {!productArea && evaluationType !== 'full' && (
                                     <>
                                         {evaluationType === 'estadoMercaderia' ? (
                                             <>
@@ -567,7 +799,9 @@ const EvaluationModal: React.FC<EvaluationModalProps> = ({
                                 onPress={handleSave}
                                 isLoading={isSaving || isUploading}
                                 isDisabled={
-                                    evaluationType === 'estadoMercaderia' 
+                                    productArea
+                                        ? isProductEvaluationIncomplete
+                                        : evaluationType === 'estadoMercaderia'
                                         ? !estadoMercaderia || ((estadoMercaderia === 'OBSERVADO' || estadoMercaderia === 'RECHAZADO') && !comment.trim())
                                         : evaluationType === 'puntualidad' || evaluationType === 'documentacion' || evaluationType === 'cantidadCorrecta'
                                         ? score === null

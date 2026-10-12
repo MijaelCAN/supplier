@@ -23,6 +23,7 @@ const AgendaPage = lazy(() => import("@/pages/Agenda"));
 const AppointmentDetail = lazy(() => import("@/pages/Agenda/AppointmentDetail"));
 const EvaluationPage = lazy(() => import("@/pages/Agenda/EvaluationPage"));
 const ReceptionPage = lazy(() => import("@/pages/Recepcion"));
+const ReclamosPage = lazy(() => import("@/pages/Reclamos"));
 const PaymentCalendar = lazy(() => import("@/pages/Pagos/Paymentcalendar "));
 const ScheduleInvoices = lazy(() => import("@/pages/Pagos/ScheduleInvoices"));
 const ConfirmacionRheFe = lazy(() => import("@/pages/Finanzas/confirmacionRheFe"));
@@ -207,6 +208,14 @@ const router = createBrowserRouter([
     element: (
       <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.COMPRAS, UserRole.ALMACEN, UserRole.CALIDAD, UserRole.SEGURIDAD, UserRole.PLANEAMIENTO]}>
         <Lazy><EvaluationPage /></Lazy>
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/reclamos",
+    element: (
+      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.CALIDAD, UserRole.ALMACEN]}>
+        <Lazy><ReclamosPage /></Lazy>
       </ProtectedRoute>
     ),
   },
