@@ -58,6 +58,7 @@ import {
     formatOrders,
     formatStatusCita,
     formatStatusFactura,
+    formatInvoiceSummary,
     groupProductsByCita,
     parseStatusFactura,
 } from './productList';
@@ -424,7 +425,11 @@ const Agenda: React.FC = () => {
     }, [listViewData, filterFecha, filterNumber, filterItemCode, filterItemName, filterRazonSocial, filterQuantity, filterHorario, filterFactura]);
 
     // Una fila por cita; al desplegarla muestra solo sus productos que pasan los filtros
-    const productGroups = useMemo(() => groupProductsByCita(filteredListViewData), [filteredListViewData]);
+    // La factura de la cabecera se cuenta sobre todos los productos de la cita, no solo los filtrados
+    const productGroups = useMemo(
+        () => groupProductsByCita(filteredListViewData, listViewData),
+        [filteredListViewData, listViewData]
+    );
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
     // Al cambiar de semana se recargan los datos y se pliega todo
@@ -634,19 +639,20 @@ const Agenda: React.FC = () => {
                                 <th>Cobertura con Ingresos</th>
                                 <th>Comentario PCP</th>
                                 <th>Parte de Ingreso</th>
+                                <th>Factura SAP</th>
                             </tr>
                         </thead>
                         ${productGroups.map(group => `
                             <tbody class="group">
                                 <tr class="group-header">
-                                    <td colspan="9">
+                                    <td colspan="10">
                                         <strong>${formatDateFromAPI(group.first.u_fecha)} · ${formatHorario(group.first.horario)} · ${escapeHtml(group.first.u_razon_social)}</strong>
                                         <span class="group-meta">
                                             OC: ${escapeHtml(formatOrders(group.orders))} ·
                                             Estado: ${formatStatusCita(group.first.status_cita)} ·
                                             Productos: ${group.products.length} ·
                                             Adjuntos: ${group.first.cantidad_adjuntos ?? '-'} ·
-                                            Factura SAP: ${formatStatusFactura(group.first.status_factura)}
+                                            Factura SAP: ${formatInvoiceSummary(group.invoice)}
                                         </span>
                                     </td>
                                 </tr>
@@ -661,6 +667,7 @@ const Agenda: React.FC = () => {
                                         <td class="num">${formatCobertura(product.cobertura_ingreso) !== '-' ? formatCobertura(product.cobertura_ingreso) + ' meses' : '-'}</td>
                                         <td>${escapeHtml(product.comentario || '-')}</td>
                                         <td>${escapeHtml(product.num_parte_ingreso || '-')}</td>
+                                        <td>${formatStatusFactura(product.status_factura)}</td>
                                     </tr>
                                 `).join('')}
                             </tbody>

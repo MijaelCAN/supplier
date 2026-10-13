@@ -46,37 +46,77 @@ export const formatStatusFactura = (value?: boolean | string | null): string => 
     return hasInvoice === null ? '-' : hasInvoice ? 'Sí' : 'No';
 };
 
+/** Factura SAP de la cita, contada sobre todos sus productos (cada uno según su packing list) */
+export interface InvoiceSummary {
+    total: number;
+    withInvoice: number;
+    missing: number; // sin factura o sin dato
+    hasData: boolean; // false si ningún producto trae status_factura (producción)
+}
+
+export const summarizeInvoices = (products: ProductApiRecord[]): InvoiceSummary => {
+    const statuses = products.map((p) => parseStatusFactura(p.status_factura));
+    const withInvoice = statuses.filter((s) => s === true).length;
+    return {
+        total: products.length,
+        withInvoice,
+        missing: products.length - withInvoice,
+        hasData: statuses.some((s) => s !== null),
+    };
+};
+
+/** "Sí" si todos tienen factura, "Faltan 3 de 5" si no, "-" sin dato */
+export const formatInvoiceSummary = (summary: InvoiceSummary): string => {
+    if (!summary.hasData) return '-';
+    return summary.missing === 0 ? 'Sí' : `Faltan ${summary.missing} de ${summary.total}`;
+};
+
 /**
- * Productos de una misma cita: comparten fecha, horario, proveedor, estado, adjuntos y factura.
- * El parte de ingreso es por línea, así que va en cada producto y no en la cita.
+ * Productos de una misma cita: comparten fecha, horario, proveedor, estado y adjuntos.
+ * El parte de ingreso y la factura son por línea, así que van en cada producto.
  */
 export interface ProductGroup {
     key: string;
     first: ProductApiRecord;
     products: ProductApiRecord[];
     orders: string[]; // OC distintas de la cita
+    invoice: InvoiceSummary;
 }
 
 const unique = (values: (string | null | undefined)[]) =>
     Array.from(new Set(values.filter((v): v is string => !!v)));
 
-/**
- * Agrupa por cita conservando el orden del API. /Productos no trae cod_cita, así que la
- * cita se identifica por fecha + horario + proveedor (mismo criterio que "Ver cita").
- */
-export const groupProductsByCita = (products: ProductApiRecord[]): ProductGroup[] => {
+const citaKey = (product: ProductApiRecord) =>
+    `${product.u_fecha}|${product.horario}|${product.u_razon_social}`;
+
+const groupByKey = (products: ProductApiRecord[]) => {
     const groups = new Map<string, ProductApiRecord[]>();
     products.forEach((product) => {
-        const key = `${product.u_fecha}|${product.horario}|${product.u_razon_social}`;
+        const key = citaKey(product);
         const list = groups.get(key);
         if (list) list.push(product);
         else groups.set(key, [product]);
     });
-    return Array.from(groups, ([key, list]) => ({
+    return groups;
+};
+
+/**
+ * Agrupa por cita conservando el orden del API. /Productos no trae cod_cita, así que la
+ * cita se identifica por fecha + horario + proveedor (mismo criterio que "Ver cita").
+ * `products` son los que pasan los filtros; la factura se resume con `allProducts`
+ * para que "Faltan X de N" cuente toda la cita aunque se muestren solo algunos.
+ */
+export const groupProductsByCita = (
+    products: ProductApiRecord[],
+    allProducts: ProductApiRecord[] = products,
+): ProductGroup[] => {
+    const allGroups = products === allProducts ? null : groupByKey(allProducts);
+    return Array.from(groupByKey(products), ([key, list]) => ({
         key,
         first: list[0],
         products: list,
         orders: unique(list.map((p) => p.number)),
+        invoice: summarizeInvoices(allGroups?.get(key) ?? list),
     }));
 };
 

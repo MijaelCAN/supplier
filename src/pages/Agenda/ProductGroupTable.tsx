@@ -9,6 +9,7 @@ import {
     formatCobertura,
     formatDateFromAPI,
     formatHorario,
+    formatInvoiceSummary,
     formatOrders,
     formatStatusCita,
     formatStatusFactura,
@@ -25,9 +26,20 @@ interface ProductGroupTableProps {
 }
 
 const GROUP_COLUMNS = ['', 'Fecha', 'Horario', 'Proveedor', 'OC', 'Estado cita', 'Productos', 'Adjuntos', 'Factura SAP', ''];
-const PRODUCT_COLUMNS = ['OC', 'Código', 'Descripción', 'Cantidad', 'Confirmación PCP', 'Cobertura actual', 'Cobertura con ingresos', 'Comentario PCP', 'Parte de ingreso'];
+const PRODUCT_COLUMNS = ['OC', 'Código', 'Descripción', 'Cantidad', 'Confirmación PCP', 'Cobertura actual', 'Cobertura con ingresos', 'Comentario PCP', 'Parte de ingreso', 'Factura SAP'];
 
 const Empty = () => <span className="text-gray-400 text-sm">-</span>;
+
+/** Factura SAP de un producto, según su packing list */
+const InvoiceChip: React.FC<{ value: ProductApiRecord['status_factura'] }> = ({ value }) => {
+    const hasInvoice = parseStatusFactura(value);
+    if (hasInvoice === null) return <Empty />;
+    return (
+        <Chip size="sm" variant="flat" color={hasInvoice ? 'success' : 'default'}>
+            {formatStatusFactura(value)}
+        </Chip>
+    );
+};
 
 const ProductGroupTable: React.FC<ProductGroupTableProps> = ({ groups, expandedKeys, onToggle, onViewAppointment }) => (
     // Único contenedor con scroll: la barra horizontal queda visible y la cabecera fija al bajar
@@ -47,9 +59,8 @@ const ProductGroupTable: React.FC<ProductGroupTableProps> = ({ groups, expandedK
             </thead>
             <tbody>
                 {groups.map((group) => {
-                    const { first } = group;
+                    const { first, invoice } = group;
                     const isExpanded = expandedKeys.has(group.key);
-                    const hasInvoice = parseStatusFactura(first.status_factura);
                     return (
                         <React.Fragment key={group.key}>
                             <tr
@@ -81,10 +92,10 @@ const ProductGroupTable: React.FC<ProductGroupTableProps> = ({ groups, expandedK
                                 </td>
                                 <td className="px-3 py-2 whitespace-nowrap">{group.products.length}</td>
                                 <td className="px-3 py-2 whitespace-nowrap">{first.cantidad_adjuntos ?? '-'}</td>
-                                <td className="px-3 py-2">
-                                    {hasInvoice === null ? <Empty /> : (
-                                        <Chip size="sm" variant="flat" color={hasInvoice ? 'success' : 'default'}>
-                                            {formatStatusFactura(first.status_factura)}
+                                <td className="px-3 py-2 whitespace-nowrap">
+                                    {!invoice.hasData ? <Empty /> : (
+                                        <Chip size="sm" variant="flat" color={invoice.missing === 0 ? 'success' : 'warning'}>
+                                            {formatInvoiceSummary(invoice)}
                                         </Chip>
                                     )}
                                 </td>
@@ -132,6 +143,9 @@ const ProductGroupTable: React.FC<ProductGroupTableProps> = ({ groups, expandedK
                                                                 : <Empty />}
                                                         </td>
                                                         <td className="px-3 py-2 whitespace-nowrap">{product.num_parte_ingreso || <Empty />}</td>
+                                                        <td className="px-3 py-2">
+                                                            <InvoiceChip value={product.status_factura} />
+                                                        </td>
                                                     </tr>
                                                 ))}
                                             </tbody>
