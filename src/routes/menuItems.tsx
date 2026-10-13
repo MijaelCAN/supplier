@@ -184,7 +184,7 @@ export const menuItems: MenuItem[] = [
                 title: "Cronograma de pago",
                 icon: <ClockIcon className="h-4 w-4" />,
                 href: "/cronograma",
-                roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.PROVEEDOR]
+                roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.FINANZAS]
             },
             {
                 title: "Pagos",

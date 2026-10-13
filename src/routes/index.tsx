@@ -230,7 +230,7 @@ const router = createBrowserRouter([
   {
     path: "/cronograma",
     element: (
-      <ProtectedRoute requiredRoles={[UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.ADMIN]}>
+      <ProtectedRoute requiredRoles={[UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.ADMIN, UserRole.FINANZAS]}>
         <Dashboard>
           <Lazy><PaymentCalendar /></Lazy>
         </Dashboard>
