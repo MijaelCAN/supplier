@@ -1,5 +1,5 @@
 import { httpClient, buildSecureUrl } from "@/services/http/httpClient";
-import { formatDateForAPI } from "./appointmentsApi";
+import { fetchAppointmentsFromApi, formatDateForAPI } from "./appointmentsApi";
 import { getApiBaseUrl } from "@/config/api.ts";
 import { DOCUMENT_TYPE_PREFIXES } from "@/config/commercialDocuments";
 
@@ -720,14 +720,18 @@ interface ProductListApiResponse {
  */
 export const fetchProductsFromApi = async (
     fechaInicio: string,
-    fechaFin: string
+    fechaFin: string,
+    orderNumber?: string // N.º de OC: el API lo recibe en CardCode (no es el RUC)
 ): Promise<ProductApiRecord[]> => {
     const PRODUCTS_ENDPOINT = '/api/Documentos/Productos';
     const params: Record<string, string> = {
         FechaInicio: fechaInicio,
         FechaFin: fechaFin
     };
-    
+    if (orderNumber) {
+        params['CardCode'] = orderNumber;
+    }
+
     const url = buildSecureUrl(DEFAULT_API_BASE_URL, PRODUCTS_ENDPOINT, params);
     
     const response = await httpClient(url, {
@@ -753,13 +757,68 @@ export const fetchProductsFromApi = async (
     }
     
     // Manejar ambos casos: objeto único o array
-    const products: ProductApiRecord[] = Array.isArray(json.data) 
-        ? json.data 
-        : json.data 
-            ? [json.data] 
+    const products: ProductApiRecord[] = Array.isArray(json.data)
+        ? json.data
+        : json.data
+            ? [json.data]
             : [];
-    
+
     return products;
+};
+
+/** Rango amplio para ubicar los packing list de una cita aunque se haya reprogramado */
+const PACKING_LIST_LOOKUP_DAYS = 365;
+
+/**
+ * Citas por producto de un solo proveedor. /Productos no filtra por RUC, así que se arma
+ * con lo que sí filtra: sus citas (por RUC) → packing lists de cada cita → OC ("261006989_1"
+ * → "261006989") → /Productos por OC. Así no llegan al navegador datos de otros proveedores.
+ */
+export const fetchSupplierProductsFromApi = async (
+    ruc: string,
+    weekStart: Date,
+    weekEnd: Date
+): Promise<ProductApiRecord[]> => {
+    const fechaInicio = formatDateForAPI(weekStart);
+    const fechaFin = formatDateForAPI(weekEnd);
+
+    const appointments = await fetchAppointmentsFromApi(ruc, fechaInicio, fechaFin);
+    const citaIds = Array.from(new Set(
+        appointments
+            .filter((apt) => apt.supplierRUC === ruc && apt.docEntry)
+            .map((apt) => String(apt.docEntry))
+    ));
+    if (citaIds.length === 0) return [];
+
+    const lookupStart = new Date(weekStart);
+    lookupStart.setDate(lookupStart.getDate() - PACKING_LIST_LOOKUP_DAYS);
+    const lookupEnd = new Date(weekEnd);
+    lookupEnd.setDate(lookupEnd.getDate() + PACKING_LIST_LOOKUP_DAYS);
+
+    const packingLists = (await Promise.all(
+        citaIds.map((id) => fetchPackingListFromApi(formatDateForAPI(lookupStart), formatDateForAPI(lookupEnd), id))
+    )).flat();
+
+    const vendorId = `P${ruc}`;
+    const orders = Array.from(new Set(
+        packingLists
+            .filter((pl) => pl.vendor_id === vendorId && pl.number)
+            .map((pl) => pl.number.split('_')[0])
+    ));
+    if (orders.length === 0) return [];
+
+    const productsByOrder = await Promise.all(
+        orders.map((order) => fetchProductsFromApi(fechaInicio, fechaFin, order))
+    );
+    // Por si el API ignorara CardCode: quedarse solo con las OC del proveedor
+    const products = productsByOrder.flat().filter((product) => orders.includes(product.number));
+    // Al unir varias llamadas se pierde el orden del API: fecha ("19/01/2026 00:00:00") y horario ("800 - 1100")
+    const sortKey = (p: ProductApiRecord) => {
+        const [day = '', month = '', year = ''] = (p.u_fecha ?? '').split(' ')[0].split('/');
+        const start = (p.horario ?? '').split(' - ')[0].trim().padStart(4, '0');
+        return `${year}${month.padStart(2, '0')}${day.padStart(2, '0')}${start}`;
+    };
+    return products.sort((a, b) => sortKey(a).localeCompare(sortKey(b)));
 };
 
 /**

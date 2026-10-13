@@ -44,7 +44,7 @@ import { UserRole } from "@/routes/menuTypes";
 import { DeliveryAppointment, PackingListItem } from "@/store/types";
 import { getMaxPackingListQuantity, getPackingListQuantityText, parsePackingListQuantityInput } from "@/utils/packingList";
 import { useNavigate, useLocation } from 'react-router-dom';
-import { fetchPackingListFromApi, createPackingListInApi, fetchWarehousesFromApi, WarehouseApiRecord, fetchDocumentsFromApi, DocumentApiRecord, fetchDocumentDetailFromApi, uploadFileToPackingList, fetchProductsFromApi, ProductApiRecord } from "@/services/agenda/packingListApi";
+import { fetchPackingListFromApi, createPackingListInApi, fetchWarehousesFromApi, WarehouseApiRecord, fetchDocumentsFromApi, DocumentApiRecord, fetchDocumentDetailFromApi, uploadFileToPackingList, fetchProductsFromApi, fetchSupplierProductsFromApi, ProductApiRecord } from "@/services/agenda/packingListApi";
 import { formatDateForAPI } from "@/services/agenda/appointmentsApi";
 
 import { createChoferInApi } from "@/services/agenda/choferesApi";
@@ -137,6 +137,8 @@ const Agenda: React.FC = () => {
         return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     });
     
+    const isSupplier = currentUser?.role === UserRole.PROVEEDOR;
+
     // Estado para datos de lista (productos)
     const [listViewData, setListViewData] = useState<ProductApiRecord[]>([]);
     const [isLoadingListView, setIsLoadingListView] = useState(false);
@@ -361,21 +363,11 @@ const Agenda: React.FC = () => {
                 const fechaInicio = formatDateForAPI(weekStart);
                 const fechaFin = formatDateForAPI(weekEnd);
                 
-                // Llamar al nuevo endpoint de productos
-                const products = await fetchProductsFromApi(fechaInicio, fechaFin);
-                
-                // Debug: Verificar datos PCP
-                console.log('Productos cargados desde API:', products);
-                if (products.length > 0) {
-                    console.log('Primer producto con datos PCP:', {
-                        item_code: products[0].item_code,
-                        pcp_confirmacion: products[0].confirmacion_pcp,
-                        pcp_cobertura_actual: products[0].cobertura_actual,
-                        pcp_cobertura_con_ingresos: products[0].cobertura_ingreso,
-                        pcp_comentario: products[0].comentario
-                    });
-                }
-                
+                // El proveedor solo recibe sus productos: /Productos no filtra por RUC
+                const products = isSupplier
+                    ? (currentUser?.username ? await fetchSupplierProductsFromApi(currentUser.username, weekStart, weekEnd) : [])
+                    : await fetchProductsFromApi(fechaInicio, fechaFin);
+
                 setListViewData(products);
             } catch (error) {
                 console.error('Error al cargar datos de lista:', error);
@@ -387,7 +379,7 @@ const Agenda: React.FC = () => {
         
         loadListViewData();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [viewMode, weekStart, weekEnd]);
+    }, [viewMode, weekStart, weekEnd, isSupplier, currentUser?.username]);
 
     // Filtrar datos según los filtros de búsqueda
     const filteredListViewData = useMemo(() => {
