@@ -689,6 +689,11 @@ export interface ProductApiRecord {
     document?: number;
     // Cantidad de archivos adjuntos (no eliminados) de la cita a la que pertenece el producto
     cantidad_adjuntos?: number | null;
+    // Estado de la cita del producto (mismos valores que AppointmentStatus)
+    status_cita?: string | null;
+    num_parte_ingreso?: string | null;
+    // Si la OC ya tiene factura registrada en SAP; el API lo envía como texto "true"/"false"
+    status_factura?: boolean | string | null;
     // Campos de validación PCP
     confirmacion_pcp?: 'CONFORME' | 'NO_CONFORME' | null;
     cobertura_actual?: number | null;

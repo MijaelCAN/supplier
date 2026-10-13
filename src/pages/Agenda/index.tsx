@@ -49,6 +49,26 @@ import { formatDateForAPI } from "@/services/agenda/appointmentsApi";
 
 import { createChoferInApi } from "@/services/agenda/choferesApi";
 import DocumentsModal from './DocumentsModal';
+import ProductGroupTable from './ProductGroupTable';
+import {
+    escapeHtml,
+    formatCobertura,
+    formatDateFromAPI,
+    formatHorario,
+    formatOrders,
+    formatStatusCita,
+    formatStatusFactura,
+    groupProductsByCita,
+    parseStatusFactura,
+} from './productList';
+
+type FacturaFilter = 'all' | 'sin' | 'con';
+
+const FACTURA_FILTER_OPTIONS: { key: FacturaFilter; label: string }[] = [
+    { key: 'sin', label: 'Sin factura' },
+    { key: 'con', label: 'Con factura' },
+    { key: 'all', label: 'Todas' },
+];
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { STATUS_CONFIG } from '@/services/agenda/appointmentStatus';
@@ -129,6 +149,12 @@ const Agenda: React.FC = () => {
     const [filterRazonSocial, setFilterRazonSocial] = useState<string>('');
     const [filterQuantity, setFilterQuantity] = useState<string>('');
     const [filterHorario, setFilterHorario] = useState<string>('');
+    // Contabilidad trabaja sobre lo pendiente de facturar: por defecto ve solo las citas sin factura
+    const defaultFilterFactura: FacturaFilter = currentUser?.role === UserRole.CONTABILIDAD ? 'sin' : 'all';
+    const [filterFactura, setFilterFactura] = useState<FacturaFilter>(defaultFilterFactura);
+    useEffect(() => {
+        setFilterFactura(defaultFilterFactura);
+    }, [defaultFilterFactura]);
 
     // Modals
     const { isOpen: isScheduleOpen, onOpen: onScheduleOpen, onOpenChange: onScheduleOpenChange } = useDisclosure();
@@ -363,58 +389,6 @@ const Agenda: React.FC = () => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [viewMode, weekStart, weekEnd]);
 
-    // Función para formatear fecha desde formato "19/01/2026 00:00:00" a formato legible
-    const formatDateFromAPI = (dateStr: string): string => {
-        try {
-            // Formato: "19/01/2026 00:00:00"
-            const datePart = dateStr.split(' ')[0]; // "19/01/2026"
-            const [day, month, year] = datePart.split('/');
-            if (day && month && year) {
-                return `${day}/${month}/${year}`;
-            }
-        } catch (error) {
-            console.error('Error al formatear fecha:', error);
-        }
-        return dateStr;
-    };
-
-    // Función para formatear horario desde formato "1100 - 1200" o "800 - 1100" a formato legible "11:00 - 12:00" o "08:00 - 11:00"
-    const formatHorario = (horario: string): string => {
-        try {
-            if (!horario) return '-';
-            // Formato: "1100 - 1200" o "800 - 1100"
-            const parts = horario.split(' - ');
-            if (parts.length === 2) {
-                const formatTime = (time: string) => {
-                    // Limpiar espacios
-                    const cleanTime = time.trim();
-                    // Si tiene 3 caracteres, agregar un cero al inicio (ej: "800" -> "0800")
-                    let paddedTime = cleanTime;
-                    if (cleanTime.length === 3) {
-                        paddedTime = `0${cleanTime}`;
-                    }
-                    // Si tiene 4 caracteres, formatear como HH:MM
-                    if (paddedTime.length === 4) {
-                        return `${paddedTime.substring(0, 2)}:${paddedTime.substring(2, 4)}`;
-                    }
-                    // Si tiene otro formato, devolverlo tal cual
-                    return cleanTime;
-                };
-                return `${formatTime(parts[0])} - ${formatTime(parts[1])}`;
-            }
-        } catch (error) {
-            console.error('Error al formatear horario:', error);
-        }
-        return horario;
-    };
-
-    // Formatea de forma segura la cobertura (a veces la API la envía como string en vez de number)
-    const formatCobertura = (value: number | string | null | undefined): string => {
-        if (value === undefined || value === null || value === '') return '-';
-        const num = typeof value === 'number' ? value : parseFloat(value);
-        return isNaN(num) ? '-' : num.toFixed(2);
-    };
-
     // Filtrar datos según los filtros de búsqueda
     const filteredListViewData = useMemo(() => {
         return listViewData.filter(product => {
@@ -446,9 +420,39 @@ const Agenda: React.FC = () => {
             if (filterHorario && !formatHorario(product.horario).toLowerCase().includes(filterHorario.toLowerCase())) {
                 return false;
             }
+            // Filtrar por Factura SAP (si el API no envía el dato, cuenta como sin factura)
+            if (filterFactura !== 'all') {
+                const hasInvoice = parseStatusFactura(product.status_factura) === true;
+                if (filterFactura === 'sin' ? hasInvoice : !hasInvoice) {
+                    return false;
+                }
+            }
             return true;
         });
-    }, [listViewData, filterFecha, filterNumber, filterItemCode, filterItemName, filterRazonSocial, filterQuantity, filterHorario]);
+    }, [listViewData, filterFecha, filterNumber, filterItemCode, filterItemName, filterRazonSocial, filterQuantity, filterHorario, filterFactura]);
+
+    // Una fila por cita; al desplegarla muestra solo sus productos que pasan los filtros
+    const productGroups = useMemo(() => groupProductsByCita(filteredListViewData), [filteredListViewData]);
+    const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+
+    // Al cambiar de semana se recargan los datos y se pliega todo
+    useEffect(() => {
+        setExpandedGroups(new Set());
+    }, [listViewData]);
+
+    const toggleGroup = (key: string) => {
+        setExpandedGroups((prev) => {
+            const next = new Set(prev);
+            if (next.has(key)) next.delete(key);
+            else next.add(key);
+            return next;
+        });
+    };
+
+    const allGroupsExpanded = productGroups.length > 0 && productGroups.every((group) => expandedGroups.has(group.key));
+    const toggleAllGroups = () => {
+        setExpandedGroups(allGroupsExpanded ? new Set() : new Set(productGroups.map((group) => group.key)));
+    };
 
     // Función para exportar a Excel
     const handleExportToExcel = () => {
@@ -463,6 +467,9 @@ const Agenda: React.FC = () => {
                 'Cantidad': product.quantity,
                 'Horario': formatHorario(product.horario),
                 'Adjuntos': product.cantidad_adjuntos ?? '-',
+                'Estado Cita': formatStatusCita(product.status_cita),
+                'Factura SAP': formatStatusFactura(product.status_factura),
+                'Parte de Ingreso': product.num_parte_ingreso || '-',
                 'Confirmación PCP': product.confirmacion_pcp || '-',
                 'Cobertura Actual (meses)': formatCobertura(product.cobertura_actual),
                 'Cobertura con Ingresos (meses)': formatCobertura(product.cobertura_ingreso),
@@ -485,6 +492,9 @@ const Agenda: React.FC = () => {
                 { wch: 12 }, // Cantidad
                 { wch: 15 }, // Horario
                 { wch: 10 }, // Adjuntos
+                { wch: 24 }, // Estado Cita
+                { wch: 12 }, // Factura SAP
+                { wch: 16 }, // Parte de Ingreso
                 { wch: 18 }, // Confirmación PCP
                 { wch: 22 }, // Cobertura Actual
                 { wch: 28 }, // Cobertura con Ingresos
@@ -588,6 +598,24 @@ const Agenda: React.FC = () => {
                             padding: 6px;
                             font-size: 9pt;
                         }
+                        td.num {
+                            text-align: right;
+                        }
+                        /* Cada cita con sus productos en la misma página, salvo que no quepa */
+                        tbody.group {
+                            page-break-inside: avoid;
+                        }
+                        tr.group-header td {
+                            background-color: #e3ecf7;
+                            border-top: 2px solid #000;
+                            -webkit-print-color-adjust: exact;
+                            print-color-adjust: exact;
+                        }
+                        .group-meta {
+                            display: block;
+                            margin-top: 2px;
+                            font-size: 8.5pt;
+                        }
                         .footer {
                             margin-top: 20px;
                             text-align: center;
@@ -600,43 +628,51 @@ const Agenda: React.FC = () => {
                     <div class="header">
                         <h1>Lista de Productos</h1>
                         <p>Período: ${fechaInicioFormatted} a ${fechaFinFormatted}</p>
-                        <p>Total de registros: ${filteredListViewData.length}</p>
+                        <p>Total: ${productGroups.length} ${productGroups.length === 1 ? 'cita' : 'citas'} · ${filteredListViewData.length} ${filteredListViewData.length === 1 ? 'producto' : 'productos'}</p>
                     </div>
                     <table>
                         <thead>
                             <tr>
-                                <th>Fecha</th>
-                                <th>Número</th>
+                                <th>OC</th>
                                 <th>Código</th>
                                 <th>Descripción</th>
-                                <th>Proveedor</th>
                                 <th>Cantidad</th>
-                                <th>Horario</th>
-                                <th>Adjuntos</th>
                                 <th>Confirmación PCP</th>
                                 <th>Cobertura Actual</th>
                                 <th>Cobertura con Ingresos</th>
                                 <th>Comentario PCP</th>
+                                <th>Parte de Ingreso</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            ${filteredListViewData.map(product => `
-                                <tr>
-                                    <td>${formatDateFromAPI(product.u_fecha)}</td>
-                                    <td>${product.number}</td>
-                                    <td>${product.item_code}</td>
-                                    <td>${product.item_name}</td>
-                                    <td>${product.u_razon_social}</td>
-                                    <td>${product.quantity}</td>
-                                    <td>${formatHorario(product.horario)}</td>
-                                    <td>${product.cantidad_adjuntos ?? '-'}</td>
-                                    <td>${product.confirmacion_pcp || '-'}</td>
-                                    <td>${formatCobertura(product.cobertura_actual) !== '-' ? formatCobertura(product.cobertura_actual) + ' meses' : '-'}</td>
-                                    <td>${formatCobertura(product.cobertura_ingreso) !== '-' ? formatCobertura(product.cobertura_ingreso) + ' meses' : '-'}</td>
-                                    <td>${product.comentario || '-'}</td>
+                        ${productGroups.map(group => `
+                            <tbody class="group">
+                                <tr class="group-header">
+                                    <td colspan="9">
+                                        <strong>${formatDateFromAPI(group.first.u_fecha)} · ${formatHorario(group.first.horario)} · ${escapeHtml(group.first.u_razon_social)}</strong>
+                                        <span class="group-meta">
+                                            OC: ${escapeHtml(formatOrders(group.orders))} ·
+                                            Estado: ${formatStatusCita(group.first.status_cita)} ·
+                                            Productos: ${group.products.length} ·
+                                            Adjuntos: ${group.first.cantidad_adjuntos ?? '-'} ·
+                                            Factura SAP: ${formatStatusFactura(group.first.status_factura)}
+                                        </span>
+                                    </td>
                                 </tr>
-                            `).join('')}
-                        </tbody>
+                                ${group.products.map(product => `
+                                    <tr>
+                                        <td>${escapeHtml(product.number)}</td>
+                                        <td>${escapeHtml(product.item_code)}</td>
+                                        <td>${escapeHtml(product.item_name)}</td>
+                                        <td class="num">${escapeHtml(product.quantity)}</td>
+                                        <td>${product.confirmacion_pcp || '-'}</td>
+                                        <td class="num">${formatCobertura(product.cobertura_actual) !== '-' ? formatCobertura(product.cobertura_actual) + ' meses' : '-'}</td>
+                                        <td class="num">${formatCobertura(product.cobertura_ingreso) !== '-' ? formatCobertura(product.cobertura_ingreso) + ' meses' : '-'}</td>
+                                        <td>${escapeHtml(product.comentario || '-')}</td>
+                                        <td>${escapeHtml(product.num_parte_ingreso || '-')}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        `).join('')}
                     </table>
                     <div class="footer">
                         <p>Generado el ${new Date().toLocaleDateString('es-PE', { 
@@ -2010,8 +2046,17 @@ const Agenda: React.FC = () => {
                                     </Chip>
                                 )}
                                 <Chip color="primary" variant="flat" size="md">
-                                    {filteredListViewData.length} {filteredListViewData.length === 1 ? 'producto' : 'productos'}
+                                    {productGroups.length} {productGroups.length === 1 ? 'cita' : 'citas'} · {filteredListViewData.length} {filteredListViewData.length === 1 ? 'producto' : 'productos'}
                                 </Chip>
+                                <Button
+                                    color="default"
+                                    variant="flat"
+                                    size="sm"
+                                    onPress={toggleAllGroups}
+                                    isDisabled={isLoadingListView || productGroups.length === 0}
+                                >
+                                    {allGroupsExpanded ? 'Contraer todo' : 'Expandir todo'}
+                                </Button>
                                 <Button
                                     color="default"
                                     variant="flat"
@@ -2040,7 +2085,7 @@ const Agenda: React.FC = () => {
                             <CardBody className="p-4 rounded-none flex-1 flex flex-col" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
                                 {/* Filtros de búsqueda fuera de la tabla */}
                                 <div className="flex-shrink-0 mb-4">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-4">
                                         <Input
                                             size="sm"
                                             label="Fecha"
@@ -2097,6 +2142,21 @@ const Agenda: React.FC = () => {
                                             onValueChange={setFilterHorario}
                                             classNames={{ base: "w-full" }}
                                         />
+                                        <Select
+                                            size="sm"
+                                            label="Factura SAP"
+                                            selectedKeys={[filterFactura]}
+                                            disallowEmptySelection
+                                            onSelectionChange={(keys) => {
+                                                const key = Array.from(keys)[0] as FacturaFilter | undefined;
+                                                if (key) setFilterFactura(key);
+                                            }}
+                                            classNames={{ base: "w-full" }}
+                                        >
+                                            {FACTURA_FILTER_OPTIONS.map((option) => (
+                                                <SelectItem key={option.key}>{option.label}</SelectItem>
+                                            ))}
+                                        </Select>
                                     </div>
                                 </div>
 
@@ -2107,92 +2167,20 @@ const Agenda: React.FC = () => {
                                 </div>
                                 ) : filteredListViewData.length === 0 ? (
                                     <div className="p-8 text-center rounded-none flex-1 flex items-center justify-center">
-                                    <p className="text-gray-500">No hay datos para mostrar</p>
+                                    <p className="text-gray-500">
+                                        {filterFactura === 'sin' && listViewData.length > 0
+                                            ? 'No hay citas sin factura en esta semana. Cambie el filtro "Factura SAP" a "Todas" para verlas.'
+                                            : 'No hay datos para mostrar'}
+                                    </p>
                                 </div>
                             ) : (
-                                <div className="overflow-auto flex-1">
-                                        <Table aria-label="Tabla de productos" classNames={{
-                                            wrapper: "min-h-[222px]",
-                                        }}>
-                                        <TableHeader>
-                                                <TableColumn className="w-[100px] min-w-[100px]">FECHA</TableColumn>
-                                                <TableColumn className="w-[120px] min-w-[120px]">NÚMERO</TableColumn>
-                                                <TableColumn className="w-[120px] min-w-[120px]">CÓDIGO</TableColumn>
-                                                <TableColumn>DESCRIPCIÓN</TableColumn>
-                                            <TableColumn>PROVEEDOR</TableColumn>
-                                                <TableColumn className="w-[100px] min-w-[100px]">CANTIDAD</TableColumn>
-                                                <TableColumn className="w-[120px] min-w-[120px]">HORARIO</TableColumn>
-                                                <TableColumn className="w-[100px] min-w-[100px]">ADJUNTOS</TableColumn>
-                                                <TableColumn className="w-[120px] min-w-[120px]">CONFIRMACIÓN PCP</TableColumn>
-                                                <TableColumn className="w-[120px] min-w-[120px]">COBERTURA ACTUAL</TableColumn>
-                                                <TableColumn className="w-[150px] min-w-[150px]">COBERTURA CON INGRESOS</TableColumn>
-                                                <TableColumn>COMENTARIO PCP</TableColumn>
-                                        </TableHeader>
-                                        <TableBody>
-                                                {filteredListViewData.map((row, index) => (
-                                                <TableRow 
-                                                        key={`${row.number}-${row.item_code}-${index}`}
-                                                        className="hover:bg-gray-50 cursor-pointer"
-                                                        onClick={() => handleProductRowClick(row)}
-                                                    >
-                                                        <TableCell className="whitespace-nowrap">
-                                                            {formatDateFromAPI(row.u_fecha)}
-                                                        </TableCell>
-                                                        <TableCell className="whitespace-nowrap">{row.number}</TableCell>
-                                                        <TableCell className="whitespace-nowrap">{row.item_code}</TableCell>
-                                                    <TableCell>
-                                                            <div className="truncate max-w-full" title={row.item_name}>
-                                                                {row.item_name}
-                                                            </div>
-                                                    </TableCell>
-                                                    <TableCell>
-                                                            <div className="truncate max-w-full" title={row.u_razon_social}>
-                                                                {row.u_razon_social}
-                                                        </div>
-                                                    </TableCell>
-                                                        <TableCell className="whitespace-nowrap">{row.quantity}</TableCell>
-                                                        <TableCell className="whitespace-nowrap">{formatHorario(row.horario)}</TableCell>
-                                                        <TableCell className="whitespace-nowrap">{row.cantidad_adjuntos ?? '-'}</TableCell>
-                                                        <TableCell>
-                                                            {row.confirmacion_pcp ? (
-                                                                <Chip 
-                                                                    size="sm" 
-                                                                    color={row.confirmacion_pcp === 'CONFORME' ? 'success' : 'danger'}
-                                                                    variant="flat"
-                                                                >
-                                                                    {row.confirmacion_pcp}
-                                                                </Chip>
-                                                            ) : (
-                                                                <span className="text-gray-400 text-sm">-</span>
-                                                            )}
-                                                        </TableCell>
-                                                        <TableCell className="text-right whitespace-nowrap">
-                                                            {row.cobertura_actual !== undefined && row.cobertura_actual !== null ? (
-                                                                <span className="text-sm font-medium">{row.cobertura_actual}</span>
-                                                            ) : (
-                                                                <span className="text-gray-400 text-sm">-</span>
-                                                            )}
-                                                        </TableCell>
-                                                        <TableCell className="text-right whitespace-nowrap">
-                                                            {row.cobertura_ingreso !== undefined && row.cobertura_ingreso !== null ? (
-                                                                <span className="text-sm font-medium">{row.cobertura_ingreso}</span>
-                                                            ) : (
-                                                                <span className="text-gray-400 text-sm">-</span>
-                                                            )}
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            {row.comentario ? (
-                                                                <div className="truncate max-w-[200px]" title={row.comentario}>
-                                                                    <span className="text-sm">{row.comentario}</span>
-                                                                </div>
-                                                            ) : (
-                                                                <span className="text-gray-400 text-sm">-</span>
-                                                            )}
-                                                        </TableCell>
-                                                </TableRow>
-                                            ))}
-                                        </TableBody>
-                                    </Table>
+                                <div className="flex-1 min-h-0">
+                                    <ProductGroupTable
+                                        groups={productGroups}
+                                        expandedKeys={expandedGroups}
+                                        onToggle={toggleGroup}
+                                        onViewAppointment={handleProductRowClick}
+                                    />
                                 </div>
                             )}
                         </CardBody>
