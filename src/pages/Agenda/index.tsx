@@ -48,7 +48,8 @@ import { fetchPackingListFromApi, createPackingListInApi, fetchWarehousesFromApi
 import { formatDateForAPI } from "@/services/agenda/appointmentsApi";
 
 import { createChoferInApi } from "@/services/agenda/choferesApi";
-import DocumentsModal from './DocumentsModal';
+import DocumentsModal, { LoadedDocument } from './DocumentsModal';
+import { isXmlFile, readInvoiceXmlFile, validateInvoiceInSunat } from '@/services/agenda/sunatInvoiceApi';
 import ProductGroupTable from './ProductGroupTable';
 import {
     escapeHtml,
@@ -66,8 +67,8 @@ import {
 type FacturaFilter = 'all' | 'sin' | 'con';
 
 const FACTURA_FILTER_OPTIONS: { key: FacturaFilter; label: string }[] = [
-    { key: 'sin', label: 'Sin factura' },
-    { key: 'con', label: 'Con factura' },
+    { key: 'sin', label: 'Sin asiento' },
+    { key: 'con', label: 'Con asiento' },
     { key: 'all', label: 'Todas' },
 ];
 import * as XLSX from 'xlsx';
@@ -139,6 +140,17 @@ const Agenda: React.FC = () => {
     });
     
     const isSupplier = currentUser?.role === UserRole.PROVEEDOR;
+
+    // Documentos ya subidos de la cita: el modal los necesita para saber si ya está el XML/PDF de la factura
+    const selectedAppointmentDocuments = useMemo<LoadedDocument[]>(
+        () => (selectedAppointment?.rawDocuments ?? []).map((doc) => ({
+            name: doc.u_name_file,
+            url: doc.u_link_documento,
+            type: doc.u_name_file.split('.').pop()?.toLowerCase() || 'unknown',
+            docEntry: doc.document_doc_entry,
+        })),
+        [selectedAppointment?.rawDocuments]
+    );
 
     // Estado para datos de lista (productos)
     const [listViewData, setListViewData] = useState<ProductApiRecord[]>([]);
@@ -457,7 +469,7 @@ const Agenda: React.FC = () => {
             // Preparar los datos para exportar
             const dataToExport = filteredListViewData.map(product => ({
                 'Fecha': formatDateFromAPI(product.u_fecha),
-                'Número': product.number,
+                'Número OC': product.number,
                 'Código': product.item_code,
                 'Descripción': product.item_name,
                 'Proveedor': product.u_razon_social,
@@ -465,7 +477,7 @@ const Agenda: React.FC = () => {
                 'Horario': formatHorario(product.horario),
                 'Adjuntos': product.cantidad_adjuntos ?? '-',
                 'Estado Cita': formatStatusCita(product.status_cita),
-                'Factura SAP': formatStatusFactura(product.status_factura),
+                'Status SAP': formatStatusFactura(product.status_factura),
                 'Parte de Ingreso': product.num_parte_ingreso || '-',
                 'Confirmación PCP': product.confirmacion_pcp || '-',
                 'Cobertura Actual (meses)': formatCobertura(product.cobertura_actual),
@@ -490,7 +502,7 @@ const Agenda: React.FC = () => {
                 { wch: 15 }, // Horario
                 { wch: 10 }, // Adjuntos
                 { wch: 24 }, // Estado Cita
-                { wch: 12 }, // Factura SAP
+                { wch: 12 }, // Status SAP
                 { wch: 16 }, // Parte de Ingreso
                 { wch: 18 }, // Confirmación PCP
                 { wch: 22 }, // Cobertura Actual
@@ -639,7 +651,7 @@ const Agenda: React.FC = () => {
                                 <th>Cobertura con Ingresos</th>
                                 <th>Comentario PCP</th>
                                 <th>Parte de Ingreso</th>
-                                <th>Factura SAP</th>
+                                <th>Status SAP</th>
                             </tr>
                         </thead>
                         ${productGroups.map(group => `
@@ -652,7 +664,7 @@ const Agenda: React.FC = () => {
                                             Estado: ${formatStatusCita(group.first.status_cita)} ·
                                             Productos: ${group.products.length} ·
                                             Adjuntos: ${group.first.cantidad_adjuntos ?? '-'} ·
-                                            Factura SAP: ${formatInvoiceSummary(group.invoice)}
+                                            Status SAP: ${formatInvoiceSummary(group.invoice)}
                                         </span>
                                     </td>
                                 </tr>
@@ -1776,11 +1788,21 @@ const Agenda: React.FC = () => {
 
         // El tipo de documento ahora es dinámico, puede ser cualquier string
         const documentType = type;
-        
+
+        // El XML de la factura se lee antes de subirlo: si no es una factura válida del proveedor, no se sube
+        const invoiceXml = type === 'invoice' && isXmlFile(file.name)
+            ? await readInvoiceXmlFile(file, selectedAppointment.supplierRUC)
+            : null;
+
         try {
             // Subir archivo al API
             const uploadResult = await uploadFileToPackingList(file, type, selectedAppointment.docEntry);
-            
+            if (invoiceXml) {
+                // Sin await: el resultado queda en Firestore y se ve como chip en el detalle de la cita
+                validateInvoiceInSunat(selectedAppointment.docEntry, uploadResult.name_file, invoiceXml)
+                    .catch((error) => console.error('Error al validar factura en SUNAT:', error));
+            }
+
             // Guardar en el estado local también
             const document: any = {
                 id: `doc-${Date.now()}`,
@@ -2143,7 +2165,7 @@ const Agenda: React.FC = () => {
                                         />
                                         <Select
                                             size="sm"
-                                            label="Factura SAP"
+                                            label="Registro SAP"
                                             selectedKeys={[filterFactura]}
                                             disallowEmptySelection
                                             onSelectionChange={(keys) => {
@@ -2168,7 +2190,7 @@ const Agenda: React.FC = () => {
                                     <div className="p-8 text-center rounded-none flex-1 flex items-center justify-center">
                                     <p className="text-gray-500">
                                         {filterFactura === 'sin' && listViewData.length > 0
-                                            ? 'No hay citas sin factura en esta semana. Cambie el filtro "Factura SAP" a "Todas" para verlas.'
+                                            ? 'No hay citas sin asiento en esta semana. Cambie el filtro "Registro SAP" a "Todas" para verlas.'
                                             : 'No hay datos para mostrar'}
                                     </p>
                                 </div>
@@ -3205,6 +3227,8 @@ const Agenda: React.FC = () => {
                     onOpenChange={onDocumentsOpenChange}
                     selectedAppointment={selectedAppointment}
                     handleUploadDocument={handleUploadDocument}
+                    loadedDocuments={selectedAppointmentDocuments}
+                    enforceInvoiceOrder={isSupplier}
                 />
 
                 {/* Extended View Modal - Vista ampliada de citas */}

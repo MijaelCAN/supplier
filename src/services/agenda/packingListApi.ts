@@ -822,6 +822,29 @@ export const fetchSupplierProductsFromApi = async (
 };
 
 /**
+ * N.º de Parte de Ingreso de una cita (uno por cada packing list que ya lo tenga).
+ * /PackinList no lo trae: se consulta /Productos por cada OC de la cita en su fecha y se
+ * queda con las líneas de sus packing lists (o de sus OC si el API no envía packing_list_number).
+ */
+export const fetchAppointmentParteIngreso = async (
+    deliveryDate: string, // "YYYY-MM-DD"
+    packingLists: PackingListApiRecord[]
+): Promise<string[]> => {
+    const packingListNumbers = new Set(packingLists.map((pl) => pl.number).filter(Boolean));
+    const orders = Array.from(new Set(Array.from(packingListNumbers, (number) => number.split('_')[0])));
+    if (orders.length === 0) return [];
+
+    const fecha = formatDateForAPI(deliveryDate.split('T')[0]);
+    const products = (await Promise.all(orders.map((order) => fetchProductsFromApi(fecha, fecha, order)))).flat();
+
+    const numbers = products
+        .filter((p) => p.packing_list_number ? packingListNumbers.has(p.packing_list_number) : orders.includes(p.number))
+        .map((p) => p.num_parte_ingreso?.trim())
+        .filter((n): n is string => !!n);
+    return Array.from(new Set(numbers));
+};
+
+/**
  * INTERFAZ PARA EL DETALLE DE VALIDACIÓN PCP
  */
 export interface ValidacionPCPDetalle {

@@ -14,7 +14,17 @@ export interface CommercialDocumentType {
     description: string; // Descripción de formatos aceptados
     prefix: string; // Prefijo para el nombre del archivo (ej: 'FAC', 'OC', 'GR')
     keywords: string[]; // Palabras clave para identificar el documento en archivos cargados
+    // El tipo no está completo sin un archivo que cumpla esto (ej: el XML de la factura); requiredLabel es lo que falta
+    isRequiredFile?: (fileName: string) => boolean;
+    requiredLabel?: string;
 }
+
+/** CDR de SUNAT: "R-<ruc>-01-F001-123.xml", guardado como "FAC_R-..." */
+export const isCdrFileName = (fileName: string): boolean => /^(FAC_)?R-/i.test(fileName);
+
+/** XML de la factura (no el CDR, que también es XML) */
+export const isInvoiceXmlFileName = (fileName: string): boolean =>
+    /\.xml$/i.test(fileName) && !isCdrFileName(fileName);
 
 /**
  * Lista de tipos de documentos comerciales
@@ -26,9 +36,11 @@ export const COMMERCIAL_DOCUMENT_TYPES: CommercialDocumentType[] = [
         label: 'Factura',
         accept: '.pdf,.xml,.cdr,.jpg,.jpeg,.png',
         icon: <DocumentTextIcon className="w-5 h-5" />,
-        description: 'PDF, XML, CDR, JPG, PNG',
+        description: 'XML obligatorio (se valida en SUNAT) + PDF, CDR, JPG, PNG',
         prefix: 'FAC',
-        keywords: ['fac', 'factura', 'invoice', 'fact']
+        keywords: ['fac', 'factura', 'invoice', 'fact'],
+        isRequiredFile: isInvoiceXmlFileName,
+        requiredLabel: 'XML'
     },
     {
         key: 'purchaseOrder',
@@ -141,6 +153,24 @@ export const mapFileNameToDocumentType = (fileName: string): string | null => {
     }
     
     return null;
+};
+
+/** ¿El archivo cumple lo obligatorio de su tipo? (los tipos sin isRequiredFile aceptan cualquiera) */
+export const meetsRequiredFile = (typeKey: string, fileName: string): boolean => {
+    const isRequiredFile = getDocumentTypeByKey(typeKey)?.isRequiredFile;
+    return !isRequiredFile || isRequiredFile(fileName);
+};
+
+/**
+ * Tipos que ya tienen al menos un archivo válido. La factura solo cuenta si se cargó su XML.
+ */
+export const getCompletedDocumentTypeKeysFromNames = (fileNames: string[]): Set<string> => {
+    const keys = new Set<string>();
+    fileNames.forEach((name) => {
+        const typeKey = mapFileNameToDocumentType(name);
+        if (typeKey && meetsRequiredFile(typeKey, name)) keys.add(typeKey);
+    });
+    return keys;
 };
 
 /**

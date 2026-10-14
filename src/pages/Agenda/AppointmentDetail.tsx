@@ -1,5 +1,5 @@
 // src/pages/Agenda/AppointmentDetail.tsx
-import React, {useEffect, useMemo, useRef, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {useLocation, useNavigate, useParams} from 'react-router-dom';
 import {
     Avatar,
@@ -53,6 +53,7 @@ import {
     DocumentApiRecord,
     PACKING_LIST_DELETABLE_STATUSES,
     fetchDocumentDetailFromApi,
+    fetchAppointmentParteIngreso,
     fetchDocumentsFromApi,
     fetchPackingListFromApi,
     fetchWarehousesFromApi,
@@ -71,10 +72,21 @@ import {CLAIMS_API_ENABLED, fetchClaimByCita} from "@/services/agenda/claimsApi"
 import {getMaxPackingListQuantity, getPackingListQuantityText, parsePackingListQuantityInput} from "@/utils/packingList";
 import DeletePackingListModal from './DeletePackingListModal';
 import type { ProductEvaluationResult } from './EvaluationModal';
-import DocumentGroupTabs from './DocumentGroupTabs';
+import DocumentGroupTabs, {DocumentGroup} from './DocumentGroupTabs';
 import DocumentsModal, {LoadedDocument} from './DocumentsModal';
 import DeleteDocumentModal from './DeleteDocumentModal';
-import { COMMERCIAL_DOCUMENT_TYPES, mapFileNameToDocumentType } from '@/config/commercialDocuments';
+import { COMMERCIAL_DOCUMENT_TYPES, getCompletedDocumentTypeKeysFromNames, isInvoiceXmlFileName, mapFileNameToDocumentType } from '@/config/commercialDocuments';
+import {
+    fetchInvoiceValidations,
+    fetchUploadedXml,
+    InvoiceXmlData,
+    isXmlFile,
+    parseInvoiceXml,
+    readInvoiceXmlFile,
+    SunatInvoiceValidation,
+    validateInvoiceInSunat,
+} from '@/services/agenda/sunatInvoiceApi';
+import SunatStatusChip from './SunatStatusChip';
 import EvaluationModal from './EvaluationModal';
 import ClaimModal from './ClaimModal';
 import ClaimDetailModal from '@/pages/Reclamos/ClaimDetailModal';
@@ -271,15 +283,9 @@ const AppointmentDetail: React.FC = () => {
     
     // Obtiene los tipos de documento (keys) que ya tienen al menos un archivo cargado.
     // Se basa en cobertura por tipo (no en cantidad total) para soportar múltiples
-    // archivos del mismo tipo sin dar falsos positivos de "completo".
-    const getCompletedDocumentTypeKeys = (docs: AppointmentDocument[]): Set<string> => {
-        const keys = new Set<string>();
-        docs.forEach((doc) => {
-            const typeKey = mapFileNameToDocumentType(doc.u_name_file);
-            if (typeKey) keys.add(typeKey);
-        });
-        return keys;
-    };
+    // archivos del mismo tipo sin dar falsos positivos de "completo". La factura exige su XML.
+    const getCompletedDocumentTypeKeys = (docs: AppointmentDocument[]): Set<string> =>
+        getCompletedDocumentTypeKeysFromNames(docs.map((doc) => doc.u_name_file));
 
     // Verificar si todos los documentos requeridos están completos
     const areAllDocumentsComplete = (): boolean => {
@@ -416,6 +422,64 @@ const AppointmentDetail: React.FC = () => {
             setPackingListsFromApi([]);
         }
     }, [appointment?.docEntry]);
+
+    // N.º de Parte de Ingreso de la cita (por ahora solo el número; el documento vendrá después)
+    const [parteIngresoNumbers, setParteIngresoNumbers] = useState<string[]>([]);
+    useEffect(() => {
+        if (!appointment?.deliveryDate || packingListsFromApi.length === 0) {
+            setParteIngresoNumbers([]);
+            return;
+        }
+        let cancelled = false;
+        fetchAppointmentParteIngreso(appointment.deliveryDate, packingListsFromApi)
+            .then((numbers) => { if (!cancelled) setParteIngresoNumbers(numbers); })
+            .catch((error) => {
+                console.error('Error al cargar Parte de Ingreso:', error);
+                if (!cancelled) setParteIngresoNumbers([]);
+            });
+        return () => { cancelled = true; };
+    }, [appointment?.deliveryDate, packingListsFromApi]);
+
+    // Estado SUNAT de las facturas de la cita (Firestore, lo escribe la Cloud Function validarFacturaSunat)
+    const [invoiceValidations, setInvoiceValidations] = useState<SunatInvoiceValidation[]>([]);
+    const [validatingFiles, setValidatingFiles] = useState<Set<string>>(new Set());
+    const loadInvoiceValidations = useCallback(async (codCita: string) => {
+        try {
+            setInvoiceValidations(await fetchInvoiceValidations(codCita));
+        } catch (error) {
+            console.error('Error al cargar validaciones SUNAT:', error);
+        }
+    }, []);
+    useEffect(() => {
+        if (appointment?.docEntry) loadInvoiceValidations(appointment.docEntry);
+        else setInvoiceValidations([]);
+    }, [appointment?.docEntry, loadInvoiceValidations]);
+
+    // Consulta SUNAT y guarda el resultado; un fallo no debe romper la carga del archivo
+    const runInvoiceValidation = async (archivo: string, getData: () => Promise<InvoiceXmlData>) => {
+        if (!appointment?.docEntry) return;
+        setValidatingFiles((prev) => new Set(prev).add(archivo));
+        try {
+            const validation = await validateInvoiceInSunat(appointment.docEntry, archivo, await getData());
+            setInvoiceValidations((prev) => [...prev.filter((v) => v.id !== validation.id), validation]);
+        } catch (error) {
+            console.error('Error al validar factura en SUNAT:', error);
+            alert(`No se pudo validar la factura en SUNAT: ${error instanceof Error ? error.message : 'error desconocido'}`);
+        } finally {
+            setValidatingFiles((prev) => {
+                const next = new Set(prev);
+                next.delete(archivo);
+                return next;
+            });
+        }
+    };
+
+    // Revalidar: con los datos ya guardados, o leyendo el XML subido si nunca se validó
+    const handleRevalidateInvoice = (archivo: string, url: string, validation?: SunatInvoiceValidation) =>
+        runInvoiceValidation(archivo, async () => {
+            if (validation) return validation;
+            return parseInvoiceXml(await fetchUploadedXml(url));
+        });
 
     // Cargar validaciones PCP cuando se abre el modal de detalle del PackingList
     useEffect(() => {
@@ -1120,10 +1184,19 @@ const AppointmentDetail: React.FC = () => {
             throw new Error('La cita no tiene código (DocEntry). No se puede subir el archivo.');
         }
 
+        // El XML de la factura se lee antes de subirlo: si no es una factura válida del proveedor, no se sube
+        const invoiceXml = type === 'invoice' && isXmlFile(file.name)
+            ? await readInvoiceXmlFile(file, appointment.supplierRUC)
+            : null;
+
         try {
             // Subir archivo al API
-            await uploadFileToPackingList(file, type, appointment.docEntry);
-            
+            const uploaded = await uploadFileToPackingList(file, type, appointment.docEntry);
+            if (invoiceXml) {
+                // Sin await: la validación no debe demorar ni hacer fallar la carga
+                runInvoiceValidation(uploaded.name_file, async () => invoiceXml);
+            }
+
             // Recargar documentos del appointment
             const apiAppointments = await fetchAppointmentsFromApi();
             const foundApiAppointment = apiAppointments.find(
@@ -1996,12 +2069,45 @@ const AppointmentDetail: React.FC = () => {
                                                 docs: allDocuments.filter((doc) => !mapFileNameToDocumentType(doc.name)),
                                             },
                                         ].filter((group) => group.docs.length > 0 || (showMissingTypes && group.key !== 'other'));
+                                        // Parte de Ingreso va justo después de Factura (o primero si no hay pestaña de Factura)
+                                        const invoiceIndex = documentGroups.findIndex((group) => group.key === 'invoice');
+                                        const groupsWithParteIngreso: DocumentGroup[] = [...documentGroups];
+                                        groupsWithParteIngreso.splice(invoiceIndex + 1, 0, {
+                                            key: 'parteIngreso',
+                                            label: 'Parte de Ingreso',
+                                            docs: [],
+                                            numbers: parteIngresoNumbers,
+                                            emptyMessage: 'Aún no se ha generado el Parte de Ingreso',
+                                        });
 
                                         return allDocuments.length > 0 ? (
                                             <DocumentGroupTabs
-                                                groups={documentGroups}
+                                                groups={groupsWithParteIngreso}
                                                 onDocumentClick={handleDocumentClick}
                                                 onDeleteDocument={canDeleteDocuments ? setDocumentToDelete : undefined}
+                                                renderDocumentBadge={(doc, group) => {
+                                                    if (group.key !== 'invoice') return null;
+                                                    // Solo las validaciones de XML que siguen cargados (un XML eliminado deja su registro en Firestore)
+                                                    const validations = invoiceValidations.filter((v) => group.docs.some((d) => d.name === v.archivo));
+                                                    if (isInvoiceXmlFileName(doc.name)) {
+                                                        const validation = validations.find((v) => v.archivo === doc.name);
+                                                        return (
+                                                            <SunatStatusChip
+                                                                validation={validation}
+                                                                isValidating={validatingFiles.has(doc.name)}
+                                                                onRevalidate={() => handleRevalidateInvoice(doc.name, doc.url, validation)}
+                                                            />
+                                                        );
+                                                    }
+                                                    if (!group.docs.some((d) => isInvoiceXmlFileName(d.name))) {
+                                                        return <Chip size="sm" variant="flat" color="warning">Falta XML</Chip>;
+                                                    }
+                                                    // PDF, CDR u otro formato: el estado de su factura (si hay una sola, o si el nombre trae serie y número)
+                                                    const validation = validations.length === 1
+                                                        ? validations[0]
+                                                        : validations.find((v) => doc.name.toUpperCase().includes(v.numeroSerie) && doc.name.includes(v.numero));
+                                                    return validation ? <SunatStatusChip validation={validation} /> : null;
+                                                }}
                                             />
                                         ) : (
                                             <div className="grid grid-cols-2 gap-3">
@@ -2688,6 +2794,7 @@ const AppointmentDetail: React.FC = () => {
                     handleUploadDocument={handleUploadDocument}
                     loadedDocuments={getAllDocuments()}
                     onDeleteDocument={canDeleteDocuments ? setDocumentToDelete : undefined}
+                    enforceInvoiceOrder={isProvider}
                 />
 
                 {/* Confirmación para eliminar documento (OBS-005) */}

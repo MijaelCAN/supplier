@@ -9,12 +9,15 @@ import {
     Progress,
     Chip,
 } from '@heroui/react';
-import { CheckCircleIcon, ClockIcon, XMarkIcon, ArrowUpTrayIcon as UploadIcon } from '@heroicons/react/24/outline';
+import { CheckCircleIcon, ClockIcon, LockClosedIcon, XMarkIcon, ArrowUpTrayIcon as UploadIcon } from '@heroicons/react/24/outline';
 import {
     COMMERCIAL_DOCUMENT_TYPES,
     CommercialDocumentType,
-    mapFileNameToDocumentType
+    isInvoiceXmlFileName,
+    mapFileNameToDocumentType,
+    meetsRequiredFile
 } from "@/config/commercialDocuments";
+import { isCdrXml, isXmlFile } from "@/services/agenda/sunatInvoiceApi";
 
 interface DocumentFile {
     id: string;
@@ -41,7 +44,14 @@ interface DocumentsModalProps {
     loadedDocuments?: LoadedDocument[];
     /** Si se pasa, los documentos ya cargados muestran la opción de eliminar (OBS-005) */
     onDeleteDocument?: (doc: LoadedDocument) => void;
+    /**
+     * Proveedor: orden obligatorio. 1) XML de la factura, 2) PDF de la factura, 3) el resto de documentos.
+     * Hasta cumplir cada paso no se puede cargar lo siguiente.
+     */
+    enforceInvoiceOrder?: boolean;
 }
+
+const INVOICE_TYPE = 'invoice';
 
 const generateEntryId = (type: string): string =>
     `${type}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -53,6 +63,7 @@ const DocumentsModal: React.FC<DocumentsModalProps> = ({
     handleUploadDocument,
     loadedDocuments = [],
     onDeleteDocument,
+    enforceInvoiceOrder = false,
 }) => {
     // Estado para tipos de documentos (puede venir de API en el futuro)
     const [documentTypes ] = useState<CommercialDocumentType[]>(COMMERCIAL_DOCUMENT_TYPES);
@@ -104,8 +115,44 @@ const DocumentsModal: React.FC<DocumentsModalProps> = ({
         }
     }, [isOpen, loadedDocuments, documentTypes]);
 
+    // Orden de carga del proveedor: se mira lo ya subido de la factura (nombre original o el guardado)
+    const invoiceFileNames = (documents[INVOICE_TYPE] || [])
+        .filter((entry) => entry.uploaded)
+        .map((entry) => entry.file?.name ?? entry.loadedName ?? '');
+    const hasInvoiceXml = invoiceFileNames.some(isInvoiceXmlFileName);
+    const hasInvoicePdf = invoiceFileNames.some((name) => /\.pdf$/i.test(name));
+
+    /** Por qué no se puede cargar todavía este tipo (null = se puede) */
+    const getLockReason = (type: string): string | null => {
+        if (!enforceInvoiceOrder) return null;
+        if (type === INVOICE_TYPE) return null;
+        if (!hasInvoiceXml) return 'Primero sube el XML de la factura.';
+        if (!hasInvoicePdf) return 'Primero sube el PDF de la factura.';
+        return null;
+    };
+
+    /** Mientras falte el XML, la factura solo acepta .xml */
+    const getAccept = (docType: CommercialDocumentType): string =>
+        enforceInvoiceOrder && docType.key === INVOICE_TYPE && !hasInvoiceXml ? '.xml' : docType.accept;
+
     const handleFileSelect = async (type: string, file: File) => {
         if (!selectedAppointment) return;
+
+        if (enforceInvoiceOrder) {
+            const lockReason = getLockReason(type);
+            if (lockReason) {
+                alert(lockReason);
+                return;
+            }
+            // Primer archivo de la factura: debe ser su XML (ni el PDF ni el CDR, que también es XML)
+            if (type === INVOICE_TYPE && !hasInvoiceXml) {
+                const isInvoiceXml = isXmlFile(file.name) && !isCdrXml(await file.text().catch(() => ''));
+                if (!isInvoiceXml) {
+                    alert('El primer archivo de la factura debe ser su XML (no el PDF ni el CDR).');
+                    return;
+                }
+            }
+        }
 
         const entryId = generateEntryId(type);
         const newEntry: DocumentFile = { id: entryId, file, uploaded: false, progress: 0 };
@@ -132,6 +179,7 @@ const DocumentsModal: React.FC<DocumentsModalProps> = ({
                 ),
             }));
         } catch (error) {
+            alert(error instanceof Error ? error.message : 'No se pudo subir el archivo');
             // Si falla la subida, se descarta solo esta entrada (no afecta a los demás archivos del tipo)
             setDocuments((prev) => ({
                 ...prev,
@@ -196,12 +244,28 @@ const DocumentsModal: React.FC<DocumentsModalProps> = ({
                             <div className="space-y-4">
                                 {documentTypes.map((docType) => {
                                     const entries = documents[docType.key] || [];
-                                    const hasUploaded = entries.some((entry) => entry.uploaded);
+                                    const uploadedEntries = entries.filter((entry) => entry.uploaded);
+                                    // La factura no queda cargada sin su XML (isRequiredFile)
+                                    const hasUploaded = uploadedEntries.some((entry) =>
+                                        meetsRequiredFile(docType.key, entry.file?.name ?? entry.loadedName ?? '')
+                                    );
+                                    const missingRequired = !hasUploaded && uploadedEntries.length > 0 && !!docType.isRequiredFile;
+                                    const lockReason = getLockReason(docType.key);
+                                    // Proveedor: qué toca subir en la factura
+                                    const invoiceStep = enforceInvoiceOrder && docType.key === INVOICE_TYPE
+                                        ? !hasInvoiceXml ? 'Paso 1: subir el XML de la factura'
+                                            : !hasInvoicePdf ? 'Paso 2: subir el PDF de la factura'
+                                            : null
+                                        : null;
 
                                     return (
                                         <div
                                             key={docType.key}
-                                            className="relative rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-700 p-4 transition-all hover:border-blue-400 dark:hover:border-blue-600"
+                                            className={`relative rounded-lg border-2 border-dashed p-4 transition-all ${
+                                                lockReason
+                                                    ? 'border-gray-200 dark:border-gray-800 opacity-60'
+                                                    : 'border-gray-300 dark:border-gray-700 hover:border-blue-400 dark:hover:border-blue-600'
+                                            }`}
                                         >
                                             <div className="flex items-start gap-3">
                                                 <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400">
@@ -232,7 +296,7 @@ const DocumentsModal: React.FC<DocumentsModalProps> = ({
                                                                     <ClockIcon className="w-3 h-3" />
                                                                 }
                                                             >
-                                                                Pendiente
+                                                                {missingRequired ? `Falta ${docType.requiredLabel}` : 'Pendiente'}
                                                             </Chip>
                                                         )}
                                                     </div>
@@ -298,26 +362,33 @@ const DocumentsModal: React.FC<DocumentsModalProps> = ({
                                                         </div>
                                                     )}
 
-                                                    <label className="cursor-pointer inline-block">
-                                                        <input
-                                                            type="file"
-                                                            accept={docType.accept}
-                                                            onChange={(e) => {
-                                                                const file = e.target.files?.[0];
-                                                                if (file) {
-                                                                    handleFileSelect(docType.key, file);
-                                                                }
-                                                                e.target.value = '';
-                                                            }}
-                                                            className="hidden"
-                                                        />
-                                                        <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300">
-                                                            <UploadIcon className="w-4 h-4" />
-                                                            <span className="text-sm font-medium">
-                                                                {entries.length === 0 ? 'Seleccionar archivo' : 'Agregar otro archivo'}
-                                                            </span>
+                                                    {lockReason ? (
+                                                        <div className="flex items-center gap-2 text-gray-400">
+                                                            <LockClosedIcon className="w-4 h-4" />
+                                                            <span className="text-sm">{lockReason}</span>
                                                         </div>
-                                                    </label>
+                                                    ) : (
+                                                        <label className="cursor-pointer inline-block">
+                                                            <input
+                                                                type="file"
+                                                                accept={getAccept(docType)}
+                                                                onChange={(e) => {
+                                                                    const file = e.target.files?.[0];
+                                                                    if (file) {
+                                                                        handleFileSelect(docType.key, file);
+                                                                    }
+                                                                    e.target.value = '';
+                                                                }}
+                                                                className="hidden"
+                                                            />
+                                                            <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300">
+                                                                <UploadIcon className="w-4 h-4" />
+                                                                <span className="text-sm font-medium">
+                                                                    {invoiceStep ?? (entries.length === 0 ? 'Seleccionar archivo' : 'Agregar otro archivo')}
+                                                                </span>
+                                                            </div>
+                                                        </label>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>
@@ -328,6 +399,7 @@ const DocumentsModal: React.FC<DocumentsModalProps> = ({
                             <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-950 rounded-lg">
                                 <p className="text-sm text-blue-800 dark:text-blue-200">
                                     <strong>Nota:</strong> Los archivos se cargan automáticamente al seleccionarlos. Puedes agregar más de un archivo por tipo de documento.
+                                    {enforceInvoiceOrder && ' Primero sube el XML de la factura, luego su PDF; después se habilitan los demás documentos.'}
                                 </p>
                             </div>
                         </ModalBody>

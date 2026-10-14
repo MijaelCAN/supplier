@@ -1,5 +1,5 @@
 // src/pages/Agenda/DocumentGroupTabs.tsx
-import {useCallback, useEffect, useRef, useState} from 'react';
+import {ReactNode, useCallback, useEffect, useRef, useState} from 'react';
 import {Button, Tab, Tabs} from "@heroui/react";
 import {
     CheckCircleIcon,
@@ -21,6 +21,9 @@ export interface DocumentGroup {
     key: string;
     label: string;
     docs: GroupedDocument[];
+    /** Pestaña sin archivos que solo muestra números (Parte de Ingreso, hasta que se tenga el documento) */
+    numbers?: string[];
+    emptyMessage?: string;
 }
 
 interface DocumentGroupTabsProps {
@@ -28,6 +31,8 @@ interface DocumentGroupTabsProps {
     onDocumentClick: (doc: GroupedDocument) => void;
     /** Si se pasa, muestra la papelera en los documentos guardados (con docEntry) - OBS-005 */
     onDeleteDocument?: (doc: GroupedDocument) => void;
+    /** Contenido extra a la izquierda del tipo de archivo (ej: estado SUNAT de la factura) */
+    renderDocumentBadge?: (doc: GroupedDocument, group: DocumentGroup) => ReactNode;
 }
 
 const SCROLL_STEP = 200;
@@ -37,7 +42,7 @@ const SCROLL_STEP = 200;
  * HeroUI oculta la barra de scroll de las pestañas, así que con muchos tipos se agregan
  * flechas ‹ › para llegar a las que no caben en pantalla.
  */
-const DocumentGroupTabs = ({groups, onDocumentClick, onDeleteDocument}: DocumentGroupTabsProps) => {
+const DocumentGroupTabs = ({groups, onDocumentClick, onDeleteDocument, renderDocumentBadge}: DocumentGroupTabsProps) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const [canScrollLeft, setCanScrollLeft] = useState(false);
     const [canScrollRight, setCanScrollRight] = useState(false);
@@ -113,11 +118,34 @@ const DocumentGroupTabs = ({groups, onDocumentClick, onDeleteDocument}: Document
                         title={
                             <div className="flex items-center gap-2">
                                 <DocumentTextIcon className="h-4 w-4" />
-                                <span>{group.label} ({group.docs.length})</span>
+                                <span>{group.label} ({group.numbers ? group.numbers.length : group.docs.length})</span>
                             </div>
                         }
                     >
-                        {group.docs.length === 0 ? (
+                        {group.numbers ? (
+                            group.numbers.length === 0 ? (
+                                <div className="mt-4 flex items-center gap-2 p-3 text-sm text-gray-600 bg-gray-50 rounded-lg border border-gray-100">
+                                    <XCircleIcon className="w-5 h-5 text-gray-400" />
+                                    {group.emptyMessage ?? `Sin ${group.label}`}
+                                </div>
+                            ) : (
+                                <div className="mt-4 space-y-2">
+                                    {group.numbers.map((number) => (
+                                        <div
+                                            key={`${group.key}-${number}`}
+                                            className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100"
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <DocumentTextIcon className="w-5 h-5 text-gray-600" />
+                                                <span className="text-sm text-gray-600">N.º</span>
+                                                <span className="text-sm font-semibold text-gray-900">{number}</span>
+                                            </div>
+                                            <CheckCircleIcon className="w-5 h-5 text-emerald-500" />
+                                        </div>
+                                    ))}
+                                </div>
+                            )
+                        ) : group.docs.length === 0 ? (
                             <div className="mt-4 flex items-center gap-2 p-3 text-sm text-amber-700 bg-amber-50 rounded-lg border border-amber-100">
                                 <XCircleIcon className="w-5 h-5 text-amber-500" />
                                 Falta cargar {group.label}
@@ -137,6 +165,7 @@ const DocumentGroupTabs = ({groups, onDocumentClick, onDeleteDocument}: Document
                                             </span>
                                         </div>
                                         <div className="flex items-center gap-2 flex-shrink-0">
+                                            {renderDocumentBadge?.(doc, group)}
                                             <span className="text-xs text-gray-500 uppercase">{doc.type}</span>
                                             <CheckCircleIcon className="w-5 h-5 text-emerald-500" />
                                             {onDeleteDocument && doc.docEntry && (

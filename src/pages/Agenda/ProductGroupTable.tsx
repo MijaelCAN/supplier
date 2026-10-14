@@ -25,8 +25,8 @@ interface ProductGroupTableProps {
     onViewAppointment: (product: ProductApiRecord) => void;
 }
 
-const GROUP_COLUMNS = ['', 'Fecha', 'Horario', 'Proveedor', 'OC', 'Estado cita', 'Productos', 'Adjuntos', 'Factura SAP', ''];
-const PRODUCT_COLUMNS = ['OC', 'Código', 'Descripción', 'Cantidad', 'Confirmación PCP', 'Cobertura actual', 'Cobertura con ingresos', 'Comentario PCP', 'Parte de ingreso', 'Factura SAP'];
+const GROUP_COLUMNS = ['', 'Fecha', 'Horario', 'Proveedor', 'OC', 'Estado cita', 'Productos', 'Adjuntos', 'Status SAP', ''];
+const PRODUCT_COLUMNS = ['OC', 'Código', 'Descripción', 'Cantidad', 'Confirmación PCP', 'Cobertura actual', 'Cobertura con ingresos', 'Comentario PCP', 'Parte de ingreso', 'Status SAP'];
 
 const Empty = () => <span className="text-gray-400 text-sm">-</span>;
 
