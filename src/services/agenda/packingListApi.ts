@@ -496,6 +496,7 @@ export interface UploadFileRequest {
     name_file: string;
     base64: string;
     cod_cita: string;
+    u_packing_list?: string; // Packing list al que pertenece el documento
 }
 
 /**
@@ -556,12 +557,14 @@ const generateFileName = (type: string, originalFileName: string): string => {
  * @param file - Archivo a subir
  * @param type - Tipo de documento (invoice, purchaseOrder, deliveryGuide, qualityCertificate, transportGuide, packingList, safetySheet, analysisCertificate, etc.)
  * @param codCita - Código de la cita (DocEntry)
+ * @param packingListNumber - Packing list al que pertenece el documento ("261010394_1")
  * @returns Promise con la respuesta del API
  */
 export const uploadFileToPackingList = async (
     file: File,
     type: string,
-    codCita: string
+    codCita: string,
+    packingListNumber?: string
 ): Promise<UploadFileResponse['data']> => {
     if (!codCita || codCita.trim() === '') {
         throw new Error('El código de cita es requerido');
@@ -581,7 +584,8 @@ export const uploadFileToPackingList = async (
     const requestBody: UploadFileRequest = {
         name_file: nameFile,
         base64: base64,
-        cod_cita: codCita.trim()
+        cod_cita: codCita.trim(),
+        ...(packingListNumber ? { u_packing_list: packingListNumber } : {})
     };
     
     const url = `${DEFAULT_API_BASE_URL}${FILES_ENDPOINT}`;
@@ -821,15 +825,42 @@ export const fetchSupplierProductsFromApi = async (
     return products.sort((a, b) => sortKey(a).localeCompare(sortKey(b)));
 };
 
+export interface ParteIngreso {
+    numero: string;
+    /** Serie-correlativo de la guía o factura con que se registró ("T070-0211277"); vacío si no tiene */
+    documento: string;
+    /** status_factura del parte: true ya tiene factura registrada en SAP, null si el API no lo envía */
+    conFactura: boolean | null;
+    /** Packing list de la línea; null si el API no envía packing_list_number */
+    packingList: string | null;
+    /** OC de la línea, para ubicar el parte cuando no viene el packing list */
+    orden: string;
+}
+
+/** num_parte_ingreso llega como "261012039-T070-0211277" (parte-serie-correlativo); sin documento, "261013189--" */
+const parseParteIngreso = (value: string, product: ProductApiRecord): ParteIngreso => {
+    const [numero, ...documento] = value.split('-');
+    const statusFactura = product.status_factura;
+    const hasStatus = statusFactura !== undefined && statusFactura !== null && statusFactura !== '';
+    return {
+        numero: numero.trim(),
+        documento: documento.filter(Boolean).join('-').trim(),
+        conFactura: hasStatus ? String(statusFactura).toLowerCase() === 'true' : null,
+        packingList: product.packing_list_number || null,
+        orden: product.number,
+    };
+};
+
 /**
- * N.º de Parte de Ingreso de una cita (uno por cada packing list que ya lo tenga).
+ * Partes de Ingreso de una cita, primero los pendientes de registrar factura.
  * /PackinList no lo trae: se consulta /Productos por cada OC de la cita en su fecha y se
  * queda con las líneas de sus packing lists (o de sus OC si el API no envía packing_list_number).
+ * Mientras el API no envíe la cita del parte (OBS-022) llegan todos los partes de la OC, incluso de otras entregas.
  */
 export const fetchAppointmentParteIngreso = async (
     deliveryDate: string, // "YYYY-MM-DD"
     packingLists: PackingListApiRecord[]
-): Promise<string[]> => {
+): Promise<ParteIngreso[]> => {
     const packingListNumbers = new Set(packingLists.map((pl) => pl.number).filter(Boolean));
     const orders = Array.from(new Set(Array.from(packingListNumbers, (number) => number.split('_')[0])));
     if (orders.length === 0) return [];
@@ -837,11 +868,21 @@ export const fetchAppointmentParteIngreso = async (
     const fecha = formatDateForAPI(deliveryDate.split('T')[0]);
     const products = (await Promise.all(orders.map((order) => fetchProductsFromApi(fecha, fecha, order)))).flat();
 
-    const numbers = products
+    // El API repite cada parte una vez por producto: se deja uno por número en cada packing list
+    const partes = new Map<string, ParteIngreso>();
+    products
         .filter((p) => p.packing_list_number ? packingListNumbers.has(p.packing_list_number) : orders.includes(p.number))
-        .map((p) => p.num_parte_ingreso?.trim())
-        .filter((n): n is string => !!n);
-    return Array.from(new Set(numbers));
+        .forEach((p) => {
+            const value = p.num_parte_ingreso?.trim();
+            if (!value) return;
+            const parte = parseParteIngreso(value, p);
+            const key = `${parte.packingList ?? parte.orden}|${parte.numero}`;
+            if (parte.numero && !partes.has(key)) partes.set(key, parte);
+        });
+
+    const pendingFirst = (parte: ParteIngreso) => (parte.conFactura === true ? 1 : 0);
+    return Array.from(partes.values())
+        .sort((a, b) => pendingFirst(a) - pendingFirst(b) || b.numero.localeCompare(a.numero));
 };
 
 /**

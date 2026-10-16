@@ -5,6 +5,7 @@ import {
     CheckCircleIcon,
     ChevronLeftIcon,
     ChevronRightIcon,
+    ClockIcon,
     DocumentTextIcon,
     TrashIcon,
     XCircleIcon
@@ -17,14 +18,73 @@ export interface GroupedDocument {
     docEntry?: string; // DocEntry del documento en el API (necesario para eliminarlo)
 }
 
+export interface NumberEntry {
+    number: string;
+    /** Texto al lado del número (ej: "Guía T070-0211277") */
+    detail?: string;
+    /** true: va en "Pendientes"; false: en "Con factura registrada"; sin dato: sin separar */
+    pending?: boolean;
+}
+
 export interface DocumentGroup {
     key: string;
     label: string;
     docs: GroupedDocument[];
     /** Pestaña sin archivos que solo muestra números (Parte de Ingreso, hasta que se tenga el documento) */
-    numbers?: string[];
+    numbers?: NumberEntry[];
     emptyMessage?: string;
 }
+
+const NumberRow = ({entry}: {entry: NumberEntry}) => (
+    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
+        <div className="flex items-center gap-3 min-w-0">
+            <DocumentTextIcon className="w-5 h-5 text-gray-600 flex-shrink-0" />
+            <span className="text-sm text-gray-600">N.º</span>
+            <span className="text-sm font-semibold text-gray-900">{entry.number}</span>
+            {entry.detail && <span className="text-sm text-gray-600 truncate">· {entry.detail}</span>}
+        </div>
+        {entry.pending
+            ? <ClockIcon className="w-5 h-5 text-amber-500 flex-shrink-0" />
+            : <CheckCircleIcon className="w-5 h-5 text-emerald-500 flex-shrink-0" />}
+    </div>
+);
+
+/** Pendientes arriba y con factura abajo, para ubicar rápido lo que falta (OBS-022) */
+export const NumberList = ({entries}: {entries: NumberEntry[]}) => {
+    const pending = entries.filter((entry) => entry.pending === true);
+    const done = entries.filter((entry) => entry.pending === false);
+    const unknown = entries.filter((entry) => entry.pending === undefined);
+    const sections = [
+        {key: 'pending', title: 'Pendientes de registrar factura', className: 'text-amber-700', items: pending},
+        {key: 'done', title: 'Con factura registrada', className: 'text-emerald-700', items: done},
+    ];
+
+    if (pending.length === 0 && done.length === 0) {
+        return (
+            <div className="mt-4 space-y-2">
+                {unknown.map((entry) => <NumberRow key={entry.number} entry={entry} />)}
+            </div>
+        );
+    }
+
+    return (
+        <div className="mt-4 space-y-4 max-h-96 overflow-y-auto pr-1">
+            {sections.filter((section) => section.items.length > 0).map((section) => (
+                <div key={section.key} className="space-y-2">
+                    <p className={`text-xs font-semibold uppercase ${section.className}`}>
+                        {section.title} ({section.items.length})
+                    </p>
+                    {section.items.map((entry) => <NumberRow key={entry.number} entry={entry} />)}
+                </div>
+            ))}
+            {unknown.length > 0 && (
+                <div className="space-y-2">
+                    {unknown.map((entry) => <NumberRow key={entry.number} entry={entry} />)}
+                </div>
+            )}
+        </div>
+    );
+};
 
 interface DocumentGroupTabsProps {
     groups: DocumentGroup[];
@@ -129,21 +189,7 @@ const DocumentGroupTabs = ({groups, onDocumentClick, onDeleteDocument, renderDoc
                                     {group.emptyMessage ?? `Sin ${group.label}`}
                                 </div>
                             ) : (
-                                <div className="mt-4 space-y-2">
-                                    {group.numbers.map((number) => (
-                                        <div
-                                            key={`${group.key}-${number}`}
-                                            className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100"
-                                        >
-                                            <div className="flex items-center gap-3">
-                                                <DocumentTextIcon className="w-5 h-5 text-gray-600" />
-                                                <span className="text-sm text-gray-600">N.º</span>
-                                                <span className="text-sm font-semibold text-gray-900">{number}</span>
-                                            </div>
-                                            <CheckCircleIcon className="w-5 h-5 text-emerald-500" />
-                                        </div>
-                                    ))}
-                                </div>
+                                <NumberList entries={group.numbers} />
                             )
                         ) : group.docs.length === 0 ? (
                             <div className="mt-4 flex items-center gap-2 p-3 text-sm text-amber-700 bg-amber-50 rounded-lg border border-amber-100">

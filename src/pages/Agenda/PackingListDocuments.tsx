@@ -1,0 +1,193 @@
+// src/pages/Agenda/PackingListDocuments.tsx
+import {ReactNode} from 'react';
+import {Button, Chip, Tab, Table, TableBody, TableCell, TableColumn, TableHeader, TableRow, Tabs} from "@heroui/react";
+import {CheckCircleIcon, ClockIcon, DocumentTextIcon, TrashIcon, XCircleIcon} from "@heroicons/react/24/outline";
+import {COMMERCIAL_DOCUMENT_TYPES, mapFileNameToDocumentType, meetsRequiredFile} from '@/config/commercialDocuments';
+import {areDocumentTypesComplete, PackingListDocumentGroup, UNASSIGNED_PACKING_LIST} from '@/utils/packingListDocuments';
+import {NumberEntry, NumberList} from './DocumentGroupTabs';
+import type {LoadedDocument} from './DocumentsModal';
+
+interface DocumentRow {
+    key: string;
+    typeLabel: string;
+    /** Archivos del mismo tipo en el packing list (para el estado SUNAT de la factura) */
+    typeDocs: LoadedDocument[];
+    doc?: LoadedDocument;
+    /** Fila de un tipo sin archivo válido: "Falta" o "Falta XML" */
+    missing?: string;
+}
+
+interface PackingListDocumentsProps {
+    groups: PackingListDocumentGroup[];
+    /** Partes de Ingreso del packing list; undefined no muestra la sección */
+    getParteIngreso?: (packingList: string) => NumberEntry[] | undefined;
+    onDocumentClick: (doc: LoadedDocument) => void;
+    /** Si se pasa, muestra la papelera en los documentos guardados (con docEntry) - OBS-005 */
+    onDeleteDocument?: (doc: LoadedDocument) => void;
+    /** Estado propio del archivo (ej: SUNAT en la factura); null muestra "Cargado" */
+    renderStatus?: (doc: LoadedDocument, typeDocs: LoadedDocument[]) => ReactNode;
+    /** N.º del documento (ej: serie-número de la factura); sin dato muestra "—" */
+    getDocumentNumber?: (doc: LoadedDocument, typeDocs: LoadedDocument[]) => string | undefined;
+}
+
+const getPackingListLabel = (packingList: string) =>
+    packingList === UNASSIGNED_PACKING_LIST ? 'Sin packing list' : packingList;
+
+/** Una fila por archivo, en el orden del modal de carga, y una fila "Falta" por cada tipo sin archivo válido */
+const buildRows = (docs: LoadedDocument[]): DocumentRow[] => {
+    const rows: DocumentRow[] = [];
+    COMMERCIAL_DOCUMENT_TYPES.forEach((docType) => {
+        const typeDocs = docs.filter((doc) => mapFileNameToDocumentType(doc.name) === docType.key);
+        typeDocs.forEach((doc, index) => rows.push({key: `${docType.key}-${doc.docEntry ?? index}`, typeLabel: docType.label, typeDocs, doc}));
+        if (!typeDocs.some((doc) => meetsRequiredFile(docType.key, doc.name))) {
+            rows.push({
+                key: `${docType.key}-missing`,
+                typeLabel: docType.label,
+                typeDocs,
+                missing: typeDocs.length > 0 && docType.requiredLabel ? `Falta ${docType.requiredLabel}` : 'Falta',
+            });
+        }
+    });
+    docs.filter((doc) => !mapFileNameToDocumentType(doc.name)).forEach((doc, index) =>
+        rows.push({key: `other-${doc.docEntry ?? index}`, typeLabel: 'Otros', typeDocs: [], doc})
+    );
+    return rows;
+};
+
+/**
+ * Documentos de la cita por packing list: con uno solo, la grilla directa; con varios, una pestaña por packing list.
+ */
+const PackingListDocuments = ({groups, getParteIngreso, onDocumentClick, onDeleteDocument, renderStatus, getDocumentNumber}: PackingListDocumentsProps) => {
+    const renderGroup = (group: PackingListDocumentGroup) => {
+        const docs: LoadedDocument[] = group.documents.map((doc) => ({
+            name: doc.u_name_file,
+            url: doc.u_link_documento,
+            type: doc.u_name_file.split('.').pop()?.toLowerCase() || 'unknown',
+            docEntry: doc.document_doc_entry,
+            packingList: group.packingList,
+        }));
+        const rows = buildRows(docs);
+        const parteIngreso = group.packingList === UNASSIGNED_PACKING_LIST ? undefined : getParteIngreso?.(group.packingList);
+
+        return (
+            <div className="space-y-4">
+                <div className="overflow-x-auto">
+                    <Table aria-label={`Documentos del packing list ${getPackingListLabel(group.packingList)}`} removeWrapper isCompact>
+                        <TableHeader>
+                            <TableColumn width={140}>ESTADO</TableColumn>
+                            <TableColumn width={180}>TIPO</TableColumn>
+                            <TableColumn width={150}>N.º DOC</TableColumn>
+                            <TableColumn>ARCHIVO</TableColumn>
+                        </TableHeader>
+                        <TableBody>
+                            {rows.map((row) => (
+                                <TableRow key={row.key}>
+                                    <TableCell>
+                                        {row.doc ? (
+                                            renderStatus?.(row.doc, row.typeDocs) ?? (
+                                                <Chip size="sm" variant="flat" color="success" startContent={<CheckCircleIcon className="w-3 h-3" />}>
+                                                    Cargado
+                                                </Chip>
+                                            )
+                                        ) : (
+                                            <Chip size="sm" variant="flat" color="warning" startContent={<XCircleIcon className="w-3 h-3" />}>
+                                                {row.missing}
+                                            </Chip>
+                                        )}
+                                    </TableCell>
+                                    <TableCell className="text-sm text-gray-700 whitespace-nowrap">{row.typeLabel}</TableCell>
+                                    <TableCell className="text-sm text-gray-700 whitespace-nowrap">
+                                        {(row.doc && getDocumentNumber?.(row.doc, row.typeDocs)) || '—'}
+                                    </TableCell>
+                                    <TableCell>
+                                        {row.doc ? (
+                                            <div className="flex items-center justify-between gap-2 min-w-0">
+                                                <button
+                                                    type="button"
+                                                    className="flex items-center gap-2 min-w-0 text-left text-sm text-blue-600 hover:text-blue-800 hover:underline"
+                                                    onClick={() => onDocumentClick(row.doc!)}
+                                                    title={row.doc.name}
+                                                >
+                                                    <DocumentTextIcon className="w-4 h-4 flex-shrink-0" />
+                                                    <span className="truncate max-w-[280px]">{row.doc.name}</span>
+                                                </button>
+                                                {onDeleteDocument && row.doc.docEntry && (
+                                                    <Button
+                                                        isIconOnly
+                                                        size="sm"
+                                                        variant="light"
+                                                        color="danger"
+                                                        aria-label="Eliminar documento"
+                                                        onPress={() => onDeleteDocument(row.doc!)}
+                                                        className="min-w-0 flex-shrink-0"
+                                                    >
+                                                        <TrashIcon className="w-4 h-4" />
+                                                    </Button>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <span className="text-sm text-gray-400">—</span>
+                                        )}
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </div>
+
+                {parteIngreso && (
+                    <div>
+                        <p className="text-sm font-semibold text-gray-900">Parte de Ingreso</p>
+                        {parteIngreso.length === 0 ? (
+                            <div className="mt-2 flex items-center gap-2 p-3 text-sm text-gray-600 bg-gray-50 rounded-lg border border-gray-100">
+                                <XCircleIcon className="w-5 h-5 text-gray-400" />
+                                Aún no se ha generado el Parte de Ingreso
+                            </div>
+                        ) : (
+                            <NumberList entries={parteIngreso} />
+                        )}
+                    </div>
+                )}
+            </div>
+        );
+    };
+
+    if (groups.length === 0) return null;
+
+    if (groups.length === 1) {
+        return (
+            <div className="space-y-3">
+                <p className="text-sm text-gray-600">
+                    Packing List <span className="font-semibold text-gray-900">{getPackingListLabel(groups[0].packingList)}</span>
+                </p>
+                {renderGroup(groups[0])}
+            </div>
+        );
+    }
+
+    return (
+        <Tabs
+            aria-label="Documentos por packing list"
+            className="w-full"
+            classNames={{tabList: "w-full justify-start gap-4 overflow-x-auto", cursor: "w-full", tab: "max-w-fit"}}
+        >
+            {groups.map((group) => (
+                <Tab
+                    key={group.packingList || 'unassigned'}
+                    title={
+                        <div className="flex items-center gap-2">
+                            {group.packingList !== UNASSIGNED_PACKING_LIST && (areDocumentTypesComplete(group.documents)
+                                ? <CheckCircleIcon className="h-4 w-4 text-emerald-500" />
+                                : <ClockIcon className="h-4 w-4 text-amber-500" />)}
+                            <span>{getPackingListLabel(group.packingList)} ({group.documents.length})</span>
+                        </div>
+                    }
+                >
+                    <div className="mt-2">{renderGroup(group)}</div>
+                </Tab>
+            ))}
+        </Tabs>
+    );
+};
+
+export default PackingListDocuments;
