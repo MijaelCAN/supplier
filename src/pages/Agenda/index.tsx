@@ -23,7 +23,8 @@ import {
     TableRow,
     TableCell,
     Checkbox,
-    Divider
+    Divider,
+    Tooltip
 } from "@heroui/react";
 import {
     PlusIcon,
@@ -51,6 +52,7 @@ import { createChoferInApi } from "@/services/agenda/choferesApi";
 import DocumentsModal, { LoadedDocument } from './DocumentsModal';
 import { isXmlFile, readInvoiceXmlFile, validateInvoiceInSunat } from '@/services/agenda/sunatInvoiceApi';
 import ProductGroupTable from './ProductGroupTable';
+import AppointmentHoverCard from './AppointmentHoverCard';
 import {
     escapeHtml,
     formatCobertura,
@@ -2554,10 +2556,7 @@ const Agenda: React.FC = () => {
                                                                         ? timeToMinutes(apt.deliveryTimeEnd) 
                                                                         : startMinutes + 60;
                                                                     const durationMinutes = endMinutes - startMinutes;
-                                                                    
-                                                                    // Calcular cuántos slots ocupa (cada slot es 60 minutos)
-                                                                    const slotsToSpan = Math.ceil(durationMinutes / 60);
-                                                                    
+
                                                                     // Calcular posición vertical dentro del slot
                                                                     // Si la cita empieza a las 10:47 y el slot es de 10:00, empieza 47 minutos después
                                                                     // Cada minuto = 1px (ya que cada slot de 60 minutos tiene 60px de altura)
@@ -2592,8 +2591,16 @@ const Agenda: React.FC = () => {
                                                                     };
 
                                                                     return (
-                                                                        <div
+                                                                        <Tooltip
                                                                             key={apt.id}
+                                                                            content={<AppointmentHoverCard appointment={apt} warehouseName={WAREHOUSE_LABELS[apt.warehouse ?? '']} />}
+                                                                            placement="right"
+                                                                            delay={300}
+                                                                            closeDelay={0}
+                                                                            // En móvil no hay cursor: el toque abre el detalle como siempre
+                                                                            isDisabled={isMobile}
+                                                                        >
+                                                                        <div
                                                                             className={`absolute p-1.5 text-xs shadow-sm border-l-2 ${getStatusStyles()}`}
                                                                             style={{
                                                                                 borderRadius: 0,
@@ -2617,14 +2624,17 @@ const Agenda: React.FC = () => {
                                                                             <div className={`opacity-90 mt-0.5 ${isMobile ? 'text-[11px]' : 'text-[9px]'}`}>
                                                                                 {apt.deliveryTime} {apt.deliveryTimeEnd ? `- ${apt.deliveryTimeEnd}` : ''}
                                                                             </div>
-                                                                            {slotsToSpan > 1 && (
-                                                                                <div className={`opacity-75 mt-0.5 truncate ${isMobile ? 'text-[11px]' : 'text-[9px]'}`}>
-                                                                                    {isMobile
-                                                                                        ? [STATUS_CONFIG[apt.status as keyof typeof STATUS_CONFIG]?.label, apt.docEntry].filter(Boolean).join(' · ')
-                                                                                        : apt.docEntry}
+                                                                            {/* N.º de cita resaltado; las de menos de 45 min no tienen alto para una tercera línea */}
+                                                                            {durationMinutes >= 45 && apt.docEntry && (
+                                                                                <div className={`mt-0.5 truncate font-bold ${isMobile ? 'text-xs' : 'text-[10px]'}`}>
+                                                                                    N° {apt.docEntry}
+                                                                                    {isMobile && STATUS_CONFIG[apt.status as keyof typeof STATUS_CONFIG]?.label && (
+                                                                                        <span className="font-normal opacity-75"> · {STATUS_CONFIG[apt.status as keyof typeof STATUS_CONFIG].label}</span>
+                                                                                    )}
                                                                                 </div>
                                                                             )}
                                                                         </div>
+                                                                        </Tooltip>
                                                                     );
                                                                 })}
                                                         </div>
