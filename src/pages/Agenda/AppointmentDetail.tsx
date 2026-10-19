@@ -121,7 +121,11 @@ const AppointmentDetail: React.FC = () => {
     const { appointmentId } = useParams<{ appointmentId: string }>();
     const navigate = useNavigate();
     const location = useLocation();
-    const { weekDate, dayIndex } = (location.state as { weekDate?: string; dayIndex?: number } | null) ?? {};
+    // returnTo/invoiceFile: viene del cronograma de pagos (Finanzas), que abre la cita en el packing list de la factura
+    const { weekDate, dayIndex, returnTo, invoiceFile } = (location.state as {
+        weekDate?: string; dayIndex?: number; returnTo?: string; invoiceFile?: string;
+    } | null) ?? {};
+    const goBack = () => (returnTo ? navigate(returnTo) : navigate('/agenda', { state: { weekDate, dayIndex } }));
     const { currentUser } = useAuth();
     const isProvider = currentUser?.role === UserRole.PROVEEDOR;
     const { setSelectedAppointment } = useAgendaStore(); // Solo usamos setSelectedAppointment, no el store local de appointments
@@ -556,12 +560,19 @@ const AppointmentDetail: React.FC = () => {
     // Redirigir si no se encuentra el appointment después de cargar
     useEffect(() => {
         if (!isLoadingAppointment && !appointment) {
-            const timer = setTimeout(() => {
-                navigate('/agenda', { state: { weekDate, dayIndex } });
-            }, 2000);
+            const timer = setTimeout(goBack, 2000);
             return () => clearTimeout(timer);
         }
     }, [appointment, isLoadingAppointment, navigate]);
+
+    // Desde el cronograma de pagos: bajar a los documentos una vez cargados
+    const documentsSectionRef = useRef<HTMLDivElement>(null);
+    const hasScrolledToDocuments = useRef(false);
+    useEffect(() => {
+        if (!invoiceFile || hasScrolledToDocuments.current || appointmentDocuments.length === 0) return;
+        hasScrolledToDocuments.current = true;
+        setTimeout(() => documentsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300);
+    }, [invoiceFile, appointmentDocuments.length]);
 
     // Cargar evaluación cuando se carga el appointment
     useEffect(() => {
@@ -1297,9 +1308,9 @@ const AppointmentDetail: React.FC = () => {
                         <Button
                             variant="light"
                             startContent={<ArrowLeftIcon className="w-5 h-5" />}
-                            onPress={() => navigate('/agenda', { state: { weekDate } })}
+                            onPress={goBack}
                         >
-                            Volver a Agenda
+                            {returnTo === '/cronograma' ? 'Volver al Cronograma de Pagos' : 'Volver a Agenda'}
                         </Button>
                         
                         {/* Botones de acción */}
@@ -2051,7 +2062,7 @@ const AppointmentDetail: React.FC = () => {
                     </Modal>
 
                     {/* Documents Section */}
-                    <Card className={`border-2 transition-all ${
+                    <Card ref={documentsSectionRef} className={`border-2 transition-all ${
                         areAllDocumentsComplete()
                             ? 'border-emerald-200 bg-emerald-50/30' 
                             : 'border-gray-200 hover:border-blue-300'
@@ -2096,6 +2107,7 @@ const AppointmentDetail: React.FC = () => {
                                                 groups={groupDocumentsByPackingList(appointmentDocuments, getActivePackingListNumbers())}
                                                 getParteIngreso={getParteIngresoNumbers}
                                                 onDocumentClick={handleDocumentClick}
+                                                highlightFileName={invoiceFile}
                                                 onDeleteDocument={canDeleteDocuments ? setDocumentToDelete : undefined}
                                                 getDocumentNumber={(doc, typeDocs) => {
                                                     if (!isInvoice(doc)) return undefined;

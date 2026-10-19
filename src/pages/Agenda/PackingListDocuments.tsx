@@ -28,7 +28,11 @@ interface PackingListDocumentsProps {
     renderStatus?: (doc: LoadedDocument, typeDocs: LoadedDocument[]) => ReactNode;
     /** N.º del documento (ej: serie-número de la factura); sin dato muestra "—" */
     getDocumentNumber?: (doc: LoadedDocument, typeDocs: LoadedDocument[]) => string | undefined;
+    /** Archivo a resaltar; abre la pestaña de su packing list (ej: la factura que se abrió desde el cronograma de pagos) */
+    highlightFileName?: string;
 }
+
+const getTabKey = (packingList: string) => packingList || 'unassigned';
 
 const getPackingListLabel = (packingList: string) =>
     packingList === UNASSIGNED_PACKING_LIST ? 'Sin packing list' : packingList;
@@ -57,7 +61,11 @@ const buildRows = (docs: LoadedDocument[]): DocumentRow[] => {
 /**
  * Documentos de la cita por packing list: con uno solo, la grilla directa; con varios, una pestaña por packing list.
  */
-const PackingListDocuments = ({groups, getParteIngreso, onDocumentClick, onDeleteDocument, renderStatus, getDocumentNumber}: PackingListDocumentsProps) => {
+const PackingListDocuments = ({groups, getParteIngreso, onDocumentClick, onDeleteDocument, renderStatus, getDocumentNumber, highlightFileName}: PackingListDocumentsProps) => {
+    const highlightedGroup = highlightFileName
+        ? groups.find((group) => group.documents.some((doc) => doc.u_name_file === highlightFileName))
+        : undefined;
+
     const renderGroup = (group: PackingListDocumentGroup) => {
         const docs: LoadedDocument[] = group.documents.map((doc) => ({
             name: doc.u_name_file,
@@ -81,7 +89,7 @@ const PackingListDocuments = ({groups, getParteIngreso, onDocumentClick, onDelet
                         </TableHeader>
                         <TableBody>
                             {rows.map((row) => (
-                                <TableRow key={row.key}>
+                                <TableRow key={row.key} className={row.doc && row.doc.name === highlightFileName ? 'bg-blue-50' : undefined}>
                                     <TableCell>
                                         {row.doc ? (
                                             renderStatus?.(row.doc, row.typeDocs) ?? (
@@ -169,11 +177,12 @@ const PackingListDocuments = ({groups, getParteIngreso, onDocumentClick, onDelet
         <Tabs
             aria-label="Documentos por packing list"
             className="w-full"
+            defaultSelectedKey={highlightedGroup ? getTabKey(highlightedGroup.packingList) : undefined}
             classNames={{tabList: "w-full justify-start gap-4 overflow-x-auto", cursor: "w-full", tab: "max-w-fit"}}
         >
             {groups.map((group) => (
                 <Tab
-                    key={group.packingList || 'unassigned'}
+                    key={getTabKey(group.packingList)}
                     title={
                         <div className="flex items-center gap-2">
                             {group.packingList !== UNASSIGNED_PACKING_LIST && (areDocumentTypesComplete(group.documents)
