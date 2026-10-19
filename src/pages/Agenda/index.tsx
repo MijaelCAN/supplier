@@ -53,6 +53,7 @@ import DocumentsModal, { LoadedDocument } from './DocumentsModal';
 import { isXmlFile, readInvoiceXmlFile, validateInvoiceInSunat } from '@/services/agenda/sunatInvoiceApi';
 import ProductGroupTable from './ProductGroupTable';
 import AppointmentHoverCard from './AppointmentHoverCard';
+import { exportAppointmentsReport } from './appointmentsReport';
 import {
     escapeHtml,
     formatCobertura,
@@ -1969,8 +1970,23 @@ const Agenda: React.FC = () => {
         return Array.from(grouped.entries()).sort((a, b) => a[0].localeCompare(b[0]));
     };
 
+    // Reporte Excel de las citas de la semana desde el calendario (una fila por producto del packing list)
+    const canExportAppointments = currentUser?.role === UserRole.ADMIN || currentUser?.role === UserRole.COMPRAS;
+    const [isExportingAppointments, setIsExportingAppointments] = useState(false);
+    const handleExportAppointments = async () => {
+        setIsExportingAppointments(true);
+        try {
+            await exportAppointmentsReport(filteredAppointments, weekStart, weekEnd);
+        } catch (error) {
+            console.error('Error al exportar citas:', error);
+            alert('Error al exportar a Excel. Por favor, intente nuevamente.');
+        } finally {
+            setIsExportingAppointments(false);
+        }
+    };
+
     // Check if user can create appointments
-    const canCreateAppointment = currentUser?.role === UserRole.ADMIN || 
+    const canCreateAppointment = currentUser?.role === UserRole.ADMIN ||
                                  currentUser?.role === UserRole.COMPRAS ||
                                  currentUser?.role === UserRole.ALMACEN;
 
@@ -2308,6 +2324,19 @@ const Agenda: React.FC = () => {
                                 <Chip color="primary" variant="flat" size="md">
                                     {filteredAppointments.length} {filteredAppointments.length === 1 ? 'cita' : 'citas'} esta semana
                                 </Chip>
+                                {canExportAppointments && (
+                                    <Button
+                                        color="success"
+                                        variant="flat"
+                                        size="sm"
+                                        startContent={isExportingAppointments ? undefined : <ArrowDownTrayIcon className="w-4 h-4" />}
+                                        onPress={handleExportAppointments}
+                                        isLoading={isExportingAppointments}
+                                        isDisabled={isLoadingAppointments || filteredAppointments.length === 0}
+                                    >
+                                        Exportar Excel
+                                    </Button>
+                                )}
                             </div>
                         </div>
                     </CardHeader>
