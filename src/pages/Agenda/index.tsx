@@ -46,7 +46,7 @@ import { DeliveryAppointment, PackingListItem } from "@/store/types";
 import { getMaxPackingListQuantity, getPackingListQuantityText, parsePackingListQuantityInput } from "@/utils/packingList";
 import { useNavigate, useLocation } from 'react-router-dom';
 import { fetchPackingListFromApi, createPackingListInApi, fetchWarehousesFromApi, WarehouseApiRecord, fetchDocumentsFromApi, DocumentApiRecord, fetchDocumentDetailFromApi, uploadFileToPackingList, fetchProductsFromApi, fetchSupplierProductsFromApi, ProductApiRecord } from "@/services/agenda/packingListApi";
-import { formatDateForAPI } from "@/services/agenda/appointmentsApi";
+import { fetchAppointmentsFromApi, formatDateForAPI } from "@/services/agenda/appointmentsApi";
 
 import { createChoferInApi } from "@/services/agenda/choferesApi";
 import DocumentsModal, { LoadedDocument } from './DocumentsModal';
@@ -55,16 +55,21 @@ import ProductGroupTable from './ProductGroupTable';
 import AppointmentHoverCard from './AppointmentHoverCard';
 import { exportAppointmentsReport } from './appointmentsReport';
 import {
+    DocumentationStatus,
     escapeHtml,
+    findAppointmentForProduct,
     formatCobertura,
     formatDateFromAPI,
+    formatDocumentation,
     formatHorario,
     formatOrders,
     formatStatusCita,
     formatStatusFactura,
     formatInvoiceSummary,
+    getProductDocumentation,
     groupProductsByCita,
     parseStatusFactura,
+    summarizeDocumentation,
 } from './productList';
 
 type FacturaFilter = 'all' | 'sin' | 'con';
@@ -85,6 +90,22 @@ const WAREHOUSE_LABELS: Record<string, string> = {
     ALM002: 'Sede Villas',
     ALM003: 'Sede AN030',
     ALM004: 'Sede AN043',
+};
+
+/** Del 1 al último día del mes en curso, "YYYY-MM-DD" */
+const getCurrentMonthRange = () => {
+    const today = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const year = today.getFullYear();
+    const month = today.getMonth() + 1;
+    const lastDay = new Date(year, month, 0).getDate();
+    return { start: `${year}-${pad(month)}-01`, end: `${year}-${pad(month)}-${pad(lastDay)}` };
+};
+
+/** "2026-10-19" → fecha local, sin desfase de zona horaria */
+const parseIsoDate = (value: string) => {
+    const [year, month, day] = value.split('-').map(Number);
+    return new Date(year, month - 1, day);
 };
 
 const Agenda: React.FC = () => {
@@ -119,7 +140,12 @@ const Agenda: React.FC = () => {
     const [packingListItems, setPackingListItems] = useState<PackingListItem[]>([]);
     const [filterStatus, setFilterStatus] = useState<string>('all');
     const [scrollbarWidth, setScrollbarWidth] = useState<number>(0);
-    const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar'); // Toggle entre calendario y lista
+    // Toggle entre calendario y lista; Contabilidad abre en Lista (su reporte de productos)
+    const defaultViewMode: 'calendar' | 'list' = currentUser?.role === UserRole.CONTABILIDAD ? 'list' : 'calendar';
+    const [viewMode, setViewMode] = useState<'calendar' | 'list'>(defaultViewMode);
+    useEffect(() => {
+        setViewMode(defaultViewMode);
+    }, [defaultViewMode]);
 
     // Mobile: el calendario muestra un solo día (seleccionado desde la tira de días)
     const [isMobile, setIsMobile] = useState<boolean>(() =>
@@ -158,6 +184,13 @@ const Agenda: React.FC = () => {
     // Estado para datos de lista (productos)
     const [listViewData, setListViewData] = useState<ProductApiRecord[]>([]);
     const [isLoadingListView, setIsLoadingListView] = useState(false);
+    // Citas del período de la lista: para la documentación de cada producto y "Ver cita" fuera de la semana
+    const [listAppointments, setListAppointments] = useState<DeliveryAppointment[]>([]);
+    // Contabilidad consulta /Productos por rango de fechas (por defecto el mes en curso); se aplica con "Buscar"
+    const isContabilidadUser = currentUser?.role === UserRole.CONTABILIDAD;
+    const [listRange, setListRange] = useState(getCurrentMonthRange);
+    const [appliedListRange, setAppliedListRange] = useState(listRange);
+    const isListRangeInvalid = !listRange.start || !listRange.end || listRange.start > listRange.end;
     
     // Estados para filtros de búsqueda por columna
     const [filterFecha, setFilterFecha] = useState<string>('');
@@ -369,33 +402,65 @@ const Agenda: React.FC = () => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentWeek.getTime(), currentUser?.id, currentUser?.role, currentUser?.username]);
 
+    // Período de la vista Lista: el rango elegido para Contabilidad, la semana para los demás
+    const { start: listStart, end: listEnd } = useMemo(
+        () => isContabilidadUser
+            ? { start: parseIsoDate(appliedListRange.start), end: parseIsoDate(appliedListRange.end) }
+            : { start: weekStart, end: weekEnd },
+        [isContabilidadUser, appliedListRange, weekStart, weekEnd]
+    );
+
     // Cargar datos para vista de lista (fusionar citas y packing lists)
     useEffect(() => {
         const loadListViewData = async () => {
             if (viewMode !== 'list') return;
-            
+
             setIsLoadingListView(true);
             try {
-                const fechaInicio = formatDateForAPI(weekStart);
-                const fechaFin = formatDateForAPI(weekEnd);
-                
+                const fechaInicio = formatDateForAPI(listStart);
+                const fechaFin = formatDateForAPI(listEnd);
+                const ruc = isSupplier ? currentUser?.username : undefined;
+
                 // El proveedor solo recibe sus productos: /Productos no filtra por RUC
-                const products = isSupplier
-                    ? (currentUser?.username ? await fetchSupplierProductsFromApi(currentUser.username, weekStart, weekEnd) : [])
-                    : await fetchProductsFromApi(fechaInicio, fechaFin);
+                const [products, citas] = await Promise.all([
+                    isSupplier
+                        ? (ruc ? fetchSupplierProductsFromApi(ruc, listStart, listEnd) : Promise.resolve([]))
+                        : fetchProductsFromApi(fechaInicio, fechaFin),
+                    // Sin las citas no se puede calcular la documentación, pero la lista se muestra igual
+                    fetchAppointmentsFromApi(ruc, fechaInicio, fechaFin).catch((error) => {
+                        console.error('Error al cargar las citas de la lista:', error);
+                        return [] as DeliveryAppointment[];
+                    }),
+                ]);
 
                 setListViewData(products);
+                setListAppointments(citas);
             } catch (error) {
                 console.error('Error al cargar datos de lista:', error);
                 setListViewData([]);
+                setListAppointments([]);
             } finally {
                 setIsLoadingListView(false);
             }
         };
-        
+
         loadListViewData();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [viewMode, weekStart, weekEnd, isSupplier, currentUser?.username]);
+    }, [viewMode, listStart, listEnd, isSupplier, currentUser?.username]);
+
+    // Documentación completa de cada producto, según los archivos de su cita y su Parte de Ingreso
+    const productDocumentation = useMemo(() => {
+        const byProduct = new Map<ProductApiRecord, DocumentationStatus | null>();
+        listViewData.forEach((product) =>
+            byProduct.set(product, getProductDocumentation(product, findAppointmentForProduct(product, listAppointments)))
+        );
+        return byProduct;
+    }, [listViewData, listAppointments]);
+    const getDocumentation = (product: ProductApiRecord) => productDocumentation.get(product) ?? null;
+
+    const handleSearchListRange = () => {
+        if (!isListRangeInvalid) setAppliedListRange(listRange);
+    };
 
     // Filtrar datos según los filtros de búsqueda
     const filteredListViewData = useMemo(() => {
@@ -482,6 +547,8 @@ const Agenda: React.FC = () => {
                 'Estado Cita': formatStatusCita(product.status_cita),
                 'Status SAP': formatStatusFactura(product.status_factura),
                 'Parte de Ingreso': product.num_parte_ingreso || '-',
+                'Documentación': formatDocumentation(getDocumentation(product)),
+                'Faltantes': getDocumentation(product)?.missing.join(', ') || '-',
                 'Confirmación PCP': product.confirmacion_pcp || '-',
                 'Cobertura Actual (meses)': formatCobertura(product.cobertura_actual),
                 'Cobertura con Ingresos (meses)': formatCobertura(product.cobertura_ingreso),
@@ -507,6 +574,8 @@ const Agenda: React.FC = () => {
                 { wch: 24 }, // Estado Cita
                 { wch: 12 }, // Status SAP
                 { wch: 16 }, // Parte de Ingreso
+                { wch: 14 }, // Documentación
+                { wch: 40 }, // Faltantes
                 { wch: 18 }, // Confirmación PCP
                 { wch: 22 }, // Cobertura Actual
                 { wch: 28 }, // Cobertura con Ingresos
@@ -518,8 +587,8 @@ const Agenda: React.FC = () => {
             XLSX.utils.book_append_sheet(wb, ws, 'Productos');
 
             // Generar el nombre del archivo con fecha
-            const fechaInicio = formatDateForAPI(weekStart);
-            const fechaFin = formatDateForAPI(weekEnd);
+            const fechaInicio = formatDateForAPI(listStart);
+            const fechaFin = formatDateForAPI(listEnd);
             const fechaActual = new Date().toISOString().split('T')[0].replace(/-/g, '');
             const fileName = `Productos_${fechaInicio}_${fechaFin}_${fechaActual}.xlsx`;
 
@@ -544,12 +613,12 @@ const Agenda: React.FC = () => {
             }
 
             // Obtener el rango de fechas formateado
-            const fechaInicioFormatted = weekStart.toLocaleDateString('es-PE', { 
+            const fechaInicioFormatted = listStart.toLocaleDateString('es-PE', {
                 day: '2-digit', 
                 month: 'long', 
                 year: 'numeric' 
             });
-            const fechaFinFormatted = weekEnd.toLocaleDateString('es-PE', { 
+            const fechaFinFormatted = listEnd.toLocaleDateString('es-PE', {
                 day: '2-digit', 
                 month: 'long', 
                 year: 'numeric' 
@@ -655,19 +724,21 @@ const Agenda: React.FC = () => {
                                 <th>Comentario PCP</th>
                                 <th>Parte de Ingreso</th>
                                 <th>Status SAP</th>
+                                <th>Documentación</th>
                             </tr>
                         </thead>
                         ${productGroups.map(group => `
                             <tbody class="group">
                                 <tr class="group-header">
-                                    <td colspan="10">
+                                    <td colspan="11">
                                         <strong>${formatDateFromAPI(group.first.u_fecha)} · ${formatHorario(group.first.horario)} · ${escapeHtml(group.first.u_razon_social)}</strong>
                                         <span class="group-meta">
                                             OC: ${escapeHtml(formatOrders(group.orders))} ·
                                             Estado: ${formatStatusCita(group.first.status_cita)} ·
                                             Productos: ${group.products.length} ·
                                             Adjuntos: ${group.first.cantidad_adjuntos ?? '-'} ·
-                                            Status SAP: ${formatInvoiceSummary(group.invoice)}
+                                            Status SAP: ${formatInvoiceSummary(group.invoice)} ·
+                                            Documentación: ${formatDocumentation(summarizeDocumentation(group.products.map(getDocumentation)))}
                                         </span>
                                     </td>
                                 </tr>
@@ -683,6 +754,9 @@ const Agenda: React.FC = () => {
                                         <td>${escapeHtml(product.comentario || '-')}</td>
                                         <td>${escapeHtml(product.num_parte_ingreso || '-')}</td>
                                         <td>${formatStatusFactura(product.status_factura)}</td>
+                                        <td>${escapeHtml(getDocumentation(product)?.complete === false
+                                            ? `Falta: ${getDocumentation(product)!.missing.join(', ')}`
+                                            : formatDocumentation(getDocumentation(product)))}</td>
                                     </tr>
                                 `).join('')}
                             </tbody>
@@ -1333,82 +1407,15 @@ const Agenda: React.FC = () => {
     // Función para buscar cita relacionada con un producto y navegar al detalle
     const handleProductRowClick = (product: ProductApiRecord) => {
         try {
-            // Convertir fecha del producto a formato YYYY-MM-DD para comparar
-            const parseProductDate = (dateStr: string): string | null => {
-                try {
-                    const datePart = dateStr.split(' ')[0]; // "19/01/2026"
-                    const [day, month, year] = datePart.split('/');
-                    if (day && month && year) {
-                        return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-                    }
-                } catch (error) {
-                    console.error('Error al parsear fecha:', error);
-                }
-                return null;
-            };
-
-            const productDate = parseProductDate(product.u_fecha);
-            if (!productDate) {
-                console.warn('No se pudo parsear la fecha del producto');
-                return;
-            }
-
-            // Buscar cita que coincida con:
-            // 1. Fecha de entrega
-            // 2. Nombre del proveedor (U_RazonSocial)
-            // 3. Horario (comparar el horario formateado)
-            const matchingAppointment = appointments.find(apt => {
-                // Comparar fecha
-                if (apt.deliveryDate !== productDate) {
-                    return false;
-                }
-
-                // Comparar proveedor (normalizar para comparación)
-                const aptSupplierName = apt.supplierName?.toLowerCase().trim() || '';
-                const productSupplierName = product.u_razon_social?.toLowerCase().trim() || '';
-                if (aptSupplierName && productSupplierName && !aptSupplierName.includes(productSupplierName) && !productSupplierName.includes(aptSupplierName)) {
-                    return false;
-                }
-
-                // Comparar horario (extraer hora inicial del rango)
-                if (product.horario && apt.deliveryTime) {
-                    const productHorarioParts = product.horario.split(' - ');
-                    if (productHorarioParts.length > 0) {
-                        const productHoraInicio = productHorarioParts[0].trim();
-                        // Normalizar hora (agregar cero si tiene 3 dígitos)
-                        const normalizedHora = productHoraInicio.length === 3 ? `0${productHoraInicio}` : productHoraInicio;
-                        const horaFormateada = normalizedHora.length === 4 
-                            ? `${normalizedHora.substring(0, 2)}:${normalizedHora.substring(2, 4)}`
-                            : productHoraInicio;
-                        
-                        // Comparar con el horario de la cita (formato HH:MM)
-                        if (apt.deliveryTime && !apt.deliveryTime.includes(horaFormateada.substring(0, 2))) {
-                            return false;
-                        }
-                    }
-                }
-
-                return true;
-            });
+            // Primero las citas del período de la lista (puede ser un rango de un mes), luego las de la semana
+            const matchingAppointment = findAppointmentForProduct(product, listAppointments)
+                ?? findAppointmentForProduct(product, appointments);
 
             if (matchingAppointment) {
                 handleViewAppointment(matchingAppointment);
             } else {
-                // Si no se encuentra una cita exacta, intentar buscar solo por fecha y proveedor
-                const fallbackAppointment = appointments.find(apt => {
-                    if (apt.deliveryDate !== productDate) return false;
-                    const aptSupplierName = apt.supplierName?.toLowerCase().trim() || '';
-                    const productSupplierName = product.u_razon_social?.toLowerCase().trim() || '';
-                    return aptSupplierName && productSupplierName && 
-                           (aptSupplierName.includes(productSupplierName) || productSupplierName.includes(aptSupplierName));
-                });
-
-                if (fallbackAppointment) {
-                    handleViewAppointment(fallbackAppointment);
-                } else {
-                    console.warn('No se encontró una cita relacionada para el producto:', product);
-                    alert('No se encontró una cita relacionada con este producto.');
-                }
+                console.warn('No se encontró una cita relacionada para el producto:', product);
+                alert('No se encontró una cita relacionada con este producto.');
             }
         } catch (error) {
             console.error('Error al buscar cita relacionada:', error);
@@ -2042,6 +2049,37 @@ const Agenda: React.FC = () => {
                     <>
                         {/* Controles de navegación y filtros - Fuera del Card */}
                         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4 bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+                            {isContabilidadUser ? (
+                            <div className="flex flex-wrap sm:flex-nowrap items-end gap-2 flex-shrink-0">
+                                <Input
+                                    type="date"
+                                    size="sm"
+                                    label="Desde"
+                                    value={listRange.start}
+                                    onValueChange={(start) => setListRange((range) => ({...range, start}))}
+                                    className="w-full sm:w-[160px]"
+                                    isDisabled={isLoadingListView}
+                                />
+                                <Input
+                                    type="date"
+                                    size="sm"
+                                    label="Hasta"
+                                    value={listRange.end}
+                                    onValueChange={(end) => setListRange((range) => ({...range, end}))}
+                                    className="w-full sm:w-[160px]"
+                                    isInvalid={isListRangeInvalid}
+                                    isDisabled={isLoadingListView}
+                                />
+                                <Button
+                                    color="primary"
+                                    size="md"
+                                    onPress={handleSearchListRange}
+                                    isDisabled={isLoadingListView || isListRangeInvalid}
+                                >
+                                    Buscar
+                                </Button>
+                            </div>
+                            ) : (
                             <div className="flex items-center gap-2 flex-shrink-0">
                                 <Button
                                     isIconOnly
@@ -2078,6 +2116,7 @@ const Agenda: React.FC = () => {
                                     Hoy
                                 </Button>
                             </div>
+                            )}
                             <div className="flex items-center gap-2 flex-shrink-0 justify-end min-w-[150px]">
                                 {isLoadingListView && (
                                     <Chip color="primary" variant="flat" size="sm">
@@ -2208,7 +2247,7 @@ const Agenda: React.FC = () => {
                                     <div className="p-8 text-center rounded-none flex-1 flex items-center justify-center">
                                     <p className="text-gray-500">
                                         {filterFactura === 'sin' && listViewData.length > 0
-                                            ? 'No hay citas sin asiento en esta semana. Cambie el filtro "Registro SAP" a "Todas" para verlas.'
+                                            ? `No hay citas sin asiento en ${isContabilidadUser ? 'este período' : 'esta semana'}. Cambie el filtro "Registro SAP" a "Todas" para verlas.`
                                             : 'No hay datos para mostrar'}
                                     </p>
                                 </div>
@@ -2219,6 +2258,7 @@ const Agenda: React.FC = () => {
                                         expandedKeys={expandedGroups}
                                         onToggle={toggleGroup}
                                         onViewAppointment={handleProductRowClick}
+                                        getDocumentation={getDocumentation}
                                     />
                                 </div>
                             )}

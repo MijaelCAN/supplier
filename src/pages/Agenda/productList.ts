@@ -2,6 +2,8 @@
 // Formato y agrupación por cita de la vista Lista (citas por producto, /api/Documentos/Productos).
 import { ProductApiRecord } from '@/services/agenda/packingListApi';
 import { STATUS_CONFIG } from '@/services/agenda/appointmentStatus';
+import { getCompletedDocumentTypeKeysFromNames } from '@/config/commercialDocuments';
+import { DeliveryAppointment } from '@/store/types';
 
 /** "19/01/2026 00:00:00" → "19/01/2026" */
 export const formatDateFromAPI = (dateStr: string): string => {
@@ -118,6 +120,92 @@ export const groupProductsByCita = (
         orders: unique(list.map((p) => p.number)),
         invoice: summarizeInvoices(allGroups?.get(key) ?? list),
     }));
+};
+
+/** "19/01/2026 00:00:00" → "2026-01-19" */
+const toIsoDate = (dateStr: string): string | null => {
+    const [day, month, year] = (dateStr ?? '').split(' ')[0].split('/');
+    return day && month && year ? `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}` : null;
+};
+
+const sameSupplier = (apt: DeliveryAppointment, product: ProductApiRecord) => {
+    const aptName = apt.supplierName?.toLowerCase().trim() || '';
+    const productName = product.u_razon_social?.toLowerCase().trim() || '';
+    return !aptName || !productName || aptName.includes(productName) || productName.includes(aptName);
+};
+
+/** Hora inicial del horario ("730 - 1000" → "07") contra la de la cita ("07:30") */
+const sameStartHour = (apt: DeliveryAppointment, product: ProductApiRecord) => {
+    if (!product.horario || !apt.deliveryTime) return true;
+    const start = product.horario.split(' - ')[0].trim();
+    const padded = start.length === 3 ? `0${start}` : start;
+    return apt.deliveryTime.includes(padded.substring(0, 2));
+};
+
+/**
+ * Cita del producto: /Productos no trae cod_cita, así que se ubica por fecha + proveedor + hora de inicio,
+ * y si no hay una con esa hora, por fecha + proveedor.
+ */
+export const findAppointmentForProduct = (
+    product: ProductApiRecord,
+    appointments: DeliveryAppointment[]
+): DeliveryAppointment | undefined => {
+    const date = toIsoDate(product.u_fecha);
+    if (!date) return undefined;
+    const candidates = appointments.filter((apt) => apt.deliveryDate.split('T')[0] === date && sameSupplier(apt, product));
+    return candidates.find((apt) => sameStartHour(apt, product)) ?? candidates[0];
+};
+
+/** Documentos que definen la documentación completa: los tres archivos por tipo y el Parte de Ingreso de SAP */
+const REQUIRED_FILE_TYPES = [
+    { key: 'purchaseOrder', label: 'Orden de Compra' },
+    { key: 'deliveryGuide', label: 'Guía de Remisión' },
+    { key: 'invoice', label: 'Factura' },
+];
+
+export interface DocumentationStatus {
+    complete: boolean;
+    missing: string[];
+}
+
+/** El parte llega como "261012039-T070-0211277"; sin parte, vacío */
+const hasParteIngreso = (product: ProductApiRecord) => !!product.num_parte_ingreso?.split('-')[0].trim();
+
+/**
+ * Documentación completa del producto (OC, Guía de Remisión, Factura con XML y Parte de Ingreso).
+ * Los archivos son los de la cita cargados para su OC (u_packing_list "261006989_1"); los que no tienen
+ * packing list cuentan si la cita no tiene ninguno asignado o es de una sola OC.
+ * null: no se ubicó la cita, no se puede saber.
+ */
+export const getProductDocumentation = (
+    product: ProductApiRecord,
+    appointment: DeliveryAppointment | undefined
+): DocumentationStatus | null => {
+    if (!appointment) return null;
+    const documents = appointment.rawDocuments ?? [];
+    const orderOf = (packingList: string) => packingList.split('_')[0];
+    const assignedOrders = new Set(documents.map((doc) => doc.u_packing_list?.trim()).filter(Boolean).map((pl) => orderOf(pl!)));
+    const includeUnassigned = assignedOrders.size === 0 || (assignedOrders.size === 1 && assignedOrders.has(product.number));
+    const productDocuments = documents.filter((doc) => {
+        const packingList = doc.u_packing_list?.trim();
+        return packingList ? orderOf(packingList) === product.number : includeUnassigned;
+    });
+
+    const completed = getCompletedDocumentTypeKeysFromNames(productDocuments.map((doc) => doc.u_name_file));
+    const missing = REQUIRED_FILE_TYPES.filter((type) => !completed.has(type.key)).map((type) => type.label);
+    if (!hasParteIngreso(product)) missing.push('Parte de Ingreso');
+    return { complete: missing.length === 0, missing };
+};
+
+export const formatDocumentation = (status: DocumentationStatus | null): string =>
+    !status ? '-' : status.complete ? 'Completa' : 'Incompleta';
+
+/** Cabecera de la cita: completa si todos sus productos lo están; null si de ninguno se sabe */
+export const summarizeDocumentation = (statuses: (DocumentationStatus | null)[]): DocumentationStatus | null => {
+    const known = statuses.filter((s): s is DocumentationStatus => s !== null);
+    if (known.length === 0) return null;
+    const missing = Array.from(new Set(known.flatMap((s) => s.missing)));
+    return { complete: known.every((s) => s.complete), missing };
 };
 
 /** Para armar el HTML de Imprimir: que un "&" o "<" en un nombre no rompa la página */

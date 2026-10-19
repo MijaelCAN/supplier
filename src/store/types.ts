@@ -389,6 +389,8 @@ export interface AppointmentDocumentRecord {
     u_cod_cita: string;
     u_name_file: string;
     u_link_documento: string;
+    /** Packing list al que pertenece ("261010394_1"); vacío en documentos cargados antes de asignarlos */
+    u_packing_list?: string;
 }
 
 // Agenda Module Types

@@ -6,8 +6,10 @@ import { Button, Chip } from '@heroui/react';
 import { ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 import { ProductApiRecord } from '@/services/agenda/packingListApi';
 import {
+    DocumentationStatus,
     formatCobertura,
     formatDateFromAPI,
+    formatDocumentation,
     formatHorario,
     formatInvoiceSummary,
     formatOrders,
@@ -16,6 +18,7 @@ import {
     getStatusCitaConfig,
     parseStatusFactura,
     ProductGroup,
+    summarizeDocumentation,
 } from './productList';
 
 interface ProductGroupTableProps {
@@ -23,12 +26,26 @@ interface ProductGroupTableProps {
     expandedKeys: Set<string>;
     onToggle: (key: string) => void;
     onViewAppointment: (product: ProductApiRecord) => void;
+    /** Documentación completa del producto (OC, Guía, Factura y Parte de Ingreso); null si no se ubicó la cita */
+    getDocumentation: (product: ProductApiRecord) => DocumentationStatus | null;
 }
 
-const GROUP_COLUMNS = ['', 'Fecha', 'Horario', 'Proveedor', 'OC', 'Estado cita', 'Productos', 'Adjuntos', 'Status SAP', ''];
-const PRODUCT_COLUMNS = ['OC', 'Código', 'Descripción', 'Cantidad', 'Confirmación PCP', 'Cobertura actual', 'Cobertura con ingresos', 'Comentario PCP', 'Parte de ingreso', 'Status SAP'];
+const GROUP_COLUMNS = ['', 'Fecha', 'Horario', 'Proveedor', 'OC', 'Estado cita', 'Productos', 'Adjuntos', 'Status SAP', 'Documentación', ''];
+const PRODUCT_COLUMNS = ['OC', 'Código', 'Descripción', 'Cantidad', 'Confirmación PCP', 'Cobertura actual', 'Cobertura con ingresos', 'Comentario PCP', 'Parte de ingreso', 'Status SAP', 'Documentación'];
 
 const Empty = () => <span className="text-gray-400 text-sm">-</span>;
+
+/** Completa / Incompleta, con los faltantes al pasar el cursor */
+const DocumentationChip: React.FC<{ status: DocumentationStatus | null }> = ({ status }) => {
+    if (!status) return <Empty />;
+    return (
+        <span title={status.complete ? undefined : `Falta: ${status.missing.join(', ')}`}>
+            <Chip size="sm" variant="flat" color={status.complete ? 'success' : 'warning'}>
+                {formatDocumentation(status)}
+            </Chip>
+        </span>
+    );
+};
 
 /** Factura SAP de un producto, según su packing list */
 const InvoiceChip: React.FC<{ value: ProductApiRecord['status_factura'] }> = ({ value }) => {
@@ -41,7 +58,7 @@ const InvoiceChip: React.FC<{ value: ProductApiRecord['status_factura'] }> = ({ 
     );
 };
 
-const ProductGroupTable: React.FC<ProductGroupTableProps> = ({ groups, expandedKeys, onToggle, onViewAppointment }) => (
+const ProductGroupTable: React.FC<ProductGroupTableProps> = ({ groups, expandedKeys, onToggle, onViewAppointment, getDocumentation }) => (
     // Único contenedor con scroll: la barra horizontal queda visible y la cabecera fija al bajar
     <div className="h-full min-h-[222px] overflow-auto rounded-large shadow-small bg-content1">
         <table className="min-w-full text-sm">
@@ -99,6 +116,9 @@ const ProductGroupTable: React.FC<ProductGroupTableProps> = ({ groups, expandedK
                                         </Chip>
                                     )}
                                 </td>
+                                <td className="px-3 py-2 whitespace-nowrap">
+                                    <DocumentationChip status={summarizeDocumentation(group.products.map(getDocumentation))} />
+                                </td>
                                 <td className="px-3 py-2 text-right">
                                     <Button size="sm" variant="flat" color="primary" onPress={() => onViewAppointment(first)}>
                                         Ver cita
@@ -145,6 +165,9 @@ const ProductGroupTable: React.FC<ProductGroupTableProps> = ({ groups, expandedK
                                                         <td className="px-3 py-2 whitespace-nowrap">{product.num_parte_ingreso || <Empty />}</td>
                                                         <td className="px-3 py-2">
                                                             <InvoiceChip value={product.status_factura} />
+                                                        </td>
+                                                        <td className="px-3 py-2">
+                                                            <DocumentationChip status={getDocumentation(product)} />
                                                         </td>
                                                     </tr>
                                                 ))}
