@@ -1,10 +1,11 @@
 // src/pages/Agenda/PackingListDocuments.tsx
-import {ReactNode} from 'react';
-import {Button, Chip, Tab, Table, TableBody, TableCell, TableColumn, TableHeader, TableRow, Tabs} from "@heroui/react";
+import {ReactNode, useRef} from 'react';
+import {addToast, Button, Chip, Tab, Table, TableBody, TableCell, TableColumn, TableHeader, TableRow, Tabs} from "@heroui/react";
 import {CheckCircleIcon, ClockIcon, DocumentTextIcon, TrashIcon, XCircleIcon} from "@heroicons/react/24/outline";
 import {COMMERCIAL_DOCUMENT_TYPES, mapFileNameToDocumentType, meetsRequiredFile} from '@/config/commercialDocuments';
+import {fetchParteIngresoPdfUrl} from '@/services/agenda/packingListApi';
 import {areDocumentTypesComplete, PackingListDocumentGroup, UNASSIGNED_PACKING_LIST} from '@/utils/packingListDocuments';
-import {NumberEntry, NumberList} from './DocumentGroupTabs';
+import {getParteIngresoFileName, NumberEntry, NumberList} from './DocumentGroupTabs';
 import type {LoadedDocument} from './DocumentsModal';
 
 interface DocumentRow {
@@ -65,6 +66,26 @@ const PackingListDocuments = ({groups, getParteIngreso, onDocumentClick, onDelet
     const highlightedGroup = highlightFileName
         ? groups.find((group) => group.documents.some((doc) => doc.u_name_file === highlightFileName))
         : undefined;
+
+    // PDF del Parte de Ingreso: el link se pide al API al abrirlo (por DocNum) y se guarda para no repetir la consulta
+    const parteIngresoUrls = useRef(new Map<string, string>());
+    const handleOpenParteIngreso = async (entry: NumberEntry, packingList: string) => {
+        try {
+            let url = parteIngresoUrls.current.get(entry.number) ?? null;
+            if (!url) {
+                url = await fetchParteIngresoPdfUrl(entry.number);
+                if (url) parteIngresoUrls.current.set(entry.number, url);
+            }
+            if (!url) {
+                addToast({title: 'PDF no disponible', description: `El Parte de Ingreso ${entry.number} aún no tiene documento.`, color: 'warning'});
+                return;
+            }
+            onDocumentClick({name: getParteIngresoFileName(entry.number), url, type: 'pdf', packingList});
+        } catch (error) {
+            console.error('Error al obtener el PDF del Parte de Ingreso:', error);
+            addToast({title: 'No se pudo abrir el Parte de Ingreso', description: 'Intente nuevamente en unos minutos.', color: 'danger'});
+        }
+    };
 
     const renderGroup = (group: PackingListDocumentGroup) => {
         const docs: LoadedDocument[] = group.documents.map((doc) => ({
@@ -152,7 +173,7 @@ const PackingListDocuments = ({groups, getParteIngreso, onDocumentClick, onDelet
                                 Aún no se ha generado el Parte de Ingreso
                             </div>
                         ) : (
-                            <NumberList entries={parteIngreso} />
+                            <NumberList entries={parteIngreso} onOpenDocument={(entry) => handleOpenParteIngreso(entry, group.packingList)} />
                         )}
                     </div>
                 )}

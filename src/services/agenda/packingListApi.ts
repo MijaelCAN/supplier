@@ -698,6 +698,8 @@ export interface ProductApiRecord {
     num_parte_ingreso?: string | null;
     // Si la OC ya tiene factura registrada en SAP; el API lo envía como texto "true"/"false"
     status_factura?: boolean | string | null;
+    // Documentación completa (OC, Guía, Factura y Parte de Ingreso), calculada por el backend: "Completo" / "Incompleto" (OBS-023)
+    estado_documentos?: string | null;
     // Campos de validación PCP
     confirmacion_pcp?: 'CONFORME' | 'NO_CONFORME' | null;
     cobertura_actual?: number | null;
@@ -768,6 +770,36 @@ export const fetchProductsFromApi = async (
             : [];
 
     return products;
+};
+
+interface EntradaMercanciaApiResponse {
+    status_code: number;
+    success: boolean;
+    message: string;
+    data?: { doc_entry: number; url: string } | null;
+}
+
+/**
+ * Link del PDF del Parte de Ingreso (entrada de mercancía en SAP) por su DocNum (OBS-025).
+ * null si el parte no existe o no tiene reporte (404 o sin url).
+ */
+export const fetchParteIngresoPdfUrl = async (docNum: string): Promise<string | null> => {
+    const url = buildSecureUrl(DEFAULT_API_BASE_URL, '/api/Documentos/EntradaMarcancia', { DocNum: docNum });
+    const response = await httpClient(url, {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+    });
+
+    if (response.status === 404) return null;
+    if (!response.ok) {
+        throw new Error(`Error al consultar el Parte de Ingreso (${response.status})`);
+    }
+
+    const json = (await response.json()) as EntradaMercanciaApiResponse;
+    if (!json?.success || json.status_code === 404) return null;
+    return json.data?.url || null;
 };
 
 /** Rango amplio para ubicar los packing list de una cita aunque se haya reprogramado */

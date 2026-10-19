@@ -1,6 +1,6 @@
 // src/pages/Agenda/DocumentGroupTabs.tsx
 import {ReactNode, useCallback, useEffect, useRef, useState} from 'react';
-import {Button, Tab, Tabs} from "@heroui/react";
+import {Button, Spinner, Tab, Tabs} from "@heroui/react";
 import {
     CheckCircleIcon,
     ChevronLeftIcon,
@@ -35,22 +35,55 @@ export interface DocumentGroup {
     emptyMessage?: string;
 }
 
-const NumberRow = ({entry}: {entry: NumberEntry}) => (
-    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
-        <div className="flex items-center gap-3 min-w-0">
-            <DocumentTextIcon className="w-5 h-5 text-gray-600 flex-shrink-0" />
-            <span className="text-sm text-gray-600">N.º</span>
-            <span className="text-sm font-semibold text-gray-900">{entry.number}</span>
-            {entry.detail && <span className="text-sm text-gray-600 truncate">· {entry.detail}</span>}
+/** Abre el PDF del número (ej: Parte de Ingreso); se resuelve al terminar de abrirlo o avisar que no existe */
+type OpenNumberDocument = (entry: NumberEntry) => Promise<void>;
+
+/** Nombre con que se muestra el PDF del Parte de Ingreso */
+export const getParteIngresoFileName = (number: string) => `Parte_Ingreso_${number}.pdf`;
+
+const NumberRow = ({entry, onOpenDocument}: {entry: NumberEntry; onOpenDocument?: OpenNumberDocument}) => {
+    const [isOpening, setIsOpening] = useState(false);
+    const handleOpen = async () => {
+        if (!onOpenDocument || isOpening) return;
+        setIsOpening(true);
+        try {
+            await onOpenDocument(entry);
+        } finally {
+            setIsOpening(false);
+        }
+    };
+
+    return (
+        <div className="flex items-center justify-between gap-3 p-3 bg-gray-50 rounded-lg border border-gray-100">
+            <div className="flex items-center gap-3 min-w-0">
+                <DocumentTextIcon className="w-5 h-5 text-gray-600 flex-shrink-0" />
+                <span className="text-sm text-gray-600">N.º</span>
+                <span className="text-sm font-semibold text-gray-900">{entry.number}</span>
+                {entry.detail && <span className="text-sm text-gray-600 truncate">· {entry.detail}</span>}
+            </div>
+            <div className="flex items-center gap-3 flex-shrink-0">
+                {onOpenDocument && (
+                    <button
+                        type="button"
+                        className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 hover:underline disabled:text-gray-400 disabled:no-underline"
+                        onClick={handleOpen}
+                        disabled={isOpening}
+                        title={`Ver PDF del Parte de Ingreso ${entry.number}`}
+                    >
+                        {isOpening ? <Spinner size="sm" /> : <DocumentTextIcon className="w-4 h-4" />}
+                        <span className="truncate max-w-[220px]">{getParteIngresoFileName(entry.number)}</span>
+                    </button>
+                )}
+                {entry.pending
+                    ? <ClockIcon className="w-5 h-5 text-amber-500" />
+                    : <CheckCircleIcon className="w-5 h-5 text-emerald-500" />}
+            </div>
         </div>
-        {entry.pending
-            ? <ClockIcon className="w-5 h-5 text-amber-500 flex-shrink-0" />
-            : <CheckCircleIcon className="w-5 h-5 text-emerald-500 flex-shrink-0" />}
-    </div>
-);
+    );
+};
 
 /** Pendientes arriba y con factura abajo, para ubicar rápido lo que falta (OBS-022) */
-export const NumberList = ({entries}: {entries: NumberEntry[]}) => {
+export const NumberList = ({entries, onOpenDocument}: {entries: NumberEntry[]; onOpenDocument?: OpenNumberDocument}) => {
     const pending = entries.filter((entry) => entry.pending === true);
     const done = entries.filter((entry) => entry.pending === false);
     const unknown = entries.filter((entry) => entry.pending === undefined);
@@ -62,7 +95,7 @@ export const NumberList = ({entries}: {entries: NumberEntry[]}) => {
     if (pending.length === 0 && done.length === 0) {
         return (
             <div className="mt-4 space-y-2">
-                {unknown.map((entry) => <NumberRow key={entry.number} entry={entry} />)}
+                {unknown.map((entry) => <NumberRow key={entry.number} entry={entry} onOpenDocument={onOpenDocument} />)}
             </div>
         );
     }
@@ -74,12 +107,12 @@ export const NumberList = ({entries}: {entries: NumberEntry[]}) => {
                     <p className={`text-xs font-semibold uppercase ${section.className}`}>
                         {section.title} ({section.items.length})
                     </p>
-                    {section.items.map((entry) => <NumberRow key={entry.number} entry={entry} />)}
+                    {section.items.map((entry) => <NumberRow key={entry.number} entry={entry} onOpenDocument={onOpenDocument} />)}
                 </div>
             ))}
             {unknown.length > 0 && (
                 <div className="space-y-2">
-                    {unknown.map((entry) => <NumberRow key={entry.number} entry={entry} />)}
+                    {unknown.map((entry) => <NumberRow key={entry.number} entry={entry} onOpenDocument={onOpenDocument} />)}
                 </div>
             )}
         </div>

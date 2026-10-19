@@ -754,7 +754,7 @@ const Agenda: React.FC = () => {
                                         <td>${escapeHtml(product.comentario || '-')}</td>
                                         <td>${escapeHtml(product.num_parte_ingreso || '-')}</td>
                                         <td>${formatStatusFactura(product.status_factura)}</td>
-                                        <td>${escapeHtml(getDocumentation(product)?.complete === false
+                                        <td>${escapeHtml(getDocumentation(product)?.complete === false && getDocumentation(product)!.missing.length > 0
                                             ? `Falta: ${getDocumentation(product)!.missing.join(', ')}`
                                             : formatDocumentation(getDocumentation(product)))}</td>
                                     </tr>

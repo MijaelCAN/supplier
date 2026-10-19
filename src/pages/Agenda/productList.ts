@@ -2,7 +2,6 @@
 // Formato y agrupación por cita de la vista Lista (citas por producto, /api/Documentos/Productos).
 import { ProductApiRecord } from '@/services/agenda/packingListApi';
 import { STATUS_CONFIG } from '@/services/agenda/appointmentStatus';
-import { getCompletedDocumentTypeKeysFromNames } from '@/config/commercialDocuments';
 import { DeliveryAppointment } from '@/store/types';
 
 /** "19/01/2026 00:00:00" → "19/01/2026" */
@@ -158,9 +157,9 @@ export const findAppointmentForProduct = (
 
 /** Documentos que definen la documentación completa: los tres archivos por tipo y el Parte de Ingreso de SAP */
 const REQUIRED_FILE_TYPES = [
-    { key: 'purchaseOrder', label: 'Orden de Compra' },
-    { key: 'deliveryGuide', label: 'Guía de Remisión' },
-    { key: 'invoice', label: 'Factura' },
+    { prefix: 'OC', label: 'Orden de Compra' },
+    { prefix: 'GR', label: 'Guía de Remisión' },
+    { prefix: 'FAC', label: 'Factura' },
 ];
 
 export interface DocumentationStatus {
@@ -172,12 +171,26 @@ export interface DocumentationStatus {
 const hasParteIngreso = (product: ProductApiRecord) => !!product.num_parte_ingreso?.split('-')[0].trim();
 
 /**
- * Documentación completa del producto (OC, Guía de Remisión, Factura con XML y Parte de Ingreso).
- * Los archivos son los de la cita cargados para su OC (u_packing_list "261006989_1"); los que no tienen
- * packing list cuentan si la cita no tiene ninguno asignado o es de una sola OC.
- * null: no se ubicó la cita, no se puede saber.
+ * Documentación completa del producto (OC, Guía de Remisión, Factura y Parte de Ingreso).
+ * Manda estado_documentos del API ("Completo" / "Incompleto"), que no trae los faltantes.
+ * Solo si el API no envía el campo se calcula en la web con los archivos de la cita (con faltantes).
+ * No se mezclan: la web ubica la cita por fecha + proveedor + horario y puede no ser la misma del API.
+ * null: no hay dato del API ni se ubicó la cita.
  */
 export const getProductDocumentation = (
+    product: ProductApiRecord,
+    appointment: DeliveryAppointment | undefined
+): DocumentationStatus | null => {
+    const apiValue = product.estado_documentos?.trim().toLowerCase();
+    if (apiValue) return { complete: apiValue === 'completo', missing: [] };
+    return computeDocumentation(product, appointment);
+};
+
+/**
+ * Cálculo en la web: archivos de la cita cargados para su OC (u_packing_list "261006989_1"); los que no tienen
+ * packing list cuentan si la cita no tiene ninguno asignado o es de una sola OC. null si no se ubicó la cita.
+ */
+const computeDocumentation = (
     product: ProductApiRecord,
     appointment: DeliveryAppointment | undefined
 ): DocumentationStatus | null => {
@@ -191,8 +204,11 @@ export const getProductDocumentation = (
         return packingList ? orderOf(packingList) === product.number : includeUnassigned;
     });
 
-    const completed = getCompletedDocumentTypeKeysFromNames(productDocuments.map((doc) => doc.u_name_file));
-    const missing = REQUIRED_FILE_TYPES.filter((type) => !completed.has(type.key)).map((type) => type.label);
+    // Misma regla que el backend: basta un archivo con el prefijo del tipo (la factura no exige el XML)
+    const names = productDocuments.map((doc) => (doc.u_name_file ?? '').toUpperCase());
+    const missing = REQUIRED_FILE_TYPES
+        .filter((type) => !names.some((name) => name.startsWith(`${type.prefix}_`)))
+        .map((type) => type.label);
     if (!hasParteIngreso(product)) missing.push('Parte de Ingreso');
     return { complete: missing.length === 0, missing };
 };

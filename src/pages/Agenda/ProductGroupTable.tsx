@@ -39,7 +39,7 @@ const Empty = () => <span className="text-gray-400 text-sm">-</span>;
 const DocumentationChip: React.FC<{ status: DocumentationStatus | null }> = ({ status }) => {
     if (!status) return <Empty />;
     return (
-        <span title={status.complete ? undefined : `Falta: ${status.missing.join(', ')}`}>
+        <span title={status.complete || status.missing.length === 0 ? undefined : `Falta: ${status.missing.join(', ')}`}>
             <Chip size="sm" variant="flat" color={status.complete ? 'success' : 'warning'}>
                 {formatDocumentation(status)}
             </Chip>
