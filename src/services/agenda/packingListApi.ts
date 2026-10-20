@@ -780,15 +780,17 @@ interface EntradaMercanciaApiResponse {
 }
 
 /**
- * Link del PDF del Parte de Ingreso (entrada de mercancía en SAP) por su DocNum (OBS-025).
- * null si el parte no existe o no tiene reporte (404 o sin url).
+ * URL para mostrar el PDF del Parte de Ingreso (entrada de mercancía en SAP) por su DocNum (OBS-025).
+ * El API devuelve el PDF en binario: se arma una URL blob: local (liberarla con URL.revokeObjectURL),
+ * porque el link del servidor de reportes no es accesible desde el navegador del proveedor.
+ * Si responde JSON con { data.url } (formato anterior), se usa ese link. null si el parte no existe.
  */
 export const fetchParteIngresoPdfUrl = async (docNum: string): Promise<string | null> => {
     const url = buildSecureUrl(DEFAULT_API_BASE_URL, '/api/Documentos/EntradaMarcancia', { DocNum: docNum });
     const response = await httpClient(url, {
         method: 'GET',
         headers: {
-            'Content-Type': 'application/json',
+            Accept: 'application/pdf, application/json',
         },
     });
 
@@ -797,9 +799,15 @@ export const fetchParteIngresoPdfUrl = async (docNum: string): Promise<string | 
         throw new Error(`Error al consultar el Parte de Ingreso (${response.status})`);
     }
 
-    const json = (await response.json()) as EntradaMercanciaApiResponse;
-    if (!json?.success || json.status_code === 404) return null;
-    return json.data?.url || null;
+    if (response.headers.get('Content-Type')?.includes('application/json')) {
+        const json = (await response.json()) as EntradaMercanciaApiResponse;
+        if (!json?.success || json.status_code === 404) return null;
+        return json.data?.url || null;
+    }
+
+    // Tipo forzado: con application/octet-stream el iframe descargaría el archivo en vez de mostrarlo
+    const pdf = new Blob([await response.arrayBuffer()], { type: 'application/pdf' });
+    return pdf.size > 0 ? URL.createObjectURL(pdf) : null;
 };
 
 /** Rango amplio para ubicar los packing list de una cita aunque se haya reprogramado */

@@ -1,5 +1,5 @@
 // src/pages/Agenda/PackingListDocuments.tsx
-import {ReactNode, useRef} from 'react';
+import {ReactNode, useEffect, useRef} from 'react';
 import {addToast, Button, Chip, Tab, Table, TableBody, TableCell, TableColumn, TableHeader, TableRow, Tabs} from "@heroui/react";
 import {CheckCircleIcon, ClockIcon, DocumentTextIcon, TrashIcon, XCircleIcon} from "@heroicons/react/24/outline";
 import {COMMERCIAL_DOCUMENT_TYPES, mapFileNameToDocumentType, meetsRequiredFile} from '@/config/commercialDocuments';
@@ -67,8 +67,15 @@ const PackingListDocuments = ({groups, getParteIngreso, onDocumentClick, onDelet
         ? groups.find((group) => group.documents.some((doc) => doc.u_name_file === highlightFileName))
         : undefined;
 
-    // PDF del Parte de Ingreso: el link se pide al API al abrirlo (por DocNum) y se guarda para no repetir la consulta
+    // PDF del Parte de Ingreso: se pide al API al abrirlo (por DocNum) y se guarda para no repetir la consulta
     const parteIngresoUrls = useRef(new Map<string, string>());
+    useEffect(() => {
+        const urls = parteIngresoUrls.current;
+        return () => {
+            urls.forEach((url) => url.startsWith('blob:') && URL.revokeObjectURL(url));
+            urls.clear();
+        };
+    }, []);
     const handleOpenParteIngreso = async (entry: NumberEntry, packingList: string) => {
         try {
             let url = parteIngresoUrls.current.get(entry.number) ?? null;
