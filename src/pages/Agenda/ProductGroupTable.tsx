@@ -15,6 +15,7 @@ import {
     formatOrders,
     formatStatusCita,
     formatStatusFactura,
+    getCodCita,
     getStatusCitaConfig,
     parseStatusFactura,
     ProductGroup,
@@ -30,7 +31,7 @@ interface ProductGroupTableProps {
     getDocumentation: (product: ProductApiRecord) => DocumentationStatus | null;
 }
 
-const GROUP_COLUMNS = ['', 'Fecha', 'Horario', 'Proveedor', 'OC', 'Estado cita', 'Productos', 'Adjuntos', 'Status SAP', 'Documentación', ''];
+const GROUP_COLUMNS = ['', 'Fecha', 'Horario', 'Proveedor', 'OC', 'Estado cita', 'N° Cita', 'Adjuntos', 'Status SAP', 'Documentación', ''];
 const PRODUCT_COLUMNS = ['OC', 'Código', 'Descripción', 'Cantidad', 'Confirmación PCP', 'Cobertura actual', 'Cobertura con ingresos', 'Comentario PCP', 'Parte de ingreso', 'Status SAP', 'Documentación'];
 
 const Empty = () => <span className="text-gray-400 text-sm">-</span>;
@@ -107,7 +108,7 @@ const ProductGroupTable: React.FC<ProductGroupTableProps> = ({ groups, expandedK
                                         </Chip>
                                     ) : <Empty />}
                                 </td>
-                                <td className="px-3 py-2 whitespace-nowrap">{group.products.length}</td>
+                                <td className="px-3 py-2 whitespace-nowrap">{getCodCita(first) || <Empty />}</td>
                                 <td className="px-3 py-2 whitespace-nowrap">{first.cantidad_adjuntos ?? '-'}</td>
                                 <td className="px-3 py-2 whitespace-nowrap">
                                     {!invoice.hasData ? <Empty /> : (

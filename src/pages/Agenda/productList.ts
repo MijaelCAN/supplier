@@ -87,8 +87,12 @@ export interface ProductGroup {
 const unique = (values: (string | null | undefined)[]) =>
     Array.from(new Set(values.filter((v): v is string => !!v)));
 
+/** N.º de cita del producto; vacío si el API no envía cod_cita */
+export const getCodCita = (product: ProductApiRecord): string =>
+    product.cod_cita != null ? String(product.cod_cita).trim() : '';
+
 const citaKey = (product: ProductApiRecord) =>
-    `${product.u_fecha}|${product.horario}|${product.u_razon_social}`;
+    getCodCita(product) || `${product.u_fecha}|${product.horario}|${product.u_razon_social}`;
 
 const groupByKey = (products: ProductApiRecord[]) => {
     const groups = new Map<string, ProductApiRecord[]>();
@@ -102,8 +106,8 @@ const groupByKey = (products: ProductApiRecord[]) => {
 };
 
 /**
- * Agrupa por cita conservando el orden del API. /Productos no trae cod_cita, así que la
- * cita se identifica por fecha + horario + proveedor (mismo criterio que "Ver cita").
+ * Agrupa por cita (cod_cita) conservando el orden del API. Si un producto no trae cod_cita,
+ * la cita se identifica por fecha + horario + proveedor (mismo criterio que "Ver cita").
  * `products` son los que pasan los filtros; la factura se resume con `allProducts`
  * para que "Faltan X de N" cuente toda la cita aunque se muestren solo algunos.
  */

@@ -66,6 +66,7 @@ import {
     formatStatusCita,
     formatStatusFactura,
     formatInvoiceSummary,
+    getCodCita,
     getProductDocumentation,
     groupProductsByCita,
     parseStatusFactura,
@@ -537,6 +538,7 @@ const Agenda: React.FC = () => {
             // Preparar los datos para exportar
             const dataToExport = filteredListViewData.map(product => ({
                 'Fecha': formatDateFromAPI(product.u_fecha),
+                'N° Cita': getCodCita(product) || '-',
                 'Número OC': product.number,
                 'Código': product.item_code,
                 'Descripción': product.item_name,
@@ -564,6 +566,7 @@ const Agenda: React.FC = () => {
             // Ajustar el ancho de las columnas
             const colWidths = [
                 { wch: 12 }, // Fecha
+                { wch: 10 }, // N° Cita
                 { wch: 15 }, // Número
                 { wch: 15 }, // Código
                 { wch: 50 }, // Descripción
@@ -733,6 +736,7 @@ const Agenda: React.FC = () => {
                                     <td colspan="11">
                                         <strong>${formatDateFromAPI(group.first.u_fecha)} · ${formatHorario(group.first.horario)} · ${escapeHtml(group.first.u_razon_social)}</strong>
                                         <span class="group-meta">
+                                            N° Cita: ${escapeHtml(getCodCita(group.first) || '-')} ·
                                             OC: ${escapeHtml(formatOrders(group.orders))} ·
                                             Estado: ${formatStatusCita(group.first.status_cita)} ·
                                             Productos: ${group.products.length} ·
