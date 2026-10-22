@@ -106,6 +106,29 @@ const getCurrentMonthRange = () => {
     return { start: `${year}-${pad(month)}-01`, end: `${year}-${pad(month)}-${pad(lastDay)}` };
 };
 
+type DateRange = { start: string; end: string };
+
+/** Rango que aplicó Contabilidad: se conserva al ir al detalle de una cita y volver (solo en esta pestaña) */
+const LIST_RANGE_STORAGE_KEY = 'agenda.listRange';
+
+const loadSavedListRange = (): DateRange | null => {
+    try {
+        const saved = JSON.parse(sessionStorage.getItem(LIST_RANGE_STORAGE_KEY) ?? 'null');
+        return typeof saved?.start === 'string' && typeof saved?.end === 'string' ? saved : null;
+    } catch {
+        return null;
+    }
+};
+
+const saveListRange = (range: DateRange | null) => {
+    try {
+        if (range) sessionStorage.setItem(LIST_RANGE_STORAGE_KEY, JSON.stringify(range));
+        else sessionStorage.removeItem(LIST_RANGE_STORAGE_KEY);
+    } catch {
+        // Sin sessionStorage solo se pierde el rango al volver
+    }
+};
+
 /** "2026-10-19" → fecha local, sin desfase de zona horaria */
 const parseIsoDate = (value: string) => {
     const [year, month, day] = value.split('-').map(Number);
@@ -192,7 +215,8 @@ const Agenda: React.FC = () => {
     const [listAppointments, setListAppointments] = useState<DeliveryAppointment[]>([]);
     // Contabilidad consulta /Productos por rango de fechas (por defecto el mes en curso); se aplica con "Buscar"
     const isContabilidadUser = currentUser?.role === UserRole.CONTABILIDAD;
-    const [listRange, setListRange] = useState(getCurrentMonthRange);
+    // Sin un rango aplicado antes, el mes en curso
+    const [listRange, setListRange] = useState<DateRange>(() => loadSavedListRange() ?? getCurrentMonthRange());
     const [appliedListRange, setAppliedListRange] = useState(listRange);
     const isListRangeInvalid = !listRange.start || !listRange.end || listRange.start > listRange.end;
     
@@ -464,7 +488,19 @@ const Agenda: React.FC = () => {
     const getDocumentation = (product: ProductApiRecord) => productDocumentation.get(product) ?? null;
 
     const handleSearchListRange = () => {
-        if (!isListRangeInvalid) setAppliedListRange(listRange);
+        if (isListRangeInvalid) return;
+        setAppliedListRange(listRange);
+        saveListRange(listRange);
+    };
+
+    // Vuelve al mes en curso sin elegirlo en los calendarios; deja de recordar el rango aplicado
+    const currentMonthRange = getCurrentMonthRange();
+    const isCurrentMonthApplied = appliedListRange.start === currentMonthRange.start && appliedListRange.end === currentMonthRange.end
+        && listRange.start === currentMonthRange.start && listRange.end === currentMonthRange.end;
+    const handleCurrentMonthListRange = () => {
+        setListRange(currentMonthRange);
+        setAppliedListRange(currentMonthRange);
+        saveListRange(null);
     };
 
     // Filtrar datos según los filtros de búsqueda
@@ -2091,6 +2127,14 @@ const Agenda: React.FC = () => {
                                     isDisabled={isLoadingListView || isListRangeInvalid}
                                 >
                                     Buscar
+                                </Button>
+                                <Button
+                                    variant="flat"
+                                    size="md"
+                                    onPress={handleCurrentMonthListRange}
+                                    isDisabled={isLoadingListView || isCurrentMonthApplied}
+                                >
+                                    Mes actual
                                 </Button>
                             </div>
                             ) : (
