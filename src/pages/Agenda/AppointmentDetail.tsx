@@ -1325,7 +1325,9 @@ const AppointmentDetail: React.FC = () => {
                             startContent={<ArrowLeftIcon className="w-5 h-5" />}
                             onPress={goBack}
                         >
-                            {returnTo === '/cronograma' ? 'Volver al Cronograma de Pagos' : 'Volver a Agenda'}
+                            {returnTo?.startsWith('/cronograma/programar-facturas')
+                                ? 'Volver a Facturas para Programar'
+                                : returnTo === '/cronograma' ? 'Volver al Cronograma de Pagos' : 'Volver a Agenda'}
                         </Button>
                         
                         {/* Botones de acción */}
