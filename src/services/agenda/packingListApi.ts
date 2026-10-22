@@ -856,13 +856,15 @@ export const fetchSupplierProductsFromApi = async (
     );
     // Por si el API ignorara CardCode: quedarse solo con las OC del proveedor
     const products = productsByOrder.flat().filter((product) => orders.includes(product.number));
-    // Al unir varias llamadas se pierde el orden del API: fecha ("19/01/2026 00:00:00") y horario ("800 - 1100")
-    const sortKey = (p: ProductApiRecord) => {
-        const [day = '', month = '', year = ''] = (p.u_fecha ?? '').split(' ')[0].split('/');
-        const start = (p.horario ?? '').split(' - ')[0].trim().padStart(4, '0');
-        return `${year}${month.padStart(2, '0')}${day.padStart(2, '0')}${start}`;
-    };
-    return products.sort((a, b) => sortKey(a).localeCompare(sortKey(b)));
+    // Al unir varias llamadas se pierde el orden del API
+    return products.sort((a, b) => productDateKey(a).localeCompare(productDateKey(b)));
+};
+
+/** Clave cronológica del producto: fecha ("19/01/2026 00:00:00") y hora de inicio ("800 - 1100") → "202601190800" */
+export const productDateKey = (p: ProductApiRecord): string => {
+    const [day = '', month = '', year = ''] = (p.u_fecha ?? '').split(' ')[0].split('/');
+    const start = (p.horario ?? '').split(' - ')[0].trim().padStart(4, '0');
+    return `${year}${month.padStart(2, '0')}${day.padStart(2, '0')}${start}`;
 };
 
 export interface ParteIngreso {

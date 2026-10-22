@@ -69,7 +69,10 @@ import {
     getCodCita,
     getProductDocumentation,
     groupProductsByCita,
+    LIST_SORT_OPTIONS,
+    ListSort,
     parseStatusFactura,
+    sortProducts,
     summarizeDocumentation,
 } from './productList';
 
@@ -201,6 +204,7 @@ const Agenda: React.FC = () => {
     const [filterRazonSocial, setFilterRazonSocial] = useState<string>('');
     const [filterQuantity, setFilterQuantity] = useState<string>('');
     const [filterHorario, setFilterHorario] = useState<string>('');
+    const [listSort, setListSort] = useState<ListSort>('fecha_asc');
     // Contabilidad trabaja sobre lo pendiente de facturar: por defecto ve solo las citas sin factura
     const defaultFilterFactura: FacturaFilter = currentUser?.role === UserRole.CONTABILIDAD ? 'sin' : 'all';
     const [filterFactura, setFilterFactura] = useState<FacturaFilter>(defaultFilterFactura);
@@ -505,11 +509,17 @@ const Agenda: React.FC = () => {
         });
     }, [listViewData, filterFecha, filterNumber, filterItemCode, filterItemName, filterRazonSocial, filterQuantity, filterHorario, filterFactura]);
 
+    // Orden elegido (por defecto cronológico); lo usan la tabla, Imprimir y Exportar Excel
+    const sortedListViewData = useMemo(
+        () => sortProducts(filteredListViewData, listSort),
+        [filteredListViewData, listSort]
+    );
+
     // Una fila por cita; al desplegarla muestra solo sus productos que pasan los filtros
     // La factura de la cabecera se cuenta sobre todos los productos de la cita, no solo los filtrados
     const productGroups = useMemo(
-        () => groupProductsByCita(filteredListViewData, listViewData),
-        [filteredListViewData, listViewData]
+        () => groupProductsByCita(sortedListViewData, listViewData),
+        [sortedListViewData, listViewData]
     );
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
@@ -536,7 +546,7 @@ const Agenda: React.FC = () => {
     const handleExportToExcel = () => {
         try {
             // Preparar los datos para exportar
-            const dataToExport = filteredListViewData.map(product => ({
+            const dataToExport = sortedListViewData.map(product => ({
                 'Fecha': formatDateFromAPI(product.u_fecha),
                 'N° Cita': getCodCita(product) || '-',
                 'Número OC': product.number,
@@ -2167,7 +2177,7 @@ const Agenda: React.FC = () => {
                             <CardBody className="p-4 rounded-none flex-1 flex flex-col" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
                                 {/* Filtros de búsqueda fuera de la tabla */}
                                 <div className="flex-shrink-0 mb-4">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 xl:grid-cols-9 gap-4">
                                         <Input
                                             size="sm"
                                             label="Fecha"
@@ -2236,6 +2246,21 @@ const Agenda: React.FC = () => {
                                             classNames={{ base: "w-full" }}
                                         >
                                             {FACTURA_FILTER_OPTIONS.map((option) => (
+                                                <SelectItem key={option.key}>{option.label}</SelectItem>
+                                            ))}
+                                        </Select>
+                                        <Select
+                                            size="sm"
+                                            label="Ordenar por"
+                                            selectedKeys={[listSort]}
+                                            disallowEmptySelection
+                                            onSelectionChange={(keys) => {
+                                                const key = Array.from(keys)[0] as ListSort | undefined;
+                                                if (key) setListSort(key);
+                                            }}
+                                            classNames={{ base: "w-full" }}
+                                        >
+                                            {LIST_SORT_OPTIONS.map((option) => (
                                                 <SelectItem key={option.key}>{option.label}</SelectItem>
                                             ))}
                                         </Select>

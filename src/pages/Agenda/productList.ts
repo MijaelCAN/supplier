@@ -1,6 +1,6 @@
 // src/pages/Agenda/productList.ts
 // Formato y agrupación por cita de la vista Lista (citas por producto, /api/Documentos/Productos).
-import { ProductApiRecord } from '@/services/agenda/packingListApi';
+import { ProductApiRecord, productDateKey } from '@/services/agenda/packingListApi';
 import { STATUS_CONFIG } from '@/services/agenda/appointmentStatus';
 import { DeliveryAppointment } from '@/store/types';
 
@@ -123,6 +123,31 @@ export const groupProductsByCita = (
         orders: unique(list.map((p) => p.number)),
         invoice: summarizeInvoices(allGroups?.get(key) ?? list),
     }));
+};
+
+export type ListSort = 'fecha_asc' | 'fecha_desc' | 'proveedor';
+
+export const LIST_SORT_OPTIONS: { key: ListSort; label: string }[] = [
+    { key: 'fecha_asc', label: 'Fecha (más antigua primero)' },
+    { key: 'fecha_desc', label: 'Fecha (más reciente primero)' },
+    { key: 'proveedor', label: 'Proveedor (A-Z)' },
+];
+
+/**
+ * Orden de la lista: el API de toda la empresa no llega ordenado. Por proveedor, cada uno
+ * queda junto y sus citas en orden cronológico. Como se ordena antes de agrupar, las citas
+ * (groupProductsByCita) salen en ese mismo orden.
+ */
+export const sortProducts = (products: ProductApiRecord[], sort: ListSort): ProductApiRecord[] => {
+    const byDate = (a: ProductApiRecord, b: ProductApiRecord) => productDateKey(a).localeCompare(productDateKey(b));
+    return [...products].sort((a, b) => {
+        if (sort === 'fecha_desc') return byDate(b, a);
+        if (sort === 'proveedor') {
+            const bySupplier = (a.u_razon_social ?? '').localeCompare(b.u_razon_social ?? '', 'es', { sensitivity: 'base' });
+            if (bySupplier !== 0) return bySupplier;
+        }
+        return byDate(a, b);
+    });
 };
 
 /** "19/01/2026 00:00:00" → "2026-01-19" */
