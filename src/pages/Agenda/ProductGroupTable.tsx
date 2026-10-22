@@ -36,8 +36,8 @@ const PRODUCT_COLUMNS = ['OC', 'Código', 'Descripción', 'Cantidad', 'Confirmac
 
 const Empty = () => <span className="text-gray-400 text-sm">-</span>;
 
-/** Completa / Incompleta, con los faltantes al pasar el cursor */
-const DocumentationChip: React.FC<{ status: DocumentationStatus | null }> = ({ status }) => {
+/** Completa / Incompleta, con los faltantes al pasar el cursor (también en el detalle de la cita) */
+export const DocumentationChip: React.FC<{ status: DocumentationStatus | null }> = ({ status }) => {
     if (!status) return <Empty />;
     return (
         <span title={status.complete || status.missing.length === 0 ? undefined : `Falta: ${status.missing.join(', ')}`}>

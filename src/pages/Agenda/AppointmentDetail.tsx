@@ -53,12 +53,13 @@ import {
     DocumentApiRecord,
     PACKING_LIST_DELETABLE_STATUSES,
     fetchDocumentDetailFromApi,
-    fetchAppointmentParteIngreso,
+    fetchAppointmentProducts,
     fetchDocumentsFromApi,
     fetchPackingListFromApi,
     fetchWarehousesFromApi,
+    getAppointmentParteIngreso,
     PackingListApiRecord,
-    ParteIngreso,
+    ProductApiRecord,
     uploadFileToPackingList,
     WarehouseApiRecord
 } from "@/services/agenda/packingListApi";
@@ -74,6 +75,8 @@ import {getMaxPackingListQuantity, getPackingListQuantityText, parsePackingListQ
 import DeletePackingListModal from './DeletePackingListModal';
 import type { ProductEvaluationResult } from './EvaluationModal';
 import {NumberEntry} from './DocumentGroupTabs';
+import {getProductDocumentation, summarizeDocumentation} from './productList';
+import {DocumentationChip} from './ProductGroupTable';
 import PackingListDocuments from './PackingListDocuments';
 import DocumentsModal, {LoadedDocument} from './DocumentsModal';
 import DeleteDocumentModal from './DeleteDocumentModal';
@@ -441,24 +444,36 @@ const AppointmentDetail: React.FC = () => {
         }
     }, [appointment?.docEntry]);
 
-    // Partes de Ingreso de la cita con la guía o factura con que se registraron (por ahora solo el número; el documento vendrá después)
-    const [partesIngreso, setPartesIngreso] = useState<ParteIngreso[]>([]);
+    // Productos de la cita (mismos registros del reporte de citas por producto): de ellos salen los
+    // Partes de Ingreso y la documentación completa. Se recargan al subir o eliminar documentos.
+    const [appointmentProducts, setAppointmentProducts] = useState<ProductApiRecord[]>([]);
     useEffect(() => {
-        if (!appointment?.deliveryDate || packingListsFromApi.length === 0) {
-            setPartesIngreso([]);
+        if (!appointment?.deliveryDate || !appointment.docEntry || (isProvider && packingListsFromApi.length === 0)) {
+            setAppointmentProducts([]);
             return;
         }
         let cancelled = false;
-        fetchAppointmentParteIngreso(appointment.deliveryDate, packingListsFromApi)
-            .then((partes) => {
-                if (!cancelled) setPartesIngreso(partes);
+        fetchAppointmentProducts(appointment.deliveryDate, String(appointment.docEntry), packingListsFromApi, isProvider)
+            .then((products) => {
+                if (!cancelled) setAppointmentProducts(products);
             })
             .catch((error) => {
-                console.error('Error al cargar Parte de Ingreso:', error);
-                if (!cancelled) setPartesIngreso([]);
+                console.error('Error al cargar los productos de la cita:', error);
+                if (!cancelled) setAppointmentProducts([]);
             });
         return () => { cancelled = true; };
-    }, [appointment?.deliveryDate, packingListsFromApi]);
+    }, [appointment?.deliveryDate, appointment?.docEntry, packingListsFromApi, appointmentDocuments, isProvider]);
+
+    // Partes de Ingreso de la cita con la guía o factura con que se registraron
+    const partesIngreso = useMemo(() => getAppointmentParteIngreso(appointmentProducts), [appointmentProducts]);
+
+    // Documentación completa (OC, Guía, Factura y Parte de Ingreso) con la misma regla que el reporte de
+    // citas por producto: estado_documentos del API por producto y, sin ese dato, el cálculo en la web
+    const documentationStatus = useMemo(() => {
+        if (!appointment) return null;
+        const withDocuments = { ...appointment, rawDocuments: appointmentDocuments };
+        return summarizeDocumentation(appointmentProducts.map((product) => getProductDocumentation(product, withDocuments)));
+    }, [appointment, appointmentDocuments, appointmentProducts]);
 
     // Partes del packing list; si el API no envía el packing list de la línea, los de su OC
     const getParteIngresoNumbers = (packingList: string): NumberEntry[] =>
@@ -2063,27 +2078,20 @@ const AppointmentDetail: React.FC = () => {
 
                     {/* Documents Section */}
                     <Card ref={documentsSectionRef} className={`border-2 transition-all ${
-                        areAllDocumentsComplete()
-                            ? 'border-emerald-200 bg-emerald-50/30' 
+                        documentationStatus?.complete
+                            ? 'border-emerald-200 bg-emerald-50/30'
                             : 'border-gray-200 hover:border-blue-300'
                     }`}>
                         <CardBody className="p-6">
                             <div className="flex items-center justify-between mb-4">
                                 <h4 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
                                     <DocumentTextIcon className={`w-5 h-5 ${
-                                        areAllDocumentsComplete() ? 'text-emerald-600' : 'text-gray-400'
+                                        documentationStatus?.complete ? 'text-emerald-600' : 'text-gray-400'
                                     }`} />
                                     Documentos
                                 </h4>
-                                {areAllDocumentsComplete() ? (
-                                    <Chip color="success" variant="flat" startContent={<CheckCircleIcon className="w-4 h-4" />}>
-                                        Completado
-                                    </Chip>
-                                ) : (
-                                    <Chip color="warning" variant="flat" startContent={<ExclamationTriangleIcon className="w-4 h-4" />}>
-                                        Pendiente
-                                    </Chip>
-                                )}
+                                {/* Mismo estado que la columna Documentación del reporte de citas por producto */}
+                                <DocumentationChip status={documentationStatus} />
                             </div>
 
                             {appointmentDocuments.length > 0 || appointment.documents ? (

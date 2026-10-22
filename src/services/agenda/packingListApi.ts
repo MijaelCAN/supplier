@@ -894,26 +894,44 @@ const parseParteIngreso = (value: string, product: ProductApiRecord): ParteIngre
 };
 
 /**
- * Partes de Ingreso de una cita, primero los pendientes de registrar factura.
- * /PackinList no lo trae: se consulta /Productos por cada OC de la cita en su fecha y se
- * queda con las líneas de sus packing lists (o de sus OC si el API no envía packing_list_number).
- * Mientras el API no envíe la cita del parte (OBS-022) llegan todos los partes de la OC, incluso de otras entregas.
+ * Productos de una cita: los mismos registros que el reporte de citas por producto, que es la fuente
+ * de la documentación completa (estado_documentos). Se toman las líneas con cod_cita de la cita.
+ * - Roles internos: /Productos del día de la cita, igual que el reporte. Así entran también las OC que
+ *   el API asocia a la cita sin un packing list vigente (cita 130: OC 261010531 sin Parte de Ingreso).
+ * - Proveedor (`byOrders`): /Productos por cada OC de sus packing lists, igual que su reporte
+ *   (/Productos no filtra por RUC y así no llegan datos de otros proveedores).
+ * Si el API no envía cod_cita, se queda con las líneas de los packing lists (o de sus OC).
  */
-export const fetchAppointmentParteIngreso = async (
+export const fetchAppointmentProducts = async (
     deliveryDate: string, // "YYYY-MM-DD"
-    packingLists: PackingListApiRecord[]
-): Promise<ParteIngreso[]> => {
+    codCita: string,
+    packingLists: PackingListApiRecord[],
+    byOrders: boolean
+): Promise<ProductApiRecord[]> => {
     const packingListNumbers = new Set(packingLists.map((pl) => pl.number).filter(Boolean));
     const orders = Array.from(new Set(Array.from(packingListNumbers, (number) => number.split('_')[0])));
-    if (orders.length === 0) return [];
+    if (byOrders && orders.length === 0) return [];
 
     const fecha = formatDateForAPI(deliveryDate.split('T')[0]);
-    const products = (await Promise.all(orders.map((order) => fetchProductsFromApi(fecha, fecha, order)))).flat();
+    const products = byOrders
+        ? (await Promise.all(orders.map((order) => fetchProductsFromApi(fecha, fecha, order)))).flat()
+        : await fetchProductsFromApi(fecha, fecha);
+    return products.filter((p) => {
+        const productCita = p.cod_cita != null ? String(p.cod_cita).trim() : '';
+        if (productCita) return productCita === codCita;
+        return p.packing_list_number ? packingListNumbers.has(p.packing_list_number) : orders.includes(p.number);
+    });
+};
 
+/**
+ * Partes de Ingreso de una cita a partir de sus productos (fetchAppointmentProducts), primero los
+ * pendientes de registrar factura. Mientras el API no envíe la cita del parte (OBS-022) llegan todos
+ * los partes de la OC, incluso de otras entregas.
+ */
+export const getAppointmentParteIngreso = (products: ProductApiRecord[]): ParteIngreso[] => {
     // El API repite cada parte una vez por producto: se deja uno por número en cada packing list
     const partes = new Map<string, ParteIngreso>();
     products
-        .filter((p) => p.packing_list_number ? packingListNumbers.has(p.packing_list_number) : orders.includes(p.number))
         .forEach((p) => {
             const value = p.num_parte_ingreso?.trim();
             if (!value) return;
