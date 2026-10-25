@@ -16,6 +16,8 @@ interface DocumentRow {
     doc?: LoadedDocument;
     /** Fila de un tipo sin archivo válido: "Falta" o "Falta XML" */
     missing?: string;
+    /** Tipo opcional sin archivo (ej: la Letra, OBS-030): se muestra para saber que se puede cargar */
+    optional?: boolean;
 }
 
 interface PackingListDocumentsProps {
@@ -38,13 +40,20 @@ const getTabKey = (packingList: string) => packingList || 'unassigned';
 const getPackingListLabel = (packingList: string) =>
     packingList === UNASSIGNED_PACKING_LIST ? 'Sin packing list' : packingList;
 
-/** Una fila por archivo, en el orden del modal de carga, y una fila "Falta" por cada tipo sin archivo válido */
+/**
+ * Una fila por archivo, en el orden del modal de carga, una fila "Falta" por cada tipo requerido sin archivo válido
+ * y una fila "Opcional" por cada tipo opcional sin archivos.
+ */
 const buildRows = (docs: LoadedDocument[]): DocumentRow[] => {
     const rows: DocumentRow[] = [];
     COMMERCIAL_DOCUMENT_TYPES.forEach((docType) => {
         const typeDocs = docs.filter((doc) => mapFileNameToDocumentType(doc.name) === docType.key);
         typeDocs.forEach((doc, index) => rows.push({key: `${docType.key}-${doc.docEntry ?? index}`, typeLabel: docType.label, typeDocs, doc}));
-        if (!typeDocs.some((doc) => meetsRequiredFile(docType.key, doc.name))) {
+        if (docType.optional) {
+            if (typeDocs.length === 0) {
+                rows.push({key: `${docType.key}-optional`, typeLabel: docType.label, typeDocs, missing: 'Opcional', optional: true});
+            }
+        } else if (!typeDocs.some((doc) => meetsRequiredFile(docType.key, doc.name))) {
             rows.push({
                 key: `${docType.key}-missing`,
                 typeLabel: docType.label,
@@ -125,6 +134,10 @@ const PackingListDocuments = ({groups, getParteIngreso, onDocumentClick, onDelet
                                                     Cargado
                                                 </Chip>
                                             )
+                                        ) : row.optional ? (
+                                            <Chip size="sm" variant="flat">
+                                                {row.missing}
+                                            </Chip>
                                         ) : (
                                             <Chip size="sm" variant="flat" color="warning" startContent={<XCircleIcon className="w-3 h-3" />}>
                                                 {row.missing}

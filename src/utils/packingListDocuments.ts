@@ -1,4 +1,4 @@
-import { COMMERCIAL_DOCUMENT_TYPES, getCompletedDocumentTypeKeysFromNames } from '@/config/commercialDocuments';
+import { REQUIRED_DOCUMENT_TYPES, getCompletedDocumentTypeKeysFromNames } from '@/config/commercialDocuments';
 import type { AppointmentDocument } from '@/services/agenda/appointmentsApi';
 
 /** Grupo de los documentos sin packing list cuando la cita tiene varios (cargados antes de asignarlos) */
@@ -33,10 +33,10 @@ export const groupDocumentsByPackingList = (
         .sort((a, b) => Number(a.packingList === UNASSIGNED_PACKING_LIST) - Number(b.packingList === UNASSIGNED_PACKING_LIST));
 };
 
-/** Todos los tipos requeridos tienen al menos un archivo válido (la factura, su XML) */
+/** Todos los tipos requeridos tienen al menos un archivo válido (la factura, su XML); los opcionales no cuentan */
 export const areDocumentTypesComplete = (documents: AppointmentDocument[]): boolean => {
     const completed = getCompletedDocumentTypeKeysFromNames(documents.map((doc) => doc.u_name_file));
-    return COMMERCIAL_DOCUMENT_TYPES.every((docType) => completed.has(docType.key));
+    return REQUIRED_DOCUMENT_TYPES.every((docType) => completed.has(docType.key));
 };
 
 /**

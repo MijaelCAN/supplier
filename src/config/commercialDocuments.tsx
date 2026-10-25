@@ -17,6 +17,8 @@ export interface CommercialDocumentType {
     // El tipo no está completo sin un archivo que cumpla esto (ej: el XML de la factura); requiredLabel es lo que falta
     isRequiredFile?: (fileName: string) => boolean;
     requiredLabel?: string;
+    // Se puede cargar pero no cuenta para "documentos completos" ni se marca como faltante (ej: la Letra, OBS-030)
+    optional?: boolean;
 }
 
 /** CDR de SUNAT: "R-<ruc>-01-F001-123.xml", guardado como "FAC_R-..." */
@@ -113,8 +115,21 @@ export const COMMERCIAL_DOCUMENT_TYPES: CommercialDocumentType[] = [
         description: 'PDF, XML, CDR, JPG, PNG',
         prefix: 'FT',
         keywords: ['ficha', 'tecnica', 'ficha tecnica', 'technical', 'sheet', 'technical sheet', 'datasheet']
+    },
+    {
+        key: 'billOfExchange',
+        label: 'Letra',
+        accept: '.pdf,.jpg,.jpeg,.png',
+        icon: <DocumentTextIcon className="w-5 h-5" />,
+        description: 'Opcional, solo si el pago es con letra. PDF, JPG, PNG',
+        prefix: 'LT',
+        keywords: ['letra'],
+        optional: true
     }
 ];
+
+/** Tipos que deben estar cargados para que los documentos queden completos */
+export const REQUIRED_DOCUMENT_TYPES = COMMERCIAL_DOCUMENT_TYPES.filter(doc => !doc.optional);
 
 /**
  * Mapeo de tipos de documento a prefijos de nombre de archivo

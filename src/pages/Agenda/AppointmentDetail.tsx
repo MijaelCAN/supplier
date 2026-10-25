@@ -2189,7 +2189,8 @@ const AppointmentDetail: React.FC = () => {
                                         );
                                     })()}
 
-                                    {canManageDocuments && !areAllDocumentsComplete() && (
+                                    {/* Con los obligatorios completos se sigue mostrando para cargar los opcionales (Letra, OBS-030) */}
+                                    {canManageDocuments && (
                                         <div className="mt-4">
                                             <Button
                                                 color="primary"
@@ -2199,7 +2200,9 @@ const AppointmentDetail: React.FC = () => {
                                                 onPress={handleOpenDocuments}
                                                 isDisabled={packingListsFromApi.length === 0}
                                             >
-                                                {appointmentDocuments.length === 0 ? 'Cargar Documentos' : 'Cargar Documentos Faltantes'}
+                                                {appointmentDocuments.length === 0
+                                                    ? 'Cargar Documentos'
+                                                    : areAllDocumentsComplete() ? 'Cargar Letra u otros documentos' : 'Cargar Documentos Faltantes'}
                                             </Button>
                                             {packingListsFromApi.length === 0 && (
                                                 <p className="mt-2 text-xs text-center text-gray-500">Primero registre el Packing List de la cita.</p>

@@ -336,6 +336,10 @@ const DocumentsModal: React.FC<DocumentsModalProps> = ({
                                                             >
                                                                 Cargado
                                                             </Chip>
+                                                        ) : docType.optional ? (
+                                                            <Chip size="sm" variant="flat">
+                                                                Opcional
+                                                            </Chip>
                                                         ) : (
                                                             <Chip
                                                                 size="sm"
