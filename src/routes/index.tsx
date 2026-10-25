@@ -29,6 +29,7 @@ const ScheduleInvoices = lazy(() => import("@/pages/Pagos/ScheduleInvoices"));
 const ConfirmacionRheFe = lazy(() => import("@/pages/Finanzas/confirmacionRheFe"));
 const ConsultaEnviosSunat = lazy(() => import("@/pages/Finanzas/consultaEnviosSunat")
 );
+const PartesIngresoPage = lazy(() => import("@/pages/PartesIngreso"));
 
 // ── Fallback de carga ─────────────────────────────────────────────────────────
 const PageLoader = () => (
@@ -216,6 +217,14 @@ const router = createBrowserRouter([
     element: (
       <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.CALIDAD, UserRole.ALMACEN]}>
         <Lazy><ReclamosPage /></Lazy>
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/contabilidad/partes-ingreso",
+    element: (
+      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.CONTABILIDAD]}>
+        <Lazy><PartesIngresoPage /></Lazy>
       </ProtectedRoute>
     ),
   },
