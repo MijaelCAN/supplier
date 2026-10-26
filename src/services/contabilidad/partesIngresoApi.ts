@@ -7,12 +7,12 @@ import partesIngresoMock from "./partesIngreso.mock.json";
 
 /**
  * true: lee partesIngreso.mock.json (filtrado por fecha y proveedor, con ~500 ms de espera).
- * false: llama a GET /api/contabilidad/partes-ingreso.
+ * false: llama a GET /api/Contabilidad/partes-ingreso.
  */
-export const USAR_MOCK = true;
+export const USAR_MOCK = false;
 
 const DEFAULT_API_BASE_URL = getApiBaseUrl();
-const PARTES_INGRESO_ENDPOINT = '/api/contabilidad/partes-ingreso';
+const PARTES_INGRESO_ENDPOINT = '/api/Contabilidad/partes-ingreso';
 const MOCK_DELAY_MS = 500;
 
 export type EstadoFactura = 'FALTA FACTURA' | 'FACTURA REGISTRADA';
@@ -39,6 +39,51 @@ export interface ParteIngresoContabilidad {
     linksFactura: string[];
     linksCC: string[];
 }
+
+/** Fila tal como la devuelve el API (snake_case, dentro de { data: [...] }) */
+interface ParteIngresoApiRow {
+    fecha_parte_ingreso: string;
+    numero_parte_ingreso: number;
+    numero_guia: string;
+    codigo_proveedor: string;
+    proveedor: string;
+    ruc: string;
+    condicion_pago: string | null;
+    moneda: string;
+    total: number;
+    ordenes_compra: string | null;
+    numero_factura: string | null;
+    estado_factura: EstadoFactura;
+    numero_packing_list: string | null;
+    numero_cita: number | null;
+    validacion_documentos: ValidacionDocumentos;
+    links_oc: string[] | null;
+    links_guia: string[] | null;
+    links_factura: string[] | null;
+    links_cc: string[] | null;
+}
+
+const toParteIngreso = (row: ParteIngresoApiRow): ParteIngresoContabilidad => ({
+    fechaParteIngreso: row.fecha_parte_ingreso,
+    numeroParteIngreso: row.numero_parte_ingreso,
+    numeroGuia: row.numero_guia,
+    codigoProveedor: row.codigo_proveedor,
+    proveedor: row.proveedor,
+    ruc: row.ruc,
+    condicionPago: row.condicion_pago || null,
+    moneda: row.moneda,
+    total: Number(row.total),
+    ordenesCompra: row.ordenes_compra || null,
+    numeroFactura: row.numero_factura || null,
+    estadoFactura: row.estado_factura,
+    numeroPackingList: row.numero_packing_list || null,   // el API manda "" cuando no hay
+    numeroCita: row.numero_cita,
+    validacionDocumentos: row.validacion_documentos,
+    linksOC: row.links_oc ?? [],
+    linksGuia: row.links_guia ?? [],
+    linksFactura: row.links_factura ?? [],
+    linksCC: row.links_cc ?? [],
+});
 
 export interface ProveedorParteIngreso {
     codigoProveedor: string;
@@ -70,7 +115,10 @@ const listarMock = async (fechaInicio: string, fechaFin: string, codigoProveedor
 };
 
 const listarApi = async (fechaInicio: string, fechaFin: string, codigoProveedor?: string): Promise<ParteIngresoContabilidad[]> => {
-    const params: Record<string, string> = { fechaInicio, fechaFin };
+    const params: Record<string, string> = {
+        fechaInicio: fechaInicio.replace(/-/g, ''),
+        fechaFin: fechaFin.replace(/-/g, ''),       // SAP las recibe yyyyMMdd
+    };
     if (codigoProveedor) params.codigoProveedor = codigoProveedor;
     const url = buildSecureUrl(DEFAULT_API_BASE_URL, PARTES_INGRESO_ENDPOINT, params);
 
@@ -80,13 +128,13 @@ const listarApi = async (fechaInicio: string, fechaFin: string, codigoProveedor?
     });
 
     if (!response.ok) {
-        // 400: { "mensaje": "..." }
-        const body = await response.json().catch(() => null) as { mensaje?: string } | null;
-        throw new Error(body?.mensaje || `No se pudieron consultar los partes de ingreso (${response.status})`);
+        // 400: { "message": "..." }
+        const body = await response.json().catch(() => null) as { message?: string } | null;
+        throw new Error(body?.message || `No se pudieron consultar los partes de ingreso (${response.status})`);
     }
 
     const data = await response.json();
-    return Array.isArray(data) ? data : [];
+    return Array.isArray(data?.data) ? (data.data as ParteIngresoApiRow[]).map(toParteIngreso) : [];
 };
 
 /**
