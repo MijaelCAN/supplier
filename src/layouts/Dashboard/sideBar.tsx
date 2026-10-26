@@ -1,6 +1,6 @@
-import { XMarkIcon, ArrowRightOnRectangleIcon } from "@heroicons/react/24/outline";
+import { XMarkIcon, ArrowRightOnRectangleIcon, ChevronDoubleLeftIcon, ChevronDoubleRightIcon } from "@heroicons/react/24/outline";
 import { getMenuByRole } from "@/routes/menuItems.tsx";
-import {Accordion, AccordionItem, Button, Divider} from "@heroui/react";
+import {Accordion, AccordionItem, Button, Divider, Dropdown, DropdownItem, DropdownMenu, DropdownSection, DropdownTrigger, Tooltip} from "@heroui/react";
 import {Avatar} from "@heroui/avatar";
 import {FC} from "react";
 import {Link, useNavigate, useLocation} from "react-router-dom";
@@ -11,13 +11,16 @@ import {ThemeSwitch} from "@/components/theme-switch.tsx";
 interface SideBarProps {
     sidebarOpen: boolean;
     setSidebarOpen: (open: boolean) => void;
+    /** Escritorio: menú contraído a solo íconos */
+    collapsed?: boolean;
+    onCollapsedChange?: (collapsed: boolean) => void;
 }
 
 export const useMenuByRole = (userRole: UserRole) => {
     return getMenuByRole(userRole);
 };
 
-const SideBar: FC<SideBarProps> = ({sidebarOpen,setSidebarOpen}) => {
+const SideBar: FC<SideBarProps> = ({sidebarOpen,setSidebarOpen,collapsed = false,onCollapsedChange}) => {
     const { currentUser, logout } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
@@ -36,12 +39,102 @@ const SideBar: FC<SideBarProps> = ({sidebarOpen,setSidebarOpen}) => {
 
     const isExternalLink = (href: string) => /^https?:\/\//i.test(href);
 
+    const goTo = (href: string) => {
+        if (isExternalLink(href)) window.open(href, '_blank', 'noopener,noreferrer');
+        else navigate(href);
+    };
+
+    const railButtonClass = (active: boolean) => `flex items-center justify-center w-10 h-10 rounded-lg transition-colors ${
+        active
+            ? 'bg-rojo text-white shadow-sm'
+            : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-rojo'
+    }`;
+
     return (
         <aside
             className={`bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 fixed inset-y-0 left-0 z-50 transform w-72 transition-transform duration-300 ease-in-out shadow-lg ${
                 sidebarOpen ? "translate-x-0" : "-translate-x-full"
-            } md:relative md:translate-x-0 flex flex-col`}
+            } md:relative md:translate-x-0 flex flex-col ${collapsed ? "md:w-16" : ""}`}
         >
+            {/* Escritorio contraído: solo íconos */}
+            {collapsed && (
+                <div className="hidden md:flex flex-col items-center h-full py-4 gap-2">
+                    <Tooltip content="Mostrar menú" placement="right">
+                        <button
+                            onClick={() => onCollapsedChange?.(false)}
+                            aria-label="Mostrar menú"
+                            className={railButtonClass(false)}
+                        >
+                            <ChevronDoubleRightIcon className="h-5 w-5"/>
+                        </button>
+                    </Tooltip>
+
+                    <Divider className="my-1" />
+
+                    <nav className="flex-1 overflow-y-auto flex flex-col items-center gap-1">
+                        {menuForRole.map((item, index) => item.single ? (
+                            <Tooltip key={index} content={item.title} placement="right">
+                                <Link to={item.href!} aria-label={item.title} className={railButtonClass(isActive(item.href!))}>
+                                    {item.icon}
+                                </Link>
+                            </Tooltip>
+                        ) : (
+                            <Dropdown key={index} placement="right-start">
+                                <DropdownTrigger>
+                                    <button
+                                        aria-label={item.title}
+                                        title={item.title}
+                                        className={railButtonClass(item.items!.some((sub) => !isExternalLink(sub.href!) && isActive(sub.href!)))}
+                                    >
+                                        {item.icon}
+                                    </button>
+                                </DropdownTrigger>
+                                <DropdownMenu aria-label={item.title} onAction={(key) => goTo(String(key))}>
+                                    <DropdownSection title={item.title} items={item.items!}>
+                                        {(sub) => (
+                                            <DropdownItem
+                                                key={sub.href!}
+                                                startContent={sub.icon}
+                                                className={!isExternalLink(sub.href!) && isActive(sub.href!) ? 'text-rojo' : undefined}
+                                            >
+                                                {sub.title}
+                                            </DropdownItem>
+                                        )}
+                                    </DropdownSection>
+                                </DropdownMenu>
+                            </Dropdown>
+                        ))}
+                    </nav>
+
+                    <Divider className="my-1" />
+
+                    <Tooltip content={`${currentUser?.firstName ?? ''} ${currentUser?.lastName ?? ''} · ${currentUser?.role ?? ''}`} placement="right">
+                        <Avatar
+                            size="sm"
+                            src={currentUser?.avatar}
+                            name={`${currentUser?.firstName} ${currentUser?.lastName}`}
+                            className="ring-2 ring-gray-200 dark:ring-gray-700"
+                        />
+                    </Tooltip>
+                    <Tooltip content="Tema" placement="right">
+                        <div className="flex items-center justify-center w-10 h-10">
+                            <ThemeSwitch />
+                        </div>
+                    </Tooltip>
+                    <Tooltip content="Cerrar Sesión" placement="right" color="danger">
+                        <button
+                            onClick={handleLogout}
+                            aria-label="Cerrar Sesión"
+                            className="flex items-center justify-center w-10 h-10 rounded-lg text-danger hover:bg-danger-50 transition-colors"
+                        >
+                            <ArrowRightOnRectangleIcon className="h-5 w-5"/>
+                        </button>
+                    </Tooltip>
+                </div>
+            )}
+
+            {/* Menú completo (en móvil siempre; en escritorio cuando no está contraído) */}
+            <div className={`flex flex-col flex-1 min-h-0 ${collapsed ? "md:hidden" : ""}`}>
             {/* HEADER del Sidebar */}
             <div className="flex flex-col items-center justify-center p-5 md:p-6 border-b border-gray-200 dark:border-gray-800 relative bg-gradient-to-b from-white to-gray-50 dark:from-gray-900 dark:to-gray-800">
                 {/* Logo grande */}
@@ -65,6 +158,17 @@ const SideBar: FC<SideBarProps> = ({sidebarOpen,setSidebarOpen}) => {
                 >
                     <XMarkIcon className="h-5 w-5 text-gray-500 dark:text-gray-400"/>
                 </button>
+                {/* Botón contraer menú - escritorio */}
+                {onCollapsedChange && (
+                    <button
+                        onClick={() => onCollapsedChange(true)}
+                        title="Contraer menú"
+                        aria-label="Contraer menú"
+                        className="hidden md:block absolute top-4 right-4 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                    >
+                        <ChevronDoubleLeftIcon className="h-5 w-5 text-gray-500 dark:text-gray-400"/>
+                    </button>
+                )}
             </div>
 
             {/* NAVIGATION */}
@@ -204,6 +308,7 @@ const SideBar: FC<SideBarProps> = ({sidebarOpen,setSidebarOpen}) => {
                 >
                     Cerrar Sesión
                 </Button>
+            </div>
             </div>
         </aside>
     );
