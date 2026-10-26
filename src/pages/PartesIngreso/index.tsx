@@ -9,6 +9,11 @@ import {
     Card,
     CardBody,
     Chip,
+    Dropdown,
+    DropdownItem,
+    DropdownMenu,
+    DropdownSection,
+    DropdownTrigger,
     Input,
     Pagination,
     Select,
@@ -29,6 +34,8 @@ import {
     ExclamationTriangleIcon,
     InboxArrowDownIcon,
     MagnifyingGlassIcon,
+    ViewColumnsIcon,
+    XMarkIcon,
 } from '@heroicons/react/24/outline';
 import Dashboard from '@/layouts/Dashboard';
 import { DateInput } from '@/components/DateInput';
@@ -41,7 +48,7 @@ import {
     ProveedorParteIngreso,
     ValidacionDocumentos,
 } from '@/services/contabilidad/partesIngresoApi';
-import { exportPartesIngresoReport, formatFecha, formatTotal, getDocumentoLinks } from './partesIngresoReport';
+import { DocumentoGrupo, exportPartesIngresoReport, formatFecha, formatTotal, getDocumentoGrupos, getOtrosDocumentos, REGISTRO_SAP_LABELS } from './partesIngresoReport';
 
 const ROWS_PER_PAGE = 10;
 const PAGE_PATH = '/contabilidad/partes-ingreso';
@@ -56,6 +63,103 @@ const VALIDACION_COLORS: Record<ValidacionDocumentos, 'success' | 'warning' | 'd
     'OK': 'success',
     'REVISAR': 'warning',
     'SIN CITA': 'default',
+};
+
+const CHIP_BASE = 'inline-flex items-center justify-center gap-1 min-w-[58px] rounded-md px-2 py-1 text-xs font-medium whitespace-nowrap';
+const CHIP_ACTIVE = `${CHIP_BASE} bg-blue-50 text-blue-700 hover:bg-blue-100 cursor-pointer`;
+const CHIP_EMPTY = `${CHIP_BASE} bg-gray-100 text-gray-400 dark:bg-gray-800`;
+const CHIP_OTROS = `${CHIP_BASE} bg-violet-50 text-violet-700 hover:bg-violet-100 cursor-pointer`;
+
+/**
+ * Un chip por tipo con su cantidad (alto de fila fijo): gris si no hay archivos, abre directo si hay uno
+ * y despliega la lista si hay varios.
+ */
+const DocumentosCell = ({ grupos, otros }: { grupos: DocumentoGrupo[]; otros: DocumentoGrupo[] }) => (
+    <div className="flex gap-1">
+        {grupos.map((grupo) => {
+            const content = <>{grupo.shortLabel} <span className="font-semibold">{grupo.links.length}</span></>;
+
+            if (grupo.links.length === 0) {
+                return (
+                    <Tooltip key={grupo.key} content={`Sin documentos de ${grupo.label}`}>
+                        <span className={CHIP_EMPTY}>{content}</span>
+                    </Tooltip>
+                );
+            }
+
+            if (grupo.links.length === 1) {
+                const [link] = grupo.links;
+                return (
+                    <Tooltip key={grupo.key} content={`Abrir ${link.label}`}>
+                        <a href={link.url} target="_blank" rel="noopener noreferrer" className={CHIP_ACTIVE}>
+                            {content}
+                        </a>
+                    </Tooltip>
+                );
+            }
+
+            return (
+                <Dropdown key={grupo.key} placement="bottom-end">
+                    <DropdownTrigger>
+                        <button type="button" className={CHIP_ACTIVE} aria-label={`Documentos de ${grupo.label}`}>
+                            {content}
+                        </button>
+                    </DropdownTrigger>
+                    <DropdownMenu aria-label={`Documentos de ${grupo.label}`}>
+                        <DropdownSection title={`${grupo.label} (${grupo.links.length})`} items={grupo.links}>
+                            {(link) => (
+                                <DropdownItem
+                                    key={link.key}
+                                    href={link.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    startContent={<DocumentTextIcon className="h-4 w-4" />}
+                                >
+                                    {link.label}
+                                </DropdownItem>
+                            )}
+                        </DropdownSection>
+                    </DropdownMenu>
+                </Dropdown>
+            );
+        })}
+        {otros.length > 0 && <OtrosDocumentosChip otros={otros} />}
+    </div>
+);
+
+/** Solo si la cita trae archivos de otros tipos (Letra, Hoja de Seguridad...): un chip con la lista agrupada por tipo */
+const OtrosDocumentosChip = ({ otros }: { otros: DocumentoGrupo[] }) => {
+    const total = otros.reduce((sum, grupo) => sum + grupo.links.length, 0);
+    return (
+        <Tooltip content={otros.map((grupo) => grupo.label).join(', ')}>
+            <div>
+                <Dropdown placement="bottom-end">
+                    <DropdownTrigger>
+                        <button type="button" className={CHIP_OTROS} aria-label="Otros documentos">
+                            + Otros <span className="font-semibold">{total}</span>
+                        </button>
+                    </DropdownTrigger>
+                    <DropdownMenu aria-label="Otros documentos" className="max-h-80 overflow-y-auto">
+                        {otros.map((grupo) => (
+                            <DropdownSection key={grupo.key} title={`${grupo.label} (${grupo.links.length})`} items={grupo.links}>
+                                {(link) => (
+                                    <DropdownItem
+                                        key={link.key}
+                                        href={link.url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        startContent={<DocumentTextIcon className="h-4 w-4" />}
+                                    >
+                                        {link.label}
+                                    </DropdownItem>
+                                )}
+                            </DropdownSection>
+                        ))}
+                    </DropdownMenu>
+                </Dropdown>
+            </div>
+        </Tooltip>
+    );
 };
 
 type FiltroEstadoFactura = 'TODOS' | EstadoFactura;
@@ -80,7 +184,6 @@ const getSortValue = (row: ParteIngresoContabilidad, column: string): string | n
         case 'parteIngreso': return row.numeroParteIngreso;
         case 'guia': return row.numeroGuia;
         case 'proveedor': return row.proveedor;
-        case 'ruc': return row.ruc;
         case 'oc': return row.ordenesCompra;
         case 'condicionPago': return row.condicionPago;
         case 'moneda': return row.moneda;
@@ -105,15 +208,90 @@ const compareRows = (a: ParteIngresoContabilidad, b: ParteIngresoContabilidad, c
         : String(first).localeCompare(String(second), 'es', { numeric: true });
 };
 
+interface ColumnaTabla {
+    key: string;
+    label: string;
+    nombre: string;             // como se lista en el selector de columnas
+    sortable?: boolean;
+    align?: 'right';
+    fija?: boolean;             // siempre visible, no aparece en el selector de columnas
+}
+
+const COLUMNAS: ColumnaTabla[] = [
+    { key: 'fecha', label: 'FECHA', nombre: 'Fecha', sortable: true },
+    { key: 'proveedor', label: 'PROVEEDOR', nombre: 'Proveedor', sortable: true },
+    { key: 'parteIngreso', label: 'PARTE DE INGRESO', nombre: 'Parte de ingreso', sortable: true, fija: true },
+    { key: 'factura', label: 'FACTURA', nombre: 'Factura', sortable: true },
+    { key: 'oc', label: 'OC', nombre: 'OC', sortable: true },
+    { key: 'guia', label: 'GUÍA', nombre: 'Guía', sortable: true },
+    { key: 'condicionPago', label: 'CONDICIÓN DE PAGO', nombre: 'Condición de pago', sortable: true },
+    { key: 'moneda', label: 'MONEDA', nombre: 'Moneda', sortable: true },
+    { key: 'total', label: 'TOTAL', nombre: 'Total', sortable: true, align: 'right' },
+    { key: 'estadoFactura', label: 'REGISTRO SAP', nombre: 'Registro SAP', sortable: true },
+    { key: 'cita', label: 'CITA', nombre: 'Cita', sortable: true },
+    { key: 'packingList', label: 'PACKING LIST', nombre: 'Packing list', sortable: true },
+    { key: 'validacion', label: 'VALIDACIÓN', nombre: 'Validación', sortable: true },
+    { key: 'documentos', label: 'DOCUMENTOS', nombre: 'Documentos' },
+];
+
+const COLUMNAS_SELECCIONABLES = COLUMNAS.filter((col) => !col.fija);
+// Ocultas por defecto (al mostrarlas quedan en su lugar de COLUMNAS); el usuario puede mostrarlas u ocultar las demás desde "Columnas"
+const COLUMNAS_OCULTAS_POR_DEFECTO = ['condicionPago', 'moneda', 'packingList'];
+const COLUMNAS_STORAGE_KEY = 'partesIngreso.columnasVisibles';
+
+const leerColumnasVisibles = (): Set<string> => {
+    try {
+        const saved = localStorage.getItem(COLUMNAS_STORAGE_KEY);
+        if (saved) {
+            const keys = (JSON.parse(saved) as string[]).filter((key) => COLUMNAS_SELECCIONABLES.some((col) => col.key === key));
+            return new Set(keys);
+        }
+    } catch {
+        // sin almacenamiento o valor inválido: se usan las de por defecto
+    }
+    return new Set(COLUMNAS_SELECCIONABLES.map((col) => col.key).filter((key) => !COLUMNAS_OCULTAS_POR_DEFECTO.includes(key)));
+};
+
+/**
+ * Consulta y filtros aplicados: se guardan en la sesión del navegador para que sigan al ir a la cita (o a otra
+ * pantalla) y volver, hasta que el usuario los cambie o los limpie.
+ */
+interface FiltrosGuardados {
+    desde: string;
+    hasta: string;
+    proveedor: string | null;
+    proveedorNombre: string;
+    estadoFactura: FiltroEstadoFactura;
+    validacion: FiltroValidacion;
+    search: string;
+    sortDescriptor: SortDescriptor;
+    page: number;
+}
+
+const FILTROS_STORAGE_KEY = 'partesIngreso.filtros';
+
+const leerFiltrosGuardados = (): Partial<FiltrosGuardados> => {
+    try {
+        const saved = sessionStorage.getItem(FILTROS_STORAGE_KEY);
+        return saved ? JSON.parse(saved) as Partial<FiltrosGuardados> : {};
+    } catch {
+        return {};
+    }
+};
+
 const PartesIngresoPage = () => {
-    // Al volver del detalle de la cita se restauran el rango y el proveedor buscados
+    // Al volver del detalle de la cita se restauran la consulta (URL) y los filtros (sesión)
     const [searchParams] = useSearchParams();
     const week = useMemo(getCurrentWeekRange, []);
+    const [guardados] = useState(leerFiltrosGuardados);
+    const proveedorInicial = searchParams.get('proveedor') ?? guardados.proveedor ?? null;
 
-    const [fechaInicio, setFechaInicio] = useState(searchParams.get('desde') || week.start);
-    const [fechaFin, setFechaFin] = useState(searchParams.get('hasta') || week.end);
-    const [proveedorKey, setProveedorKey] = useState<string | null>(searchParams.get('proveedor'));
-    const [proveedorInput, setProveedorInput] = useState('');
+    const [fechaInicio, setFechaInicio] = useState(searchParams.get('desde') || guardados.desde || week.start);
+    const [fechaFin, setFechaFin] = useState(searchParams.get('hasta') || guardados.hasta || week.end);
+    const [proveedorKey, setProveedorKey] = useState<string | null>(proveedorInicial);
+    const [proveedorInput, setProveedorInput] = useState(
+        proveedorInicial && proveedorInicial === guardados.proveedor ? guardados.proveedorNombre ?? '' : ''
+    );
 
     const [rows, setRows] = useState<ParteIngresoContabilidad[]>([]);
     // Rango y proveedor de la última consulta: se usan para exportar y para volver del detalle de la cita
@@ -124,11 +302,26 @@ const PartesIngresoPage = () => {
     // Con el API real no hay maestro de proveedores: se arma con los de los resultados ya consultados
     const [proveedoresConsultados, setProveedoresConsultados] = useState<ProveedorParteIngreso[]>([]);
 
-    const [estadoFactura, setEstadoFactura] = useState<FiltroEstadoFactura>('TODOS');
-    const [validacion, setValidacion] = useState<FiltroValidacion>('TODOS');
-    const [search, setSearch] = useState('');
-    const [sortDescriptor, setSortDescriptor] = useState<SortDescriptor>({ column: 'fecha', direction: 'ascending' });
-    const [page, setPage] = useState(1);
+    const [estadoFactura, setEstadoFactura] = useState<FiltroEstadoFactura>(guardados.estadoFactura ?? 'TODOS');
+    const [validacion, setValidacion] = useState<FiltroValidacion>(guardados.validacion ?? 'TODOS');
+    const [search, setSearch] = useState(guardados.search ?? '');
+    const [sortDescriptor, setSortDescriptor] = useState<SortDescriptor>(guardados.sortDescriptor ?? { column: 'fecha', direction: 'ascending' });
+    const [page, setPage] = useState(guardados.page ?? 1);
+    const [columnasVisibles, setColumnasVisiblesState] = useState<Set<string>>(leerColumnasVisibles);
+
+    const setColumnasVisibles = (keys: Set<string>) => {
+        setColumnasVisiblesState(keys);
+        try {
+            localStorage.setItem(COLUMNAS_STORAGE_KEY, JSON.stringify(Array.from(keys)));
+        } catch {
+            // sin almacenamiento solo se pierde la preferencia
+        }
+    };
+
+    const headerColumns = useMemo(
+        () => COLUMNAS.filter((col) => col.fija || columnasVisibles.has(col.key)),
+        [columnasVisibles]
+    );
 
     const proveedores = PROVEEDORES_SIMULADOS ?? proveedoresConsultados;
 
@@ -149,7 +342,7 @@ const PartesIngresoPage = () => {
         );
     }, [proveedores, proveedorInput, proveedorKey]);
 
-    const buscar = useCallback(async (start: string, end: string, codigoProveedor?: string) => {
+    const buscar = useCallback(async (start: string, end: string, codigoProveedor?: string, keepPage = false) => {
         if (!start || !end) {
             setRangeError('Ingrese la fecha de inicio y la fecha fin.');
             return;
@@ -170,7 +363,7 @@ const PartesIngresoPage = () => {
                 getProveedoresUnicos(data).forEach((p) => byCode.set(p.codigoProveedor, p));
                 return Array.from(byCode.values()).sort((a, b) => a.proveedor.localeCompare(b.proveedor));
             });
-            setPage(1);
+            if (!keepPage) setPage(1);
         } catch (error) {
             console.error('Error al cargar partes de ingreso:', error);
             setLoadError(error instanceof Error ? error.message : 'No se pudieron consultar los partes de ingreso.');
@@ -180,11 +373,42 @@ const PartesIngresoPage = () => {
         }
     }, []);
 
-    // Primera carga con el rango por defecto (o el restaurado al volver de la cita)
+    // Primera carga con el rango por defecto (o el restaurado al volver de la cita), en la página que se dejó
     useEffect(() => {
-        buscar(fechaInicio, fechaFin, proveedorKey ?? undefined);
+        buscar(fechaInicio, fechaFin, proveedorKey ?? undefined, true);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+
+    useEffect(() => {
+        if (!appliedQuery) return;
+        const filtros: FiltrosGuardados = {
+            desde: appliedQuery.start,
+            hasta: appliedQuery.end,
+            proveedor: appliedQuery.proveedor ?? null,
+            proveedorNombre: appliedQuery.proveedor ? proveedorInput : '',
+            estadoFactura,
+            validacion,
+            search,
+            sortDescriptor,
+            page,
+        };
+        try {
+            sessionStorage.setItem(FILTROS_STORAGE_KEY, JSON.stringify(filtros));
+        } catch {
+            // sin almacenamiento los filtros solo se pierden al salir de la pantalla
+        }
+        // proveedorInput solo acompaña a la consulta aplicada; no se guarda mientras se escribe
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [appliedQuery, estadoFactura, validacion, search, sortDescriptor, page]);
+
+    const hayFiltrosLocales = estadoFactura !== 'TODOS' || validacion !== 'TODOS' || search.trim() !== '';
+
+    const limpiarFiltros = () => {
+        setEstadoFactura('TODOS');
+        setValidacion('TODOS');
+        setSearch('');
+        setPage(1);
+    };
 
     const handleBuscar = () => {
         // Sin elegir de la lista se envía lo escrito como código de proveedor
@@ -209,11 +433,13 @@ const PartesIngresoPage = () => {
     }, [filteredRows, sortDescriptor]);
 
     const pages = Math.max(1, Math.ceil(sortedRows.length / ROWS_PER_PAGE));
-    const pageItems = sortedRows.slice((page - 1) * ROWS_PER_PAGE, page * ROWS_PER_PAGE);
+    // La página restaurada puede no existir si al volver hay menos resultados
+    const currentPage = Math.min(page, pages);
+    const pageItems = sortedRows.slice((currentPage - 1) * ROWS_PER_PAGE, currentPage * ROWS_PER_PAGE);
 
     const summary = [
         { label: 'Partes de ingreso', value: filteredRows.length, icon: <InboxArrowDownIcon className="h-8 w-8 text-blue-500" /> },
-        { label: 'Falta factura', value: filteredRows.filter((r) => r.estadoFactura === 'FALTA FACTURA').length, icon: <DocumentTextIcon className="h-8 w-8 text-red-500" /> },
+        { label: 'Sin asiento', value: filteredRows.filter((r) => r.estadoFactura === 'FALTA FACTURA').length, icon: <DocumentTextIcon className="h-8 w-8 text-red-500" /> },
         { label: 'Para revisar', value: filteredRows.filter((r) => r.validacionDocumentos === 'REVISAR').length, icon: <ExclamationTriangleIcon className="h-8 w-8 text-amber-500" /> },
     ];
 
@@ -226,6 +452,68 @@ const PartesIngresoPage = () => {
     const resetPage = <T,>(setter: (value: T) => void) => (value: T) => {
         setter(value);
         setPage(1);
+    };
+
+    const renderCell = (row: ParteIngresoContabilidad, columnKey: string) => {
+        switch (columnKey) {
+            case 'parteIngreso':
+                return <span className="whitespace-nowrap font-medium">{row.numeroParteIngreso}</span>;
+            case 'factura':
+                return row.numeroFactura ?? '-';
+            case 'oc':
+                return row.ordenesCompra ?? '-';
+            case 'proveedor':
+                return (
+                    <div className="max-w-[260px]">
+                        <div className="truncate font-medium" title={row.proveedor}>{row.proveedor}</div>
+                        <div className="text-xs text-gray-500 whitespace-nowrap">RUC {row.ruc}</div>
+                    </div>
+                );
+            case 'fecha':
+                return <span className="whitespace-nowrap">{formatFecha(row.fechaParteIngreso)}</span>;
+            case 'guia':
+                return <span className="whitespace-nowrap">{row.numeroGuia}</span>;
+            case 'condicionPago':
+                return <span className="whitespace-nowrap">{row.condicionPago ?? '-'}</span>;
+            case 'moneda':
+                return <span className="whitespace-nowrap">{row.moneda}</span>;
+            case 'total':
+                return <div className="whitespace-nowrap text-right">{formatTotal(row)}</div>;
+            case 'estadoFactura':
+                return (
+                    <Chip size="sm" variant="flat" color={ESTADO_FACTURA_COLORS[row.estadoFactura]} className="whitespace-nowrap">
+                        {REGISTRO_SAP_LABELS[row.estadoFactura]}
+                    </Chip>
+                );
+            case 'cita':
+                return row.numeroCita !== null ? (
+                    <RouterLink
+                        to={`/agenda/detail/${row.numeroCita}`}
+                        state={{ returnTo: getCitaReturnTo() }}
+                        className="text-blue-600 hover:text-blue-800 hover:underline whitespace-nowrap"
+                    >
+                        {row.numeroCita}
+                    </RouterLink>
+                ) : '-';
+            case 'packingList':
+                return <span className="whitespace-nowrap">{row.numeroPackingList ?? '-'}</span>;
+            case 'validacion':
+                return row.validacionDocumentos === 'REVISAR' ? (
+                    <Tooltip content={REVISAR_TOOLTIP} className="max-w-xs">
+                        <Chip size="sm" variant="flat" color="warning" className="cursor-help whitespace-nowrap">
+                            {row.validacionDocumentos}
+                        </Chip>
+                    </Tooltip>
+                ) : (
+                    <Chip size="sm" variant="flat" color={VALIDACION_COLORS[row.validacionDocumentos]} className="whitespace-nowrap">
+                        {row.validacionDocumentos}
+                    </Chip>
+                );
+            case 'documentos':
+                return <DocumentosCell grupos={getDocumentoGrupos(row)} otros={getOtrosDocumentos(row)} />;
+            default:
+                return null;
+        }
     };
 
     return (
@@ -316,14 +604,14 @@ const PartesIngresoPage = () => {
                             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                                 <Select
                                     size="sm"
-                                    label="Estado factura"
+                                    label="Registro SAP"
                                     className="sm:w-48"
                                     selectedKeys={[estadoFactura]}
                                     onSelectionChange={(keys) => resetPage(setEstadoFactura)((Array.from(keys)[0] as FiltroEstadoFactura) ?? 'TODOS')}
                                 >
                                     <SelectItem key="TODOS">Todos</SelectItem>
-                                    <SelectItem key="FALTA FACTURA">Falta factura</SelectItem>
-                                    <SelectItem key="FACTURA REGISTRADA">Factura registrada</SelectItem>
+                                    <SelectItem key="FALTA FACTURA">Sin asiento</SelectItem>
+                                    <SelectItem key="FACTURA REGISTRADA">Con asiento</SelectItem>
                                 </Select>
                                 <Select
                                     size="sm"
@@ -337,6 +625,32 @@ const PartesIngresoPage = () => {
                                     <SelectItem key="REVISAR">Revisar</SelectItem>
                                     <SelectItem key="SIN CITA">Sin cita</SelectItem>
                                 </Select>
+                                {hayFiltrosLocales && (
+                                    <Button variant="light" color="danger" startContent={<XMarkIcon className="h-4 w-4" />} onPress={limpiarFiltros}>
+                                        Limpiar filtros
+                                    </Button>
+                                )}
+                                <Dropdown>
+                                    <DropdownTrigger>
+                                        <Button variant="flat" startContent={<ViewColumnsIcon className="h-4 w-4" />}>
+                                            Columnas
+                                        </Button>
+                                    </DropdownTrigger>
+                                    <DropdownMenu
+                                        aria-label="Columnas visibles"
+                                        closeOnSelect={false}
+                                        selectionMode="multiple"
+                                        selectedKeys={columnasVisibles}
+                                        onSelectionChange={(keys) => setColumnasVisibles(
+                                            keys === 'all' ? new Set(COLUMNAS_SELECCIONABLES.map((col) => col.key)) : new Set(Array.from(keys, String))
+                                        )}
+                                        className="max-h-96 overflow-y-auto"
+                                    >
+                                        {COLUMNAS_SELECCIONABLES.map((col) => (
+                                            <DropdownItem key={col.key}>{col.nombre}</DropdownItem>
+                                        ))}
+                                    </DropdownMenu>
+                                </Dropdown>
                                 <Button
                                     variant="flat"
                                     color="success"
@@ -365,98 +679,35 @@ const PartesIngresoPage = () => {
                                 aria-label="Partes de ingreso"
                                 sortDescriptor={sortDescriptor}
                                 onSortChange={setSortDescriptor}
+                                // Alto limitado: el scroll horizontal queda a la vista sin bajar hasta el último registro
+                                isHeaderSticky
+                                classNames={{ wrapper: 'max-h-[calc(100vh-14rem)]' }}
+                                bottomContentPlacement="outside"
                                 bottomContent={pages > 1 && (
                                     <div className="flex justify-center">
-                                        <Pagination showControls page={page} total={pages} onChange={setPage} />
+                                        <Pagination showControls page={currentPage} total={pages} onChange={setPage} />
                                     </div>
                                 )}
                             >
-                                <TableHeader>
-                                    <TableColumn key="fecha" allowsSorting>FECHA</TableColumn>
-                                    <TableColumn key="parteIngreso" allowsSorting>PARTE DE INGRESO</TableColumn>
-                                    <TableColumn key="guia" allowsSorting>GUÍA</TableColumn>
-                                    <TableColumn key="proveedor" allowsSorting>PROVEEDOR</TableColumn>
-                                    <TableColumn key="ruc" allowsSorting>RUC</TableColumn>
-                                    <TableColumn key="oc" allowsSorting>OC</TableColumn>
-                                    <TableColumn key="condicionPago" allowsSorting>CONDICIÓN DE PAGO</TableColumn>
-                                    <TableColumn key="moneda" allowsSorting>MONEDA</TableColumn>
-                                    <TableColumn key="total" allowsSorting className="text-right">TOTAL</TableColumn>
-                                    <TableColumn key="factura" allowsSorting>FACTURA</TableColumn>
-                                    <TableColumn key="estadoFactura" allowsSorting>ESTADO FACTURA</TableColumn>
-                                    <TableColumn key="cita" allowsSorting>CITA</TableColumn>
-                                    <TableColumn key="packingList" allowsSorting>PACKING LIST</TableColumn>
-                                    <TableColumn key="validacion" allowsSorting>VALIDACIÓN</TableColumn>
-                                    <TableColumn key="documentos">DOCUMENTOS</TableColumn>
+                                <TableHeader columns={headerColumns}>
+                                    {(col) => (
+                                        <TableColumn key={col.key} allowsSorting={col.sortable} className={col.align === 'right' ? 'text-right' : undefined}>
+                                            {col.label}
+                                        </TableColumn>
+                                    )}
                                 </TableHeader>
                                 <TableBody
+                                    items={pageItems}
                                     emptyContent={loadError ? 'No se pudo cargar la información' : 'No hay partes de ingreso para los filtros seleccionados'}
                                 >
-                                    {pageItems.map((row) => (
+                                    {(row) => (
                                         <TableRow
                                             key={row.numeroParteIngreso}
                                             className={row.validacionDocumentos === 'REVISAR' ? 'bg-amber-50' : undefined}
                                         >
-                                            <TableCell className="whitespace-nowrap">{formatFecha(row.fechaParteIngreso)}</TableCell>
-                                            <TableCell className="whitespace-nowrap font-medium">{row.numeroParteIngreso}</TableCell>
-                                            <TableCell className="whitespace-nowrap">{row.numeroGuia}</TableCell>
-                                            <TableCell>
-                                                <div className="truncate max-w-[240px]" title={row.proveedor}>{row.proveedor}</div>
-                                            </TableCell>
-                                            <TableCell className="whitespace-nowrap">{row.ruc}</TableCell>
-                                            <TableCell>{row.ordenesCompra ?? '-'}</TableCell>
-                                            <TableCell className="whitespace-nowrap">{row.condicionPago ?? '-'}</TableCell>
-                                            <TableCell className="whitespace-nowrap">{row.moneda}</TableCell>
-                                            <TableCell className="whitespace-nowrap text-right">{formatTotal(row)}</TableCell>
-                                            <TableCell>{row.numeroFactura ?? '-'}</TableCell>
-                                            <TableCell>
-                                                <Chip size="sm" variant="flat" color={ESTADO_FACTURA_COLORS[row.estadoFactura]} className="whitespace-nowrap">
-                                                    {row.estadoFactura}
-                                                </Chip>
-                                            </TableCell>
-                                            <TableCell className="whitespace-nowrap">
-                                                {row.numeroCita !== null ? (
-                                                    <RouterLink
-                                                        to={`/agenda/detail/${row.numeroCita}`}
-                                                        state={{ returnTo: getCitaReturnTo() }}
-                                                        className="text-blue-600 hover:text-blue-800 hover:underline"
-                                                    >
-                                                        {row.numeroCita}
-                                                    </RouterLink>
-                                                ) : '-'}
-                                            </TableCell>
-                                            <TableCell className="whitespace-nowrap">{row.numeroPackingList ?? '-'}</TableCell>
-                                            <TableCell>
-                                                {row.validacionDocumentos === 'REVISAR' ? (
-                                                    <Tooltip content={REVISAR_TOOLTIP} className="max-w-xs">
-                                                        <Chip size="sm" variant="flat" color="warning" className="cursor-help whitespace-nowrap">
-                                                            {row.validacionDocumentos}
-                                                        </Chip>
-                                                    </Tooltip>
-                                                ) : (
-                                                    <Chip size="sm" variant="flat" color={VALIDACION_COLORS[row.validacionDocumentos]} className="whitespace-nowrap">
-                                                        {row.validacionDocumentos}
-                                                    </Chip>
-                                                )}
-                                            </TableCell>
-                                            <TableCell>
-                                                <div className="flex flex-wrap gap-1 min-w-[180px]">
-                                                    {getDocumentoLinks(row).map((link) => (
-                                                        <a
-                                                            key={link.key}
-                                                            href={link.url}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                            title={link.url}
-                                                            className="inline-flex items-center gap-1 rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 whitespace-nowrap"
-                                                        >
-                                                            <DocumentTextIcon className="h-3.5 w-3.5" />
-                                                            {link.label}
-                                                        </a>
-                                                    ))}
-                                                </div>
-                                            </TableCell>
+                                            {(columnKey) => <TableCell>{renderCell(row, String(columnKey))}</TableCell>}
                                         </TableRow>
-                                    ))}
+                                    )}
                                 </TableBody>
                             </Table>
                         )}

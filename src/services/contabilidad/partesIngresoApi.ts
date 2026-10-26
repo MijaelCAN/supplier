@@ -38,6 +38,7 @@ export interface ParteIngresoContabilidad {
     linksGuia: string[];
     linksFactura: string[];
     linksCC: string[];
+    linksOtros: string[];               // los demás archivos de la cita; el tipo sale del prefijo del nombre (LT_, HS_...)
 }
 
 /** Fila tal como la devuelve el API (snake_case, dentro de { data: [...] }) */
@@ -61,6 +62,7 @@ interface ParteIngresoApiRow {
     links_guia: string[] | null;
     links_factura: string[] | null;
     links_cc: string[] | null;
+    links_otros?: string[] | null;
 }
 
 const toParteIngreso = (row: ParteIngresoApiRow): ParteIngresoContabilidad => ({
@@ -83,6 +85,7 @@ const toParteIngreso = (row: ParteIngresoApiRow): ParteIngresoContabilidad => ({
     linksGuia: row.links_guia ?? [],
     linksFactura: row.links_factura ?? [],
     linksCC: row.links_cc ?? [],
+    linksOtros: row.links_otros ?? [],
 });
 
 export interface ProveedorParteIngreso {
@@ -91,7 +94,10 @@ export interface ProveedorParteIngreso {
     ruc: string;
 }
 
-const MOCK_ROWS = partesIngresoMock as ParteIngresoContabilidad[];
+// En el JSON linksOtros solo viene en algunas filas, igual que links_otros en el API
+type ParteIngresoMock = Omit<ParteIngresoContabilidad, 'linksOtros'> & { linksOtros?: string[] };
+const MOCK_ROWS: ParteIngresoContabilidad[] = (partesIngresoMock as ParteIngresoMock[])
+    .map((row) => ({ ...row, linksOtros: row.linksOtros ?? [] }));
 
 /** Proveedores únicos de las filas, ordenados por nombre (para el buscador de proveedor) */
 export const getProveedoresUnicos = (rows: ParteIngresoContabilidad[]): ProveedorParteIngreso[] => {

@@ -24,6 +24,12 @@
     "linksCC": [
       "http://192.168.254.27:8046/api/PackingList/Citas/Photo?Name=B1H_VIST_PE/20261021/CC_wcieza_2026-10-20_07_1792599894602.pdf",
       "http://192.168.254.27:8046/api/PackingList/Citas/Photo?Name=B1H_VIST_PE/20261021/CC_wcieza_2026-10-20_07_1792599905786.pdf"
+    ],
+    "linksOtros": [
+      "http://192.168.254.27:8046/api/PackingList/Citas/Photo?Name=B1H_VIST_PE/20261021/LT_20100004322_1792599911111.pdf",
+      "http://192.168.254.27:8046/api/PackingList/Citas/Photo?Name=B1H_VIST_PE/20261021/HS_wcieza_2026-10-20_07_1792599922222.pdf",
+      "http://192.168.254.27:8046/api/PackingList/Citas/Photo?Name=B1H_VIST_PE/20261021/GT_wcieza_2026-10-20_07_1792599933333.pdf",
+      "http://192.168.254.27:8046/api/PackingList/Citas/Photo?Name=B1H_VIST_PE/20261021/GT_wcieza_2026-10-20_07_1792599944444.jpg"
     ]
   },
   {
