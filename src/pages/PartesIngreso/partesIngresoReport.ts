@@ -15,6 +15,7 @@ export interface DocumentoLink {
     key: string;
     label: string;
     url: string;
+    extension: string | null;   // 'XML' | 'PDF' | null
 }
 
 export interface DocumentoGrupo {
@@ -42,7 +43,7 @@ const buildLinks = (groupKey: string, label: string, urls: string[]): DocumentoL
     urls.map((url, index) => {
         const extension = getLinkExtension(url);
         const name = urls.length > 1 ? `${label} ${index + 1}` : label;
-        return { key: `${groupKey}-${index}`, label: extension ? `${name} (${extension})` : name, url };
+        return { key: `${groupKey}-${index}`, label: extension ? `${name} (${extension})` : name, url, extension };
     });
 
 /** Los cuatro tipos (OC, Guía, Factura, CC) siempre, aunque no tengan links, para mostrarlos con su cantidad */
@@ -90,6 +91,17 @@ export const formatFecha = (value: string): string => {
 
 export const formatTotal = (row: ParteIngresoContabilidad): string =>
     `${row.moneda} ${row.total.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+export const isPdfLink = (link: DocumentoLink): boolean => link.extension === 'PDF';
+
+export interface DocumentoVisor extends DocumentoLink {
+    grupo: string;
+}
+
+/** Los PDF del parte para el visor de cotejo (básicos y otros, en el orden de los chips); los XML no se muestran */
+export const getDocumentosVisor = (row: ParteIngresoContabilidad): DocumentoVisor[] =>
+    [...getDocumentoGrupos(row), ...getOtrosDocumentos(row)]
+        .flatMap((grupo) => grupo.links.filter(isPdfLink).map((link) => ({ ...link, grupo: grupo.label })));
 
 /** Exporta las filas visibles (tras los filtros locales); los links de cada tipo separados por salto de línea */
 export const exportPartesIngresoReport = (rows: ParteIngresoContabilidad[], fechaInicio: string, fechaFin: string) => {

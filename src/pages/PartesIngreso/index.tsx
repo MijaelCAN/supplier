@@ -1,6 +1,6 @@
 // src/pages/PartesIngreso/index.tsx
 // Partes de Ingreso (Contabilidad): entradas de mercancía del rango, cuáles faltan facturar y los documentos de su cita.
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Key, useCallback, useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink, useSearchParams } from 'react-router-dom';
 import {
     Autocomplete,
@@ -30,6 +30,7 @@ import {
 } from '@heroui/react';
 import {
     ArrowDownTrayIcon,
+    ArrowTopRightOnSquareIcon,
     DocumentTextIcon,
     ExclamationTriangleIcon,
     InboxArrowDownIcon,
@@ -48,7 +49,19 @@ import {
     ProveedorParteIngreso,
     ValidacionDocumentos,
 } from '@/services/contabilidad/partesIngresoApi';
-import { DocumentoGrupo, exportPartesIngresoReport, formatFecha, formatTotal, getDocumentoGrupos, getOtrosDocumentos, REGISTRO_SAP_LABELS } from './partesIngresoReport';
+import {
+    DocumentoGrupo,
+    DocumentoLink,
+    exportPartesIngresoReport,
+    formatFecha,
+    formatTotal,
+    getDocumentoGrupos,
+    getDocumentosVisor,
+    getOtrosDocumentos,
+    isPdfLink,
+    REGISTRO_SAP_LABELS,
+} from './partesIngresoReport';
+import DocumentViewerPanel, { getDocumentoInicial, VISOR_ANCHO, VisorSeleccion } from './DocumentViewerPanel';
 
 const ROWS_PER_PAGE = 10;
 const PAGE_PATH = '/contabilidad/partes-ingreso';
@@ -70,11 +83,55 @@ const CHIP_ACTIVE = `${CHIP_BASE} bg-blue-50 text-blue-700 hover:bg-blue-100 cur
 const CHIP_EMPTY = `${CHIP_BASE} bg-gray-100 text-gray-400 dark:bg-gray-800`;
 const CHIP_OTROS = `${CHIP_BASE} bg-violet-50 text-violet-700 hover:bg-violet-100 cursor-pointer`;
 
+interface DocumentosCellProps {
+    grupos: DocumentoGrupo[];
+    otros: DocumentoGrupo[];
+    /** Abre el PDF en el visor de cotejo; los demás archivos (XML) se abren en otra pestaña */
+    onVer: (linkKey: string) => void;
+}
+
+const abrirDocumento = (link: DocumentoLink, onVer: (linkKey: string) => void) => {
+    if (isPdfLink(link)) onVer(link.key);
+    else window.open(link.url, '_blank', 'noopener,noreferrer');
+};
+
+/**
+ * Lista desplegable de los archivos de uno o varios tipos. Es una función y no un componente porque Dropdown
+ * necesita el DropdownMenu como hijo directo para pasarle sus props.
+ */
+const renderDocumentosMenu = (label: string, grupos: DocumentoGrupo[], onVer: (linkKey: string) => void) => {
+    const links = grupos.flatMap((grupo) => grupo.links);
+    return (
+        <DropdownMenu
+            aria-label={label}
+            className="max-h-80 overflow-y-auto"
+            onAction={(key) => {
+                const link = links.find((l) => l.key === key);
+                if (link) abrirDocumento(link, onVer);
+            }}
+        >
+            {grupos.map((grupo) => (
+                <DropdownSection key={grupo.key} title={`${grupo.label} (${grupo.links.length})`} items={grupo.links}>
+                    {(link) => (
+                        <DropdownItem
+                            key={link.key}
+                            startContent={<DocumentTextIcon className="h-4 w-4" />}
+                            endContent={!isPdfLink(link) && <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5 text-gray-400" />}
+                        >
+                            {link.label}
+                        </DropdownItem>
+                    )}
+                </DropdownSection>
+            ))}
+        </DropdownMenu>
+    );
+};
+
 /**
  * Un chip por tipo con su cantidad (alto de fila fijo): gris si no hay archivos, abre directo si hay uno
  * y despliega la lista si hay varios.
  */
-const DocumentosCell = ({ grupos, otros }: { grupos: DocumentoGrupo[]; otros: DocumentoGrupo[] }) => (
+const DocumentosCell = ({ grupos, otros, onVer }: DocumentosCellProps) => (
     <div className="flex gap-1">
         {grupos.map((grupo) => {
             const content = <>{grupo.shortLabel} <span className="font-semibold">{grupo.links.length}</span></>;
@@ -90,10 +147,10 @@ const DocumentosCell = ({ grupos, otros }: { grupos: DocumentoGrupo[]; otros: Do
             if (grupo.links.length === 1) {
                 const [link] = grupo.links;
                 return (
-                    <Tooltip key={grupo.key} content={`Abrir ${link.label}`}>
-                        <a href={link.url} target="_blank" rel="noopener noreferrer" className={CHIP_ACTIVE}>
+                    <Tooltip key={grupo.key} content={isPdfLink(link) ? `Ver ${link.label}` : `Abrir ${link.label} en otra pestaña`}>
+                        <button type="button" onClick={() => abrirDocumento(link, onVer)} className={CHIP_ACTIVE}>
                             {content}
-                        </a>
+                        </button>
                     </Tooltip>
                 );
             }
@@ -105,30 +162,16 @@ const DocumentosCell = ({ grupos, otros }: { grupos: DocumentoGrupo[]; otros: Do
                             {content}
                         </button>
                     </DropdownTrigger>
-                    <DropdownMenu aria-label={`Documentos de ${grupo.label}`}>
-                        <DropdownSection title={`${grupo.label} (${grupo.links.length})`} items={grupo.links}>
-                            {(link) => (
-                                <DropdownItem
-                                    key={link.key}
-                                    href={link.url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    startContent={<DocumentTextIcon className="h-4 w-4" />}
-                                >
-                                    {link.label}
-                                </DropdownItem>
-                            )}
-                        </DropdownSection>
-                    </DropdownMenu>
+                    {renderDocumentosMenu(`Documentos de ${grupo.label}`, [grupo], onVer)}
                 </Dropdown>
             );
         })}
-        {otros.length > 0 && <OtrosDocumentosChip otros={otros} />}
+        {otros.length > 0 && <OtrosDocumentosChip otros={otros} onVer={onVer} />}
     </div>
 );
 
 /** Solo si la cita trae archivos de otros tipos (Letra, Hoja de Seguridad...): un chip con la lista agrupada por tipo */
-const OtrosDocumentosChip = ({ otros }: { otros: DocumentoGrupo[] }) => {
+const OtrosDocumentosChip = ({ otros, onVer }: { otros: DocumentoGrupo[]; onVer: (linkKey: string) => void }) => {
     const total = otros.reduce((sum, grupo) => sum + grupo.links.length, 0);
     return (
         <Tooltip content={otros.map((grupo) => grupo.label).join(', ')}>
@@ -139,23 +182,7 @@ const OtrosDocumentosChip = ({ otros }: { otros: DocumentoGrupo[] }) => {
                             + Otros <span className="font-semibold">{total}</span>
                         </button>
                     </DropdownTrigger>
-                    <DropdownMenu aria-label="Otros documentos" className="max-h-80 overflow-y-auto">
-                        {otros.map((grupo) => (
-                            <DropdownSection key={grupo.key} title={`${grupo.label} (${grupo.links.length})`} items={grupo.links}>
-                                {(link) => (
-                                    <DropdownItem
-                                        key={link.key}
-                                        href={link.url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        startContent={<DocumentTextIcon className="h-4 w-4" />}
-                                    >
-                                        {link.label}
-                                    </DropdownItem>
-                                )}
-                            </DropdownSection>
-                        ))}
-                    </DropdownMenu>
+                    {renderDocumentosMenu('Otros documentos', otros, onVer)}
                 </Dropdown>
             </div>
         </Tooltip>
@@ -235,6 +262,15 @@ const COLUMNAS: ColumnaTabla[] = [
 ];
 
 const COLUMNAS_SELECCIONABLES = COLUMNAS.filter((col) => !col.fija);
+
+/**
+ * Columnas de la tabla mientras el visor de cotejo está abierto. PDF cuenta los que el proveedor cargó en la cita;
+ * el del Parte de Ingreso se consulta aparte y no entra en la cuenta.
+ */
+const COLUMNAS_VISOR: ColumnaTabla[] = [
+    ...['proveedor', 'parteIngreso', 'factura', 'oc', 'guia'].map((key) => COLUMNAS.find((col) => col.key === key)!),
+    { key: 'pdfs', label: 'PDF', nombre: 'PDF', sortable: false },
+];
 // Ocultas por defecto (al mostrarlas quedan en su lugar de COLUMNAS); el usuario puede mostrarlas u ocultar las demás desde "Columnas"
 const COLUMNAS_OCULTAS_POR_DEFECTO = ['condicionPago', 'moneda', 'packingList'];
 const COLUMNAS_STORAGE_KEY = 'partesIngreso.columnasVisibles';
@@ -308,6 +344,21 @@ const PartesIngresoPage = () => {
     const [sortDescriptor, setSortDescriptor] = useState<SortDescriptor>(guardados.sortDescriptor ?? { column: 'fecha', direction: 'ascending' });
     const [page, setPage] = useState(guardados.page ?? 1);
     const [columnasVisibles, setColumnasVisiblesState] = useState<Set<string>>(leerColumnasVisibles);
+    // Visor de cotejo abierto: parte y documento que se están revisando
+    const [visor, setVisor] = useState<VisorSeleccion | null>(null);
+    const cerrarVisor = useCallback(() => setVisor(null), []);
+    const [visorAmpliado, setVisorAmpliado] = useState(false);
+
+    // Con el visor abierto, clic en una fila la pasa al visor con su primer PDF de la cita. Si el clic fue en un chip
+    // de documento, ese ya eligió parte y documento y se respeta (la actualización funcional no lo pisa).
+    const handleRowAction = (key: Key) => {
+        const parte = Number(key);
+        setVisor((prev) => {
+            if (!prev || prev.parte === parte) return prev;
+            const row = sortedRows.find((r) => r.numeroParteIngreso === parte);
+            return row ? { parte, documento: getDocumentoInicial(row) } : prev;
+        });
+    };
 
     const setColumnasVisibles = (keys: Set<string>) => {
         setColumnasVisiblesState(keys);
@@ -318,9 +369,10 @@ const PartesIngresoPage = () => {
         }
     };
 
+    // Con el visor abierto la tabla queda angosta: solo lo que se coteja, sin importar la selección de "Columnas"
     const headerColumns = useMemo(
-        () => COLUMNAS.filter((col) => col.fija || columnasVisibles.has(col.key)),
-        [columnasVisibles]
+        () => visor ? COLUMNAS_VISOR : COLUMNAS.filter((col) => col.fija || columnasVisibles.has(col.key)),
+        [columnasVisibles, visor]
     );
 
     const proveedores = PROVEEDORES_SIMULADOS ?? proveedoresConsultados;
@@ -437,6 +489,27 @@ const PartesIngresoPage = () => {
     const currentPage = Math.min(page, pages);
     const pageItems = sortedRows.slice((currentPage - 1) * ROWS_PER_PAGE, currentPage * ROWS_PER_PAGE);
 
+    // La tabla reutiliza la fila mientras su item sea el mismo objeto: el item lleva si está en el visor para que
+    // el resaltado siga al parte que se está viendo
+    const parteEnVisor = visor?.parte ?? null;
+    const tableItems = useMemo(
+        () => pageItems.map((row) => ({ row, enVisor: row.numeroParteIngreso === parteEnVisor })),
+        [pageItems, parteEnVisor]
+    );
+
+    // La fila del visor queda a la vista dentro del scroll de la tabla
+    useEffect(() => {
+        if (parteEnVisor === null) return;
+        document.querySelector(`[data-parte="${parteEnVisor}"]`)?.closest('tr')?.scrollIntoView({ block: 'nearest' });
+    }, [parteEnVisor, page]);
+
+    // Al avanzar en el visor, la tabla pasa a la página del parte que se está cotejando
+    useEffect(() => {
+        if (!visor) return;
+        const index = sortedRows.findIndex((r) => r.numeroParteIngreso === visor.parte);
+        if (index >= 0) setPage(Math.floor(index / ROWS_PER_PAGE) + 1);
+    }, [visor, sortedRows]);
+
     const summary = [
         { label: 'Partes de ingreso', value: filteredRows.length, icon: <InboxArrowDownIcon className="h-8 w-8 text-blue-500" /> },
         { label: 'Sin asiento', value: filteredRows.filter((r) => r.estadoFactura === 'FALTA FACTURA').length, icon: <DocumentTextIcon className="h-8 w-8 text-red-500" /> },
@@ -457,7 +530,7 @@ const PartesIngresoPage = () => {
     const renderCell = (row: ParteIngresoContabilidad, columnKey: string) => {
         switch (columnKey) {
             case 'parteIngreso':
-                return <span className="whitespace-nowrap font-medium">{row.numeroParteIngreso}</span>;
+                return <span className="whitespace-nowrap font-medium" data-parte={row.numeroParteIngreso}>{row.numeroParteIngreso}</span>;
             case 'factura':
                 return row.numeroFactura ?? '-';
             case 'oc':
@@ -509,8 +582,25 @@ const PartesIngresoPage = () => {
                         {row.validacionDocumentos}
                     </Chip>
                 );
+            case 'pdfs': {
+                const total = getDocumentosVisor(row).length;
+                return total > 0 ? (
+                    <span className="inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">
+                        <DocumentTextIcon className="h-3.5 w-3.5" />
+                        {total}
+                    </span>
+                ) : (
+                    <span className="whitespace-nowrap rounded-md bg-gray-100 px-2 py-1 text-xs text-gray-400 dark:bg-gray-800">Sin PDF</span>
+                );
+            }
             case 'documentos':
-                return <DocumentosCell grupos={getDocumentoGrupos(row)} otros={getOtrosDocumentos(row)} />;
+                return (
+                    <DocumentosCell
+                        grupos={getDocumentoGrupos(row)}
+                        otros={getOtrosDocumentos(row)}
+                        onVer={(linkKey) => setVisor({ parte: row.numeroParteIngreso, documento: linkKey })}
+                    />
+                );
             default:
                 return null;
         }
@@ -518,7 +608,8 @@ const PartesIngresoPage = () => {
 
     return (
         <Dashboard>
-            <div className="space-y-6">
+            {/* Con el visor abierto la pantalla se corre a la izquierda para que la tabla siga a la vista */}
+            <div className={`space-y-6 ${visor ? VISOR_ANCHO[visorAmpliado ? 'ampliado' : 'normal'].margen : ''}`}>
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900">Partes de Ingreso</h1>
                     <p className="text-gray-600">
@@ -679,6 +770,7 @@ const PartesIngresoPage = () => {
                                 aria-label="Partes de ingreso"
                                 sortDescriptor={sortDescriptor}
                                 onSortChange={setSortDescriptor}
+                                onRowAction={visor ? handleRowAction : undefined}
                                 // Alto limitado: el scroll horizontal queda a la vista sin bajar hasta el último registro
                                 isHeaderSticky
                                 classNames={{ wrapper: 'max-h-[calc(100vh-14rem)]' }}
@@ -697,13 +789,19 @@ const PartesIngresoPage = () => {
                                     )}
                                 </TableHeader>
                                 <TableBody
-                                    items={pageItems}
+                                    items={tableItems}
                                     emptyContent={loadError ? 'No se pudo cargar la información' : 'No hay partes de ingreso para los filtros seleccionados'}
                                 >
-                                    {(row) => (
+                                    {({ row, enVisor }) => (
                                         <TableRow
                                             key={row.numeroParteIngreso}
-                                            className={row.validacionDocumentos === 'REVISAR' ? 'bg-amber-50' : undefined}
+                                            className={
+                                                enVisor
+                                                    ? 'cursor-pointer bg-blue-100 outline outline-2 -outline-offset-2 outline-blue-500 dark:bg-blue-900/40'
+                                                    : `${visor ? 'cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20' : ''} ${
+                                                        row.validacionDocumentos === 'REVISAR' ? 'bg-amber-50' : ''
+                                                    }`
+                                            }
                                         >
                                             {(columnKey) => <TableCell>{renderCell(row, String(columnKey))}</TableCell>}
                                         </TableRow>
@@ -714,6 +812,17 @@ const PartesIngresoPage = () => {
                     </CardBody>
                 </Card>
             </div>
+
+            {visor && (
+                <DocumentViewerPanel
+                    rows={sortedRows}
+                    seleccion={visor}
+                    onChange={setVisor}
+                    onClose={cerrarVisor}
+                    ampliado={visorAmpliado}
+                    onToggleAmpliado={() => setVisorAmpliado((value) => !value)}
+                />
+            )}
         </Dashboard>
     );
 };
