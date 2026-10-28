@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
     Modal,
     ModalContent,
@@ -8,6 +8,8 @@ import {
     Button,
     Progress,
     Chip,
+    Select,
+    SelectItem,
 } from '@heroui/react';
 import { CheckCircleIcon, ClockIcon, LockClosedIcon, XMarkIcon, ArrowUpTrayIcon as UploadIcon } from '@heroicons/react/24/outline';
 import {
@@ -34,14 +36,20 @@ export interface LoadedDocument {
     url: string;
     type: string;
     docEntry?: string; // DocEntry del documento en el API (necesario para eliminarlo)
+    packingList?: string; // Packing list al que pertenece
 }
 
 interface DocumentsModalProps {
     isOpen: boolean;
     onOpenChange: (open: boolean) => void;
     selectedAppointment: any;
-    handleUploadDocument: (type: string, file: File) => Promise<void>;
+    handleUploadDocument: (type: string, file: File, packingList?: string) => Promise<void>;
     loadedDocuments?: LoadedDocument[];
+    /**
+     * Packing lists de la cita: los documentos se cargan a uno de ellos (con uno solo se preselecciona).
+     * Sin packing lists, el modal trabaja sobre la cita entera.
+     */
+    packingLists?: string[];
     /** Si se pasa, los documentos ya cargados muestran la opción de eliminar (OBS-005) */
     onDeleteDocument?: (doc: LoadedDocument) => void;
     /**
@@ -62,11 +70,26 @@ const DocumentsModal: React.FC<DocumentsModalProps> = ({
     selectedAppointment,
     handleUploadDocument,
     loadedDocuments = [],
+    packingLists = [],
     onDeleteDocument,
     enforceInvoiceOrder = false,
 }) => {
     // Estado para tipos de documentos (puede venir de API en el futuro)
     const [documentTypes ] = useState<CommercialDocumentType[]>(COMMERCIAL_DOCUMENT_TYPES);
+
+    // Packing list al que se cargan los documentos: con varios, el proveedor elige al abrir
+    const hasPackingLists = packingLists.length > 0;
+    const packingListsKey = packingLists.join('|');
+    const [selectedPackingList, setSelectedPackingList] = useState('');
+    useEffect(() => {
+        if (isOpen) setSelectedPackingList(packingLists.length === 1 ? packingLists[0] : '');
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isOpen, packingListsKey]);
+    const needsPackingList = hasPackingLists && !selectedPackingList;
+    const packingListDocuments = useMemo(
+        () => hasPackingLists ? loadedDocuments.filter((doc) => doc.packingList === selectedPackingList) : loadedDocuments,
+        [hasPackingLists, loadedDocuments, selectedPackingList]
+    );
 
     // Cargar tipos de documentos (puede venir de API en el futuro)
     useEffect(() => {
@@ -105,15 +128,15 @@ const DocumentsModal: React.FC<DocumentsModalProps> = ({
 
     // Inicializar con documentos cargados cuando se abre el modal
     const [documents, setDocuments] = useState<Record<string, DocumentFile[]>>(() =>
-        mapLoadedDocumentsToTypes(loadedDocuments)
+        mapLoadedDocumentsToTypes(packingListDocuments)
     );
 
-    // Actualizar cuando cambian los documentos cargados, tipos de documentos o se abre el modal
+    // Actualizar cuando cambian los documentos cargados, el packing list elegido o se abre el modal
     useEffect(() => {
         if (isOpen) {
-            setDocuments(mapLoadedDocumentsToTypes(loadedDocuments));
+            setDocuments(mapLoadedDocumentsToTypes(packingListDocuments));
         }
-    }, [isOpen, loadedDocuments, documentTypes]);
+    }, [isOpen, packingListDocuments, documentTypes]);
 
     // Orden de carga del proveedor: se mira lo ya subido de la factura (nombre original o el guardado)
     const invoiceFileNames = (documents[INVOICE_TYPE] || [])
@@ -137,6 +160,10 @@ const DocumentsModal: React.FC<DocumentsModalProps> = ({
 
     const handleFileSelect = async (type: string, file: File) => {
         if (!selectedAppointment) return;
+        if (needsPackingList) {
+            alert('Selecciona el Packing List al que pertenecen los documentos.');
+            return;
+        }
 
         if (enforceInvoiceOrder) {
             const lockReason = getLockReason(type);
@@ -170,7 +197,7 @@ const DocumentsModal: React.FC<DocumentsModalProps> = ({
                 ),
             }));
 
-            await handleUploadDocument(type, file);
+            await handleUploadDocument(type, file, selectedPackingList || undefined);
 
             setDocuments((prev) => ({
                 ...prev,
@@ -241,6 +268,28 @@ const DocumentsModal: React.FC<DocumentsModalProps> = ({
                         </ModalHeader>
 
                         <ModalBody>
+                            {hasPackingLists && (
+                                <Select
+                                    label="Packing List"
+                                    placeholder="Selecciona a qué Packing List pertenecen los documentos"
+                                    size="sm"
+                                    isRequired
+                                    selectedKeys={selectedPackingList ? [selectedPackingList] : []}
+                                    onSelectionChange={(keys) => setSelectedPackingList(String(Array.from(keys)[0] ?? ''))}
+                                    isDisabled={packingLists.length === 1}
+                                    className="mb-4"
+                                >
+                                    {packingLists.map((number) => (
+                                        <SelectItem key={number}>{number}</SelectItem>
+                                    ))}
+                                </Select>
+                            )}
+                            {needsPackingList ? (
+                                <div className="flex items-center gap-2 p-4 text-sm text-amber-700 bg-amber-50 rounded-lg border border-amber-100">
+                                    <LockClosedIcon className="w-4 h-4 flex-shrink-0" />
+                                    La cita tiene varios Packing List: selecciona uno para ver y cargar sus documentos.
+                                </div>
+                            ) : (
                             <div className="space-y-4">
                                 {documentTypes.map((docType) => {
                                     const entries = documents[docType.key] || [];
@@ -286,6 +335,10 @@ const DocumentsModal: React.FC<DocumentsModalProps> = ({
                                                                 }
                                                             >
                                                                 Cargado
+                                                            </Chip>
+                                                        ) : docType.optional ? (
+                                                            <Chip size="sm" variant="flat">
+                                                                Opcional
                                                             </Chip>
                                                         ) : (
                                                             <Chip
@@ -395,6 +448,7 @@ const DocumentsModal: React.FC<DocumentsModalProps> = ({
                                     );
                                 })}
                             </div>
+                            )}
 
                             <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-950 rounded-lg">
                                 <p className="text-sm text-blue-800 dark:text-blue-200">

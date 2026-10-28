@@ -20,7 +20,8 @@ import {
     UsersIcon,
     InformationCircleIcon,
     VideoCameraIcon,
-    ExclamationTriangleIcon
+    ExclamationTriangleIcon,
+    InboxArrowDownIcon
 } from "@heroicons/react/24/outline";
 import { MenuItem, UserRole } from "@/routes/menuTypes.ts";
 import { CLAIMS_API_ENABLED } from "@/services/agenda/claimsApi";
@@ -153,7 +154,8 @@ export const menuItems: MenuItem[] = [
                 title: "Agenda - Citas",
                 icon: <BookOpenIcon className="h-4 w-4" />,
                 href: "/agenda",
-                roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.CONTABILIDAD, UserRole.SEGURIDAD, UserRole.CALIDAD, UserRole.ALMACEN, UserRole.PLANEAMIENTO]
+                // Contabilidad no ve la agenda: trabaja desde Partes de Ingreso
+                roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.SEGURIDAD, UserRole.CALIDAD, UserRole.ALMACEN, UserRole.PLANEAMIENTO]
             },
             {
                 title: "Reclamos",
@@ -179,6 +181,12 @@ export const menuItems: MenuItem[] = [
                 icon: <DocumentTextIcon className="h-4 w-4" />,
                 href: "/factura",
                 roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.FINANZAS, UserRole.CONTABILIDAD, UserRole.COMPRAS, UserRole.ALMACEN]
+            },
+            {
+                title: "Partes de Ingreso",
+                icon: <InboxArrowDownIcon className="h-4 w-4" />,
+                href: "/contabilidad/partes-ingreso",
+                roles: [UserRole.ADMIN, UserRole.CONTABILIDAD]
             },
             {
                 title: "Cronograma de pago",

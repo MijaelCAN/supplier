@@ -496,6 +496,7 @@ export interface UploadFileRequest {
     name_file: string;
     base64: string;
     cod_cita: string;
+    u_packing_list?: string; // Packing list al que pertenece el documento
 }
 
 /**
@@ -556,12 +557,14 @@ const generateFileName = (type: string, originalFileName: string): string => {
  * @param file - Archivo a subir
  * @param type - Tipo de documento (invoice, purchaseOrder, deliveryGuide, qualityCertificate, transportGuide, packingList, safetySheet, analysisCertificate, etc.)
  * @param codCita - Código de la cita (DocEntry)
+ * @param packingListNumber - Packing list al que pertenece el documento ("261010394_1")
  * @returns Promise con la respuesta del API
  */
 export const uploadFileToPackingList = async (
     file: File,
     type: string,
-    codCita: string
+    codCita: string,
+    packingListNumber?: string
 ): Promise<UploadFileResponse['data']> => {
     if (!codCita || codCita.trim() === '') {
         throw new Error('El código de cita es requerido');
@@ -581,7 +584,8 @@ export const uploadFileToPackingList = async (
     const requestBody: UploadFileRequest = {
         name_file: nameFile,
         base64: base64,
-        cod_cita: codCita.trim()
+        cod_cita: codCita.trim(),
+        ...(packingListNumber ? { u_packing_list: packingListNumber } : {})
     };
     
     const url = `${DEFAULT_API_BASE_URL}${FILES_ENDPOINT}`;
@@ -694,6 +698,8 @@ export interface ProductApiRecord {
     num_parte_ingreso?: string | null;
     // Si la OC ya tiene factura registrada en SAP; el API lo envía como texto "true"/"false"
     status_factura?: boolean | string | null;
+    // Documentación completa (OC, Guía, Factura y Parte de Ingreso), calculada por el backend: "Completo" / "Incompleto" (OBS-023)
+    estado_documentos?: string | null;
     // Campos de validación PCP
     confirmacion_pcp?: 'CONFORME' | 'NO_CONFORME' | null;
     cobertura_actual?: number | null;
@@ -766,6 +772,44 @@ export const fetchProductsFromApi = async (
     return products;
 };
 
+interface EntradaMercanciaApiResponse {
+    status_code: number;
+    success: boolean;
+    message: string;
+    data?: { doc_entry: number; url: string } | null;
+}
+
+/**
+ * URL para mostrar el PDF del Parte de Ingreso (entrada de mercancía en SAP) por su DocNum (OBS-025).
+ * El API devuelve el PDF en binario: se arma una URL blob: local (liberarla con URL.revokeObjectURL),
+ * porque el link del servidor de reportes no es accesible desde el navegador del proveedor.
+ * Si responde JSON con { data.url } (formato anterior), se usa ese link. null si el parte no existe.
+ */
+export const fetchParteIngresoPdfUrl = async (docNum: string): Promise<string | null> => {
+    const url = buildSecureUrl(DEFAULT_API_BASE_URL, '/api/Documentos/EntradaMarcancia', { DocNum: docNum });
+    const response = await httpClient(url, {
+        method: 'GET',
+        headers: {
+            Accept: 'application/pdf, application/json',
+        },
+    });
+
+    if (response.status === 404) return null;
+    if (!response.ok) {
+        throw new Error(`Error al consultar el Parte de Ingreso (${response.status})`);
+    }
+
+    if (response.headers.get('Content-Type')?.includes('application/json')) {
+        const json = (await response.json()) as EntradaMercanciaApiResponse;
+        if (!json?.success || json.status_code === 404) return null;
+        return json.data?.url || null;
+    }
+
+    // Tipo forzado: con application/octet-stream el iframe descargaría el archivo en vez de mostrarlo
+    const pdf = new Blob([await response.arrayBuffer()], { type: 'application/pdf' });
+    return pdf.size > 0 ? URL.createObjectURL(pdf) : null;
+};
+
 /** Rango amplio para ubicar los packing list de una cita aunque se haya reprogramado */
 const PACKING_LIST_LOOKUP_DAYS = 365;
 
@@ -812,36 +856,93 @@ export const fetchSupplierProductsFromApi = async (
     );
     // Por si el API ignorara CardCode: quedarse solo con las OC del proveedor
     const products = productsByOrder.flat().filter((product) => orders.includes(product.number));
-    // Al unir varias llamadas se pierde el orden del API: fecha ("19/01/2026 00:00:00") y horario ("800 - 1100")
-    const sortKey = (p: ProductApiRecord) => {
-        const [day = '', month = '', year = ''] = (p.u_fecha ?? '').split(' ')[0].split('/');
-        const start = (p.horario ?? '').split(' - ')[0].trim().padStart(4, '0');
-        return `${year}${month.padStart(2, '0')}${day.padStart(2, '0')}${start}`;
+    // Al unir varias llamadas se pierde el orden del API
+    return products.sort((a, b) => productDateKey(a).localeCompare(productDateKey(b)));
+};
+
+/** Clave cronológica del producto: fecha ("19/01/2026 00:00:00") y hora de inicio ("800 - 1100") → "202601190800" */
+export const productDateKey = (p: ProductApiRecord): string => {
+    const [day = '', month = '', year = ''] = (p.u_fecha ?? '').split(' ')[0].split('/');
+    const start = (p.horario ?? '').split(' - ')[0].trim().padStart(4, '0');
+    return `${year}${month.padStart(2, '0')}${day.padStart(2, '0')}${start}`;
+};
+
+export interface ParteIngreso {
+    numero: string;
+    /** Serie-correlativo de la guía o factura con que se registró ("T070-0211277"); vacío si no tiene */
+    documento: string;
+    /** status_factura del parte: true ya tiene factura registrada en SAP, null si el API no lo envía */
+    conFactura: boolean | null;
+    /** Packing list de la línea; null si el API no envía packing_list_number */
+    packingList: string | null;
+    /** OC de la línea, para ubicar el parte cuando no viene el packing list */
+    orden: string;
+}
+
+/** num_parte_ingreso llega como "261012039-T070-0211277" (parte-serie-correlativo); sin documento, "261013189--" */
+const parseParteIngreso = (value: string, product: ProductApiRecord): ParteIngreso => {
+    const [numero, ...documento] = value.split('-');
+    const statusFactura = product.status_factura;
+    const hasStatus = statusFactura !== undefined && statusFactura !== null && statusFactura !== '';
+    return {
+        numero: numero.trim(),
+        documento: documento.filter(Boolean).join('-').trim(),
+        conFactura: hasStatus ? String(statusFactura).toLowerCase() === 'true' : null,
+        packingList: product.packing_list_number || null,
+        orden: product.number,
     };
-    return products.sort((a, b) => sortKey(a).localeCompare(sortKey(b)));
 };
 
 /**
- * N.º de Parte de Ingreso de una cita (uno por cada packing list que ya lo tenga).
- * /PackinList no lo trae: se consulta /Productos por cada OC de la cita en su fecha y se
- * queda con las líneas de sus packing lists (o de sus OC si el API no envía packing_list_number).
+ * Productos de una cita: los mismos registros que el reporte de citas por producto, que es la fuente
+ * de la documentación completa (estado_documentos). Se toman las líneas con cod_cita de la cita.
+ * - Roles internos: /Productos del día de la cita, igual que el reporte. Así entran también las OC que
+ *   el API asocia a la cita sin un packing list vigente (cita 130: OC 261010531 sin Parte de Ingreso).
+ * - Proveedor (`byOrders`): /Productos por cada OC de sus packing lists, igual que su reporte
+ *   (/Productos no filtra por RUC y así no llegan datos de otros proveedores).
+ * Si el API no envía cod_cita, se queda con las líneas de los packing lists (o de sus OC).
  */
-export const fetchAppointmentParteIngreso = async (
+export const fetchAppointmentProducts = async (
     deliveryDate: string, // "YYYY-MM-DD"
-    packingLists: PackingListApiRecord[]
-): Promise<string[]> => {
+    codCita: string,
+    packingLists: PackingListApiRecord[],
+    byOrders: boolean
+): Promise<ProductApiRecord[]> => {
     const packingListNumbers = new Set(packingLists.map((pl) => pl.number).filter(Boolean));
     const orders = Array.from(new Set(Array.from(packingListNumbers, (number) => number.split('_')[0])));
-    if (orders.length === 0) return [];
+    if (byOrders && orders.length === 0) return [];
 
     const fecha = formatDateForAPI(deliveryDate.split('T')[0]);
-    const products = (await Promise.all(orders.map((order) => fetchProductsFromApi(fecha, fecha, order)))).flat();
+    const products = byOrders
+        ? (await Promise.all(orders.map((order) => fetchProductsFromApi(fecha, fecha, order)))).flat()
+        : await fetchProductsFromApi(fecha, fecha);
+    return products.filter((p) => {
+        const productCita = p.cod_cita != null ? String(p.cod_cita).trim() : '';
+        if (productCita) return productCita === codCita;
+        return p.packing_list_number ? packingListNumbers.has(p.packing_list_number) : orders.includes(p.number);
+    });
+};
 
-    const numbers = products
-        .filter((p) => p.packing_list_number ? packingListNumbers.has(p.packing_list_number) : orders.includes(p.number))
-        .map((p) => p.num_parte_ingreso?.trim())
-        .filter((n): n is string => !!n);
-    return Array.from(new Set(numbers));
+/**
+ * Partes de Ingreso de una cita a partir de sus productos (fetchAppointmentProducts), primero los
+ * pendientes de registrar factura. Mientras el API no envíe la cita del parte (OBS-022) llegan todos
+ * los partes de la OC, incluso de otras entregas.
+ */
+export const getAppointmentParteIngreso = (products: ProductApiRecord[]): ParteIngreso[] => {
+    // El API repite cada parte una vez por producto: se deja uno por número en cada packing list
+    const partes = new Map<string, ParteIngreso>();
+    products
+        .forEach((p) => {
+            const value = p.num_parte_ingreso?.trim();
+            if (!value) return;
+            const parte = parseParteIngreso(value, p);
+            const key = `${parte.packingList ?? parte.orden}|${parte.numero}`;
+            if (parte.numero && !partes.has(key)) partes.set(key, parte);
+        });
+
+    const pendingFirst = (parte: ParteIngreso) => (parte.conFactura === true ? 1 : 0);
+    return Array.from(partes.values())
+        .sort((a, b) => pendingFirst(a) - pendingFirst(b) || b.numero.localeCompare(a.numero));
 };
 
 /**

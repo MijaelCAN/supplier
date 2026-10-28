@@ -2,6 +2,8 @@
 // Evaluación por producto de Calidad y Almacén (OBS-008, parte 1).
 import { httpClient, buildSecureUrl } from "@/services/http/httpClient";
 import { getApiBaseUrl } from "@/config/api.ts";
+import { fetchPackingListFromApi } from "./packingListApi";
+import { formatDateForAPI } from "./appointmentsApi";
 import { AppointmentStatus } from "@/store/types";
 import { PACKING_LIST_DECIMALS } from "@/utils/packingList";
 
@@ -9,7 +11,7 @@ const DEFAULT_API_BASE_URL = getApiBaseUrl();
 const PRODUCT_EVALUATIONS_ENDPOINT = '/api/Evaluacion/Productos';
 
 /**
- * Interruptor mientras el backend no publique /api/Evaluacion/Productos.
+ * Interruptor de la evaluación por producto (/api/Evaluacion/Productos).
  * Apagado: Calidad y Almacén evalúan la cita completa como antes.
  */
 export const PRODUCT_EVALUATION_ENABLED = import.meta.env.VITE_ENABLE_PRODUCT_EVALUATION === 'true';
@@ -84,10 +86,8 @@ const mapAreaEvaluation = (raw: any): ProductAreaEvaluation | null => {
 export const getProductLineKey = (line: Pick<ProductEvaluationLine, 'document' | 'line_number'>): string =>
     `${line.document}-${line.line_number}`;
 
-/**
- * Obtiene las líneas del PackingList de la cita con su evaluación por área.
- */
-export const fetchProductEvaluations = async (codCita: string): Promise<ProductEvaluationLine[]> => {
+/** Evaluaciones guardadas de la cita: una por producto y área ({codigo_producto, area, estado, ...}). */
+const fetchSavedEvaluations = async (codCita: string): Promise<any[]> => {
     const url = buildSecureUrl(DEFAULT_API_BASE_URL, PRODUCT_EVALUATIONS_ENDPOINT, { codCita });
 
     const response = await httpClient(url, {
@@ -100,25 +100,82 @@ export const fetchProductEvaluations = async (codCita: string): Promise<ProductE
         throw new Error(`Error al consultar la evaluación por producto (${response.status}): ${errorText}`);
     }
 
-    const json = (await response.json()) as ProductEvaluationApiResponse<any[]>;
+    const json = (await response.json()) as ProductEvaluationApiResponse<any>;
     if (!json || !json.success) {
         throw new Error(json?.message || 'Error al consultar la evaluación por producto');
     }
 
-    const records = Array.isArray(json.data) ? json.data : json.data ? [json.data] : [];
-    return records.map((raw) => ({
-        document: toNumber(raw.document),
-        line_number: toNumber(raw.line_number),
-        item_code: raw.item_code ?? '',
-        item_name: raw.item_name ?? '',
-        cantidad: toNumber(raw.cantidad),
-        calidad: mapAreaEvaluation(raw.calidad),
-        almacen: mapAreaEvaluation(raw.almacen),
-    }));
+    // Con un solo registro el API devuelve un objeto en vez de una lista
+    return Array.isArray(json.data) ? json.data : json.data ? [json.data] : [];
+};
+
+/** Rango de búsqueda de los PackingList de la cita (el API exige fechas). */
+const PACKING_LIST_LOOKUP_DAYS = 365;
+
+/**
+ * Productos de la cita (de sus PackingList) con lo que ya evaluó cada área.
+ * El API guarda una evaluación por producto y área, así que un producto que viene en
+ * varios PackingList de la cita se evalúa una sola vez con la cantidad sumada.
+ */
+export const fetchProductEvaluations = async (codCita: string): Promise<ProductEvaluationLine[]> => {
+    const start = new Date();
+    start.setDate(start.getDate() - PACKING_LIST_LOOKUP_DAYS);
+    const end = new Date();
+    end.setDate(end.getDate() + PACKING_LIST_LOOKUP_DAYS);
+
+    const [packingLists, saved] = await Promise.all([
+        fetchPackingListFromApi(formatDateForAPI(start), formatDateForAPI(end), codCita),
+        fetchSavedEvaluations(codCita),
+    ]);
+
+    const lines = new Map<string, ProductEvaluationLine>();
+    packingLists
+        .flatMap((pl) => pl.detalle_packin_list || pl.DetallePackinList || [])
+        .forEach((item) => {
+            const itemCode = item.item_code || '';
+            if (!itemCode) return;
+            const existing = lines.get(itemCode);
+            if (existing) {
+                existing.cantidad = roundEvaluationQuantity(existing.cantidad + toNumber(item.quantity));
+                return;
+            }
+            // El API de PackinList manda el DocEntry del PackingList como id_document (no document)
+            lines.set(itemCode, {
+                document: toNumber(item.document ?? item.id_document),
+                line_number: toNumber(item.line_number),
+                item_code: itemCode,
+                item_name: item.item_name || '',
+                cantidad: toNumber(item.quantity),
+                calidad: null,
+                almacen: null,
+            });
+        });
+
+    saved.forEach((raw) => {
+        const line = lines.get(String(raw.codigo_producto ?? ''));
+        if (!line) return;
+        const area = String(raw.area ?? '').toUpperCase();
+        if (area === 'CALIDAD') line.calidad = mapAreaEvaluation(raw);
+        else if (area === 'ALMACEN') line.almacen = mapAreaEvaluation(raw);
+    });
+
+    return Array.from(lines.values());
+};
+
+/** Fecha y hora local en ISO con zona ("2026-10-14T09:46:10-05:00"). */
+const nowWithOffset = (): string => {
+    const now = new Date();
+    const pad2 = (n: number) => String(n).padStart(2, '0');
+    const offset = -now.getTimezoneOffset();
+    const sign = offset >= 0 ? '+' : '-';
+    const zone = `${sign}${pad2(Math.floor(Math.abs(offset) / 60))}:${pad2(Math.abs(offset) % 60)}`;
+    return `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`
+        + `T${pad2(now.getHours())}:${pad2(now.getMinutes())}:${pad2(now.getSeconds())}${zone}`;
 };
 
 /**
- * Guarda la evaluación por producto de un área.
+ * Guarda la evaluación por producto de un área: el API recibe un objeto por producto,
+ * con todos los valores como texto.
  */
 export const saveProductEvaluations = async (
     codCita: string,
@@ -126,22 +183,53 @@ export const saveProductEvaluations = async (
     usuario: string,
     lineas: ProductEvaluationLineRequest[]
 ): Promise<void> => {
-    const url = buildSecureUrl(DEFAULT_API_BASE_URL, PRODUCT_EVALUATIONS_ENDPOINT, { codCita });
+    const url = buildSecureUrl(DEFAULT_API_BASE_URL, PRODUCT_EVALUATIONS_ENDPOINT);
+    const fecha = nowWithOffset();
 
-    const response = await httpClient(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ area, usuario, lineas }),
-    });
+    for (const linea of lineas) {
+        const response = await httpClient(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                cod_producto: linea.item_code,
+                cod_cita: String(codCita),
+                cantidad: String(roundEvaluationQuantity(linea.cantidad_aceptada + linea.cantidad_rechazada)),
+                usuario,
+                area,
+                estado: linea.estado,
+                cantidad_aceptada: String(linea.cantidad_aceptada),
+                cantidad_rechazada: String(linea.cantidad_rechazada),
+                motivo: linea.motivo,
+                fecha,
+            }),
+        });
 
-    if (!response.ok) {
-        const errorText = await response.text().catch(() => 'Error desconocido');
-        throw new Error(`Error al guardar la evaluación por producto (${response.status}): ${errorText}`);
+        if (!response.ok) {
+            const errorText = await response.text().catch(() => 'Error desconocido');
+            throw new Error(`Error al guardar la evaluación de ${linea.item_code} (${response.status}): ${errorText}`);
+        }
+
+        const json = (await response.json()) as ProductEvaluationApiResponse<unknown>;
+        if (!json || !json.success) {
+            throw new Error(json?.message || `Error al guardar la evaluación de ${linea.item_code}`);
+        }
     }
 
-    const json = (await response.json()) as ProductEvaluationApiResponse<unknown>;
-    if (!json || !json.success) {
-        throw new Error(json?.message || 'Error al guardar la evaluación por producto');
+    // El API responde éxito aunque no guarde (p. ej. con cantidades decimales o si el producto
+    // ya estaba evaluado): se relee para no cambiar el estado de la cita con datos que no quedaron.
+    const saved = await fetchSavedEvaluations(codCita);
+    const notSaved = lineas.filter((linea) => !saved.some((raw) =>
+        String(raw.codigo_producto) === linea.item_code
+        && String(raw.area ?? '').toUpperCase() === area
+        && raw.estado === linea.estado
+        && toNumber(raw.cantidad_aceptada) === linea.cantidad_aceptada
+        && toNumber(raw.cantidad_rechazada) === linea.cantidad_rechazada
+    ));
+    if (notSaved.length > 0) {
+        throw new Error(
+            `El servidor no registró la evaluación de: ${notSaved.map((l) => l.item_code).join(', ')}. `
+            + 'Revise que las cantidades sean enteras o comuníquese con Sistemas.'
+        );
     }
 };
 

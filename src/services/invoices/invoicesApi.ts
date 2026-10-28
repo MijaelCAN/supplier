@@ -426,11 +426,12 @@ export const fetchScheduledInvoices = async (
                 // Incluir si el estado es "Y" o si no tiene estado pero tiene fecha de compromiso
                 return estado === 'Y' || (!estado && item.u_fecha_compromiso_pago);
             })
-            .map((item): Invoice & { supplierRUC?: string; taxDate?: string; importePagar?: number; scheduledPaymentDate?: string } => {
+            .map((item, index): Invoice & { supplierRUC?: string; taxDate?: string; importePagar?: number; scheduledPaymentDate?: string } => {
                 const supplierId = item.u_cod_proveedor ? `P${item.u_cod_proveedor}` : '';
-                
+
                 return {
-                    id: `${item.u_n_factura}_${item.u_cod_proveedor}_${item.u_fecha_compromiso_pago}`.replace(/\s+/g, '_'),
+                    // El índice evita ids repetidos: el API puede traer dos cuotas de la misma factura con la misma fecha
+                    id: `${item.u_n_factura}_${item.u_cod_proveedor}_${item.u_fecha_compromiso_pago}_${index}`.replace(/\s+/g, '_'),
                     invoiceNumber: item.u_n_factura || '',
                     purchaseOrderId: item.u_n_factura || '',
                     supplierId: supplierId,
@@ -461,4 +462,29 @@ export const fetchScheduledInvoices = async (
         console.error('Error al obtener facturas programadas:', error);
         throw error;
     }
+};
+
+// Meses hacia atrás que se piden al API para no perder facturas contabilizadas antes del rango
+const SCHEDULED_LOOKBACK_MONTHS = 12;
+
+/**
+ * Facturas con fecha programada (u_fecha_compromiso_pago) entre startDate y endDate, ambos incluidos.
+ * El API filtra FechaInicio/FechaFin por fecha de contabilización o de vencimiento, no por la programada:
+ * se pide un rango más amplio y se filtra aquí. Quitar cuando el API filtre por U_FechaCompromisoPago.
+ */
+export const fetchInvoicesScheduledBetween = async (
+    startDate: string, // Formato: YYYYMMDD
+    endDate: string,   // Formato: YYYYMMDD
+    codigoProveedor?: string
+): Promise<Invoice[]> => {
+    const from = new Date(Number(startDate.slice(0, 4)), Number(startDate.slice(4, 6)) - 1 - SCHEDULED_LOOKBACK_MONTHS, 1);
+    const fromStr = `${from.getFullYear()}${String(from.getMonth() + 1).padStart(2, '0')}01`;
+    const invoices = await fetchScheduledInvoices(fromStr, endDate, codigoProveedor);
+
+    const start = `${startDate.slice(0, 4)}-${startDate.slice(4, 6)}-${startDate.slice(6, 8)}`;
+    const end = `${endDate.slice(0, 4)}-${endDate.slice(4, 6)}-${endDate.slice(6, 8)}`;
+    return (invoices ?? []).filter((invoice) => {
+        const scheduled = (invoice as Invoice & { scheduledPaymentDate?: string }).scheduledPaymentDate ?? '';
+        return scheduled >= start && scheduled <= end;
+    });
 };

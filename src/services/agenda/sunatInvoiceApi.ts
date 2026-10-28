@@ -144,6 +144,29 @@ export const fetchInvoiceValidations = async (codCita: string): Promise<SunatInv
     });
 };
 
+/**
+ * Validación de una factura por su número ("01-F041-00013408" o "F041-13408"), para llegar a su cita.
+ * Solo existen las de facturas cuyo XML se subió al portal.
+ */
+export const findInvoiceValidationByNumber = async (
+    invoiceNumber: string,
+    ruc?: string
+): Promise<SunatInvoiceValidation | null> => {
+    const parts = invoiceNumber.trim().toUpperCase().split('-');
+    if (parts.length < 2) return null;
+    const serie = parts[parts.length - 2];
+    const numero = String(parseInt(parts[parts.length - 1], 10));
+    if (!serie || numero === 'NaN') return null;
+
+    const filters = [where('numeroSerie', '==', serie), where('numero', '==', numero)];
+    const numRuc = (ruc ?? '').replace(/\D/g, '');
+    if (numRuc.length === 11) filters.push(where('numRuc', '==', numRuc));
+
+    const snapshot = await getDocs(query(collection(db, COLLECTION), ...filters));
+    const found = snapshot.docs.map((d) => d.data()).find((data) => data.codCita);
+    return found ? { ...(found as Omit<SunatInvoiceValidation, 'validadoEn'>), validadoEn: null } : null;
+};
+
 // Códigos de validarcomprobante
 const ESTADO_CP: Record<string, { label: string; color: 'success' | 'warning' | 'danger' }> = {
     '0': { label: 'No existe en SUNAT', color: 'warning' },
