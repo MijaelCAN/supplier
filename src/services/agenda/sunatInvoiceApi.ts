@@ -2,7 +2,7 @@
 // Validación de facturas en SUNAT. Los datos salen del XML (UBL 2.1) que sube el proveedor; la consulta
 // la hace la Cloud Function validarFacturaSunat (functions/index.js), que guarda el resultado en Firestore.
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import { collection, getDocs, query, where, Timestamp } from 'firebase/firestore';
+import { collection, getDocs, query, where, Timestamp, type QueryDocumentSnapshot } from 'firebase/firestore';
 import { db, firebaseApp } from '@/lib/firebase';
 
 const COLLECTION = 'validacionesSunat';
@@ -135,13 +135,28 @@ export const fetchUploadedXml = async (url: string): Promise<string> => {
     return result.data.xml;
 };
 
+const toValidation = (d: QueryDocumentSnapshot): SunatInvoiceValidation => {
+    const data = d.data();
+    const validadoEn = data.validadoEn instanceof Timestamp ? data.validadoEn.toDate().toISOString() : null;
+    return { ...(data as Omit<SunatInvoiceValidation, 'id' | 'validadoEn'>), id: d.id, validadoEn };
+};
+
 export const fetchInvoiceValidations = async (codCita: string): Promise<SunatInvoiceValidation[]> => {
     const snapshot = await getDocs(query(collection(db, COLLECTION), where('codCita', '==', codCita)));
-    return snapshot.docs.map((d) => {
-        const data = d.data();
-        const validadoEn = data.validadoEn instanceof Timestamp ? data.validadoEn.toDate().toISOString() : null;
-        return { ...(data as Omit<SunatInvoiceValidation, 'id' | 'validadoEn'>), id: d.id, validadoEn };
-    });
+    return snapshot.docs.map(toValidation);
+};
+
+// Firestore admite hasta 30 valores en un filtro "in"
+const IN_LIMIT = 30;
+
+/** Validaciones de varias citas a la vez (para listados como Partes de Ingreso) */
+export const fetchInvoiceValidationsByCitas = async (codCitas: string[]): Promise<SunatInvoiceValidation[]> => {
+    const unique = Array.from(new Set(codCitas.filter(Boolean)));
+    const chunks = Array.from({ length: Math.ceil(unique.length / IN_LIMIT) }, (_, i) => unique.slice(i * IN_LIMIT, (i + 1) * IN_LIMIT));
+    const snapshots = await Promise.all(
+        chunks.map((chunk) => getDocs(query(collection(db, COLLECTION), where('codCita', 'in', chunk))))
+    );
+    return snapshots.flatMap((snapshot) => snapshot.docs.map(toValidation));
 };
 
 /**

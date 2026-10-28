@@ -3,7 +3,7 @@
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import type { EstadoFactura, ParteIngresoContabilidad } from '@/services/contabilidad/partesIngresoApi';
-import { COMMERCIAL_DOCUMENT_TYPES, getDocumentTypeByKey, mapFileNameToDocumentType } from '@/config/commercialDocuments';
+import { COMMERCIAL_DOCUMENT_TYPES, getDocumentTypeByKey, isInvoiceXmlFileName, mapFileNameToDocumentType } from '@/config/commercialDocuments';
 
 /** Registro SAP: el API manda el estado de la factura y se muestra si el parte ya tiene asiento */
 export const REGISTRO_SAP_LABELS: Record<EstadoFactura, string> = {
@@ -63,6 +63,13 @@ const getLinkFileName = (url: string): string => {
     return decodeURIComponent(name).split('/').pop() ?? name;
 };
 
+/** Nombre de archivo sin carpeta, para cruzar con el `archivo` de la validación SUNAT */
+export const getBaseFileName = (name: string): string => name.split('/').pop() ?? name;
+
+/** XML de factura del parte (sin el CDR): son los que se validan en SUNAT */
+export const getFacturaXmlNames = (row: ParteIngresoContabilidad): string[] =>
+    row.linksFactura.map(getLinkFileName).filter(isInvoiceXmlFileName);
+
 /**
  * Los demás archivos de la cita (links_otros) agrupados por tipo según el prefijo del nombre, con los tipos de
  * COMMERCIAL_DOCUMENT_TYPES y en su orden; lo que no se reconoce va al final como "Otro". Solo tipos con archivos.
@@ -103,8 +110,16 @@ export const getDocumentosVisor = (row: ParteIngresoContabilidad): DocumentoViso
     [...getDocumentoGrupos(row), ...getOtrosDocumentos(row)]
         .flatMap((grupo) => grupo.links.filter(isPdfLink).map((link) => ({ ...link, grupo: grupo.label })));
 
-/** Exporta las filas visibles (tras los filtros locales); los links de cada tipo separados por salto de línea */
-export const exportPartesIngresoReport = (rows: ParteIngresoContabilidad[], fechaInicio: string, fechaFin: string) => {
+/**
+ * Exporta las filas visibles (tras los filtros locales); los links de cada tipo separados por salto de línea.
+ * getSunat: estado SUNAT de la factura del parte, como se ve en la tabla.
+ */
+export const exportPartesIngresoReport = (
+    rows: ParteIngresoContabilidad[],
+    fechaInicio: string,
+    fechaFin: string,
+    getSunat: (row: ParteIngresoContabilidad) => string
+) => {
     const data = rows.map((row) => ({
         'Fecha': formatFecha(row.fechaParteIngreso),
         'Parte de ingreso': row.numeroParteIngreso,
@@ -117,6 +132,7 @@ export const exportPartesIngresoReport = (rows: ParteIngresoContabilidad[], fech
         'Moneda': row.moneda,
         'Total': row.total,
         'Factura': row.numeroFactura ?? '',
+        'SUNAT': getSunat(row),
         'Registro SAP': REGISTRO_SAP_LABELS[row.estadoFactura],
         'Cita': row.numeroCita ?? '',
         'Packing list': row.numeroPackingList ?? '',
@@ -134,7 +150,7 @@ export const exportPartesIngresoReport = (rows: ParteIngresoContabilidad[], fech
     const ws = XLSX.utils.json_to_sheet(data);
     ws['!cols'] = [
         { wch: 12 }, { wch: 16 }, { wch: 18 }, { wch: 16 }, { wch: 40 }, { wch: 14 }, { wch: 22 }, { wch: 18 },
-        { wch: 8 }, { wch: 14 }, { wch: 30 }, { wch: 20 }, { wch: 8 }, { wch: 16 }, { wch: 12 },
+        { wch: 8 }, { wch: 14 }, { wch: 30 }, { wch: 30 }, { wch: 20 }, { wch: 8 }, { wch: 16 }, { wch: 12 },
         { wch: 60 }, { wch: 60 }, { wch: 60 }, { wch: 60 }, { wch: 80 },
     ];
     XLSX.utils.book_append_sheet(wb, ws, 'Partes de Ingreso');
