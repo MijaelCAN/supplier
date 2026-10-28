@@ -19,9 +19,12 @@ import {
     UserCircleIcon,
     UsersIcon,
     InformationCircleIcon,
-    VideoCameraIcon
+    VideoCameraIcon,
+    ExclamationTriangleIcon,
+    InboxArrowDownIcon
 } from "@heroicons/react/24/outline";
 import { MenuItem, UserRole } from "@/routes/menuTypes.ts";
+import { CLAIMS_API_ENABLED } from "@/services/agenda/claimsApi";
 import { CalculatorIcon } from "@heroicons/react/16/solid";
 
 /*export const menuItems: MenuItem[] = [
@@ -151,7 +154,15 @@ export const menuItems: MenuItem[] = [
                 title: "Agenda - Citas",
                 icon: <BookOpenIcon className="h-4 w-4" />,
                 href: "/agenda",
-                roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.CONTABILIDAD, UserRole.SEGURIDAD, UserRole.CALIDAD, UserRole.ALMACEN, UserRole.PLANEAMIENTO]
+                // Contabilidad no ve la agenda: trabaja desde Partes de Ingreso
+                roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.SEGURIDAD, UserRole.CALIDAD, UserRole.ALMACEN, UserRole.PLANEAMIENTO]
+            },
+            {
+                title: "Reclamos",
+                icon: <ExclamationTriangleIcon className="h-4 w-4" />,
+                href: "/reclamos",
+                // Visible solo cuando el API de reclamos está activo (OBS-008)
+                roles: CLAIMS_API_ENABLED ? [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.CALIDAD, UserRole.ALMACEN] : []
             },
             {
                 title: "Fecha de entrega",
@@ -172,10 +183,16 @@ export const menuItems: MenuItem[] = [
                 roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.FINANZAS, UserRole.CONTABILIDAD, UserRole.COMPRAS, UserRole.ALMACEN]
             },
             {
+                title: "Partes de Ingreso",
+                icon: <InboxArrowDownIcon className="h-4 w-4" />,
+                href: "/contabilidad/partes-ingreso",
+                roles: [UserRole.ADMIN, UserRole.CONTABILIDAD]
+            },
+            {
                 title: "Cronograma de pago",
                 icon: <ClockIcon className="h-4 w-4" />,
                 href: "/cronograma",
-                roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.PROVEEDOR]
+                roles: [UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.FINANZAS]
             },
             {
                 title: "Pagos",

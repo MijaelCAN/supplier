@@ -562,6 +562,11 @@ const Login = () => {
                                             Política de Privacidad
                                         </a>
                                     </p>
+
+                                    {/* Versión de la app, tomada de package.json */}
+                                    <p className="text-white/60 text-center text-xs mt-4">
+                                        v{__APP_VERSION__}
+                                    </p>
                                 </form>
                             </CardBody>
                         </Card>

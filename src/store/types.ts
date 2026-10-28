@@ -389,6 +389,8 @@ export interface AppointmentDocumentRecord {
     u_cod_cita: string;
     u_name_file: string;
     u_link_documento: string;
+    /** Packing list al que pertenece ("261010394_1"); vacío en documentos cargados antes de asignarlos */
+    u_packing_list?: string;
 }
 
 // Agenda Module Types
@@ -440,6 +442,7 @@ export interface PackingListItem {
     productCode: string;
     productName: string;
     quantity: number;
+    quantityText?: string; // Texto digitado en el input de cantidad (solo UI, permite "12." mientras se escribe)
     pendingQuantity: number;
     unit: string;
     category?: string;
@@ -509,10 +512,12 @@ export type AppointmentStatus =
     // Fase 5: Control de Calidad
     | 'CALIDAD_ACEPTADO'
     | 'CALIDAD_OBSERVADO'
+    | 'CALIDAD_PARCIAL' // Evaluación por producto: parte aceptada y parte rechazada (OBS-008)
     | 'CALIDAD_RECHAZADO'
     // Fase 6: Almacén
     | 'ALMACEN_ACEPTADO'
     | 'ALMACEN_OBSERVADO'
+    | 'ALMACEN_PARCIAL' // Evaluación por producto: parte aceptada y parte rechazada (OBS-008)
     | 'ALMACEN_RECHAZADO'
     // Fase 7: Cierre
     | 'PARTE_DE_INGRESO_GENERADO'
@@ -593,11 +598,35 @@ export const EVALUATION_RANGES = {
     Deficiente: { min: 1.0, max: 4.99 },
 };
 
+// Producto rechazado incluido en un reclamo (línea del PackingList)
+export interface ClaimProduct {
+    lineId?: number; // Línea del producto en el reclamo (ya guardado)
+    document: number; // DocEntry del PackingList
+    lineNumber: number;
+    itemCode: string;
+    itemName: string;
+    cantidadRechazada: number;
+    motivo: string;
+}
+
+// Evidencia adjunta al reclamo: `url` si ya está guardada, `file` si está por subir
+export interface ClaimAttachment {
+    lineId?: number; // Línea del adjunto en el reclamo (ya guardado)
+    nameFile: string;
+    fecha?: string;
+    url?: string;
+    file?: globalThis.File; // File del navegador (este archivo define otra interfaz File)
+}
+
 // Reclamo a Proveedor
 export interface SupplierClaim {
     id?: string;
+    docEntry?: string; // DocEntry del reclamo en SAP (UDO VIS_RECLAMO)
     codCita: string; // DocEntry de la cita
     numeroReclamo: string; // Número único del reclamo
+    rucProveedor?: string;
+    productos?: ClaimProduct[];
+    adjuntos?: ClaimAttachment[];
     fechaReclamo: string; // Fecha de creación del reclamo
     areaEmite: string; // Área que emite el reclamo (ej: Calidad)
     responsable: string; // Responsable que emite el reclamo
@@ -646,6 +675,7 @@ export interface SupplierClaim {
 
 export interface ClaimAction {
     id?: string;
+    lineId?: number; // Línea de la acción en el reclamo: con ella el backend la actualiza en vez de agregarla
     accion: string;
     fecha: string;
     estado?: 'Abierto' | 'Cerrado'; // Para verificación

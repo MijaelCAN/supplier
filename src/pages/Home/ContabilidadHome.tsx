@@ -4,7 +4,7 @@ import {
 } from "@heroui/react";
 import {
     CalculatorIcon,
-    BookOpenIcon,
+    InboxArrowDownIcon,
     DocumentTextIcon,
     EyeIcon,
     ArrowRightIcon,
@@ -76,15 +76,15 @@ const ContabilidadHome = () => {
                     <div className="mt-8 mb-32">
                         <div className="flex justify-center">
                             <div className="w-full max-w-[60%] grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {/* Agenda - Citas */}
+                                {/* Partes de Ingreso */}
                                 <div
                                     className="group flex items-center gap-4 px-4 py-3 rounded-xl bg-white/70 dark:bg-gray-800/70 backdrop-blur-sm border border-gray-200/50 dark:border-gray-700/50 hover:border-blue-500/50 dark:hover:border-blue-500/50 cursor-pointer hover:shadow-lg transition-all duration-300"
-                                    onClick={() => navigate('/agenda')}
+                                    onClick={() => navigate('/contabilidad/partes-ingreso')}
                                 >
                                     <div className="p-2 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600">
-                                        <BookOpenIcon className="h-5 w-5 text-white" />
+                                        <InboxArrowDownIcon className="h-5 w-5 text-white" />
                                     </div>
-                                    <span className="flex-1 text-sm font-semibold text-gray-700 dark:text-gray-300">Agenda - Citas</span>
+                                    <span className="flex-1 text-sm font-semibold text-gray-700 dark:text-gray-300">Partes de Ingreso</span>
                                     <ArrowRightIcon className="h-4 w-4 text-gray-400 group-hover:text-blue-500 group-hover:translate-x-1 transition-all" />
                                 </div>
 
@@ -116,10 +116,10 @@ const ContabilidadHome = () => {
                                 </div>
                                 <div className="space-y-4">
                                     <div className="flex items-start gap-3 p-3 rounded-lg bg-blue-50/50 dark:bg-blue-900/20">
-                                        <BookOpenIcon className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5" />
+                                        <InboxArrowDownIcon className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5" />
                                         <div>
-                                            <p className="font-semibold text-sm text-gray-900 dark:text-white">Ver Citas de Entrega</p>
-                                            <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">Consultar el calendario y el detalle de cada cita programada</p>
+                                            <p className="font-semibold text-sm text-gray-900 dark:text-white">Partes de Ingreso</p>
+                                            <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">Cotejar cada parte de ingreso de SAP con su Factura, OC y Guía</p>
                                         </div>
                                     </div>
                                     <div className="flex items-start gap-3 p-3 rounded-lg bg-purple-50/50 dark:bg-purple-900/20">
@@ -152,8 +152,8 @@ const ContabilidadHome = () => {
                                 <div className="space-y-3">
                                     <div className="flex items-center justify-between p-3 rounded-lg bg-white/50 dark:bg-gray-900/50 border border-gray-200/50 dark:border-gray-700/50">
                                         <div className="flex items-center gap-3">
-                                            <BookOpenIcon className="h-5 w-5 text-blue-600" />
-                                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Ver Citas</span>
+                                            <InboxArrowDownIcon className="h-5 w-5 text-blue-600" />
+                                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Partes de Ingreso</span>
                                         </div>
                                         <Chip size="sm" color="success" variant="flat">Activo</Chip>
                                     </div>

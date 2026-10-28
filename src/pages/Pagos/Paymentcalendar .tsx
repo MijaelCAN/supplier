@@ -7,7 +7,9 @@ import {
   ClockIcon, 
   ExclamationTriangleIcon,
   CalendarIcon,
-  DocumentTextIcon
+  DocumentTextIcon,
+  ArrowDownTrayIcon,
+  FolderOpenIcon
 } from '@heroicons/react/24/outline';
 import { parseDate, CalendarDate, getLocalTimeZone, today, startOfMonth, endOfMonth, DateValue } from '@internationalized/date';
 import {
@@ -31,14 +33,19 @@ import {
   TableRow,
   TableCell,
   Input,
-  Pagination
+  Pagination,
+  Tooltip,
+  addToast
 } from '@heroui/react';
 import { useInvoices } from '@/store/extendedStore';
 import { useAuth } from '@/store/authStore';
 import { UserRole } from '@/routes/menuTypes';
-import { fetchScheduledInvoices } from '@/services/invoices/invoicesApi';
+import { fetchInvoicesScheduledBetween } from '@/services/invoices/invoicesApi';
+import { findInvoiceValidationByNumber } from '@/services/agenda/sunatInvoiceApi';
 import { Invoice } from '@/store/types';
 import { DateInput } from '@/components/DateInput';
+import * as XLSX from 'xlsx';
+import { saveAs } from 'file-saver';
 
 interface Payment {
   id: string;
@@ -91,14 +98,18 @@ const PaymentCalendar: React.FC = () => {
   const [filterProveedor, setFilterProveedor] = useState('');
   const [filterFechaEmision, setFilterFechaEmision] = useState<string>('');
   const [filterFechaVenc, setFilterFechaVenc] = useState<string>('');
-  const [filterFechaProgramada, setFilterFechaProgramada] = useState<string>('');
   const [filterTotalPagar, setFilterTotalPagar] = useState('');
+  // Rango de fecha programada: se edita en los campos y se aplica con "Buscar"
   const [tableStartDate, setTableStartDate] = useState<string>(
     `${startOfMonth(todayDate).year}-${String(startOfMonth(todayDate).month).padStart(2, '0')}-${String(startOfMonth(todayDate).day).padStart(2, '0')}`
   );
   const [tableEndDate, setTableEndDate] = useState<string>(
     `${endOfMonth(todayDate).year}-${String(endOfMonth(todayDate).month).padStart(2, '0')}-${String(endOfMonth(todayDate).day).padStart(2, '0')}`
   );
+  const [appliedRange, setAppliedRange] = useState({ start: tableStartDate, end: tableEndDate });
+  const isTableRangeInvalid = !tableStartDate || !tableEndDate || tableStartDate > tableEndDate;
+  // Factura cuya cita se está buscando para ir a sus documentos
+  const [openingDocumentsId, setOpeningDocumentsId] = useState<string | null>(null);
   const rowsPerPage = 100;
 
 
@@ -191,7 +202,7 @@ const PaymentCalendar: React.FC = () => {
       // Obtener código de proveedor si es proveedor
       const codigoProveedor = isProvider && providerId ? providerId.replace('P', '') : undefined;
       
-      const scheduledInvoices = await fetchScheduledInvoices(startDateStr, endDateStr, codigoProveedor);
+      const scheduledInvoices = await fetchInvoicesScheduledBetween(startDateStr, endDateStr, codigoProveedor);
       
       console.log('Facturas programadas recibidas:', scheduledInvoices);
       
@@ -256,16 +267,11 @@ const PaymentCalendar: React.FC = () => {
     
     try {
       // Formatear fechas para el API (YYYYMMDD)
-      const startDateStr = tableStartDate.replace(/-/g, '');
-      const endDateStr = tableEndDate.replace(/-/g, '');
-      
-      const invoices = await fetchScheduledInvoices(startDateStr, endDateStr);
-      
-      if (invoices && invoices.length > 0) {
-        setScheduledInvoices(invoices);
-      } else {
-        setScheduledInvoices([]);
-      }
+      const startDateStr = appliedRange.start.replace(/-/g, '');
+      const endDateStr = appliedRange.end.replace(/-/g, '');
+
+      setScheduledInvoices(await fetchInvoicesScheduledBetween(startDateStr, endDateStr));
+      setTablePage(1);
     } catch (error) {
       console.error('Error al cargar facturas programadas:', error);
       setPaymentsError('Error al cargar las facturas programadas. Por favor, intenta nuevamente.');
@@ -273,7 +279,17 @@ const PaymentCalendar: React.FC = () => {
     } finally {
       setIsLoadingPayments(false);
     }
-  }, [tableStartDate, tableEndDate]);
+  }, [appliedRange]);
+
+  const handleSearchTable = () => {
+    if (isTableRangeInvalid) return;
+    // Mismo rango: el efecto no se dispara, se recarga a mano
+    if (appliedRange.start === tableStartDate && appliedRange.end === tableEndDate) {
+      loadScheduledInvoicesForTable();
+    } else {
+      setAppliedRange({ start: tableStartDate, end: tableEndDate });
+    }
+  };
 
   // Cargar facturas programadas para tabla cuando cambian las fechas (solo para usuarios internos)
   useEffect(() => {
@@ -353,14 +369,6 @@ const PaymentCalendar: React.FC = () => {
       });
     }
     
-    if (filterFechaProgramada) {
-      const normalizedFilter = normalizeDate(filterFechaProgramada);
-      filtered = filtered.filter(inv => {
-        const normalizedDate = normalizeDate((inv as Invoice & { scheduledPaymentDate?: string }).scheduledPaymentDate || '');
-        return normalizedDate === normalizedFilter;
-      });
-    }
-    
     if (filterTotalPagar.trim()) {
       const filterValue = parseFloat(filterTotalPagar.replace(/[^\d.-]/g, ''));
       if (!isNaN(filterValue)) {
@@ -372,7 +380,7 @@ const PaymentCalendar: React.FC = () => {
     }
     
     return filtered;
-  }, [scheduledInvoices, filterNumFactura, filterProveedor, filterFechaEmision, filterFechaVenc, filterFechaProgramada, filterTotalPagar]);
+  }, [scheduledInvoices, filterNumFactura, filterProveedor, filterFechaEmision, filterFechaVenc, filterTotalPagar]);
 
   // Paginación para tabla
   const tablePages = Math.ceil(filteredTableInvoices.length / rowsPerPage);
@@ -431,6 +439,74 @@ const PaymentCalendar: React.FC = () => {
       return `${day}/${month}/${year}`;
     } catch {
       return dateStr;
+    }
+  };
+
+  const getStatusLabel = (status: Payment['status']) =>
+    status === 'paid' ? 'Pagado' :
+    status === 'pending' ? 'Pendiente' :
+    status === 'overdue' ? 'Vencido' :
+    'Programado';
+
+  // Exporta todas las filas filtradas (no solo la página visible)
+  const handleExportExcel = () => {
+    try {
+      const rows = filteredTableInvoices.map((invoice) => {
+        const extra = invoice as Invoice & { scheduledPaymentDate?: string; importePagar?: number; supplierRUC?: string };
+        return {
+          'N° Factura': invoice.invoiceNumber,
+          'Proveedor': invoice.supplierName,
+          'RUC': extra.supplierRUC || invoice.supplierId?.replace('P', '') || '',
+          'Fecha de Contabilización': formatDate(invoice.receivedDate),
+          'Fecha Venc.': formatDate(invoice.dueDate),
+          'Fecha Programada': formatDate(extra.scheduledPaymentDate),
+          'Retención': invoice.retention || 0,
+          'Importe Factura': invoice.amount || 0,
+          'Importe a Pagar': extra.importePagar || invoice.amount || 0,
+          'Total a Pagar': invoice.saldo || invoice.amount || 0,
+          'Estado': getStatusLabel(determinePaymentStatus(invoice)),
+        };
+      });
+
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(rows);
+      ws['!cols'] = [
+        { wch: 20 }, { wch: 40 }, { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 14 },
+        { wch: 12 }, { wch: 15 }, { wch: 15 }, { wch: 14 }, { wch: 12 },
+      ];
+      XLSX.utils.book_append_sheet(wb, ws, 'Pagos programados');
+
+      const fileName = `Pagos_programados_${appliedRange.start.replace(/-/g, '')}_${appliedRange.end.replace(/-/g, '')}.xlsx`;
+      const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      saveAs(new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), fileName);
+    } catch (error) {
+      console.error('Error al exportar pagos programados:', error);
+      addToast({ title: 'Error al exportar a Excel', color: 'danger' });
+    }
+  };
+
+  // Abre la cita de la factura en la pestaña de su packing list; la relación sale de la validación SUNAT del XML
+  const handleOpenInvoiceDocuments = async (invoice: Invoice) => {
+    setOpeningDocumentsId(invoice.id);
+    try {
+      const ruc = (invoice as Invoice & { supplierRUC?: string }).supplierRUC;
+      const validation = await findInvoiceValidationByNumber(invoice.invoiceNumber, ruc);
+      if (!validation) {
+        addToast({
+          title: 'No se encontró la cita de la factura',
+          description: `La factura ${invoice.invoiceNumber} no se cargó con su XML en una cita del portal.`,
+          color: 'warning',
+        });
+        return;
+      }
+      navigate(`/agenda/detail/${validation.codCita}`, {
+        state: { invoiceFile: validation.archivo, returnTo: '/cronograma' },
+      });
+    } catch (error) {
+      console.error('Error al buscar la cita de la factura:', error);
+      addToast({ title: 'No se pudo buscar la cita de la factura', color: 'danger' });
+    } finally {
+      setOpeningDocumentsId(null);
     }
   };
 
@@ -772,14 +848,29 @@ const PaymentCalendar: React.FC = () => {
           <CardBody className="flex-1 flex flex-col min-h-0 p-6">
             {/* Filtros de búsqueda */}
             <div className="flex-shrink-0 mb-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-4">
+              {/* Una sola línea: rango de fecha programada (va al API con "Buscar") y filtros sobre lo cargado */}
+              <div className="flex flex-wrap xl:flex-nowrap items-end gap-3">
+                <DateInput
+                  size="sm"
+                  label="Programada desde"
+                  value={tableStartDate}
+                  onValueChange={setTableStartDate}
+                  className="w-full sm:w-[150px] shrink-0"
+                />
+                <DateInput
+                  size="sm"
+                  label="Programada hasta"
+                  value={tableEndDate}
+                  onValueChange={setTableEndDate}
+                  className="w-full sm:w-[150px] shrink-0"
+                />
                 <Input
                   size="sm"
                   label="N° Factura"
                   placeholder="Buscar por número"
                   value={filterNumFactura}
                   onValueChange={setFilterNumFactura}
-                  classNames={{ base: "w-full" }}
+                  className="w-full sm:w-40 xl:flex-1 xl:min-w-0"
                 />
                 <Input
                   size="sm"
@@ -787,25 +878,21 @@ const PaymentCalendar: React.FC = () => {
                   placeholder="Buscar proveedor"
                   value={filterProveedor}
                   onValueChange={setFilterProveedor}
-                  classNames={{ base: "w-full" }}
+                  className="w-full sm:w-48 xl:flex-[2] xl:min-w-0"
                 />
                 <DateInput
                   size="sm"
-                  label="Fecha Emisión"
+                  label="Fecha Contabilización"
                   value={filterFechaEmision}
                   onValueChange={setFilterFechaEmision}
+                  className="w-full sm:w-[150px] shrink-0"
                 />
                 <DateInput
                   size="sm"
                   label="Fecha Venc."
                   value={filterFechaVenc}
                   onValueChange={setFilterFechaVenc}
-                />
-                <DateInput
-                  size="sm"
-                  label="Fecha Programada"
-                  value={filterFechaProgramada}
-                  onValueChange={setFilterFechaProgramada}
+                  className="w-full sm:w-[150px] shrink-0"
                 />
                 <Input
                   size="sm"
@@ -814,32 +901,34 @@ const PaymentCalendar: React.FC = () => {
                   type="number"
                   value={filterTotalPagar}
                   onValueChange={setFilterTotalPagar}
-                  classNames={{ base: "w-full" }}
-                />
-              </div>
-              
-              {/* Rango de fechas para cargar datos */}
-              <div className="flex items-end gap-4 mb-4">
-                <DateInput
-                  size="sm"
-                  label="Fecha Inicio"
-                  value={tableStartDate}
-                  onValueChange={setTableStartDate}
-                />
-                <DateInput
-                  size="sm"
-                  label="Fecha Fin"
-                  value={tableEndDate}
-                  onValueChange={setTableEndDate}
+                  className="w-full sm:w-32 xl:flex-1 xl:min-w-0"
                 />
                 <Button
                   color="primary"
-                  onPress={loadScheduledInvoicesForTable}
+                  onPress={handleSearchTable}
                   isLoading={isLoadingPayments}
+                  isDisabled={isTableRangeInvalid}
+                  className="shrink-0"
                 >
                   Buscar
                 </Button>
+                <Tooltip content={`Exportar a Excel (${filteredTableInvoices.length} filas)`}>
+                  <Button
+                    isIconOnly
+                    variant="flat"
+                    color="success"
+                    aria-label="Exportar a Excel"
+                    onPress={handleExportExcel}
+                    isDisabled={isLoadingPayments || filteredTableInvoices.length === 0}
+                    className="shrink-0"
+                  >
+                    <ArrowDownTrayIcon className="w-5 h-5" />
+                  </Button>
+                </Tooltip>
               </div>
+              {tableStartDate && tableEndDate && tableStartDate > tableEndDate && (
+                <p className="text-sm text-red-600 mt-2">La fecha desde debe ser menor o igual a la fecha hasta.</p>
+              )}
             </div>
 
             {/* Tabla de facturas programadas */}
@@ -894,7 +983,7 @@ const PaymentCalendar: React.FC = () => {
                       <TableColumn>N° Factura</TableColumn>
                       <TableColumn>Proveedor</TableColumn>
                       <TableColumn>RUC</TableColumn>
-                      <TableColumn>Fecha Emisión</TableColumn>
+                      <TableColumn>Fecha de Contabilización</TableColumn>
                       <TableColumn>Fecha Venc.</TableColumn>
                       <TableColumn>Fecha Programada</TableColumn>
                       <TableColumn>Retención</TableColumn>
@@ -902,6 +991,7 @@ const PaymentCalendar: React.FC = () => {
                       <TableColumn>Importe a Pagar</TableColumn>
                       <TableColumn>Total a Pagar</TableColumn>
                       <TableColumn>Estado</TableColumn>
+                      <TableColumn align="center">Documentos</TableColumn>
                     </TableHeader>
                     <TableBody emptyContent="No hay facturas programadas">
                       {tableItems.map((invoice) => {
@@ -953,11 +1043,26 @@ const PaymentCalendar: React.FC = () => {
                                   'primary'
                                 }
                               >
-                                {status === 'paid' ? 'Pagado' :
-                                 status === 'pending' ? 'Pendiente' :
-                                 status === 'overdue' ? 'Vencido' :
-                                 'Programado'}
+                                {getStatusLabel(status)}
                               </Chip>
+                            </TableCell>
+                            <TableCell>
+                              {/* stopPropagation: que no abra el detalle de la fila */}
+                              <span role="presentation" className="inline-flex" onClick={(e) => e.stopPropagation()}>
+                                <Tooltip content="Ver documentos de la cita / packing list">
+                                  <Button
+                                    isIconOnly
+                                    size="sm"
+                                    variant="light"
+                                    color="primary"
+                                    aria-label="Ver documentos de la cita"
+                                    isLoading={openingDocumentsId === invoice.id}
+                                    onPress={() => handleOpenInvoiceDocuments(invoice)}
+                                  >
+                                    <FolderOpenIcon className="w-5 h-5" />
+                                  </Button>
+                                </Tooltip>
+                              </span>
                             </TableCell>
                           </TableRow>
                         );
@@ -1146,7 +1251,7 @@ const PaymentCalendar: React.FC = () => {
                               </span>
                             </div>
                             <div className="flex items-center justify-between">
-                              <span className="text-gray-500">Fecha Recibida</span>
+                              <span className="text-gray-500">Fecha de Contabilización</span>
                               <span className="text-right">{formatDate(selectedInvoice.receivedDate)}</span>
                             </div>
                             <div className="flex items-center justify-between">
@@ -1273,6 +1378,17 @@ const PaymentCalendar: React.FC = () => {
                 )}
               </ModalBody>
               <ModalFooter>
+                {!isProvider && selectedInvoice && (
+                  <Button
+                    color="primary"
+                    variant="flat"
+                    startContent={openingDocumentsId === selectedInvoice.id ? undefined : <FolderOpenIcon className="w-5 h-5" />}
+                    isLoading={openingDocumentsId === selectedInvoice.id}
+                    onPress={() => handleOpenInvoiceDocuments(selectedInvoice)}
+                  >
+                    Ver documentos
+                  </Button>
+                )}
                 <Button color="primary" variant="light" onPress={onClose}>
                   Cerrar
                 </Button>

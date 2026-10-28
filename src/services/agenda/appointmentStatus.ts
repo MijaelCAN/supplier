@@ -61,6 +61,11 @@ export const STATUS_CONFIG: Record<AppointmentStatus, {
         label: 'Calidad: Aprobado por Concesión',
         description: 'Calidad detectó problemas menores. Se acepta por necesidad operativa.'
     },
+    CALIDAD_PARCIAL: {
+        color: 'warning',
+        label: 'Calidad Parcial',
+        description: 'Calidad aceptó parte de los productos y rechazó otra. Continúa con lo aceptado.'
+    },
     CALIDAD_RECHAZADO: {
         color: 'danger',
         label: 'Calidad Rechazado',
@@ -75,6 +80,11 @@ export const STATUS_CONFIG: Record<AppointmentStatus, {
         color: 'warning',
         label: 'Almacén Observado',
         description: 'Faltantes menores. Se acepta por necesidad. Pendiente de regularización.'
+    },
+    ALMACEN_PARCIAL: {
+        color: 'warning',
+        label: 'Almacén Parcial',
+        description: 'Almacén aceptó parte de las cantidades. El Parte de Ingreso se genera solo con lo aceptado.'
     },
     ALMACEN_RECHAZADO: {
         color: 'danger',
@@ -127,19 +137,23 @@ export const VALID_TRANSITIONS: Record<AppointmentStatus, {
     },
     EN_EXPLANADA: {
         allowedRoles: [UserRole.SEGURIDAD, UserRole.ADMIN],
-        nextStates: ['EN_ENTREGA', 'CALIDAD_ACEPTADO', 'CALIDAD_OBSERVADO', 'CALIDAD_RECHAZADO']
+        nextStates: ['EN_ENTREGA', 'CALIDAD_ACEPTADO', 'CALIDAD_OBSERVADO', 'CALIDAD_PARCIAL', 'CALIDAD_RECHAZADO']
     },
     EN_ENTREGA: {
         allowedRoles: [UserRole.SEGURIDAD, UserRole.ADMIN],
-        nextStates: ['CALIDAD_ACEPTADO', 'CALIDAD_OBSERVADO', 'CALIDAD_RECHAZADO']
+        nextStates: ['CALIDAD_ACEPTADO', 'CALIDAD_OBSERVADO', 'CALIDAD_PARCIAL', 'CALIDAD_RECHAZADO']
     },
     CALIDAD_ACEPTADO: {
         allowedRoles: [UserRole.CALIDAD, UserRole.ADMIN],
-        nextStates: ['ALMACEN_ACEPTADO', 'ALMACEN_OBSERVADO', 'ALMACEN_RECHAZADO']
+        nextStates: ['ALMACEN_ACEPTADO', 'ALMACEN_OBSERVADO', 'ALMACEN_PARCIAL', 'ALMACEN_RECHAZADO']
     },
     CALIDAD_OBSERVADO: {
         allowedRoles: [UserRole.CALIDAD, UserRole.ADMIN],
-        nextStates: ['ALMACEN_ACEPTADO', 'ALMACEN_OBSERVADO', 'ALMACEN_RECHAZADO']
+        nextStates: ['ALMACEN_ACEPTADO', 'ALMACEN_OBSERVADO', 'ALMACEN_PARCIAL', 'ALMACEN_RECHAZADO']
+    },
+    CALIDAD_PARCIAL: {
+        allowedRoles: [UserRole.CALIDAD, UserRole.ADMIN],
+        nextStates: ['ALMACEN_ACEPTADO', 'ALMACEN_OBSERVADO', 'ALMACEN_PARCIAL', 'ALMACEN_RECHAZADO']
     },
     CALIDAD_RECHAZADO: {
         allowedRoles: [UserRole.CALIDAD, UserRole.ADMIN],
@@ -152,6 +166,10 @@ export const VALID_TRANSITIONS: Record<AppointmentStatus, {
     ALMACEN_OBSERVADO: {
         allowedRoles: [UserRole.ALMACEN, UserRole.ADMIN],
         nextStates: ['PARTE_DE_INGRESO_GENERADO']
+    },
+    ALMACEN_PARCIAL: {
+        allowedRoles: [UserRole.ALMACEN, UserRole.ADMIN],
+        nextStates: ['PARTE_DE_INGRESO_GENERADO'] // Con las cantidades aceptadas
     },
     ALMACEN_RECHAZADO: {
         allowedRoles: [UserRole.ALMACEN, UserRole.ADMIN],

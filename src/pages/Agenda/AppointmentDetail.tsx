@@ -1,5 +1,5 @@
 // src/pages/Agenda/AppointmentDetail.tsx
-import React, {useEffect, useMemo, useRef, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {useLocation, useNavigate, useParams} from 'react-router-dom';
 import {
     Avatar,
@@ -37,6 +37,7 @@ import {
     DocumentTextIcon,
     ExclamationTriangleIcon,
     StarIcon,
+    TrashIcon,
     TruckIcon,
     XCircleIcon
 } from "@heroicons/react/24/outline";
@@ -46,12 +47,19 @@ import {useAuth} from "@/store/authStore";
 import {UserRole} from "@/routes/menuTypes";
 import {
     createPackingListInApi,
+    DELETE_DOCUMENTS_ENABLED,
+    DELETE_PACKING_LIST_ENABLED,
+    deleteFileFromPackingList,
     DocumentApiRecord,
+    PACKING_LIST_DELETABLE_STATUSES,
     fetchDocumentDetailFromApi,
+    fetchAppointmentProducts,
     fetchDocumentsFromApi,
     fetchPackingListFromApi,
     fetchWarehousesFromApi,
+    getAppointmentParteIngreso,
     PackingListApiRecord,
+    ProductApiRecord,
     uploadFileToPackingList,
     WarehouseApiRecord
 } from "@/services/agenda/packingListApi";
@@ -61,12 +69,33 @@ import {createLocalDate} from "@/utils/dateUtils";
 import {fetchEvaluationByCodCita} from "@/services/agenda/evaluationsApi";
 import {getPCPValidations, PCPValidationRecord} from "@/services/agenda/pcpApi";
 import {STATUS_CONFIG} from "@/services/agenda/appointmentStatus";
-import {DeliveryAppointment, DeliveryEvaluation, PackingListItem, SupplierClaim} from "@/store/types";
-import {getMaxPackingListQuantity} from "@/utils/packingList";
-import DocumentsModal from './DocumentsModal';
-import { COMMERCIAL_DOCUMENT_TYPES, mapFileNameToDocumentType } from '@/config/commercialDocuments';
+import {ClaimProduct, DeliveryAppointment, DeliveryEvaluation, PackingListItem, SupplierClaim} from "@/store/types";
+import {CLAIMS_API_ENABLED, fetchClaimByCita} from "@/services/agenda/claimsApi";
+import {getMaxPackingListQuantity, getPackingListQuantityText, parsePackingListQuantityInput} from "@/utils/packingList";
+import DeletePackingListModal from './DeletePackingListModal';
+import type { ProductEvaluationResult } from './EvaluationModal';
+import {NumberEntry} from './DocumentGroupTabs';
+import {getProductDocumentation, summarizeDocumentation} from './productList';
+import {DocumentationChip} from './ProductGroupTable';
+import PackingListDocuments from './PackingListDocuments';
+import DocumentsModal, {LoadedDocument} from './DocumentsModal';
+import DeleteDocumentModal from './DeleteDocumentModal';
+import { isInvoiceXmlFileName, mapFileNameToDocumentType } from '@/config/commercialDocuments';
+import {areAllPackingListDocumentsComplete, groupDocumentsByPackingList} from '@/utils/packingListDocuments';
+import {
+    fetchInvoiceValidations,
+    fetchUploadedXml,
+    InvoiceXmlData,
+    isXmlFile,
+    parseInvoiceXml,
+    readInvoiceXmlFile,
+    SunatInvoiceValidation,
+    validateInvoiceInSunat,
+} from '@/services/agenda/sunatInvoiceApi';
+import SunatStatusChip from './SunatStatusChip';
 import EvaluationModal from './EvaluationModal';
 import ClaimModal from './ClaimModal';
+import ClaimDetailModal from '@/pages/Reclamos/ClaimDetailModal';
 import PCPValidationModal from './PCPValidationModal';
 import {generateClaimPDF, openClaimPDFInNewTab} from '@/utils/pdfGenerator';
 
@@ -82,11 +111,24 @@ const parseDate = (dateStr: string): Date => {
     return new Date(0);
 };
 
+/** "T070-0211277" → "Guía T070-0211277"; series F son facturas, T y EG guías de remisión */
+const formatParteIngresoDocument = (documento: string): string => {
+    if (!documento) return 'Sin guía ni factura';
+    const serie = documento.toUpperCase();
+    if (serie.startsWith('F')) return `Factura ${serie}`;
+    if (serie.startsWith('T') || serie.startsWith('EG')) return `Guía ${serie}`;
+    return serie;
+};
+
 const AppointmentDetail: React.FC = () => {
     const { appointmentId } = useParams<{ appointmentId: string }>();
     const navigate = useNavigate();
     const location = useLocation();
-    const { weekDate, dayIndex } = (location.state as { weekDate?: string; dayIndex?: number } | null) ?? {};
+    // returnTo/invoiceFile: viene del cronograma de pagos (Finanzas), que abre la cita en el packing list de la factura
+    const { weekDate, dayIndex, returnTo, invoiceFile } = (location.state as {
+        weekDate?: string; dayIndex?: number; returnTo?: string; invoiceFile?: string;
+    } | null) ?? {};
+    const goBack = () => (returnTo ? navigate(returnTo) : navigate('/agenda', { state: { weekDate, dayIndex } }));
     const { currentUser } = useAuth();
     const isProvider = currentUser?.role === UserRole.PROVEEDOR;
     const { setSelectedAppointment } = useAgendaStore(); // Solo usamos setSelectedAppointment, no el store local de appointments
@@ -97,6 +139,12 @@ const AppointmentDetail: React.FC = () => {
     const [isEvaluationModalOpen, setIsEvaluationModalOpen] = useState(false);
     const [evaluationModalType, setEvaluationModalType] = useState<'puntualidad' | 'documentacion' | 'estadoMercaderia' | 'cantidadCorrecta'>('puntualidad');
     const [isClaimModalOpen, setIsClaimModalOpen] = useState(false);
+    // PackingList a eliminar (OBS-009); el modal queda abierto mientras haya uno seleccionado
+    const [packingListToDelete, setPackingListToDelete] = useState<PackingListApiRecord | null>(null);
+    // Reclamo guardado en el API (OBS-008); un reclamo por cita
+    const [appointmentClaim, setAppointmentClaim] = useState<SupplierClaim | null>(null);
+    const [claimRejectedProducts, setClaimRejectedProducts] = useState<ClaimProduct[]>([]);
+    const [isClaimDetailOpen, setIsClaimDetailOpen] = useState(false);
 
     // Función helper para recargar el appointment desde el API
     const reloadAppointmentFromApi = async () => {
@@ -208,7 +256,9 @@ const AppointmentDetail: React.FC = () => {
     // Estado para visualizar documentos
     const [selectedDocument, setSelectedDocument] = useState<{ name: string; url: string; type: string } | null>(null);
     const { isOpen: isDocumentViewerOpen, onOpen: onDocumentViewerOpen, onClose: onDocumentViewerClose } = useDisclosure();
-    
+    // Documento seleccionado para eliminar (OBS-005)
+    const [documentToDelete, setDocumentToDelete] = useState<LoadedDocument | null>(null);
+
     // Estados para modales de gestión
     const { isOpen: isPackingListOpen, onOpen: onPackingListOpen, onClose: onPackingListClose } = useDisclosure();
     const { isOpen: isTransportOpen, onOpen: onTransportOpen, onClose: onTransportClose } = useDisclosure();
@@ -250,24 +300,18 @@ const AppointmentDetail: React.FC = () => {
     const [documentSearchFilter, setDocumentSearchFilter] = useState<string>('');
     const documentSearchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     
-    // Obtiene los tipos de documento (keys) que ya tienen al menos un archivo cargado.
-    // Se basa en cobertura por tipo (no en cantidad total) para soportar múltiples
-    // archivos del mismo tipo sin dar falsos positivos de "completo".
-    const getCompletedDocumentTypeKeys = (docs: AppointmentDocument[]): Set<string> => {
-        const keys = new Set<string>();
-        docs.forEach((doc) => {
-            const typeKey = mapFileNameToDocumentType(doc.u_name_file);
-            if (typeKey) keys.add(typeKey);
-        });
-        return keys;
-    };
+    // Packing lists vigentes de la cita: los documentos se cargan y se completan por cada uno
+    const getActivePackingListNumbers = (): string[] =>
+        packingListsFromApi.map((pl) => String(pl.number ?? '').trim()).filter(Boolean);
+
+    // Completo = cada packing list tiene todos los tipos del modal (la factura exige su XML)
+    const areDocumentsCompleteFor = (docs: AppointmentDocument[]): boolean =>
+        areAllPackingListDocumentsComplete(docs, getActivePackingListNumbers());
 
     // Verificar si todos los documentos requeridos están completos
     const areAllDocumentsComplete = (): boolean => {
-        // Completo = todos los tipos disponibles en el modal tienen al menos un archivo cargado
         if (appointmentDocuments.length > 0) {
-            const completedTypeKeys = getCompletedDocumentTypeKeys(appointmentDocuments);
-            return COMMERCIAL_DOCUMENT_TYPES.every((docType) => completedTypeKeys.has(docType.key));
+            return areDocumentsCompleteFor(appointmentDocuments);
         }
 
         // Fallback legacy: los 3 tipos requeridos del appointment están presentes
@@ -282,19 +326,22 @@ const AppointmentDetail: React.FC = () => {
     };
 
     // Obtener todos los documentos disponibles (priorizar documentos del API, luego los mapeados)
-    const getAllDocuments = (): Array<{ name: string; url: string; type: string }> => {
-        // Si hay documentos del API, usarlos directamente
+    const getAllDocuments = (): LoadedDocument[] => {
+        // Si hay documentos del API, usarlos directamente (con el packing list al que quedaron asignados)
         if (appointmentDocuments.length > 0) {
-            return appointmentDocuments.map(doc => ({
-                name: doc.u_name_file,
-                url: doc.u_link_documento,
-                type: doc.u_name_file.split('.').pop()?.toLowerCase() || 'unknown'
-            }));
+            return groupDocumentsByPackingList(appointmentDocuments, getActivePackingListNumbers())
+                .flatMap((group) => group.documents.map(doc => ({
+                    name: doc.u_name_file,
+                    url: doc.u_link_documento,
+                    type: doc.u_name_file.split('.').pop()?.toLowerCase() || 'unknown',
+                    docEntry: doc.document_doc_entry,
+                    packingList: group.packingList
+                })));
         }
-        
+
         // Si no, usar los documentos mapeados
         if (!appointment?.documents) return [];
-        const docs: Array<{ name: string; url: string; type: string }> = [];
+        const docs: LoadedDocument[] = [];
         
         if (appointment.documents.invoice?.url) {
             docs.push({
@@ -397,6 +444,88 @@ const AppointmentDetail: React.FC = () => {
         }
     }, [appointment?.docEntry]);
 
+    // Productos de la cita (mismos registros del reporte de citas por producto): de ellos salen los
+    // Partes de Ingreso y la documentación completa. Se recargan al subir o eliminar documentos.
+    const [appointmentProducts, setAppointmentProducts] = useState<ProductApiRecord[]>([]);
+    useEffect(() => {
+        if (!appointment?.deliveryDate || !appointment.docEntry || (isProvider && packingListsFromApi.length === 0)) {
+            setAppointmentProducts([]);
+            return;
+        }
+        let cancelled = false;
+        fetchAppointmentProducts(appointment.deliveryDate, String(appointment.docEntry), packingListsFromApi, isProvider)
+            .then((products) => {
+                if (!cancelled) setAppointmentProducts(products);
+            })
+            .catch((error) => {
+                console.error('Error al cargar los productos de la cita:', error);
+                if (!cancelled) setAppointmentProducts([]);
+            });
+        return () => { cancelled = true; };
+    }, [appointment?.deliveryDate, appointment?.docEntry, packingListsFromApi, appointmentDocuments, isProvider]);
+
+    // Partes de Ingreso de la cita con la guía o factura con que se registraron
+    const partesIngreso = useMemo(() => getAppointmentParteIngreso(appointmentProducts), [appointmentProducts]);
+
+    // Documentación completa (OC, Guía, Factura y Parte de Ingreso) con la misma regla que el reporte de
+    // citas por producto: estado_documentos del API por producto y, sin ese dato, el cálculo en la web
+    const documentationStatus = useMemo(() => {
+        if (!appointment) return null;
+        const withDocuments = { ...appointment, rawDocuments: appointmentDocuments };
+        return summarizeDocumentation(appointmentProducts.map((product) => getProductDocumentation(product, withDocuments)));
+    }, [appointment, appointmentDocuments, appointmentProducts]);
+
+    // Partes del packing list; si el API no envía el packing list de la línea, los de su OC
+    const getParteIngresoNumbers = (packingList: string): NumberEntry[] =>
+        partesIngreso
+            .filter((parte) => parte.packingList ? parte.packingList === packingList : packingList.split('_')[0] === parte.orden)
+            .map((parte) => ({
+                number: parte.numero,
+                detail: formatParteIngresoDocument(parte.documento),
+                pending: parte.conFactura === null ? undefined : !parte.conFactura,
+            }));
+
+    // Estado SUNAT de las facturas de la cita (Firestore, lo escribe la Cloud Function validarFacturaSunat)
+    const [invoiceValidations, setInvoiceValidations] = useState<SunatInvoiceValidation[]>([]);
+    const [validatingFiles, setValidatingFiles] = useState<Set<string>>(new Set());
+    const loadInvoiceValidations = useCallback(async (codCita: string) => {
+        try {
+            setInvoiceValidations(await fetchInvoiceValidations(codCita));
+        } catch (error) {
+            console.error('Error al cargar validaciones SUNAT:', error);
+        }
+    }, []);
+    useEffect(() => {
+        if (appointment?.docEntry) loadInvoiceValidations(appointment.docEntry);
+        else setInvoiceValidations([]);
+    }, [appointment?.docEntry, loadInvoiceValidations]);
+
+    // Consulta SUNAT y guarda el resultado; un fallo no debe romper la carga del archivo
+    const runInvoiceValidation = async (archivo: string, getData: () => Promise<InvoiceXmlData>) => {
+        if (!appointment?.docEntry) return;
+        setValidatingFiles((prev) => new Set(prev).add(archivo));
+        try {
+            const validation = await validateInvoiceInSunat(appointment.docEntry, archivo, await getData());
+            setInvoiceValidations((prev) => [...prev.filter((v) => v.id !== validation.id), validation]);
+        } catch (error) {
+            console.error('Error al validar factura en SUNAT:', error);
+            alert(`No se pudo validar la factura en SUNAT: ${error instanceof Error ? error.message : 'error desconocido'}`);
+        } finally {
+            setValidatingFiles((prev) => {
+                const next = new Set(prev);
+                next.delete(archivo);
+                return next;
+            });
+        }
+    };
+
+    // Revalidar: con los datos ya guardados, o leyendo el XML subido si nunca se validó
+    const handleRevalidateInvoice = (archivo: string, url: string, validation?: SunatInvoiceValidation) =>
+        runInvoiceValidation(archivo, async () => {
+            if (validation) return validation;
+            return parseInvoiceXml(await fetchUploadedXml(url));
+        });
+
     // Cargar validaciones PCP cuando se abre el modal de detalle del PackingList
     useEffect(() => {
         if (isPackingListDetailOpen && selectedPackingList && appointment?.docEntry) {
@@ -446,18 +575,32 @@ const AppointmentDetail: React.FC = () => {
     // Redirigir si no se encuentra el appointment después de cargar
     useEffect(() => {
         if (!isLoadingAppointment && !appointment) {
-            const timer = setTimeout(() => {
-                navigate('/agenda', { state: { weekDate, dayIndex } });
-            }, 2000);
+            const timer = setTimeout(goBack, 2000);
             return () => clearTimeout(timer);
         }
     }, [appointment, isLoadingAppointment, navigate]);
+
+    // Desde el cronograma de pagos: bajar a los documentos una vez cargados
+    const documentsSectionRef = useRef<HTMLDivElement>(null);
+    const hasScrolledToDocuments = useRef(false);
+    useEffect(() => {
+        if (!invoiceFile || hasScrolledToDocuments.current || appointmentDocuments.length === 0) return;
+        hasScrolledToDocuments.current = true;
+        setTimeout(() => documentsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300);
+    }, [invoiceFile, appointmentDocuments.length]);
 
     // Cargar evaluación cuando se carga el appointment
     useEffect(() => {
         if (appointment?.docEntry) {
             fetchEvaluationByCodCita(appointment.docEntry).then(setEvaluation).catch(console.error);
         }
+    }, [appointment?.docEntry]);
+
+    // Cargar el reclamo de la cita (OBS-008)
+    useEffect(() => {
+        setAppointmentClaim(null);
+        if (!CLAIMS_API_ENABLED || !appointment?.docEntry) return;
+        fetchClaimByCita(appointment.docEntry).then(setAppointmentClaim).catch(console.error);
     }, [appointment?.docEntry]);
 
     if (isLoadingAppointment || !appointment) {
@@ -533,7 +676,11 @@ const AppointmentDetail: React.FC = () => {
     type EvaluationModalType = 'puntualidad' | 'documentacion' | 'estadoMercaderia' | 'cantidadCorrecta';
 
     // Verificar permisos según rol
-    const canManagePackingList = [UserRole.ADMIN, UserRole.COMPRAS, UserRole.ALMACEN].includes(currentUser?.role || UserRole.ADMIN);
+    // Registrar y eliminar PackingList: solo Admin y Compras (OBS-009)
+    const canManagePackingList = [UserRole.ADMIN, UserRole.COMPRAS].includes(currentUser?.role || UserRole.ADMIN);
+    // Eliminar solo antes de que el proveedor llegue
+    const canDeletePackingList = DELETE_PACKING_LIST_ENABLED && canManagePackingList &&
+        (PACKING_LIST_DELETABLE_STATUSES as readonly string[]).includes(appointment.status);
     const canManageTransport = currentUser?.role === UserRole.PROVEEDOR;
     const canManageDocuments = currentUser?.role === UserRole.PROVEEDOR;
     const canEditAppointment = [UserRole.ADMIN, UserRole.ALMACEN, UserRole.COMPRAS].includes(currentUser?.role || UserRole.ADMIN);
@@ -542,6 +689,10 @@ const AppointmentDetail: React.FC = () => {
     const canEvaluateWarehouse = [UserRole.ALMACEN, UserRole.ADMIN].includes(currentUser?.role || UserRole.ADMIN);
     const canValidatePCP = [UserRole.PLANEAMIENTO, UserRole.ADMIN].includes(currentUser?.role || UserRole.ADMIN);
     const canViewEvaluation = [UserRole.PROVEEDOR, UserRole.ALMACEN, UserRole.CALIDAD, UserRole.SEGURIDAD, UserRole.PLANEAMIENTO].includes(currentUser?.role || UserRole.ADMIN);
+    // Reclamo (OBS-008): lo registran/editan Calidad y Almacén; se puede crear si hubo rechazo
+    const canManageClaim = canEvaluateQuality || canEvaluateWarehouse;
+    const hasRejection = ['CALIDAD_PARCIAL', 'CALIDAD_RECHAZADO', 'ALMACEN_PARCIAL', 'ALMACEN_RECHAZADO'].includes(appointment.status);
+    const showClaimCard = CLAIMS_API_ENABLED && (!!appointmentClaim || (canManageClaim && hasRejection));
 
     const isCriterionEvaluated = (type: EvaluationModalType): boolean => {
         if (!evaluation) return false;
@@ -559,6 +710,12 @@ const AppointmentDetail: React.FC = () => {
                 return false;
         }
     };
+
+    // OBS-005: el proveedor y el administrador pueden eliminar documentos mientras la Documentación no esté evaluada
+    const canDeleteDocuments =
+        DELETE_DOCUMENTS_ENABLED &&
+        [UserRole.PROVEEDOR, UserRole.COMPRAS].includes(currentUser?.role as UserRole) &&
+        !isCriterionEvaluated('documentacion');
 
     // Validaciones para abrir modales de evaluación
     const canEvaluateDocumentacion = (): boolean => {
@@ -608,6 +765,21 @@ const AppointmentDetail: React.FC = () => {
                 return 'No se puede calificar Puntualidad: la fecha y hora de la cita aún no han llegado.';
             default:
                 return 'No se puede evaluar en este momento.';
+        }
+    };
+
+    const reloadPackingLists = async () => {
+        if (!appointment?.docEntry) return;
+        try {
+            const today = new Date();
+            const startDate = new Date(today);
+            startDate.setDate(startDate.getDate() - 30);
+            const endDate = new Date(today);
+            endDate.setDate(endDate.getDate() + 30);
+            const packingLists = await fetchPackingListFromApi(formatDateForAPI(startDate), formatDateForAPI(endDate), appointment.docEntry);
+            setPackingListsFromApi(packingLists);
+        } catch (error) {
+            console.error('Error al recargar PackingList:', error);
         }
     };
 
@@ -808,14 +980,22 @@ const AppointmentDetail: React.FC = () => {
         setIsEvaluationModalOpen(true);
     };
 
-    const handleEvaluationSaved = async (updatedEvaluation: DeliveryEvaluation) => {
+    const handleEvaluationSaved = async (updatedEvaluation: DeliveryEvaluation, productResult?: ProductEvaluationResult) => {
         setEvaluation(updatedEvaluation);
-        
+
         // Actualizar estado de la cita según el tipo de evaluación
         if (!appointment?.docEntry) return;
-        
+
         const { updateAppointmentStatus } = await import('@/services/agenda/appointmentStatus');
-        
+
+        // Evaluación por producto (OBS-008): el estado sale de las líneas evaluadas por el área
+        if (productResult) {
+            const userId = currentUser?.userCode || currentUser?.id || currentUser?.username || 'system';
+            await updateAppointmentStatus(appointment.docEntry, productResult.appointmentStatus, userId);
+            await reloadAppointmentFromApi();
+            return;
+        }
+
         // Si se evaluó estado de mercadería, actualizar estado de calidad
         if (updatedEvaluation.estadoMercaderia?.estado) {
             const calidadEstado = updatedEvaluation.estadoMercaderia.estado;
@@ -871,10 +1051,29 @@ const AppointmentDetail: React.FC = () => {
         }
     };
 
-    const handleRejectEvaluation = () => {
-        // Abrir modal de reclamo cuando se rechaza
-        console.log('handleRejectEvaluation llamado, abriendo modal de reclamo...');
+    const handleRejectEvaluation = (_evaluation?: DeliveryEvaluation, rejectedProducts?: ClaimProduct[]) => {
+        // Abrir modal de reclamo cuando se rechaza, con los productos rechazados (OBS-008)
+        setClaimRejectedProducts(rejectedProducts ?? []);
         setIsClaimModalOpen(true);
+    };
+
+    const handleOpenClaim = () => {
+        setClaimRejectedProducts([]);
+        setIsClaimModalOpen(true);
+    };
+
+    const handleClaimSaved = (claim: SupplierClaim) => {
+        setAppointmentClaim(claim);
+        setClaimRejectedProducts([]);
+    };
+
+    const handleViewClaimPDF = async () => {
+        if (!appointmentClaim) return;
+        try {
+            await openClaimPDFInNewTab(appointmentClaim);
+        } catch (error) {
+            alert(error instanceof Error ? error.message : 'No se pudo abrir el PDF del reclamo');
+        }
     };
 
     // Handler para marcar proveedor como llegado (EN_EXPLANADA)
@@ -1028,7 +1227,7 @@ const AppointmentDetail: React.FC = () => {
     };
 
     // Handler para subir documentos
-    const handleUploadDocument = async (type: string, file: File): Promise<void> => {
+    const handleUploadDocument = async (type: string, file: File, packingList?: string): Promise<void> => {
         if (!appointment) {
             throw new Error('No hay cita seleccionada');
         }
@@ -1037,10 +1236,23 @@ const AppointmentDetail: React.FC = () => {
             throw new Error('La cita no tiene código (DocEntry). No se puede subir el archivo.');
         }
 
+        if (!packingList) {
+            throw new Error('Selecciona el Packing List al que pertenece el documento.');
+        }
+
+        // El XML de la factura se lee antes de subirlo: si no es una factura válida del proveedor, no se sube
+        const invoiceXml = type === 'invoice' && isXmlFile(file.name)
+            ? await readInvoiceXmlFile(file, appointment.supplierRUC)
+            : null;
+
         try {
             // Subir archivo al API
-            await uploadFileToPackingList(file, type, appointment.docEntry);
-            
+            const uploaded = await uploadFileToPackingList(file, type, appointment.docEntry, packingList);
+            if (invoiceXml) {
+                // Sin await: la validación no debe demorar ni hacer fallar la carga
+                runInvoiceValidation(uploaded.name_file, async () => invoiceXml);
+            }
+
             // Recargar documentos del appointment
             const apiAppointments = await fetchAppointmentsFromApi();
             const foundApiAppointment = apiAppointments.find(
@@ -1049,11 +1261,9 @@ const AppointmentDetail: React.FC = () => {
             if (foundApiAppointment && foundApiAppointment.rawDocuments) {
                 setAppointmentDocuments(foundApiAppointment.rawDocuments || []);
 
-                // Verificar si todos los documentos están completos y actualizar estado
+                // Verificar si todos los packing lists tienen sus documentos completos y actualizar estado
                 const documents: AppointmentDocument[] = foundApiAppointment.rawDocuments || [];
-                const completedTypeKeys = getCompletedDocumentTypeKeys(documents);
-                const allTypesComplete = COMMERCIAL_DOCUMENT_TYPES.every((docType) => completedTypeKeys.has(docType.key));
-                if (allTypesComplete && appointment.status !== 'DOCUMENTOS_COMPLETOS' && appointment.docEntry && currentUser) {
+                if (areDocumentsCompleteFor(documents) && appointment.status !== 'DOCUMENTOS_COMPLETOS' && appointment.docEntry && currentUser) {
                     const { updateAppointmentStatus } = await import('@/services/agenda/appointmentStatus');
                     const userId = currentUser.userCode || currentUser.id || currentUser.username || 'system';
                     await updateAppointmentStatus(appointment.docEntry, 'DOCUMENTOS_COMPLETOS', userId);
@@ -1067,6 +1277,43 @@ const AppointmentDetail: React.FC = () => {
         }
     };
 
+    // Handler para eliminar (lógicamente) un documento de la cita (OBS-005)
+    const handleDeleteDocument = async (motivo: string): Promise<void> => {
+        if (!appointment?.docEntry || !documentToDelete?.docEntry || !currentUser) {
+            throw new Error('No se puede eliminar el documento: faltan datos de la cita o del documento.');
+        }
+
+        const userId = currentUser.userCode || currentUser.id || currentUser.username || 'system';
+
+        await deleteFileFromPackingList({
+            document_doc_entry: documentToDelete.docEntry,
+            usuario: userId,
+            motivo: motivo || undefined,
+        });
+
+        // Recargar documentos de la cita (el API ya no devuelve el eliminado)
+        const apiAppointments = await fetchAppointmentsFromApi();
+        const foundApiAppointment = apiAppointments.find(
+            (apt) => apt.docEntry === appointment.docEntry
+        );
+        const documents: AppointmentDocument[] = foundApiAppointment?.rawDocuments || [];
+        setAppointmentDocuments(documents);
+
+        // Si la cita estaba con documentos completos y ahora a algún packing list le falta uno, vuelve al estado anterior
+        if (!areDocumentsCompleteFor(documents) && appointment.status === 'DOCUMENTOS_COMPLETOS') {
+            const { updateAppointmentStatus } = await import('@/services/agenda/appointmentStatus');
+            const previousStatus = appointment.transportData ? 'TRANSPORTE_COMPLETO' : 'PROGRAMADA';
+            try {
+                await updateAppointmentStatus(appointment.docEntry, previousStatus, userId);
+                await reloadAppointmentFromApi();
+            } catch (error) {
+                // El documento ya se eliminó: no se reporta como fallo de la eliminación
+                console.error('Error al revertir el estado de la cita:', error);
+                alert('El documento se eliminó, pero no se pudo actualizar el estado de la cita. Recarga la página.');
+            }
+        }
+    };
+
     return (
         <Dashboard>
             <div className="py-6">
@@ -1076,9 +1323,13 @@ const AppointmentDetail: React.FC = () => {
                         <Button
                             variant="light"
                             startContent={<ArrowLeftIcon className="w-5 h-5" />}
-                            onPress={() => navigate('/agenda', { state: { weekDate } })}
+                            onPress={goBack}
                         >
-                            Volver a Agenda
+                            {returnTo?.startsWith('/cronograma/programar-facturas')
+                                ? 'Volver a Facturas para Programar'
+                                : returnTo?.startsWith('/contabilidad/partes-ingreso')
+                                    ? 'Volver a Partes de Ingreso'
+                                    : returnTo === '/cronograma' ? 'Volver al Cronograma de Pagos' : 'Volver a Agenda'}
                         </Button>
                         
                         {/* Botones de acción */}
@@ -1174,7 +1425,7 @@ const AppointmentDetail: React.FC = () => {
                                         </Button>
                                     )}
                                     {canEvaluateWarehouse && appointment?.docEntry && 
-                                     (appointment.status === 'ALMACEN_ACEPTADO' || appointment.status === 'ALMACEN_OBSERVADO') && (
+                                     (appointment.status === 'ALMACEN_ACEPTADO' || appointment.status === 'ALMACEN_OBSERVADO' || appointment.status === 'ALMACEN_PARCIAL') && (
                                         <Button
                                             color="success"
                                             variant="solid"
@@ -1584,6 +1835,18 @@ const AppointmentDetail: React.FC = () => {
                                                                 )}
                                                             </TableCell>
                                                             <TableCell data-action-cell onClick={(e) => e.stopPropagation()}>
+                                                                <div className="flex items-center gap-2">
+                                                                {canDeletePackingList && (
+                                                                    <Button
+                                                                        size="sm"
+                                                                        color="danger"
+                                                                        variant="flat"
+                                                                        startContent={<TrashIcon className="w-4 h-4" />}
+                                                                        onPress={() => setPackingListToDelete(pl)}
+                                                                    >
+                                                                        Eliminar
+                                                                    </Button>
+                                                                )}
                                                                 {canValidatePCP ? (
                                                                     <div onClick={(e) => e.stopPropagation()}>
                                                                         <Button
@@ -1604,9 +1867,10 @@ const AppointmentDetail: React.FC = () => {
                                                                             Validar PCP
                                                                         </Button>
                                                                     </div>
-                                                                ) : (
+                                                                ) : !canDeletePackingList && (
                                                                     <span className="text-gray-400 text-sm">-</span>
                                                                 )}
+                                                                </div>
                                                             </TableCell>
                                                         </TableRow>
                                                 );
@@ -1817,55 +2081,69 @@ const AppointmentDetail: React.FC = () => {
                     </Modal>
 
                     {/* Documents Section */}
-                    <Card className={`border-2 transition-all ${
-                        areAllDocumentsComplete()
-                            ? 'border-emerald-200 bg-emerald-50/30' 
+                    <Card ref={documentsSectionRef} className={`border-2 transition-all ${
+                        documentationStatus?.complete
+                            ? 'border-emerald-200 bg-emerald-50/30'
                             : 'border-gray-200 hover:border-blue-300'
                     }`}>
                         <CardBody className="p-6">
                             <div className="flex items-center justify-between mb-4">
                                 <h4 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
                                     <DocumentTextIcon className={`w-5 h-5 ${
-                                        areAllDocumentsComplete() ? 'text-emerald-600' : 'text-gray-400'
+                                        documentationStatus?.complete ? 'text-emerald-600' : 'text-gray-400'
                                     }`} />
                                     Documentos
                                 </h4>
-                                {areAllDocumentsComplete() ? (
-                                    <Chip color="success" variant="flat" startContent={<CheckCircleIcon className="w-4 h-4" />}>
-                                        Completado
-                                    </Chip>
-                                ) : (
-                                    <Chip color="warning" variant="flat" startContent={<ExclamationTriangleIcon className="w-4 h-4" />}>
-                                        Pendiente
-                                    </Chip>
-                                )}
+                                {/* Mismo estado que la columna Documentación del reporte de citas por producto */}
+                                <DocumentationChip status={documentationStatus} />
                             </div>
 
                             {appointmentDocuments.length > 0 || appointment.documents ? (
                                 <div className="bg-white rounded-lg p-4 border border-gray-200">
                                     {(() => {
-                                        const allDocuments = getAllDocuments();
-                                        return allDocuments.length > 0 ? (
-                                            <div className="space-y-2">
-                                                {allDocuments.map((doc, index) => (
-                                                    <div
-                                                        key={index}
-                                                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100 hover:bg-blue-50 hover:border-blue-300 cursor-pointer transition-colors"
-                                                        onClick={() => handleDocumentClick(doc)}
-                                                    >
-                                                        <div className="flex items-center gap-3 flex-1 min-w-0">
-                                                            <DocumentTextIcon className="w-5 h-5 text-gray-600 flex-shrink-0" />
-                                                            <span className="text-sm font-medium text-gray-900 truncate" title={doc.name}>
-                                                                {doc.name}
-                                                            </span>
-                                                        </div>
-                                                        <div className="flex items-center gap-2 flex-shrink-0">
-                                                            <span className="text-xs text-gray-500 uppercase">{doc.type}</span>
-                                                            <CheckCircleIcon className="w-5 h-5 text-emerald-500" />
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
+                                        // Validación SUNAT de un archivo de la factura del packing list:
+                                        // el XML por su nombre; PDF, CDR u otro formato, la de su factura
+                                        // (si hay una sola, o si el nombre trae serie y número)
+                                        const isInvoice = (doc: LoadedDocument) => mapFileNameToDocumentType(doc.name) === 'invoice';
+                                        const findInvoiceValidation = (doc: LoadedDocument, invoiceDocs: LoadedDocument[]) => {
+                                            // Solo las validaciones de XML que siguen cargados (un XML eliminado deja su registro en Firestore)
+                                            const validations = invoiceValidations.filter((v) => invoiceDocs.some((d) => d.name === v.archivo));
+                                            if (isInvoiceXmlFileName(doc.name)) return validations.find((v) => v.archivo === doc.name);
+                                            return validations.length === 1
+                                                ? validations[0]
+                                                : validations.find((v) => doc.name.toUpperCase().includes(v.numeroSerie) && doc.name.includes(v.numero));
+                                        };
+
+                                        return appointmentDocuments.length > 0 ? (
+                                            <PackingListDocuments
+                                                groups={groupDocumentsByPackingList(appointmentDocuments, getActivePackingListNumbers())}
+                                                getParteIngreso={getParteIngresoNumbers}
+                                                onDocumentClick={handleDocumentClick}
+                                                highlightFileName={invoiceFile}
+                                                onDeleteDocument={canDeleteDocuments ? setDocumentToDelete : undefined}
+                                                getDocumentNumber={(doc, typeDocs) => {
+                                                    if (!isInvoice(doc)) return undefined;
+                                                    const validation = findInvoiceValidation(doc, typeDocs);
+                                                    return validation ? `${validation.numeroSerie}-${validation.numero}` : undefined;
+                                                }}
+                                                renderStatus={(doc, typeDocs) => {
+                                                    if (!isInvoice(doc)) return null;
+                                                    const validation = findInvoiceValidation(doc, typeDocs);
+                                                    if (isInvoiceXmlFileName(doc.name)) {
+                                                        return (
+                                                            <SunatStatusChip
+                                                                validation={validation}
+                                                                isValidating={validatingFiles.has(doc.name)}
+                                                                onRevalidate={() => handleRevalidateInvoice(doc.name, doc.url, validation)}
+                                                            />
+                                                        );
+                                                    }
+                                                    if (!typeDocs.some((d) => isInvoiceXmlFileName(d.name))) {
+                                                        return <Chip size="sm" variant="flat" color="warning">Falta XML</Chip>;
+                                                    }
+                                                    return validation ? <SunatStatusChip validation={validation} /> : null;
+                                                }}
+                                            />
                                         ) : (
                                             <div className="grid grid-cols-2 gap-3">
                                                 {/* Factura */}
@@ -1913,7 +2191,8 @@ const AppointmentDetail: React.FC = () => {
                                         );
                                     })()}
 
-                                    {canManageDocuments && getCompletedDocumentTypeKeys(appointmentDocuments).size < COMMERCIAL_DOCUMENT_TYPES.length && (
+                                    {/* Con los obligatorios completos se sigue mostrando para cargar los opcionales (Letra, OBS-030) */}
+                                    {canManageDocuments && (
                                         <div className="mt-4">
                                             <Button
                                                 color="primary"
@@ -1921,9 +2200,15 @@ const AppointmentDetail: React.FC = () => {
                                                 fullWidth
                                                 startContent={<DocumentTextIcon className="w-5 h-5" />}
                                                 onPress={handleOpenDocuments}
+                                                isDisabled={packingListsFromApi.length === 0}
                                             >
-                                                {appointmentDocuments.length === 0 ? 'Cargar Documentos' : 'Cargar Documentos Faltantes'}
+                                                {appointmentDocuments.length === 0
+                                                    ? 'Cargar Documentos'
+                                                    : areAllDocumentsComplete() ? 'Cargar Letra u otros documentos' : 'Cargar Documentos Faltantes'}
                                             </Button>
+                                            {packingListsFromApi.length === 0 && (
+                                                <p className="mt-2 text-xs text-center text-gray-500">Primero registre el Packing List de la cita.</p>
+                                            )}
                                         </div>
                                     )}
                                 </div>
@@ -1936,20 +2221,95 @@ const AppointmentDetail: React.FC = () => {
                                         Los documentos aún no han sido cargados
                                     </p>
                                     {canManageDocuments && (
-                                        <Button
-                                            color="primary"
-                                            size="lg"
-                                            startContent={<DocumentTextIcon className="w-5 h-5" />}
-                                            onPress={handleOpenDocuments}
-                                            className="shadow-lg"
-                                        >
-                                            Cargar Documentos
-                                        </Button>
+                                        <>
+                                            <Button
+                                                color="primary"
+                                                size="lg"
+                                                startContent={<DocumentTextIcon className="w-5 h-5" />}
+                                                onPress={handleOpenDocuments}
+                                                isDisabled={packingListsFromApi.length === 0}
+                                                className="shadow-lg"
+                                            >
+                                                Cargar Documentos
+                                            </Button>
+                                            {packingListsFromApi.length === 0 && (
+                                                <p className="mt-2 text-xs text-gray-500">Primero registre el Packing List de la cita.</p>
+                                            )}
+                                        </>
                                     )}
                                 </div>
                             )}
                         </CardBody>
                     </Card>
+
+                    {/* Claim Section (OBS-008) */}
+                    {showClaimCard && (
+                        <Card className="border-2 border-red-200">
+                            <CardBody className="p-6">
+                                <div className="flex items-center justify-between mb-4">
+                                    <h4 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                                        <ExclamationTriangleIcon className="w-5 h-5 text-red-600" />
+                                        Reclamo
+                                    </h4>
+                                    {appointmentClaim?.status && (
+                                        <Chip
+                                            variant="flat"
+                                            color={appointmentClaim.status === 'Abierto' ? 'danger' : appointmentClaim.status === 'En Respuesta' ? 'warning' : 'success'}
+                                        >
+                                            {appointmentClaim.status}
+                                        </Chip>
+                                    )}
+                                </div>
+                                {appointmentClaim ? (
+                                    <div className="space-y-3">
+                                        <div className="grid grid-cols-2 gap-2 text-sm">
+                                            <div>
+                                                <span className="text-gray-600">Número:</span>
+                                                <span className="ml-2 font-medium">{appointmentClaim.numeroReclamo}</span>
+                                            </div>
+                                            <div>
+                                                <span className="text-gray-600">Fecha:</span>
+                                                <span className="ml-2 font-medium">{appointmentClaim.fechaReclamo}</span>
+                                            </div>
+                                            <div>
+                                                <span className="text-gray-600">Área:</span>
+                                                <span className="ml-2 font-medium">{appointmentClaim.areaEmite}</span>
+                                            </div>
+                                            <div>
+                                                <span className="text-gray-600">Productos:</span>
+                                                <span className="ml-2 font-medium">{appointmentClaim.productos?.length ?? 0}</span>
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <Button size="sm" variant="flat" onPress={handleViewClaimPDF}>
+                                                Ver PDF
+                                            </Button>
+                                            {canManageClaim && appointmentClaim.status === 'Abierto' ? (
+                                                <Button size="sm" color="danger" variant="flat" onPress={handleOpenClaim}>
+                                                    Editar reclamo
+                                                </Button>
+                                            ) : (
+                                                <Button size="sm" color="primary" variant="flat" onPress={() => setIsClaimDetailOpen(true)}>
+                                                    {isProvider && appointmentClaim.status === 'Abierto'
+                                                        ? 'Responder reclamo'
+                                                        : canManageClaim && appointmentClaim.status === 'En Respuesta'
+                                                            ? 'Revisar y cerrar'
+                                                            : 'Ver reclamo'}
+                                                </Button>
+                                            )}
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-3">
+                                        <p className="text-sm text-gray-600">La cita tiene productos rechazados y aún no tiene reclamo registrado.</p>
+                                        <Button size="sm" color="danger" onPress={handleOpenClaim}>
+                                            Registrar reclamo
+                                        </Button>
+                                    </div>
+                                )}
+                            </CardBody>
+                        </Card>
+                    )}
                 </div>
 
                 {/* Modal de PackingList */}
@@ -2135,18 +2495,19 @@ const AppointmentDetail: React.FC = () => {
                                                                     <TableCell>{item.pendingQuantity}</TableCell>
                                                                     <TableCell>
                                                                         <Input
-                                                                            type="number"
+                                                                            type="text"
+                                                                            inputMode="decimal"
                                                                             size="sm"
-                                                                            value={item.quantity.toString()}
+                                                                            value={getPackingListQuantityText(item)}
                                                                             disabled={!item.marca}
                                                                             onValueChange={(value) => {
-                                                                                const qty = parseInt(value) || 0;
+                                                                                // Hasta 2 decimales (OBS-004); se ignora lo que no sea una cantidad válida
+                                                                                const parsed = parsePackingListQuantityInput(value);
+                                                                                if (!parsed) return;
                                                                                 setPackingListItems(prev => prev.map(pi =>
-                                                                                    pi.id === item.id ? { ...pi, quantity: qty } : pi
+                                                                                    pi.id === item.id ? { ...pi, quantity: parsed.quantity, quantityText: parsed.text } : pi
                                                                                 ));
                                                                             }}
-                                                                            min={0}
-                                                                            max={getMaxPackingListQuantity(item)}
                                                                             isInvalid={item.quantity > getMaxPackingListQuantity(item)}
                                                                             errorMessage={`Máx. ${getMaxPackingListQuantity(item)}`}
                                                                         />
@@ -2480,7 +2841,32 @@ const AppointmentDetail: React.FC = () => {
                     selectedAppointment={appointment}
                     handleUploadDocument={handleUploadDocument}
                     loadedDocuments={getAllDocuments()}
+                    packingLists={getActivePackingListNumbers()}
+                    onDeleteDocument={canDeleteDocuments ? setDocumentToDelete : undefined}
+                    enforceInvoiceOrder={isProvider}
                 />
+
+                {/* Confirmación para eliminar documento (OBS-005) */}
+                <DeleteDocumentModal
+                    isOpen={!!documentToDelete}
+                    documentName={documentToDelete?.name || ''}
+                    onClose={() => setDocumentToDelete(null)}
+                    onConfirm={handleDeleteDocument}
+                />
+
+                {/* Modal de eliminación de PackingList (OBS-009) */}
+                {appointment?.docEntry && (
+                    <DeletePackingListModal
+                        isOpen={!!packingListToDelete}
+                        onOpenChange={(open) => {
+                            if (!open) setPackingListToDelete(null);
+                        }}
+                        packingList={packingListToDelete}
+                        codCita={appointment.docEntry}
+                        usuario={currentUser?.userCode || currentUser?.id || currentUser?.username || 'system'}
+                        onDeleted={reloadPackingLists}
+                    />
+                )}
 
                 {/* Modal de Evaluación */}
                 {appointment?.docEntry && (
@@ -2501,6 +2887,15 @@ const AppointmentDetail: React.FC = () => {
                             onOpenChange={setIsClaimModalOpen}
                             appointment={appointment}
                             onGenerateClaim={handleGenerateClaim}
+                            rejectedProducts={claimRejectedProducts}
+                            onClaimSaved={handleClaimSaved}
+                        />
+                        <ClaimDetailModal
+                            isOpen={isClaimDetailOpen}
+                            onOpenChange={setIsClaimDetailOpen}
+                            claim={appointmentClaim}
+                            onClaimUpdated={setAppointmentClaim}
+                            hideGoToAppointment
                         />
                     </>
                 )}

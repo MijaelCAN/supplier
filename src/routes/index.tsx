@@ -23,11 +23,13 @@ const AgendaPage = lazy(() => import("@/pages/Agenda"));
 const AppointmentDetail = lazy(() => import("@/pages/Agenda/AppointmentDetail"));
 const EvaluationPage = lazy(() => import("@/pages/Agenda/EvaluationPage"));
 const ReceptionPage = lazy(() => import("@/pages/Recepcion"));
+const ReclamosPage = lazy(() => import("@/pages/Reclamos"));
 const PaymentCalendar = lazy(() => import("@/pages/Pagos/Paymentcalendar "));
 const ScheduleInvoices = lazy(() => import("@/pages/Pagos/ScheduleInvoices"));
 const ConfirmacionRheFe = lazy(() => import("@/pages/Finanzas/confirmacionRheFe"));
 const ConsultaEnviosSunat = lazy(() => import("@/pages/Finanzas/consultaEnviosSunat")
 );
+const PartesIngresoPage = lazy(() => import("@/pages/PartesIngreso"));
 
 // ── Fallback de carga ─────────────────────────────────────────────────────────
 const PageLoader = () => (
@@ -189,7 +191,7 @@ const router = createBrowserRouter([
   {
     path: "/agenda",
     element: (
-      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.CONTABILIDAD, UserRole.ALMACEN, UserRole.SEGURIDAD, UserRole.CALIDAD, UserRole.PLANEAMIENTO]}>
+      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.ALMACEN, UserRole.SEGURIDAD, UserRole.CALIDAD, UserRole.PLANEAMIENTO]}>
         <Lazy><AgendaPage /></Lazy>
       </ProtectedRoute>
     ),
@@ -197,7 +199,7 @@ const router = createBrowserRouter([
   {
     path: "/agenda/detail/:appointmentId",
     element: (
-      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.CONTABILIDAD, UserRole.ALMACEN, UserRole.CALIDAD, UserRole.SEGURIDAD, UserRole.PLANEAMIENTO]}>
+      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.CONTABILIDAD, UserRole.ALMACEN, UserRole.CALIDAD, UserRole.SEGURIDAD, UserRole.PLANEAMIENTO, UserRole.FINANZAS]}>
         <Lazy><AppointmentDetail /></Lazy>
       </ProtectedRoute>
     ),
@@ -207,6 +209,22 @@ const router = createBrowserRouter([
     element: (
       <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.COMPRAS, UserRole.ALMACEN, UserRole.CALIDAD, UserRole.SEGURIDAD, UserRole.PLANEAMIENTO]}>
         <Lazy><EvaluationPage /></Lazy>
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/reclamos",
+    element: (
+      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.CALIDAD, UserRole.ALMACEN]}>
+        <Lazy><ReclamosPage /></Lazy>
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: "/contabilidad/partes-ingreso",
+    element: (
+      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.CONTABILIDAD]}>
+        <Lazy><PartesIngresoPage /></Lazy>
       </ProtectedRoute>
     ),
   },
@@ -221,7 +239,7 @@ const router = createBrowserRouter([
   {
     path: "/cronograma",
     element: (
-      <ProtectedRoute requiredRoles={[UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.ADMIN]}>
+      <ProtectedRoute requiredRoles={[UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.ADMIN, UserRole.FINANZAS]}>
         <Dashboard>
           <Lazy><PaymentCalendar /></Lazy>
         </Dashboard>

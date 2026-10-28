@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { 
-  ArrowLeftIcon
+import {
+  ArrowLeftIcon,
+  FolderOpenIcon
 } from '@heroicons/react/24/outline';
 import { parseDate, getLocalTimeZone, today, startOfMonth, endOfMonth } from '@internationalized/date';
 import {
@@ -21,6 +22,7 @@ import {
   ModalContent,
   ModalBody,
   Spinner,
+  Tooltip,
   addToast,
 } from '@heroui/react';
 import { useInvoices } from '@/store/extendedStore';
@@ -29,6 +31,7 @@ import { DateInput } from '@/components/DateInput';
 import { useAuth } from '@/store/authStore';
 import { UserRole } from '@/routes/menuTypes';
 import { fetchInvoicesForPaymentSchedule, schedulePaymentInvoices } from '@/services/invoices/invoicesApi';
+import { findInvoiceValidationByNumber } from '@/services/agenda/sunatInvoiceApi';
 
 const ScheduleInvoices: React.FC = () => {
   const navigate = useNavigate();
@@ -64,14 +67,18 @@ const ScheduleInvoices: React.FC = () => {
   const [isScheduling, setIsScheduling] = useState(false);
   const [invoicesError, setInvoicesError] = useState<string | null>(null);
   
-  // Date range for invoice search
+  // Date range for invoice search (desde/hasta/proveedor: se restauran al volver del detalle de la cita)
   const [invoiceStartDate, setInvoiceStartDate] = useState<string>(
+    searchParams.get('desde') ||
     `${monthStart.year}-${String(monthStart.month).padStart(2, '0')}-${String(monthStart.day).padStart(2, '0')}`
   );
   const [invoiceEndDate, setInvoiceEndDate] = useState<string>(
+    searchParams.get('hasta') ||
     `${monthEnd.year}-${String(monthEnd.month).padStart(2, '0')}-${String(monthEnd.day).padStart(2, '0')}`
   );
-  const [codigoProveedor, setCodigoProveedor] = useState<string>('');
+  const [codigoProveedor, setCodigoProveedor] = useState<string>(searchParams.get('proveedor') || '');
+  // Factura cuya cita se está buscando para ir a sus documentos
+  const [openingDocumentsId, setOpeningDocumentsId] = useState<string | null>(null);
   const rowsPerPage = 100;
 
   // Format date for API (YYYYMMDD)
@@ -302,6 +309,34 @@ const ScheduleInvoices: React.FC = () => {
     }
   };
 
+  // Abre la cita de la factura en la pestaña de su packing list para revisar la documentación antes de programar;
+  // la relación sale de la validación SUNAT del XML. Al volver se restauran el rango y el proveedor buscados.
+  const handleOpenInvoiceDocuments = async (invoice: Invoice) => {
+    setOpeningDocumentsId(invoice.id);
+    try {
+      const ruc = (invoice as Invoice & { supplierRUC?: string }).supplierRUC;
+      const validation = await findInvoiceValidationByNumber(invoice.invoiceNumber, ruc);
+      if (!validation) {
+        addToast({
+          title: 'No se encontró la cita de la factura',
+          description: `La factura ${invoice.invoiceNumber} no se cargó con su XML en una cita del portal.`,
+          color: 'warning',
+        });
+        return;
+      }
+      const params = new URLSearchParams({ desde: invoiceStartDate, hasta: invoiceEndDate });
+      if (codigoProveedor.trim()) params.set('proveedor', codigoProveedor.trim());
+      navigate(`/agenda/detail/${validation.codCita}`, {
+        state: { invoiceFile: validation.archivo, returnTo: `/cronograma/programar-facturas?${params}` },
+      });
+    } catch (error) {
+      console.error('Error al buscar la cita de la factura:', error);
+      addToast({ title: 'No se pudo buscar la cita de la factura', color: 'danger' });
+    } finally {
+      setOpeningDocumentsId(null);
+    }
+  };
+
   const handleScheduleInvoices = async () => {
     if (selectedInvoices.size === 0) {
       addToast({ title: 'Selecciona al menos una factura', color: 'warning' });
@@ -482,7 +517,7 @@ const ScheduleInvoices: React.FC = () => {
                     />
                     <DateInput
                       size="sm"
-                      label="Fecha Emisión"
+                      label="Fecha Contabilización"
                       value={filterFechaEmision}
                       onValueChange={setFilterFechaEmision}
                       isClearable
@@ -539,7 +574,7 @@ const ScheduleInvoices: React.FC = () => {
                     
                     if (!isCheckbox && !isInCheckbox) {
                       const row = target.closest('tr[data-key]');
-                      if (row && !target.closest('input[type="number"]')) {
+                      if (row && !target.closest('input[type="number"]') && !target.closest('button')) {
                         e.preventDefault();
                         e.stopPropagation();
                         e.nativeEvent.stopImmediatePropagation();
@@ -556,7 +591,7 @@ const ScheduleInvoices: React.FC = () => {
                     
                     if (!isCheckbox && !isInCheckbox) {
                       const row = target.closest('tr[data-key]');
-                      if (row && !target.closest('input[type="number"]')) {
+                      if (row && !target.closest('input[type="number"]') && !target.closest('button')) {
                         e.preventDefault();
                         e.stopPropagation();
                         e.nativeEvent.stopImmediatePropagation();
@@ -598,12 +633,13 @@ const ScheduleInvoices: React.FC = () => {
                       <TableColumn>N° FACTURA</TableColumn>
                       <TableColumn>PROVEEDOR</TableColumn>
                       <TableColumn>RUC</TableColumn>
-                      <TableColumn>FECHA EMISIÓN</TableColumn>
+                      <TableColumn>FECHA CONTABILIZACIÓN</TableColumn>
                       <TableColumn>FECHA VENC.</TableColumn>
                       <TableColumn className="text-right">IMPORTE FACTURA</TableColumn>
                       <TableColumn className="text-right">RETENCIÓN</TableColumn>
                       <TableColumn className="text-right">IMPORTE A PAGAR</TableColumn>
                       <TableColumn className="text-right">TOTAL</TableColumn>
+                      <TableColumn align="center">DOCUMENTOS</TableColumn>
                     </TableHeader>
                     <TableBody emptyContent="No se encontraron facturas">
                       {invoiceItems.map((invoice) => {
@@ -742,6 +778,21 @@ const ScheduleInvoices: React.FC = () => {
                                 currency: invoice.currency === 'PEN' ? 'PEN' : 'USD'
                               }).format(currentNetTotal)}
                             </p>
+                          </TableCell>
+                          <TableCell>
+                            <Tooltip content="Ver documentos de la cita / packing list">
+                              <Button
+                                isIconOnly
+                                size="sm"
+                                variant="light"
+                                color="primary"
+                                aria-label="Ver documentos de la cita"
+                                isLoading={openingDocumentsId === invoice.id}
+                                onPress={() => handleOpenInvoiceDocuments(invoice)}
+                              >
+                                <FolderOpenIcon className="w-5 h-5" />
+                              </Button>
+                            </Tooltip>
                           </TableCell>
                         </TableRow>
                         );

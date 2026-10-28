@@ -27,7 +27,6 @@ dist-ssr
 
 pnpm-lock.yaml
 yarn.lock
-package-lock.json
 bun.lockb
 
 # Observaciones internas (gestionadas con /obs)
