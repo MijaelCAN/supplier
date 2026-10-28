@@ -191,7 +191,7 @@ const router = createBrowserRouter([
   {
     path: "/agenda",
     element: (
-      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.CONTABILIDAD, UserRole.ALMACEN, UserRole.SEGURIDAD, UserRole.CALIDAD, UserRole.PLANEAMIENTO]}>
+      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.PROVEEDOR, UserRole.COMPRAS, UserRole.ALMACEN, UserRole.SEGURIDAD, UserRole.CALIDAD, UserRole.PLANEAMIENTO]}>
         <Lazy><AgendaPage /></Lazy>
       </ProtectedRoute>
     ),
