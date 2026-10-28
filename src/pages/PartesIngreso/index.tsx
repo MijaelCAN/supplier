@@ -55,13 +55,24 @@ import {
     exportPartesIngresoReport,
     formatFecha,
     formatTotal,
+    getBaseFileName,
     getDocumentoGrupos,
     getDocumentosVisor,
+    getFacturaXmls,
     getOtrosDocumentos,
     isPdfLink,
     REGISTRO_SAP_LABELS,
 } from './partesIngresoReport';
 import DocumentViewerPanel, { getDocumentoInicial, VISOR_ANCHO, VisorSeleccion } from './DocumentViewerPanel';
+import SunatStatusChip from '@/pages/Agenda/SunatStatusChip';
+import {
+    fetchInvoiceValidationsByCitas,
+    fetchUploadedXml,
+    getSunatChipInfo,
+    parseInvoiceXml,
+    SunatInvoiceValidation,
+    validateInvoiceInSunat,
+} from '@/services/agenda/sunatInvoiceApi';
 
 const ROWS_PER_PAGE = 10;
 const PAGE_PATH = '/contabilidad/partes-ingreso';
@@ -189,6 +200,11 @@ const OtrosDocumentosChip = ({ otros, onVer }: { otros: DocumentoGrupo[]; onVer:
     );
 };
 
+/** Clave para cruzar el XML de un parte con su validación SUNAT (la misma cita y el mismo archivo) */
+const sunatKey = (codCita: string, archivo: string) => `${codCita}|${getBaseFileName(archivo)}`;
+
+type EstadoCargaSunat = 'cargando' | 'error' | 'listo';
+
 type FiltroEstadoFactura = 'TODOS' | EstadoFactura;
 type FiltroValidacion = 'TODOS' | ValidacionDocumentos;
 
@@ -249,6 +265,7 @@ const COLUMNAS: ColumnaTabla[] = [
     { key: 'proveedor', label: 'PROVEEDOR', nombre: 'Proveedor', sortable: true },
     { key: 'parteIngreso', label: 'PARTE DE INGRESO', nombre: 'Parte de ingreso', sortable: true, fija: true },
     { key: 'factura', label: 'FACTURA', nombre: 'Factura', sortable: true },
+    { key: 'sunat', label: 'SUNAT', nombre: 'Validación SUNAT' },
     { key: 'oc', label: 'OC', nombre: 'OC', sortable: true },
     { key: 'guia', label: 'GUÍA', nombre: 'Guía', sortable: true },
     { key: 'condicionPago', label: 'CONDICIÓN DE PAGO', nombre: 'Condición de pago', sortable: true },
@@ -268,12 +285,13 @@ const COLUMNAS_SELECCIONABLES = COLUMNAS.filter((col) => !col.fija);
  * el del Parte de Ingreso se consulta aparte y no entra en la cuenta.
  */
 const COLUMNAS_VISOR: ColumnaTabla[] = [
-    ...['proveedor', 'parteIngreso', 'factura', 'oc', 'guia'].map((key) => COLUMNAS.find((col) => col.key === key)!),
+    ...['proveedor', 'parteIngreso', 'factura', 'sunat', 'oc', 'guia'].map((key) => COLUMNAS.find((col) => col.key === key)!),
     { key: 'pdfs', label: 'PDF', nombre: 'PDF', sortable: false },
 ];
 // Ocultas por defecto (al mostrarlas quedan en su lugar de COLUMNAS); el usuario puede mostrarlas u ocultar las demás desde "Columnas"
 const COLUMNAS_OCULTAS_POR_DEFECTO = ['condicionPago', 'moneda', 'packingList'];
-const COLUMNAS_STORAGE_KEY = 'partesIngreso.columnasVisibles';
+// v2: con la columna SUNAT; la preferencia anterior no la tenía y la dejaría oculta
+const COLUMNAS_STORAGE_KEY = 'partesIngreso.columnasVisibles.v2';
 
 const leerColumnasVisibles = (): Set<string> => {
     try {
@@ -337,6 +355,11 @@ const PartesIngresoPage = () => {
     const [rangeError, setRangeError] = useState<string | null>(null);
     // Con el API real no hay maestro de proveedores: se arma con los de los resultados ya consultados
     const [proveedoresConsultados, setProveedoresConsultados] = useState<ProveedorParteIngreso[]>([]);
+    // Validaciones SUNAT de las citas consultadas (Firestore), por cita y archivo XML; se cargan sin frenar la tabla
+    const [validacionesSunat, setValidacionesSunat] = useState<Map<string, SunatInvoiceValidation>>(new Map());
+    const [estadoSunat, setEstadoSunat] = useState<EstadoCargaSunat>('listo');
+    // XML que se están revalidando (por sunatKey)
+    const [validandoSunat, setValidandoSunat] = useState<Set<string>>(new Set());
 
     const [estadoFactura, setEstadoFactura] = useState<FiltroEstadoFactura>(guardados.estadoFactura ?? 'TODOS');
     const [validacion, setValidacion] = useState<FiltroValidacion>(guardados.validacion ?? 'TODOS');
@@ -394,6 +417,20 @@ const PartesIngresoPage = () => {
         );
     }, [proveedores, proveedorInput, proveedorKey]);
 
+    const cargarValidacionesSunat = useCallback(async (data: ParteIngresoContabilidad[]) => {
+        const citas = data.filter((row) => row.numeroCita !== null && getFacturaXmls(row).length > 0).map((row) => String(row.numeroCita));
+        setEstadoSunat('cargando');
+        try {
+            const validaciones = await fetchInvoiceValidationsByCitas(citas);
+            setValidacionesSunat(new Map(validaciones.map((v) => [sunatKey(v.codCita, v.archivo), v])));
+            setEstadoSunat('listo');
+        } catch (error) {
+            console.error('Error al cargar validaciones SUNAT:', error);
+            setValidacionesSunat(new Map());
+            setEstadoSunat('error');
+        }
+    }, []);
+
     const buscar = useCallback(async (start: string, end: string, codigoProveedor?: string, keepPage = false) => {
         if (!start || !end) {
             setRangeError('Ingrese la fecha de inicio y la fecha fin.');
@@ -409,6 +446,7 @@ const PartesIngresoPage = () => {
         try {
             const data = await listar(start, end, codigoProveedor);
             setRows(data);
+            cargarValidacionesSunat(data);
             setAppliedQuery({ start, end, proveedor: codigoProveedor });
             setProveedoresConsultados((prev) => {
                 const byCode = new Map(prev.map((p) => [p.codigoProveedor, p]));
@@ -423,7 +461,7 @@ const PartesIngresoPage = () => {
         } finally {
             setIsLoading(false);
         }
-    }, []);
+    }, [cargarValidacionesSunat]);
 
     // Primera carga con el rango por defecto (o el restaurado al volver de la cita), en la página que se dejó
     useEffect(() => {
@@ -522,6 +560,42 @@ const PartesIngresoPage = () => {
         return `${PAGE_PATH}?${params}`;
     };
 
+    /** Un XML por factura del parte con su validación (undefined si aún no se validó) */
+    const getSunatDeFila = (row: ParteIngresoContabilidad) =>
+        getFacturaXmls(row).map(({ archivo, url }) => ({
+            archivo,
+            url,
+            validation: row.numeroCita !== null ? validacionesSunat.get(sunatKey(String(row.numeroCita), archivo)) : undefined,
+        }));
+
+    // Revalidar como en el detalle de la cita: con los datos ya guardados, o leyendo el XML si nunca se validó
+    const revalidarSunat = async (codCita: string, archivo: string, url: string, validation?: SunatInvoiceValidation) => {
+        const key = sunatKey(codCita, archivo);
+        setValidandoSunat((prev) => new Set(prev).add(key));
+        try {
+            const data = validation ?? parseInvoiceXml(await fetchUploadedXml(url));
+            const nueva = await validateInvoiceInSunat(codCita, archivo, data);
+            setValidacionesSunat((prev) => new Map(prev).set(key, nueva));
+        } catch (error) {
+            console.error('Error al validar factura en SUNAT:', error);
+            alert(`No se pudo validar la factura en SUNAT: ${error instanceof Error ? error.message : 'error desconocido'}`);
+        } finally {
+            setValidandoSunat((prev) => {
+                const next = new Set(prev);
+                next.delete(key);
+                return next;
+            });
+        }
+    };
+
+    // Mismo texto que la columna, para el Excel
+    const getSunatTexto = (row: ParteIngresoContabilidad): string => {
+        if (row.linksFactura.length === 0) return '';
+        const xmls = getSunatDeFila(row);
+        if (xmls.length === 0) return 'Falta XML';
+        return xmls.map(({ validation }) => getSunatChipInfo(validation).label).join(', ');
+    };
+
     const resetPage = <T,>(setter: (value: T) => void) => (value: T) => {
         setter(value);
         setPage(1);
@@ -533,6 +607,36 @@ const PartesIngresoPage = () => {
                 return <span className="whitespace-nowrap font-medium" data-parte={row.numeroParteIngreso}>{row.numeroParteIngreso}</span>;
             case 'factura':
                 return row.numeroFactura ?? '-';
+            case 'sunat': {
+                if (row.linksFactura.length === 0) return '-';
+                const xmls = getSunatDeFila(row);
+                if (xmls.length === 0) {
+                    return (
+                        <Tooltip content="La factura de la cita no tiene XML: no se puede validar en SUNAT">
+                            <Chip size="sm" variant="flat" color="warning" className="whitespace-nowrap">Falta XML</Chip>
+                        </Tooltip>
+                    );
+                }
+                if (estadoSunat === 'cargando') return <Spinner size="sm" />;
+                if (estadoSunat === 'error') {
+                    return <Chip size="sm" variant="flat" className="whitespace-nowrap">No disponible</Chip>;
+                }
+                return (
+                    <div className="flex flex-col items-start gap-1 whitespace-nowrap">
+                        {xmls.map(({ archivo, url, validation }) => {
+                            const codCita = String(row.numeroCita);
+                            return (
+                                <SunatStatusChip
+                                    key={archivo}
+                                    validation={validation}
+                                    isValidating={validandoSunat.has(sunatKey(codCita, archivo))}
+                                    onRevalidate={row.numeroCita !== null ? () => revalidarSunat(codCita, archivo, url, validation) : undefined}
+                                />
+                            );
+                        })}
+                    </div>
+                );
+            }
             case 'oc':
                 return row.ordenesCompra ?? '-';
             case 'proveedor':
@@ -746,8 +850,8 @@ const PartesIngresoPage = () => {
                                     variant="flat"
                                     color="success"
                                     startContent={<ArrowDownTrayIcon className="h-4 w-4" />}
-                                    isDisabled={sortedRows.length === 0 || !appliedQuery}
-                                    onPress={() => appliedQuery && exportPartesIngresoReport(sortedRows, appliedQuery.start, appliedQuery.end)}
+                                    isDisabled={sortedRows.length === 0 || !appliedQuery || estadoSunat === 'cargando'}
+                                    onPress={() => appliedQuery && exportPartesIngresoReport(sortedRows, appliedQuery.start, appliedQuery.end, getSunatTexto)}
                                 >
                                     Exportar Excel
                                 </Button>
