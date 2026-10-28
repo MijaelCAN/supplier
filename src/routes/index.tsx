@@ -1,6 +1,7 @@
 import { lazy, Suspense, ReactNode } from "react";
-import { createBrowserRouter, Navigate } from "react-router-dom";
+import { createBrowserRouter, Navigate, RouteObject } from "react-router-dom";
 import Auth from "@/layouts/Auth";
+import RouteError from "@/components/RouteError";
 import Dashboard from "@/layouts/Dashboard";
 import NotFoundPage from "@/pages/NotFound";
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -44,7 +45,7 @@ const Lazy = ({ children }: { children: ReactNode }) => (
 );
 
 // ── Router ────────────────────────────────────────────────────────────────────
-const router = createBrowserRouter([
+const routes: RouteObject[] = [
   {
     path: "/login",
     element: <Auth />,
@@ -302,6 +303,9 @@ const router = createBrowserRouter([
     path: "*",
     element: <NotFoundPage />,
   },
-]);
+];
+
+// Todas las rutas muestran RouteError ante un error en vez de la pantalla por defecto de React Router
+const router = createBrowserRouter(routes.map((route) => ({ ...route, errorElement: <RouteError /> })));
 
 export default router;
