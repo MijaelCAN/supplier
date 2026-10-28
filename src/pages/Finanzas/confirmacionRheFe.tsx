@@ -42,6 +42,34 @@ import {
   waitForApiBaseResolution,
 } from "@/config/api";
 
+interface SapFacturaOC {
+  estado_comparacion:
+  | "CON_OC"
+  | "SIN_OC"
+  | "NO_REGISTRADA_SAP"
+  | "ERROR_CONSULTA";
+
+  encontrada_en_sap: boolean;
+  id_factura_sap: number | null;
+  numero_factura_sap: number | string | null;
+  numero_factura_proveedor_sap: string | null;
+
+  ordenes_compra: unknown[];
+}
+
+interface PortalFacturaOC {
+  xml_encontrado: boolean;
+  factura_validada: boolean;
+  id_cita: number | null;
+  id_archivo: number | null;
+  nombre_archivo: string | null;
+  ruc_emisor_xml: string | null;
+  numero_factura_xml: string | null;
+  numero_oc_xml: string | null;
+  origen_campo: string | null;
+  oc_validada_sap: boolean | null;
+}
+
 interface ComprobanteSunat {
   id: string;
   numero: string;
@@ -68,6 +96,8 @@ interface ComprobanteSunat {
   montoRetencionRhe: number;
   montoNetoRhe: number;
   cuotas: CuotaSunatApi[];
+  sap?: SapFacturaOC | null;
+  portal?: PortalFacturaOC | null;
 }
 
 interface CuotaSunatApi {
@@ -95,6 +125,8 @@ interface ComprobanteSunatApi {
   monto_retencion_rhe: number;
   monto_neto_rhe: number;
   cuotas: CuotaSunatApi[];
+  sap?: SapFacturaOC | null;
+  portal?: PortalFacturaOC | null;
 }
 
 interface ResumenComprobantesApi {
@@ -219,35 +251,20 @@ const ConfirmacionRheFe = () => {
   const [pagina, setPagina] = useState(1);
   const [registrosPorPagina] = useState(50);
   const [totalRegistros, setTotalRegistros] = useState(0);
-  const [resumen, setResumen] = useState<ResumenComprobantesApi>({
-    vencidos: 0,
-    "vence_hoy_o_mañana": 0,
-    vence_en_dos_dias: 0,
-    mas_de_dos_dias: 0,
-  });
+  const [resumen, setResumen] = useState<ResumenComprobantesApi>({ vencidos: 0, "vence_hoy_o_mañana": 0, vence_en_dos_dias: 0, mas_de_dos_dias: 0, });
   const [cargando, setCargando] = useState(false);
-
   const [procesandoConformidad, setProcesandoConformidad] = useState(false);
-
   const [modalDisconformidadAbierto, setModalDisconformidadAbierto] = useState(false);
-
   const [motivosDisconformidad, setMotivosDisconformidad] = useState<string[]>([]);
-
   const [sustentoDisconformidad, setSustentoDisconformidad] = useState("");
-
   const [archivoSustento, setArchivoSustento] = useState<File | null>(null);
-
   const [procesandoDisconformidad, setProcesandoDisconformidad] = useState(false);
-
   const [error, setError] = useState<string | null>(null);
-
   const [comprobanteDetalle, setComprobanteDetalle] = useState<ComprobanteSunat | null>(null);
-
   const [modalDetalleAbierto, setModalDetalleAbierto] = useState(false);
-
+  const [mostrarRelacionOC, setMostrarRelacionOC] = useState(false);
   const [importeDesde, setImporteDesde] = useState("");
   const [importeHasta, setImporteHasta] = useState("");
-
   const handleBuscar = async (paginaSolicitada = 1) => {
     try {
       setCargando(true);
@@ -261,9 +278,7 @@ const ConfirmacionRheFe = () => {
         rucEmisorNormalizado &&
         rucEmisorNormalizado.length !== 11
       ) {
-        throw new Error(
-          "El RUC emisor debe contener exactamente 11 dígitos."
-        );
+        throw new Error("El RUC emisor debe contener exactamente 11 dígitos.");
       }
 
       const codigoTipoComprobante = tipoComprobante.trim().toLowerCase();
@@ -278,13 +293,8 @@ const ConfirmacionRheFe = () => {
         registrosPorPagina: String(registrosPorPagina),
       });
 
-      if (rucEmisorNormalizado) {
-        parametros.set("rucEmisor", rucEmisorNormalizado);
-      }
-
-      if (serieNumeroNormalizado) {
-        parametros.set("serieNumero", serieNumeroNormalizado);
-      }
+      if (rucEmisorNormalizado) { parametros.set("rucEmisor", rucEmisorNormalizado); }
+      if (serieNumeroNormalizado) { parametros.set("serieNumero", serieNumeroNormalizado); }
 
       console.log("tipoComprobante state:", JSON.stringify(tipoComprobante));
       console.log("query enviada:", parametros.toString());
@@ -360,35 +370,21 @@ const ConfirmacionRheFe = () => {
           montoRetencionRhe: item.monto_retencion_rhe,
           montoNetoRhe: item.monto_neto_rhe,
           cuotas: item.cuotas ?? [],
+
+          sap: item.sap ?? null,
+          portal: item.portal ?? null,
         }));
 
       //setComprobantes(comprobantesMapeados);
-      const importeDesdeNumero =
-        importeDesde.trim() !== ""
-          ? Number(importeDesde)
-          : null;
+      const importeDesdeNumero = importeDesde.trim() !== "" ? Number(importeDesde) : null;
+      const importeHastaNumero = importeHasta.trim() !== "" ? Number(importeHasta) : null;
 
-      const importeHastaNumero =
-        importeHasta.trim() !== ""
-          ? Number(importeHasta)
-          : null;
-
-      if (
-        importeDesdeNumero !== null &&
-        (!Number.isFinite(importeDesdeNumero) || importeDesdeNumero < 0)
-      ) {
-        throw new Error(
-          "El importe desde debe ser un número válido mayor o igual a 0."
-        );
+      if (importeDesdeNumero !== null && (!Number.isFinite(importeDesdeNumero) || importeDesdeNumero < 0)) {
+        throw new Error("El importe desde debe ser un número válido mayor o igual a 0.");
       }
 
-      if (
-        importeHastaNumero !== null &&
-        (!Number.isFinite(importeHastaNumero) || importeHastaNumero < 0)
-      ) {
-        throw new Error(
-          "El importe hasta debe ser un número válido mayor o igual a 0."
-        );
+      if (importeHastaNumero !== null && (!Number.isFinite(importeHastaNumero) || importeHastaNumero < 0)) {
+        throw new Error("El importe hasta debe ser un número válido mayor o igual a 0.");
       }
 
       if (
@@ -396,9 +392,7 @@ const ConfirmacionRheFe = () => {
         importeHastaNumero !== null &&
         importeDesdeNumero > importeHastaNumero
       ) {
-        throw new Error(
-          "El importe desde no puede ser mayor que el importe hasta."
-        );
+        throw new Error("El importe desde no puede ser mayor que el importe hasta.");
       }
 
       const comprobantesFiltrados =
@@ -773,6 +767,7 @@ const ConfirmacionRheFe = () => {
   const abrirDetalleComprobante = (
     comprobante: ComprobanteSunat
   ) => {
+    setMostrarRelacionOC(false);
     setComprobanteDetalle(comprobante);
     setModalDetalleAbierto(true);
   };
@@ -806,13 +801,9 @@ const ConfirmacionRheFe = () => {
     <Dashboard>
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">
-            Gestión General
-          </h1>
+          <h1 className="text-2xl font-bold text-gray-900"> Gestión General </h1>
 
-          <p className="text-gray-600">
-            Plataforma de Confirmación del RHE y de la FE
-          </p>
+          <p className="text-gray-600"> Plataforma de Confirmación del RHE y de la FE </p>
         </div>
 
         <Card>
@@ -838,14 +829,7 @@ const ConfirmacionRheFe = () => {
                 className="w-full"
               />
 
-              <DateInput
-                label="Hasta"
-                value={fechaHasta}
-                size="sm"
-                isClearable={false}
-                onValueChange={setFechaHasta}
-                className="w-full"
-              />
+              <DateInput label="Hasta" value={fechaHasta} size="sm" isClearable={false} onValueChange={setFechaHasta} className="w-full" />
               <Select
                 label="Estado"
                 size="sm"
@@ -1014,17 +998,9 @@ const ConfirmacionRheFe = () => {
             <Card>
               <CardBody className="flex min-h-[118px] flex-row items-center justify-between p-5">
                 <div>
-                  <p className="text-sm text-gray-600">
-                    Total pendientes
-                  </p>
-
-                  <p className="mt-2 text-3xl font-bold text-gray-900">
-                    {totalRegistros}
-                  </p>
-
-                  <p className="mt-1 text-xs text-gray-500">
-                    Documentos encontrados
-                  </p>
+                  <p className="text-sm text-gray-600"> Total pendientes </p>
+                  <p className="mt-2 text-3xl font-bold text-gray-900"> {totalRegistros} </p>
+                  <p className="mt-1 text-xs text-gray-500"> Documentos encontrados </p>
                 </div>
 
                 <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary-100">
@@ -1038,17 +1014,9 @@ const ConfirmacionRheFe = () => {
             <Card>
               <CardBody className="flex min-h-[118px] flex-row items-center justify-between p-5">
                 <div>
-                  <p className="text-sm text-gray-600">
-                    Dentro del plazo
-                  </p>
-
-                  <p className="mt-2 text-3xl font-bold text-success">
-                    {resumen.mas_de_dos_dias}
-                  </p>
-
-                  <p className="mt-1 text-xs text-gray-500">
-                    Más de 2 días
-                  </p>
+                  <p className="text-sm text-gray-600"> Dentro del plazo </p>
+                  <p className="mt-2 text-3xl font-bold text-success"> {resumen.mas_de_dos_dias} </p>
+                  <p className="mt-1 text-xs text-gray-500"> Más de 2 días </p>
                 </div>
 
                 <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-success-100">
@@ -1060,17 +1028,9 @@ const ConfirmacionRheFe = () => {
             <Card>
               <CardBody className="flex min-h-[118px] flex-row items-center justify-between p-5">
                 <div>
-                  <p className="text-sm text-gray-600">
-                    Por vencer
-                  </p>
-
-                  <p className="mt-2 text-3xl font-bold text-warning">
-                    {porVencer}
-                  </p>
-
-                  <p className="mt-1 text-xs text-gray-500">
-                    Hoy, mañana o en 2 días
-                  </p>
+                  <p className="text-sm text-gray-600"> Por vencer </p>
+                  <p className="mt-2 text-3xl font-bold text-warning"> {porVencer} </p>
+                  <p className="mt-1 text-xs text-gray-500"> Hoy, mañana o en 2 días </p>
                 </div>
 
                 <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-warning-100">
@@ -1556,79 +1516,42 @@ const ConfirmacionRheFe = () => {
 
                       {/* DATOS DEL COMPROBANTE */}
                       <div>
-                        <h3 className="mb-4 text-sm font-bold text-gray-900">
-                          Datos del comprobante
-                        </h3>
+                        <h3 className="mb-4 text-sm font-bold text-gray-900"> Datos del comprobante </h3>
 
                         <div className="grid grid-cols-1 gap-x-8 gap-y-3 sm:grid-cols-2">
 
                           <div>
-                            <p className="text-xs font-semibold text-gray-700">
-                              Tipo Comprobante
-                            </p>
-
-                            <p className="text-sm text-gray-900">
-                              {comprobanteDetalle.codigoTipoComprobante === "01"
-                                ? "Factura"
-                                : "Recibo por honorarios"}
-                            </p>
+                            <p className="text-xs font-semibold text-gray-700"> Tipo Comprobante </p>
+                            <p className="text-sm text-gray-900"> {comprobanteDetalle.codigoTipoComprobante === "01" ? "Factura" : "Recibo por honorarios"} </p>
                           </div>
 
                           <div>
-                            <p className="text-xs font-semibold text-gray-700">
-                              Serie y Número
-                            </p>
-
-                            <p className="text-sm text-gray-900">
-                              {comprobanteDetalle.numero}
-                            </p>
+                            <p className="text-xs font-semibold text-gray-700"> Serie y Número </p>
+                            <p className="text-sm text-gray-900"> {comprobanteDetalle.numero} </p>
                           </div>
 
                           <div>
-                            <p className="text-xs font-semibold text-gray-700">
-                              Fecha de Emisión
-                            </p>
-
-                            <p className="text-sm text-gray-900">
-                              {comprobanteDetalle.fechaEmision}
-                            </p>
+                            <p className="text-xs font-semibold text-gray-700"> Fecha de Emisión </p>
+                            <p className="text-sm text-gray-900"> {comprobanteDetalle.fechaEmision} </p>
                           </div>
 
                           <div>
-                            <p className="text-xs font-semibold text-gray-700">
-                              Fecha de Vencimiento
-                            </p>
-
-                            <p className="text-sm text-gray-900">
-                              {comprobanteDetalle.fechaPagoAcordado}
-                            </p>
+                            <p className="text-xs font-semibold text-gray-700"> Fecha de Vencimiento </p>
+                            <p className="text-sm text-gray-900"> {comprobanteDetalle.fechaPagoAcordado} </p>
                           </div>
 
                           <div>
-                            <p className="text-xs font-semibold text-gray-700">
-                              Forma de Pago
-                            </p>
-
-                            <p className="text-sm text-gray-900">
-                              {comprobanteDetalle.formaPago}
-                            </p>
+                            <p className="text-xs font-semibold text-gray-700"> Forma de Pago </p>
+                            <p className="text-sm text-gray-900"> {comprobanteDetalle.formaPago} </p>
                           </div>
 
                           <div>
-                            <p className="text-xs font-semibold text-gray-700">
-                              Moneda
-                            </p>
-
-                            <p className="text-sm text-gray-900">
-                              {comprobanteDetalle.moneda}
-                            </p>
+                            <p className="text-xs font-semibold text-gray-700"> Moneda </p>
+                            <p className="text-sm text-gray-900"> {comprobanteDetalle.moneda} </p>
                           </div>
 
                           <div className="sm:col-span-2">
-                            <p className="text-xs font-semibold text-gray-700">
-                              RUC Emisor
-                            </p>
-
+                            <p className="text-xs font-semibold text-gray-700"> RUC Emisor </p>
                             <p className="text-sm text-gray-900">
                               {comprobanteDetalle.rucEmisor}
                               {" - "}
@@ -1884,8 +1807,288 @@ const ConfirmacionRheFe = () => {
 
                     </div>
 
+
+                    {/* RELACIÓN FACTURA - ORDEN DE COMPRA */}
+                    {comprobanteDetalle.codigoTipoComprobante === "01" && (
+                      <div className="border-t border-default-200 pt-6">
+
+                        <div className="mb-4">
+                          <h3 className="text-sm font-bold text-gray-900">
+                            Relación Factura - Orden de Compra
+                          </h3>
+
+                          <p className="mt-1 text-xs text-gray-500">
+                            Información obtenida de SAP Business One y XML
+                            del Portal de Proveedores.
+                          </p>
+                        </div>
+
+                        <Button
+                          color="primary"
+                          variant="bordered"
+                          size="sm"
+                          onPress={() => setMostrarRelacionOC(!mostrarRelacionOC)}
+                        >
+                          {mostrarRelacionOC
+                            ? "Ocultar relación con Orden de Compra"
+                            : "Ver relación con Orden de Compra"}
+                        </Button>
+
+                        {mostrarRelacionOC && (
+                          <div className="mt-5 space-y-5">
+
+                            {/* INFORMACIÓN SAP */}
+                            <div className="rounded-lg border border-default-200 p-4">
+
+                              <h4 className="mb-3 text-sm font-bold text-gray-900">
+                                SAP Business One
+                              </h4>
+
+                              {!comprobanteDetalle.sap ? (
+                                <p className="text-sm text-gray-500">
+                                  Información SAP no disponible o no consultada.
+                                </p>
+                              ) : (
+                                <div className="space-y-4">
+
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className="text-sm font-medium">
+                                      Estado:
+                                    </span>
+
+                                    <Chip
+                                      size="sm"
+                                      variant="flat"
+                                      color={
+                                        comprobanteDetalle.sap.estado_comparacion === "CON_OC"
+                                          ? "success"
+                                          : comprobanteDetalle.sap.estado_comparacion === "SIN_OC"
+                                            ? "warning"
+                                            : comprobanteDetalle.sap.estado_comparacion === "ERROR_CONSULTA"
+                                              ? "danger"
+                                              : "default"
+                                      }
+                                    >
+                                      {comprobanteDetalle.sap.estado_comparacion}
+                                    </Chip>
+                                  </div>
+
+                                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+
+                                    <div>
+                                      <p className="text-xs font-semibold text-gray-700">
+                                        Factura encontrada en SAP
+                                      </p>
+                                      <p className="text-sm">
+                                        {comprobanteDetalle.sap.encontrada_en_sap
+                                          ? "Sí"
+                                          : "No"}
+                                      </p>
+                                    </div>
+
+                                    <div>
+                                      <p className="text-xs font-semibold text-gray-700">
+                                        Número de factura SAP
+                                      </p>
+                                      <p className="text-sm">
+                                        {comprobanteDetalle.sap.numero_factura_sap ?? "-"}
+                                      </p>
+                                    </div>
+
+                                    <div>
+                                      <p className="text-xs font-semibold text-gray-700">
+                                        ID Factura SAP
+                                      </p>
+                                      <p className="text-sm">
+                                        {comprobanteDetalle.sap.id_factura_sap ?? "-"}
+                                      </p>
+                                    </div>
+
+                                    <div>
+                                      <p className="text-xs font-semibold text-gray-700">
+                                        Factura del proveedor en SAP
+                                      </p>
+                                      <p className="text-sm">
+                                        {comprobanteDetalle.sap.numero_factura_proveedor_sap ?? "-"}
+                                      </p>
+                                    </div>
+
+                                  </div>
+
+                                  <div>
+                                    <h5 className="mb-2 text-sm font-semibold">
+                                      Órdenes de compra vinculadas
+                                    </h5>
+
+                                    {(comprobanteDetalle.sap.ordenes_compra ?? []).length > 0 ? (
+                                      <div className="space-y-2">
+
+                                        {comprobanteDetalle.sap.ordenes_compra.map(
+                                          (orden, index) => (
+                                            <div
+                                              key={index}
+                                              className="rounded-lg border border-default-200 bg-default-50 p-3"
+                                            >
+                                              <p className="mb-1 text-xs font-semibold text-gray-700">
+                                                Orden de compra {index + 1}
+                                              </p>
+
+                                              <pre className="overflow-x-auto whitespace-pre-wrap break-words text-xs text-gray-800">
+                                                {typeof orden === "object"
+                                                  ? JSON.stringify(orden, null, 2)
+                                                  : String(orden)}
+                                              </pre>
+                                            </div>
+                                          )
+                                        )}
+
+                                      </div>
+                                    ) : (
+                                      <p className="text-sm text-gray-500">
+                                        No se encontraron órdenes de compra vinculadas
+                                        a la factura en SAP.
+                                      </p>
+                                    )}
+                                  </div>
+
+                                </div>
+                              )}
+                            </div>
+
+                            //DETALLE OC - FACTURA
+
+                            {/* INFORMACIÓN XML PORTAL */}
+                            <div className="rounded-lg border border-default-200 p-4">
+
+                              <h4 className="mb-3 text-sm font-bold text-gray-900">
+                                XML Portal de Proveedores
+                              </h4>
+
+                              {!comprobanteDetalle.portal ? (
+                                <p className="text-sm text-gray-500">
+                                  Información del Portal no disponible o no consultada.
+                                </p>
+                              ) : !comprobanteDetalle.portal.xml_encontrado ? (
+                                <p className="text-sm text-gray-500">
+                                  No se encontró un XML asociado a esta factura.
+                                </p>
+                              ) : (
+                                <div className="space-y-4">
+
+                                  <div className="flex flex-wrap gap-2">
+                                    <Chip size="sm" color="success" variant="flat">
+                                      XML encontrado
+                                    </Chip>
+
+                                    <Chip
+                                      size="sm"
+                                      color={
+                                        comprobanteDetalle.portal.factura_validada
+                                          ? "success"
+                                          : "warning"
+                                      }
+                                      variant="flat"
+                                    >
+                                      {comprobanteDetalle.portal.factura_validada
+                                        ? "Factura XML validada"
+                                        : "Factura XML no validada"}
+                                    </Chip>
+                                  </div>
+
+                                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+
+                                    <div>
+                                      <p className="text-xs font-semibold text-gray-700">
+                                        Orden de Compra XML
+                                      </p>
+                                      <p className="text-sm font-medium">
+                                        {comprobanteDetalle.portal.numero_oc_xml ?? "-"}
+                                      </p>
+                                    </div>
+
+                                    <div>
+                                      <p className="text-xs font-semibold text-gray-700">
+                                        Origen de la OC
+                                      </p>
+                                      <p className="text-sm">
+                                        {comprobanteDetalle.portal.origen_campo ?? "-"}
+                                      </p>
+                                    </div>
+
+                                    <div>
+                                      <p className="text-xs font-semibold text-gray-700">
+                                        Número de factura XML
+                                      </p>
+                                      <p className="text-sm">
+                                        {comprobanteDetalle.portal.numero_factura_xml ?? "-"}
+                                      </p>
+                                    </div>
+
+                                    <div>
+                                      <p className="text-xs font-semibold text-gray-700">
+                                        RUC emisor XML
+                                      </p>
+                                      <p className="text-sm">
+                                        {comprobanteDetalle.portal.ruc_emisor_xml ?? "-"}
+                                      </p>
+                                    </div>
+
+                                    <div className="sm:col-span-2">
+                                      <p className="text-xs font-semibold text-gray-700">
+                                        Archivo XML
+                                      </p>
+                                      <p className="break-all text-sm">
+                                        {comprobanteDetalle.portal.nombre_archivo ?? "-"}
+                                      </p>
+                                    </div>
+
+                                  </div>
+
+                                  <div className="border-t border-default-200 pt-3">
+
+                                    <p className="mb-2 text-xs font-semibold text-gray-700">
+                                      Validación de la Orden de Compra en SAP
+                                    </p>
+
+                                    <Chip
+                                      size="sm"
+                                      variant="flat"
+                                      color={
+                                        comprobanteDetalle.portal.oc_validada_sap === true
+                                          ? "success"
+                                          : comprobanteDetalle.portal.oc_validada_sap === false
+                                            ? "danger"
+                                            : "default"
+                                      }
+                                    >
+                                      {comprobanteDetalle.portal.oc_validada_sap === true
+                                        ? "OC validada en SAP"
+                                        : comprobanteDetalle.portal.oc_validada_sap === false
+                                          ? "OC no validada en SAP"
+                                          : "Validación no disponible"}
+                                    </Chip>
+
+                                  </div>
+
+                                </div>
+                              )}
+
+                            </div>
+
+                          </div>
+                        )}
+
+                      </div>
+                    )}
+
+
+
+
+
                   </div>
+
                 )}
+
               </ModalBody>
 
               <ModalFooter>
