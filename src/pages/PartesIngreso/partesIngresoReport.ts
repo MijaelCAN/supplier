@@ -67,8 +67,10 @@ const getLinkFileName = (url: string): string => {
 export const getBaseFileName = (name: string): string => name.split('/').pop() ?? name;
 
 /** XML de factura del parte (sin el CDR): son los que se validan en SUNAT */
-export const getFacturaXmlNames = (row: ParteIngresoContabilidad): string[] =>
-    row.linksFactura.map(getLinkFileName).filter(isInvoiceXmlFileName);
+export const getFacturaXmls = (row: ParteIngresoContabilidad): { archivo: string; url: string }[] =>
+    row.linksFactura
+        .map((url) => ({ archivo: getLinkFileName(url), url }))
+        .filter(({ archivo }) => isInvoiceXmlFileName(archivo));
 
 /**
  * Los demás archivos de la cita (links_otros) agrupados por tipo según el prefijo del nombre, con los tipos de

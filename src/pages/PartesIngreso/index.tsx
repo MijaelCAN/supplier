@@ -58,14 +58,21 @@ import {
     getBaseFileName,
     getDocumentoGrupos,
     getDocumentosVisor,
-    getFacturaXmlNames,
+    getFacturaXmls,
     getOtrosDocumentos,
     isPdfLink,
     REGISTRO_SAP_LABELS,
 } from './partesIngresoReport';
 import DocumentViewerPanel, { getDocumentoInicial, VISOR_ANCHO, VisorSeleccion } from './DocumentViewerPanel';
 import SunatStatusChip from '@/pages/Agenda/SunatStatusChip';
-import { fetchInvoiceValidationsByCitas, getSunatChipInfo, SunatInvoiceValidation } from '@/services/agenda/sunatInvoiceApi';
+import {
+    fetchInvoiceValidationsByCitas,
+    fetchUploadedXml,
+    getSunatChipInfo,
+    parseInvoiceXml,
+    SunatInvoiceValidation,
+    validateInvoiceInSunat,
+} from '@/services/agenda/sunatInvoiceApi';
 
 const ROWS_PER_PAGE = 10;
 const PAGE_PATH = '/contabilidad/partes-ingreso';
@@ -351,6 +358,8 @@ const PartesIngresoPage = () => {
     // Validaciones SUNAT de las citas consultadas (Firestore), por cita y archivo XML; se cargan sin frenar la tabla
     const [validacionesSunat, setValidacionesSunat] = useState<Map<string, SunatInvoiceValidation>>(new Map());
     const [estadoSunat, setEstadoSunat] = useState<EstadoCargaSunat>('listo');
+    // XML que se están revalidando (por sunatKey)
+    const [validandoSunat, setValidandoSunat] = useState<Set<string>>(new Set());
 
     const [estadoFactura, setEstadoFactura] = useState<FiltroEstadoFactura>(guardados.estadoFactura ?? 'TODOS');
     const [validacion, setValidacion] = useState<FiltroValidacion>(guardados.validacion ?? 'TODOS');
@@ -409,7 +418,7 @@ const PartesIngresoPage = () => {
     }, [proveedores, proveedorInput, proveedorKey]);
 
     const cargarValidacionesSunat = useCallback(async (data: ParteIngresoContabilidad[]) => {
-        const citas = data.filter((row) => row.numeroCita !== null && getFacturaXmlNames(row).length > 0).map((row) => String(row.numeroCita));
+        const citas = data.filter((row) => row.numeroCita !== null && getFacturaXmls(row).length > 0).map((row) => String(row.numeroCita));
         setEstadoSunat('cargando');
         try {
             const validaciones = await fetchInvoiceValidationsByCitas(citas);
@@ -553,10 +562,31 @@ const PartesIngresoPage = () => {
 
     /** Un XML por factura del parte con su validación (undefined si aún no se validó) */
     const getSunatDeFila = (row: ParteIngresoContabilidad) =>
-        getFacturaXmlNames(row).map((archivo) => ({
+        getFacturaXmls(row).map(({ archivo, url }) => ({
             archivo,
+            url,
             validation: row.numeroCita !== null ? validacionesSunat.get(sunatKey(String(row.numeroCita), archivo)) : undefined,
         }));
+
+    // Revalidar como en el detalle de la cita: con los datos ya guardados, o leyendo el XML si nunca se validó
+    const revalidarSunat = async (codCita: string, archivo: string, url: string, validation?: SunatInvoiceValidation) => {
+        const key = sunatKey(codCita, archivo);
+        setValidandoSunat((prev) => new Set(prev).add(key));
+        try {
+            const data = validation ?? parseInvoiceXml(await fetchUploadedXml(url));
+            const nueva = await validateInvoiceInSunat(codCita, archivo, data);
+            setValidacionesSunat((prev) => new Map(prev).set(key, nueva));
+        } catch (error) {
+            console.error('Error al validar factura en SUNAT:', error);
+            alert(`No se pudo validar la factura en SUNAT: ${error instanceof Error ? error.message : 'error desconocido'}`);
+        } finally {
+            setValidandoSunat((prev) => {
+                const next = new Set(prev);
+                next.delete(key);
+                return next;
+            });
+        }
+    };
 
     // Mismo texto que la columna, para el Excel
     const getSunatTexto = (row: ParteIngresoContabilidad): string => {
@@ -593,7 +623,17 @@ const PartesIngresoPage = () => {
                 }
                 return (
                     <div className="flex flex-col items-start gap-1 whitespace-nowrap">
-                        {xmls.map(({ archivo, validation }) => <SunatStatusChip key={archivo} validation={validation} />)}
+                        {xmls.map(({ archivo, url, validation }) => {
+                            const codCita = String(row.numeroCita);
+                            return (
+                                <SunatStatusChip
+                                    key={archivo}
+                                    validation={validation}
+                                    isValidating={validandoSunat.has(sunatKey(codCita, archivo))}
+                                    onRevalidate={row.numeroCita !== null ? () => revalidarSunat(codCita, archivo, url, validation) : undefined}
+                                />
+                            );
+                        })}
                     </div>
                 );
             }
