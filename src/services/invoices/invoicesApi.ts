@@ -93,6 +93,7 @@ const mapRecordInvoicesToInvoice = (record: InvoiceApi): Invoice => {
         status: status,
         receivedDate: parseDate(record.doc_date),
         dueDate: parseDate(record.doc_due_date),
+        taxDate: parseDate(record.tax_date),
         approvedDate: record.estado_documento === 'Cerrado' ? parseDate(record.tax_date) : undefined,
         paidDate: record.estado_documento === 'Cerrado' ? parseDate(record.tax_date) : undefined,
         rejectedDate: undefined,

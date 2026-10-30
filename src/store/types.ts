@@ -192,6 +192,7 @@ export interface Invoice {
     status: 'Recibida' | 'En Revisión' | 'Aprobada' | 'Pagada' | 'Rechazada';
     receivedDate: string;
     dueDate: string;
+    taxDate?: string; // Fecha de contabilización en SAP
     approvedDate?: string;
     paidDate?: string;
     rejectedDate?: string;

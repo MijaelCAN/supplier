@@ -23,7 +23,7 @@ import {
     ExclamationTriangleIcon,
     InboxArrowDownIcon
 } from "@heroicons/react/24/outline";
-import { MenuItem, UserRole } from "@/routes/menuTypes.ts";
+import { MenuItem, PARTES_INGRESO_ROLES, UserRole } from "@/routes/menuTypes.ts";
 import { CLAIMS_API_ENABLED } from "@/services/agenda/claimsApi";
 import { CalculatorIcon } from "@heroicons/react/16/solid";
 
@@ -186,7 +186,7 @@ export const menuItems: MenuItem[] = [
                 title: "Partes de Ingreso",
                 icon: <InboxArrowDownIcon className="h-4 w-4" />,
                 href: "/contabilidad/partes-ingreso",
-                roles: [UserRole.ADMIN, UserRole.CONTABILIDAD]
+                roles: PARTES_INGRESO_ROLES
             },
             {
                 title: "Cronograma de pago",
