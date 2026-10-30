@@ -51,6 +51,8 @@ import { fetchAppointmentsFromApi, formatDateForAPI } from "@/services/agenda/ap
 import { createChoferInApi } from "@/services/agenda/choferesApi";
 import DocumentsModal, { LoadedDocument } from './DocumentsModal';
 import { isXmlFile, readInvoiceXmlFile, validateInvoiceInSunat } from '@/services/agenda/sunatInvoiceApi';
+import { registrarEventoCita } from '@/services/agenda/trazabilidadApi';
+import { getDocumentTypeByKey } from '@/config/commercialDocuments';
 import ProductGroupTable from './ProductGroupTable';
 import AppointmentHoverCard from './AppointmentHoverCard';
 import { exportAppointmentsReport } from './appointmentsReport';
@@ -1857,6 +1859,7 @@ const Agenda: React.FC = () => {
         try {
             // Subir archivo al API
             const uploadResult = await uploadFileToPackingList(file, type, selectedAppointment.docEntry);
+            void registrarEventoCita(selectedAppointment.docEntry, { tipo: 'DOCUMENTO', detalle: getDocumentTypeByKey(type)?.label ?? type });
             if (invoiceXml) {
                 // Sin await: el resultado queda en Firestore y se ve como chip en el detalle de la cita
                 validateInvoiceInSunat(selectedAppointment.docEntry, uploadResult.name_file, invoiceXml)
