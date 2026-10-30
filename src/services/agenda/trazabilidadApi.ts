@@ -10,7 +10,8 @@ import { fetchInvoicesByCardCode } from '@/services/invoices/invoicesApi';
 
 const COLLECTION = 'trazabilidadCitas';
 
-export type TipoEventoCita = 'ESTADO' | 'CITA_CREADA' | 'DOCUMENTO';
+/** EVALUACION: detalle = código del criterio (PUNTUALIDAD, DOCUMENTACION, ESTADO_MERCADERIA, CANTIDAD_CORRECTA) */
+export type TipoEventoCita = 'ESTADO' | 'CITA_CREADA' | 'DOCUMENTO' | 'EVALUACION';
 
 export interface EventoCita {
     id: string;

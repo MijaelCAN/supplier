@@ -109,6 +109,22 @@ const fetchSavedEvaluations = async (codCita: string): Promise<any[]> => {
     return Array.isArray(json.data) ? json.data : json.data ? [json.data] : [];
 };
 
+export interface SavedProductEvaluation extends ProductAreaEvaluation {
+    area: ProductEvaluationArea;
+    codigoProducto: string;
+}
+
+/** Solo lo que evaluó cada área por producto, sin cruzar con los PackingList (para la trazabilidad). */
+export const fetchSavedProductEvaluations = async (codCita: string): Promise<SavedProductEvaluation[]> =>
+    (await fetchSavedEvaluations(codCita))
+        .map((raw) => ({ raw, area: String(raw.area ?? '').toUpperCase() }))
+        .filter(({ area }) => area === 'CALIDAD' || area === 'ALMACEN')
+        .map(({ raw, area }) => ({
+            ...mapAreaEvaluation(raw)!,
+            area: area as ProductEvaluationArea,
+            codigoProducto: String(raw.codigo_producto ?? ''),
+        }));
+
 /** Rango de búsqueda de los PackingList de la cita (el API exige fechas). */
 const PACKING_LIST_LOOKUP_DAYS = 365;
 

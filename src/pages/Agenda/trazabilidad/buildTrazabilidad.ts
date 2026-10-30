@@ -4,6 +4,7 @@
 import type { AppointmentStatus, DeliveryAppointment, DeliveryEvaluation, Invoice, SupplierClaim } from '@/store/types';
 import type { PackingListApiRecord, ProductApiRecord } from '@/services/agenda/packingListApi';
 import type { AppointmentDocument } from '@/services/agenda/appointmentsApi';
+import type { ProductEvaluationArea, SavedProductEvaluation } from '@/services/agenda/productEvaluationsApi';
 import { getSunatChipInfo, type SunatInvoiceValidation } from '@/services/agenda/sunatInvoiceApi';
 import { STATUS_CONFIG } from '@/services/agenda/appointmentStatus';
 import { AREA_POR_ROL, type EventoCita } from '@/services/agenda/trazabilidadApi';
@@ -56,6 +57,8 @@ export interface TrazabilidadInput {
     documentosCompletos: boolean;
     validacionesSunat: SunatInvoiceValidation[];
     evaluacion: DeliveryEvaluation | null;
+    /** Evaluación por producto de Calidad y Almacén (/api/Evaluacion/Productos), con fecha y usuario por línea */
+    evaluacionesProducto: SavedProductEvaluation[];
     productos: ProductApiRecord[];
     facturasSap: Invoice[] | null;   // null: aún no se consultó
     reclamo: SupplierClaim | null;
@@ -146,12 +149,13 @@ const formatMonto = (moneda: string, monto: number) =>
     `${moneda === 'USD' ? 'US$' : 'S/'} ${monto.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export const buildTrazabilidad = (input: TrazabilidadInput): Trazabilidad => {
-    const { appointment, eventos, packingLists, documentos, validacionesSunat, evaluacion, productos, facturasSap, reclamo } = input;
+    const { appointment, eventos, packingLists, documentos, validacionesSunat, evaluacion, evaluacionesProducto, productos, facturasSap, reclamo } = input;
     const status = appointment.status;
     const rango = RANGO_ESTADO[status] ?? 0;
 
     const eventosEstado = (estados: AppointmentStatus[]) =>
-        eventos.filter((e) => e.tipo !== 'DOCUMENTO' && e.estado && estados.includes(e.estado));
+        eventos.filter((e) => (e.tipo === 'ESTADO' || e.tipo === 'CITA_CREADA') && e.estado && estados.includes(e.estado));
+    const eventoEvaluacion = (criterio: string) => ultimo(eventos.filter((e) => e.tipo === 'EVALUACION' && e.detalle === criterio));
     // El estado más avanzado al que llegó la cita, aunque luego haya cambiado (p. ej. al eliminar un documento)
     const rangoHistorico = Math.max(rango, ...eventos.map((e) => (e.estado ? RANGO_ESTADO[e.estado] ?? -1 : -1)));
 
@@ -200,6 +204,9 @@ export const buildTrazabilidad = (input: TrazabilidadInput): Trazabilidad => {
             tono: input.documentosCompletos ? 'success' : documentos.length > 0 ? 'primary' : 'default',
             ...(documentosEvento ? desdeEvento(documentosEvento) : ultimoDocumento ?? {}),
         },
+        ...eventos.filter((e) => e.tipo === 'DOCUMENTO').map((e): Hito => ({
+            id: `doc-${e.id}`, titulo: `Cargó ${e.detalle ?? 'un documento'}`, hecho: true, tono: 'success', ...desdeEvento(e),
+        })),
         ...validacionesSunat.map((v): Hito => {
             const info = getSunatChipInfo(v);
             const f = parseFecha(v.validadoEn);
@@ -219,27 +226,57 @@ export const buildTrazabilidad = (input: TrazabilidadInput): Trazabilidad => {
     const llegada: Hito[] = [
         { id: 'llegada', titulo: 'Proveedor en planta', hecho: rangoHistorico >= 4, tono: rangoHistorico >= 4 ? 'success' : 'default', ...desdeEvento(llegadaEvento) },
     ];
-    const evaluacionHito = (id: string, titulo: string, score?: DeliveryEvaluation['puntualidad']): Hito | null => {
+    // /api/Evaluacion no tiene fecha por criterio: sale del historial (desde que se registra)
+    const evaluacionHito = (id: string, titulo: string, criterio: string, score?: DeliveryEvaluation['puntualidad']): Hito | null => {
         if (!score) return null;
-        const f = parseFecha(score.fechaEvaluacion);
         const cumple = score.puntaje >= 10;
-        return { id, titulo, detalle: cumple ? 'Cumple' : 'No cumple', hecho: true, tono: cumple ? 'success' : 'warning', ...(f ?? {}) };
+        return { id, titulo, detalle: cumple ? 'Cumple' : 'No cumple', hecho: true, tono: cumple ? 'success' : 'warning', ...desdeEvento(eventoEvaluacion(criterio)) };
     };
-    [evaluacionHito('puntualidad', 'Puntualidad evaluada', evaluacion?.puntualidad),
-        evaluacionHito('documentacion', 'Documentación evaluada', evaluacion?.documentacion)]
+    [evaluacionHito('puntualidad', 'Puntualidad evaluada', 'PUNTUALIDAD', evaluacion?.puntualidad),
+        evaluacionHito('documentacion', 'Documentación evaluada', 'DOCUMENTACION', evaluacion?.documentacion)]
         .forEach((h) => h && llegada.push(h));
+
+    /**
+     * Evaluación por producto de un área: cuántos productos quedaron en cada resultado, cuándo fue la última y quién
+     * la hizo. La fecha y el usuario del historial (cambio de estado) tienen prioridad porque traen el nombre completo.
+     */
+    const resumenPorProducto = (area: ProductEvaluationArea): Partial<Hito> & { evaluado: boolean } => {
+        const lineas = evaluacionesProducto.filter((e) => e.area === area);
+        if (lineas.length === 0) return { evaluado: false };
+        const cuenta = (estado: string) => lineas.filter((l) => l.estado === estado).length;
+        const partes = [
+            [cuenta('ACEPTADO'), 'aceptado'],
+            [cuenta('OBSERVADO'), 'con concesión'],
+            [cuenta('PARCIAL'), 'parcial'],
+            [cuenta('RECHAZADO'), 'rechazado'],
+        ].filter(([n]) => (n as number) > 0).map(([n, label]) => `${n} ${label}`);
+        const masNueva = lineas
+            .map((l) => ({ linea: l, f: parseFecha(l.fecha) }))
+            .filter((x) => x.f)
+            .sort((a, b) => b.f!.fecha.getTime() - a.f!.fecha.getTime())[0];
+        return {
+            evaluado: true,
+            detalle: `${lineas.length} producto${lineas.length === 1 ? '' : 's'}: ${partes.join(', ')}`,
+            tono: cuenta('RECHAZADO') > 0 || cuenta('PARCIAL') > 0 || cuenta('OBSERVADO') > 0 ? 'warning' : 'success',
+            ...(masNueva ? { fecha: masNueva.f!.fecha, conHora: masNueva.f!.conHora, quien: masNueva.linea.usuario } : {}),
+            rolQuien: area === 'CALIDAD' ? UserRole.CALIDAD : UserRole.ALMACEN,
+        };
+    };
 
     // ── 4. Calidad ───────────────────────────────────────────────────────────
     const calidadEstado = ESTADOS_CALIDAD.includes(status) ? status : ultimo(eventosEstado(ESTADOS_CALIDAD))?.estado;
     const calidadEvento = ultimo(eventosEstado(ESTADOS_CALIDAD));
     const calidadResultado = calidadEstado ? RESULTADO_EVALUACION[calidadEstado] : undefined;
+    const { evaluado: calidadPorProducto, ...calidadProductos } = resumenPorProducto('CALIDAD');
+    const calidadHecha = rangoHistorico >= 5 || calidadPorProducto || !!evaluacion?.estadoMercaderia;
     const calidad: Hito[] = [{
         id: 'calidad',
         titulo: 'Inspección de calidad',
-        detalle: calidadResultado?.label ?? evaluacion?.estadoMercaderia?.estado,
-        hecho: rangoHistorico >= 5 || !!evaluacion?.estadoMercaderia,
-        tono: calidadResultado?.tono ?? (rangoHistorico >= 5 ? 'success' : 'default'),
-        ...(calidadEvento ? desdeEvento(calidadEvento) : parseFecha(evaluacion?.estadoMercaderia?.fechaEvaluacion) ?? {}),
+        hecho: calidadHecha,
+        ...calidadProductos,
+        detalle: calidadProductos.detalle ?? calidadResultado?.label ?? evaluacion?.estadoMercaderia?.estado,
+        tono: calidadResultado?.tono ?? calidadProductos.tono ?? (calidadHecha ? 'success' : 'default'),
+        ...desdeEvento(calidadEvento ?? eventoEvaluacion('ESTADO_MERCADERIA')),
     }];
     if (reclamo) {
         const emitido = parseFecha(reclamo.fechaReclamo);
@@ -260,13 +297,16 @@ export const buildTrazabilidad = (input: TrazabilidadInput): Trazabilidad => {
     const almacenEstado = ESTADOS_ALMACEN.includes(status) ? status : ultimo(eventosEstado(ESTADOS_ALMACEN))?.estado;
     const almacenEvento = ultimo(eventosEstado(ESTADOS_ALMACEN));
     const almacenResultado = almacenEstado ? RESULTADO_EVALUACION[almacenEstado] : undefined;
+    const { evaluado: almacenPorProducto, ...almacenProductos } = resumenPorProducto('ALMACEN');
+    const almacenHecho = rangoHistorico >= 6 || almacenPorProducto || !!evaluacion?.cantidadCorrecta;
     const almacen: Hito[] = [{
         id: 'almacen',
         titulo: 'Conteo y recepción',
-        detalle: almacenResultado?.label ?? evaluacion?.cantidadCorrecta?.estado,
-        hecho: rangoHistorico >= 6 || !!evaluacion?.cantidadCorrecta,
-        tono: almacenResultado?.tono ?? (rangoHistorico >= 6 ? 'success' : 'default'),
-        ...(almacenEvento ? desdeEvento(almacenEvento) : parseFecha(evaluacion?.cantidadCorrecta?.fechaEvaluacion) ?? {}),
+        hecho: almacenHecho,
+        ...almacenProductos,
+        detalle: almacenProductos.detalle ?? almacenResultado?.label ?? evaluacion?.cantidadCorrecta?.estado,
+        tono: almacenResultado?.tono ?? almacenProductos.tono ?? (almacenHecho ? 'success' : 'default'),
+        ...desdeEvento(almacenEvento ?? eventoEvaluacion('CANTIDAD_CORRECTA')),
     }];
     // PCP: una validación por packing list (el API la repite en cada producto)
     const pcp = new Map<string, ProductApiRecord>();

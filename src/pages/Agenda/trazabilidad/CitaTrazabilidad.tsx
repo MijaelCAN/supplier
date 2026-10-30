@@ -21,6 +21,11 @@ import type { DeliveryAppointment, DeliveryEvaluation, Invoice, SupplierClaim } 
 import type { PackingListApiRecord, ProductApiRecord } from '@/services/agenda/packingListApi';
 import type { AppointmentDocument } from '@/services/agenda/appointmentsApi';
 import type { SunatInvoiceValidation } from '@/services/agenda/sunatInvoiceApi';
+import {
+    fetchSavedProductEvaluations,
+    PRODUCT_EVALUATION_ENABLED,
+    type SavedProductEvaluation,
+} from '@/services/agenda/productEvaluationsApi';
 import { EventoCita, fetchFacturasSapDeCita, subscribeEventosCita } from '@/services/agenda/trazabilidadApi';
 import { areaDeRol, buildTrazabilidad, esUsuarioInterno, Etapa, EtapaKey, EstadoEtapa, Hito, Tono } from './buildTrazabilidad';
 
@@ -109,6 +114,19 @@ const CitaTrazabilidad = ({
         return subscribeEventosCita(appointment.docEntry, setEventos, (error) => console.error('Error al leer la trazabilidad:', error));
     }, [appointment.docEntry]);
 
+    // Evaluación por producto de Calidad y Almacén (fecha y usuario por línea). Se recarga al cambiar el estado,
+    // que es lo que pasa al guardar una evaluación.
+    const [evaluacionesProducto, setEvaluacionesProducto] = useState<SavedProductEvaluation[]>([]);
+    useEffect(() => {
+        setEvaluacionesProducto([]);
+        if (!PRODUCT_EVALUATION_ENABLED || !appointment.docEntry) return;
+        let cancelado = false;
+        fetchSavedProductEvaluations(appointment.docEntry)
+            .then((lineas) => { if (!cancelado) setEvaluacionesProducto(lineas); })
+            .catch((error) => console.error('Error al consultar la evaluación por producto:', error));
+        return () => { cancelado = true; };
+    }, [appointment.docEntry, appointment.status]);
+
     // Facturas de la cita en SAP (registro y pagos), por los comprobantes validados en SUNAT
     const comprobantes = useMemo(
         () => validacionesSunat.map((v) => `${v.numeroSerie}-${v.numero}`).sort().join(','),
@@ -131,9 +149,11 @@ const CitaTrazabilidad = ({
 
     const traza = useMemo(
         () => buildTrazabilidad({
-            appointment, eventos, packingLists, documentos, documentosCompletos, validacionesSunat, evaluacion, productos, facturasSap, reclamo,
+            appointment, eventos, packingLists, documentos, documentosCompletos, validacionesSunat, evaluacion, evaluacionesProducto,
+            productos, facturasSap, reclamo,
         }),
-        [appointment, eventos, packingLists, documentos, documentosCompletos, validacionesSunat, evaluacion, productos, facturasSap, reclamo]
+        [appointment, eventos, packingLists, documentos, documentosCompletos, validacionesSunat, evaluacion, evaluacionesProducto,
+            productos, facturasSap, reclamo]
     );
 
     const quienTexto = (hito: Hito) => {
@@ -306,8 +326,8 @@ const CitaTrazabilidad = ({
                         })}
                     </ol>
                     <p className="mt-5 text-xs text-gray-400">
-                        Quién y cuándo cambió cada estado se registra desde el 30/10/2026. En citas anteriores se muestran las fechas
-                        disponibles en SAP, SUNAT y los documentos.
+                        Quién y cuándo hizo cada paso se registra desde que se activó la trazabilidad (versión 1.3.2). En los pasos
+                        anteriores se muestran las fechas disponibles en SAP, SUNAT, PCP y los documentos.
                     </p>
                 </div>
             )}
