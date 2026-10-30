@@ -276,17 +276,20 @@ export const updateAppointmentStatus = async (
     }
     
     // El API retorna 204 (No Content) en caso de éxito
+    let updatedDocEntry = docEntry;
     if (response.status !== 204) {
         const json = (await response.json()) as UpdateStatusResponse;
         if (!json || (json.status_code !== 204 && json.status_code !== 200)) {
             throw new Error(json.message || 'Error al actualizar el estado de la cita');
         }
+        // Retornar el DocEntry de la cita actualizada
+        updatedDocEntry = json.data || docEntry;
     }
 
     // El API no guarda historial: la trazabilidad de la cita lo registra (sin esperar ni fallar si no se puede)
     void registrarEventoCita(docEntry, { tipo: 'ESTADO', estado: newStatus });
 
-    return docEntry;
+    return updatedDocEntry;
 };
 
 /**
