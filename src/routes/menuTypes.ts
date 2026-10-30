@@ -13,6 +13,9 @@ export enum UserRole {
     PLANEAMIENTO = 'planeamiento'
 }
 
+/** Quién puede entrar a Partes de Ingreso: menú, ruta y enlaces desde la cita */
+export const PARTES_INGRESO_ROLES: UserRole[] = [UserRole.ADMIN, UserRole.CONTABILIDAD, UserRole.COMPRAS];
+
 export interface MenuItem {
     title: string;
     icon: ReactNode;

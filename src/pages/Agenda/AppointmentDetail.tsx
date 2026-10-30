@@ -44,7 +44,7 @@ import {
 import Dashboard from "@/layouts/Dashboard";
 import {useAgendaStore} from "@/store/agendaStore";
 import {useAuth} from "@/store/authStore";
-import {UserRole} from "@/routes/menuTypes";
+import {PARTES_INGRESO_ROLES, UserRole} from "@/routes/menuTypes";
 import {
     createPackingListInApi,
     DELETE_DOCUMENTS_ENABLED,
@@ -82,6 +82,7 @@ import DocumentsModal, {LoadedDocument} from './DocumentsModal';
 import DeleteDocumentModal from './DeleteDocumentModal';
 import { getDocumentTypeByKey, isInvoiceXmlFileName, mapFileNameToDocumentType } from '@/config/commercialDocuments';
 import { registrarEventoCita } from '@/services/agenda/trazabilidadApi';
+import CitaTrazabilidad from './trazabilidad/CitaTrazabilidad';
 import {areAllPackingListDocumentsComplete, groupDocumentsByPackingList} from '@/utils/packingListDocuments';
 import {
     fetchInvoiceValidations,
@@ -618,28 +619,6 @@ const AppointmentDetail: React.FC = () => {
         );
     }
 
-    // Estados del proceso - basados en datos reales del API
-    const processSteps = [
-        {
-            label: 'PackingList',
-            icon: ClipboardDocumentListIcon,
-            completed: packingListsFromApi.length > 0,
-            active: packingListsFromApi.length === 0 && appointment.status === 'REGISTRADA',
-        },
-        {
-            label: 'Transporte',
-            icon: TruckIcon,
-            completed: !!appointment.transportData, // Viene del API directamente
-            active: packingListsFromApi.length > 0 && !appointment.transportData,
-        },
-        {
-            label: 'Documentos',
-            icon: DocumentTextIcon,
-            completed: areAllDocumentsComplete(), // Verificar que todos los documentos requeridos estén presentes
-            active: !!appointment.transportData && !areAllDocumentsComplete(),
-        },
-    ];
-
     // Obtener color y estilo según el estado usando STATUS_CONFIG
     const getStatusConfig = (status: string) => {
         // Usar STATUS_CONFIG si el estado existe, sino usar valores por defecto
@@ -690,6 +669,27 @@ const AppointmentDetail: React.FC = () => {
     const canEvaluateWarehouse = [UserRole.ALMACEN, UserRole.ADMIN].includes(currentUser?.role || UserRole.ADMIN);
     const canValidatePCP = [UserRole.PLANEAMIENTO, UserRole.ADMIN].includes(currentUser?.role || UserRole.ADMIN);
     const canViewEvaluation = [UserRole.PROVEEDOR, UserRole.ALMACEN, UserRole.CALIDAD, UserRole.SEGURIDAD, UserRole.PLANEAMIENTO].includes(currentUser?.role || UserRole.ADMIN);
+    const canViewPartesIngreso = PARTES_INGRESO_ROLES.includes(currentUser?.role as UserRole);
+    // Abre el parte en el visor de Partes de Ingreso: del día de la cita (una semana antes por si se registró
+    // antes) hasta 90 días después, solo del proveedor de la cita
+    const handleVerParteIngreso = (numero: string) => {
+        const toIso = (date: Date) =>
+            `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+        const entrega = createLocalDate(appointment.deliveryDate);
+        const desde = new Date(entrega);
+        desde.setDate(desde.getDate() - 7);
+        const hasta = new Date(entrega);
+        hasta.setDate(hasta.getDate() + 90);
+        const hoy = new Date();
+        const params = new URLSearchParams({
+            desde: toIso(desde),
+            hasta: toIso(hasta < hoy ? hasta : hoy),
+            proveedor: `P${appointment.supplierRUC}`,
+            nombre: appointment.supplierName,
+            parte: numero,
+        });
+        navigate(`/contabilidad/partes-ingreso?${params}`, { state: { returnTo: location.pathname } });
+    };
     // Reclamo (OBS-008): lo registran/editan Calidad y Almacén; se puede crear si hubo rechazo
     const canManageClaim = canEvaluateQuality || canEvaluateWarehouse;
     const hasRejection = ['CALIDAD_PARCIAL', 'CALIDAD_RECHAZADO', 'ALMACEN_PARCIAL', 'ALMACEN_RECHAZADO'].includes(appointment.status);
@@ -1668,51 +1668,20 @@ const AppointmentDetail: React.FC = () => {
                             </div>
                         </div>
 
-                        {/* Stepper Horizontal */}
-                        <div className="flex items-center justify-between w-full mt-6 pt-6 border-t border-gray-200">
-                            {processSteps.map((step, index) => {
-                                const Icon = step.icon;
-                                return (
-                                    <React.Fragment key={step.label}>
-                                        <div className="flex flex-col items-center gap-2 flex-1">
-                                            <div
-                                                className={`
-                                                    w-12 h-12 rounded-full flex items-center justify-center transition-all
-                                                    ${step.completed 
-                                                        ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-200' 
-                                                        : step.active 
-                                                            ? 'bg-blue-500 text-white shadow-lg shadow-blue-200 animate-pulse' 
-                                                            : 'bg-gray-200 text-gray-400'
-                                                    }
-                                                `}
-                                            >
-                                                {step.completed ? (
-                                                    <CheckCircleIcon className="w-6 h-6" />
-                                                ) : (
-                                                    <Icon className="w-6 h-6" />
-                                                )}
-                                            </div>
-                                            <span
-                                                className={`
-                                                    text-xs font-medium text-center
-                                                    ${step.completed || step.active ? 'text-gray-900' : 'text-gray-400'}
-                                                `}
-                                            >
-                                                {step.label}
-                                            </span>
-                                        </div>
-                                        {index < processSteps.length - 1 && (
-                                            <div
-                                                className={`
-                                                    h-0.5 flex-1 transition-all mx-2
-                                                    ${step.completed ? 'bg-emerald-500' : 'bg-gray-200'}
-                                                `}
-                                            />
-                                        )}
-                                    </React.Fragment>
-                                );
-                            })}
-                        </div>
+                        {/* Trazabilidad: de la creación de la cita al pago */}
+                        <CitaTrazabilidad
+                            appointment={appointment}
+                            packingLists={packingListsFromApi}
+                            documentos={appointmentDocuments}
+                            documentosCompletos={areAllDocumentsComplete()}
+                            validacionesSunat={invoiceValidations}
+                            evaluacion={evaluation}
+                            productos={appointmentProducts}
+                            reclamo={appointmentClaim}
+                            vistaProveedor={isProvider}
+                            onVerReclamo={appointmentClaim ? () => setIsClaimDetailOpen(true) : undefined}
+                            onVerParteIngreso={canViewPartesIngreso ? handleVerParteIngreso : undefined}
+                        />
                     </div>
                 </div>
 

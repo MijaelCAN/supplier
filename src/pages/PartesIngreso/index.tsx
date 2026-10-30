@@ -1,7 +1,7 @@
 // src/pages/PartesIngreso/index.tsx
 // Partes de Ingreso (Contabilidad): entradas de mercancía del rango, cuáles faltan facturar y los documentos de su cita.
-import { Key, useCallback, useEffect, useMemo, useState } from 'react';
-import { Link as RouterLink, useSearchParams } from 'react-router-dom';
+import { Key, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link as RouterLink, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import {
     Autocomplete,
     AutocompleteItem,
@@ -30,6 +30,7 @@ import {
 } from '@heroui/react';
 import {
     ArrowDownTrayIcon,
+    ArrowLeftIcon,
     ArrowTopRightOnSquareIcon,
     DocumentTextIcon,
     ExclamationTriangleIcon,
@@ -339,13 +340,19 @@ const PartesIngresoPage = () => {
     const week = useMemo(getCurrentWeekRange, []);
     const [guardados] = useState(leerFiltrosGuardados);
     const proveedorInicial = searchParams.get('proveedor') ?? guardados.proveedor ?? null;
+    // Desde la cita (?parte=): se busca ese parte, sin los filtros guardados, y se abre en el visor
+    const parteInicial = searchParams.get('parte');
+    const returnTo = (useLocation().state as { returnTo?: string } | null)?.returnTo;
+    const navigate = useNavigate();
 
     const [fechaInicio, setFechaInicio] = useState(searchParams.get('desde') || guardados.desde || week.start);
     const [fechaFin, setFechaFin] = useState(searchParams.get('hasta') || guardados.hasta || week.end);
     const [proveedorKey, setProveedorKey] = useState<string | null>(proveedorInicial);
     const [proveedorInput, setProveedorInput] = useState(
-        proveedorInicial && proveedorInicial === guardados.proveedor ? guardados.proveedorNombre ?? '' : ''
+        searchParams.get('nombre') ?? (proveedorInicial && proveedorInicial === guardados.proveedor ? guardados.proveedorNombre ?? '' : '')
     );
+    const visorInicialPendiente = useRef(!!parteInicial);
+    const [parteNoEncontrado, setParteNoEncontrado] = useState(false);
 
     const [rows, setRows] = useState<ParteIngresoContabilidad[]>([]);
     // Rango y proveedor de la última consulta: se usan para exportar y para volver del detalle de la cita
@@ -361,11 +368,11 @@ const PartesIngresoPage = () => {
     // XML que se están revalidando (por sunatKey)
     const [validandoSunat, setValidandoSunat] = useState<Set<string>>(new Set());
 
-    const [estadoFactura, setEstadoFactura] = useState<FiltroEstadoFactura>(guardados.estadoFactura ?? 'TODOS');
-    const [validacion, setValidacion] = useState<FiltroValidacion>(guardados.validacion ?? 'TODOS');
-    const [search, setSearch] = useState(guardados.search ?? '');
+    const [estadoFactura, setEstadoFactura] = useState<FiltroEstadoFactura>(parteInicial ? 'TODOS' : guardados.estadoFactura ?? 'TODOS');
+    const [validacion, setValidacion] = useState<FiltroValidacion>(parteInicial ? 'TODOS' : guardados.validacion ?? 'TODOS');
+    const [search, setSearch] = useState(parteInicial ?? guardados.search ?? '');
     const [sortDescriptor, setSortDescriptor] = useState<SortDescriptor>(guardados.sortDescriptor ?? { column: 'fecha', direction: 'ascending' });
-    const [page, setPage] = useState(guardados.page ?? 1);
+    const [page, setPage] = useState(parteInicial ? 1 : guardados.page ?? 1);
     const [columnasVisibles, setColumnasVisiblesState] = useState<Set<string>>(leerColumnasVisibles);
     // Visor de cotejo abierto: parte y documento que se están revisando
     const [visor, setVisor] = useState<VisorSeleccion | null>(null);
@@ -397,6 +404,15 @@ const PartesIngresoPage = () => {
         () => visor ? COLUMNAS_VISOR : COLUMNAS.filter((col) => col.fija || columnasVisibles.has(col.key)),
         [columnasVisibles, visor]
     );
+
+    // Al llegar desde la cita, en cuanto termina la primera consulta se abre el parte en el visor
+    useEffect(() => {
+        if (!visorInicialPendiente.current || isLoading || !appliedQuery) return;
+        visorInicialPendiente.current = false;
+        const row = rows.find((r) => String(r.numeroParteIngreso) === parteInicial);
+        if (row) setVisor({ parte: row.numeroParteIngreso, documento: getDocumentoInicial(row) });
+        else setParteNoEncontrado(true);
+    }, [rows, isLoading, appliedQuery, parteInicial]);
 
     const proveedores = PROVEEDORES_SIMULADOS ?? proveedoresConsultados;
 
@@ -501,6 +517,7 @@ const PartesIngresoPage = () => {
     };
 
     const handleBuscar = () => {
+        setParteNoEncontrado(false);
         // Sin elegir de la lista se envía lo escrito como código de proveedor
         const codigo = proveedorKey ?? (proveedorInput.trim() || undefined);
         buscar(fechaInicio, fechaFin, codigo);
@@ -715,6 +732,16 @@ const PartesIngresoPage = () => {
             {/* Con el visor abierto la pantalla se corre a la izquierda para que la tabla siga a la vista */}
             <div className={`space-y-6 ${visor ? VISOR_ANCHO[visorAmpliado ? 'ampliado' : 'normal'].margen : ''}`}>
                 <div>
+                    {returnTo && (
+                        <Button
+                            variant="light"
+                            startContent={<ArrowLeftIcon className="h-5 w-5" />}
+                            onPress={() => navigate(returnTo)}
+                            className="mb-2 -ml-3"
+                        >
+                            Volver a la cita
+                        </Button>
+                    )}
                     <h1 className="text-2xl font-bold text-gray-900">Partes de Ingreso</h1>
                     <p className="text-gray-600">
                         Entradas de mercancía del rango, su estado de factura y los documentos que el proveedor cargó en la cita.
@@ -861,6 +888,13 @@ const PartesIngresoPage = () => {
                         {loadError && (
                             <div className="p-3 text-sm text-red-700 bg-red-50 rounded-lg border border-red-200">
                                 {loadError}
+                            </div>
+                        )}
+
+                        {parteNoEncontrado && (
+                            <div className="p-3 text-sm text-amber-800 bg-amber-50 rounded-lg border border-amber-200">
+                                No se encontró el Parte de Ingreso {parteInicial} entre {formatFecha(fechaInicio)} y {formatFecha(fechaFin)}.
+                                Amplía el rango de fechas y vuelve a buscar.
                             </div>
                         )}
 
