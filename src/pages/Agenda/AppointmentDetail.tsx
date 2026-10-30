@@ -80,7 +80,9 @@ import {DocumentationChip} from './ProductGroupTable';
 import PackingListDocuments from './PackingListDocuments';
 import DocumentsModal, {LoadedDocument} from './DocumentsModal';
 import DeleteDocumentModal from './DeleteDocumentModal';
-import { isInvoiceXmlFileName, mapFileNameToDocumentType } from '@/config/commercialDocuments';
+import { getDocumentTypeByKey, isInvoiceXmlFileName, mapFileNameToDocumentType } from '@/config/commercialDocuments';
+import { registrarEventoCita } from '@/services/agenda/trazabilidadApi';
+import CitaTrazabilidad from './trazabilidad/CitaTrazabilidad';
 import {areAllPackingListDocumentsComplete, groupDocumentsByPackingList} from '@/utils/packingListDocuments';
 import {
     fetchInvoiceValidations,
@@ -616,28 +618,6 @@ const AppointmentDetail: React.FC = () => {
             </Dashboard>
         );
     }
-
-    // Estados del proceso - basados en datos reales del API
-    const processSteps = [
-        {
-            label: 'PackingList',
-            icon: ClipboardDocumentListIcon,
-            completed: packingListsFromApi.length > 0,
-            active: packingListsFromApi.length === 0 && appointment.status === 'REGISTRADA',
-        },
-        {
-            label: 'Transporte',
-            icon: TruckIcon,
-            completed: !!appointment.transportData, // Viene del API directamente
-            active: packingListsFromApi.length > 0 && !appointment.transportData,
-        },
-        {
-            label: 'Documentos',
-            icon: DocumentTextIcon,
-            completed: areAllDocumentsComplete(), // Verificar que todos los documentos requeridos estén presentes
-            active: !!appointment.transportData && !areAllDocumentsComplete(),
-        },
-    ];
 
     // Obtener color y estilo según el estado usando STATUS_CONFIG
     const getStatusConfig = (status: string) => {
@@ -1248,6 +1228,7 @@ const AppointmentDetail: React.FC = () => {
         try {
             // Subir archivo al API
             const uploaded = await uploadFileToPackingList(file, type, appointment.docEntry, packingList);
+            void registrarEventoCita(appointment.docEntry, { tipo: 'DOCUMENTO', detalle: getDocumentTypeByKey(type)?.label ?? type });
             if (invoiceXml) {
                 // Sin await: la validación no debe demorar ni hacer fallar la carga
                 runInvoiceValidation(uploaded.name_file, async () => invoiceXml);
@@ -1666,51 +1647,18 @@ const AppointmentDetail: React.FC = () => {
                             </div>
                         </div>
 
-                        {/* Stepper Horizontal */}
-                        <div className="flex items-center justify-between w-full mt-6 pt-6 border-t border-gray-200">
-                            {processSteps.map((step, index) => {
-                                const Icon = step.icon;
-                                return (
-                                    <React.Fragment key={step.label}>
-                                        <div className="flex flex-col items-center gap-2 flex-1">
-                                            <div
-                                                className={`
-                                                    w-12 h-12 rounded-full flex items-center justify-center transition-all
-                                                    ${step.completed 
-                                                        ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-200' 
-                                                        : step.active 
-                                                            ? 'bg-blue-500 text-white shadow-lg shadow-blue-200 animate-pulse' 
-                                                            : 'bg-gray-200 text-gray-400'
-                                                    }
-                                                `}
-                                            >
-                                                {step.completed ? (
-                                                    <CheckCircleIcon className="w-6 h-6" />
-                                                ) : (
-                                                    <Icon className="w-6 h-6" />
-                                                )}
-                                            </div>
-                                            <span
-                                                className={`
-                                                    text-xs font-medium text-center
-                                                    ${step.completed || step.active ? 'text-gray-900' : 'text-gray-400'}
-                                                `}
-                                            >
-                                                {step.label}
-                                            </span>
-                                        </div>
-                                        {index < processSteps.length - 1 && (
-                                            <div
-                                                className={`
-                                                    h-0.5 flex-1 transition-all mx-2
-                                                    ${step.completed ? 'bg-emerald-500' : 'bg-gray-200'}
-                                                `}
-                                            />
-                                        )}
-                                    </React.Fragment>
-                                );
-                            })}
-                        </div>
+                        {/* Trazabilidad: de la creación de la cita al pago */}
+                        <CitaTrazabilidad
+                            appointment={appointment}
+                            packingLists={packingListsFromApi}
+                            documentos={appointmentDocuments}
+                            documentosCompletos={areAllDocumentsComplete()}
+                            validacionesSunat={invoiceValidations}
+                            evaluacion={evaluation}
+                            productos={appointmentProducts}
+                            reclamo={appointmentClaim}
+                            ocultarUsuariosInternos={isProvider}
+                        />
                     </div>
                 </div>
 
