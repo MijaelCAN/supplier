@@ -10,6 +10,7 @@ import {
 } from './types';
 import { fetchAppointmentsFromApi, formatDateForAPI, createAppointmentInApi, updateAppointmentInApi } from '@/services/agenda/appointmentsApi';
 import { fetchSupplierByCardCode } from '@/services/providers/providersApi';
+import { registrarEventoCita } from '@/services/agenda/trazabilidadApi';
 
 interface AgendaState {
     appointments: DeliveryAppointment[];
@@ -254,6 +255,7 @@ export const useAgendaStore = create<AgendaState>()(
                         u_active: appointmentData.active || 'Y',
                         u_estado: 'REGISTRADA'
                     });
+                    void registrarEventoCita(appointmentId, { tipo: 'CITA_CREADA', estado: 'REGISTRADA' });
 
                     // Crear un objeto de cita temporal para retornar
                     // La recarga de citas se hará desde el componente padre según el rol del usuario

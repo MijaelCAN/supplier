@@ -80,7 +80,8 @@ import {DocumentationChip} from './ProductGroupTable';
 import PackingListDocuments from './PackingListDocuments';
 import DocumentsModal, {LoadedDocument} from './DocumentsModal';
 import DeleteDocumentModal from './DeleteDocumentModal';
-import { isInvoiceXmlFileName, mapFileNameToDocumentType } from '@/config/commercialDocuments';
+import { getDocumentTypeByKey, isInvoiceXmlFileName, mapFileNameToDocumentType } from '@/config/commercialDocuments';
+import { registrarEventoCita } from '@/services/agenda/trazabilidadApi';
 import {areAllPackingListDocumentsComplete, groupDocumentsByPackingList} from '@/utils/packingListDocuments';
 import {
     fetchInvoiceValidations,
@@ -1248,6 +1249,7 @@ const AppointmentDetail: React.FC = () => {
         try {
             // Subir archivo al API
             const uploaded = await uploadFileToPackingList(file, type, appointment.docEntry, packingList);
+            void registrarEventoCita(appointment.docEntry, { tipo: 'DOCUMENTO', detalle: getDocumentTypeByKey(type)?.label ?? type });
             if (invoiceXml) {
                 // Sin await: la validación no debe demorar ni hacer fallar la carga
                 runInvoiceValidation(uploaded.name_file, async () => invoiceXml);
