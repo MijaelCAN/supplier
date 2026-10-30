@@ -1,6 +1,7 @@
 import { httpClient, buildSecureUrl } from "@/services/http/httpClient";
 import { DeliveryEvaluation, EvaluationScore, EvaluationFile, EVALUATION_WEIGHTS, EVALUATION_RANGES } from "@/store/types";
 import { getApiBaseUrl } from "@/config/api.ts";
+import { registrarEventoCita } from "./trazabilidadApi";
 
 const DEFAULT_API_BASE_URL = getApiBaseUrl();
 const EVALUATIONS_ENDPOINT = '/api/Evaluacion';
@@ -491,6 +492,11 @@ export const saveEvaluation = async (
     if (!json || !json.success) {
         throw new Error(json.message || 'Error al guardar la evaluación');
     }
+
+    // El API guarda una sola fecha para toda la evaluación: la trazabilidad registra cuándo se evaluó cada criterio
+    criterios.forEach((criterio) => {
+        void registrarEventoCita(evaluation.codCita, { tipo: 'EVALUACION', detalle: criterio.criterio_codigo });
+    });
 
     // Recargar la evaluación desde el API para obtener los datos actualizados
     const updatedEvaluation = await fetchEvaluationByCodCita(evaluation.codCita);
