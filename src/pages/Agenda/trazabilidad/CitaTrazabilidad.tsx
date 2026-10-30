@@ -5,6 +5,7 @@ import { ComponentType, SVGProps, useEffect, useMemo, useState } from 'react';
 import { Button, Chip, Tooltip } from '@heroui/react';
 import {
     ArchiveBoxIcon,
+    ArrowTopRightOnSquareIcon,
     BanknotesIcon,
     BeakerIcon,
     CalendarDaysIcon,
@@ -79,6 +80,33 @@ const IconoEstado = ({ etapa }: { etapa: Etapa }) => {
     return <Icono className="h-5 w-5" />;
 };
 
+/** Número de Parte de Ingreso; con permiso abre el parte en el visor de Partes de Ingreso */
+const ParteIngresoChip = ({ numero, extra = 0, onVer, compacto = false }: {
+    numero: string;
+    extra?: number;
+    onVer?: (numero: string) => void;
+    compacto?: boolean;
+}) => {
+    const texto = `PI ${numero}${extra > 0 ? ` +${extra}` : ''}`;
+    const clase = `inline-flex shrink-0 items-center gap-1 rounded-md font-medium ${compacto ? 'mt-1 px-1.5 py-0.5 text-[11px]' : 'px-2 py-0.5 text-xs'}`;
+    if (!onVer) return <span className={`${clase} bg-gray-100 text-gray-600`}>{texto}</span>;
+    return (
+        <Tooltip content={extra > 0 ? 'Ver los Partes de Ingreso en el detalle' : 'Ver en el visor de Partes de Ingreso'}>
+            <button
+                type="button"
+                onClick={(e) => {
+                    e.stopPropagation();
+                    onVer(numero);
+                }}
+                className={`${clase} bg-blue-50 text-blue-700 hover:bg-blue-100`}
+            >
+                {texto}
+                {extra === 0 && <ArrowTopRightOnSquareIcon className="h-3 w-3" />}
+            </button>
+        </Tooltip>
+    );
+};
+
 interface Props {
     appointment: DeliveryAppointment;
     packingLists: PackingListApiRecord[];
@@ -88,8 +116,12 @@ interface Props {
     evaluacion: DeliveryEvaluation | null;
     productos: ProductApiRecord[];
     reclamo: SupplierClaim | null;
-    /** Proveedor: ve el área de quien hizo cada paso, no el nombre del personal interno */
-    ocultarUsuariosInternos: boolean;
+    /** Proveedor: ve el área de quien hizo cada paso, no el nombre del personal interno, ni los pasos internos (PCP) */
+    vistaProveedor: boolean;
+    /** Abre el reclamo de la cita */
+    onVerReclamo?: () => void;
+    /** Abre el Parte de Ingreso en el visor de Partes de Ingreso; sin permiso, el número se muestra sin enlace */
+    onVerParteIngreso?: (numero: string) => void;
 }
 
 const CitaTrazabilidad = ({
@@ -101,7 +133,9 @@ const CitaTrazabilidad = ({
     evaluacion,
     productos,
     reclamo,
-    ocultarUsuariosInternos,
+    vistaProveedor,
+    onVerReclamo,
+    onVerParteIngreso,
 }: Props) => {
     const [eventos, setEventos] = useState<EventoCita[]>([]);
     const [facturasSap, setFacturasSap] = useState<Invoice[] | null>(null);
@@ -150,17 +184,17 @@ const CitaTrazabilidad = ({
     const traza = useMemo(
         () => buildTrazabilidad({
             appointment, eventos, packingLists, documentos, documentosCompletos, validacionesSunat, evaluacion, evaluacionesProducto,
-            productos, facturasSap, reclamo,
+            productos, facturasSap, reclamo, vistaProveedor,
         }),
         [appointment, eventos, packingLists, documentos, documentosCompletos, validacionesSunat, evaluacion, evaluacionesProducto,
-            productos, facturasSap, reclamo]
+            productos, facturasSap, reclamo, vistaProveedor]
     );
 
     const quienTexto = (hito: Hito) => {
         const area = areaDeRol(hito.rolQuien);
         // Sin rol (PCP, reclamo) también es personal interno
         const interno = hito.rolQuien ? esUsuarioInterno(hito.rolQuien) : true;
-        if (ocultarUsuariosInternos && interno) return area ?? null;
+        if (vistaProveedor && interno) return area ?? null;
         if (!hito.quien) return area ?? null;
         return area ? `${hito.quien} · ${area}` : hito.quien;
     };
@@ -272,6 +306,15 @@ const CitaTrazabilidad = ({
                                         {etapa.resultado}
                                     </span>
                                 )}
+                                {etapa.partesIngreso && etapa.partesIngreso.length > 0 && (
+                                    <ParteIngresoChip
+                                        numero={etapa.partesIngreso[0]}
+                                        extra={etapa.partesIngreso.length - 1}
+                                        // Con varios partes, el chip de la etapa despliega el detalle donde está cada uno
+                                        onVer={etapa.partesIngreso.length > 1 ? () => setExpandido(true) : onVerParteIngreso}
+                                        compacto
+                                    />
+                                )}
                             </li>
                         );
                     })}
@@ -311,6 +354,21 @@ const CitaTrazabilidad = ({
                                                             <Chip size="sm" variant="flat" color={CHIP_TONO[hito.tono]} className="shrink-0">
                                                                 {hito.detalle}
                                                             </Chip>
+                                                        )}
+                                                        {hito.accion?.tipo === 'partesIngreso' && hito.accion.numeros.map((numero) => (
+                                                            <ParteIngresoChip key={numero} numero={numero} onVer={onVerParteIngreso} />
+                                                        ))}
+                                                        {hito.accion?.tipo === 'reclamo' && onVerReclamo && (
+                                                            <Button
+                                                                size="sm"
+                                                                variant="light"
+                                                                color="primary"
+                                                                onPress={onVerReclamo}
+                                                                endContent={<ArrowTopRightOnSquareIcon className="h-3.5 w-3.5" />}
+                                                                className="h-6 min-w-0 shrink-0 px-2"
+                                                            >
+                                                                Ver reclamo
+                                                            </Button>
                                                         )}
                                                     </div>
                                                     <div className="flex shrink-0 flex-col text-xs text-gray-500 sm:items-end">

@@ -5,7 +5,7 @@ import RouteError from "@/components/RouteError";
 import Dashboard from "@/layouts/Dashboard";
 import NotFoundPage from "@/pages/NotFound";
 import ProtectedRoute from "@/components/ProtectedRoute";
-import { UserRole } from "./menuTypes";
+import { PARTES_INGRESO_ROLES, UserRole } from "./menuTypes";
 import { Spinner } from "@heroui/react";
 
 // ── Lazy pages ────────────────────────────────────────────────────────────────
@@ -224,7 +224,7 @@ const routes: RouteObject[] = [
   {
     path: "/contabilidad/partes-ingreso",
     element: (
-      <ProtectedRoute requiredRoles={[UserRole.ADMIN, UserRole.CONTABILIDAD]}>
+      <ProtectedRoute requiredRoles={PARTES_INGRESO_ROLES}>
         <Lazy><PartesIngresoPage /></Lazy>
       </ProtectedRoute>
     ),

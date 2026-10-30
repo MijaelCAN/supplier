@@ -2,7 +2,7 @@
 // Arma la trazabilidad de la cita (de la creación al pago) con lo que hay hoy: el historial que registra el portal
 // (Firestore), el packing list, los documentos, SUNAT, las evaluaciones, PCP, el Parte de Ingreso y la factura en SAP.
 import type { AppointmentStatus, DeliveryAppointment, DeliveryEvaluation, Invoice, SupplierClaim } from '@/store/types';
-import type { PackingListApiRecord, ProductApiRecord } from '@/services/agenda/packingListApi';
+import { getAppointmentParteIngreso, type PackingListApiRecord, type ProductApiRecord } from '@/services/agenda/packingListApi';
 import type { AppointmentDocument } from '@/services/agenda/appointmentsApi';
 import type { ProductEvaluationArea, SavedProductEvaluation } from '@/services/agenda/productEvaluationsApi';
 import { getSunatChipInfo, type SunatInvoiceValidation } from '@/services/agenda/sunatInvoiceApi';
@@ -24,6 +24,8 @@ export interface Hito {
     rolQuien?: string;
     detalle?: string;
     tono: Tono;
+    /** El hito lleva a otra pantalla: el reclamo de la cita o el Parte de Ingreso en el visor */
+    accion?: { tipo: 'reclamo' } | { tipo: 'partesIngreso'; numeros: string[] };
 }
 
 export type EtapaKey = 'programacion' | 'preparacion' | 'llegada' | 'calidad' | 'almacen' | 'contabilidad' | 'pago';
@@ -38,6 +40,8 @@ export interface Etapa {
     fecha?: Date;               // cuándo se completó (o el último avance)
     conHora?: boolean;
     hitos: Hito[];
+    /** Solo Almacén: números de Parte de Ingreso de la cita */
+    partesIngreso?: string[];
 }
 
 export interface Trazabilidad {
@@ -62,6 +66,8 @@ export interface TrazabilidadInput {
     productos: ProductApiRecord[];
     facturasSap: Invoice[] | null;   // null: aún no se consultó
     reclamo: SupplierClaim | null;
+    /** El proveedor no ve los pasos internos (validación PCP de Planeamiento) */
+    vistaProveedor: boolean;
 }
 
 // Avance de la cita según su estado actual (Cancelada aparte)
@@ -287,6 +293,7 @@ export const buildTrazabilidad = (input: TrazabilidadInput): Trazabilidad => {
             quien: reclamo.responsable,
             hecho: true,
             tono: 'warning',
+            accion: { tipo: 'reclamo' },
             ...(emitido ?? {}),
         });
         const cierre = parseFecha(reclamo.cierreReclamo?.fechaCierre);
@@ -308,10 +315,12 @@ export const buildTrazabilidad = (input: TrazabilidadInput): Trazabilidad => {
         tono: almacenResultado?.tono ?? almacenProductos.tono ?? (almacenHecho ? 'success' : 'default'),
         ...desdeEvento(almacenEvento ?? eventoEvaluacion('CANTIDAD_CORRECTA')),
     }];
-    // PCP: una validación por packing list (el API la repite en cada producto)
+    // PCP: una validación por packing list (el API la repite en cada producto). Es interna de Planeamiento.
     const pcp = new Map<string, ProductApiRecord>();
     productos.forEach((p) => {
-        if (p.confirmacion_pcp && p.packing_list_number && !pcp.has(p.packing_list_number)) pcp.set(p.packing_list_number, p);
+        if (!input.vistaProveedor && p.confirmacion_pcp && p.packing_list_number && !pcp.has(p.packing_list_number)) {
+            pcp.set(p.packing_list_number, p);
+        }
     });
     pcp.forEach((p, packingList) => {
         const conforme = p.confirmacion_pcp === 'CONFORME';
@@ -325,14 +334,16 @@ export const buildTrazabilidad = (input: TrazabilidadInput): Trazabilidad => {
             ...(parseFecha(p.pcp_fecha_validacion) ?? {}),
         });
     });
-    const partes = Array.from(new Set(productos.map((p) => p.num_parte_ingreso?.trim()).filter((n): n is string => !!n)));
+    // num_parte_ingreso llega como "261012039-T070-0211277": solo el número, sin repetir
+    const partes = Array.from(new Set(getAppointmentParteIngreso(productos).map((p) => p.numero))).sort();
     const parteEvento = ultimo(eventosEstado(['PARTE_DE_INGRESO_GENERADO']));
     almacen.push({
         id: 'parte-ingreso',
-        titulo: partes.length > 0 ? `Parte de Ingreso ${partes.join(', ')}` : 'Parte de Ingreso',
+        titulo: partes.length > 1 ? 'Partes de Ingreso' : 'Parte de Ingreso',
         detalle: partes.length > 0 || rangoHistorico >= 7 ? 'Generado en SAP' : undefined,
         hecho: partes.length > 0 || rangoHistorico >= 7,
         tono: partes.length > 0 || rangoHistorico >= 7 ? 'success' : 'default',
+        ...(partes.length > 0 ? { accion: { tipo: 'partesIngreso' as const, numeros: partes } } : {}),
         ...desdeEvento(parteEvento),
     });
     const entregadoEvento = ultimo(eventosEstado(['ENTREGADO']));
@@ -394,6 +405,7 @@ export const buildTrazabilidad = (input: TrazabilidadInput): Trazabilidad => {
         { key: 'calidad', titulo: 'Calidad', area: 'Calidad', descripcion: 'Calidad inspecciona la mercadería.', hitos: calidad, resultado: calidadResultado?.label,
             estado: calidadResultado?.tono === 'danger' ? 'rechazada' : calidadResultado?.tono === 'warning' ? 'observada' : rangoHistorico >= 5 ? 'completada' : 'pendiente' },
         { key: 'almacen', titulo: 'Almacén', area: 'Almacén', descripcion: 'Almacén cuenta lo recibido y genera el Parte de Ingreso.', hitos: almacen, resultado: almacenResultado?.label,
+            partesIngreso: partes,
             estado: almacenResultado?.tono === 'danger' ? 'rechazada' : partes.length > 0 || rangoHistorico >= 7 ? (almacenResultado?.tono === 'warning' ? 'observada' : 'completada') : 'pendiente' },
         { key: 'contabilidad', titulo: 'Registro contable', area: 'Contabilidad', descripcion: 'Contabilidad registra la factura en SAP.', hitos: contabilidad,
             estado: conAsiento ? 'completada' : 'pendiente' },
