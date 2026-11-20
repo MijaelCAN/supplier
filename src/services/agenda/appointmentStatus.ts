@@ -198,6 +198,11 @@ export const canTransitionTo = (
     newStatus: AppointmentStatus,
     userRole: UserRole
 ): boolean => {
+    // OBS-031: Compras/Admin cancelan en cualquier estado (el límite se fijará después)
+    if (newStatus === 'Cancelada') {
+        return currentStatus !== 'Cancelada' && [UserRole.COMPRAS, UserRole.ADMIN].includes(userRole);
+    }
+
     const transition = VALID_TRANSITIONS[currentStatus];
     if (!transition) return false;
     

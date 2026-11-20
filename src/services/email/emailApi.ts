@@ -670,6 +670,93 @@ export const sendAppointmentConfirmation = async (
     });
 }
 
+const escapeHtmlText = (value: string): string =>
+    value
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+
+export interface AppointmentCancellationRequest {
+    to: string;
+    appointmentData: {
+        appointmentNumber: string;
+        supplierName: string;
+        deliveryDate: string; // Formato: "YYYY-MM-DD"
+        deliveryTime: string;
+        deliveryTimeEnd: string;
+        warehouseName?: string;
+        motivo: string;
+        /** Números de packing list eliminados con la cita */
+        packingLists?: string[];
+    };
+}
+
+/**
+ * Avisa al proveedor que su cita fue cancelada (OBS-031)
+ */
+export const sendAppointmentCancellation = async (
+    request: AppointmentCancellationRequest
+): Promise<EmailResponse> => {
+    const { appointmentData } = request;
+    const [year, month, day] = appointmentData.deliveryDate.split('-');
+    const formattedDate = year && month && day ? `${day}/${month}/${year}` : appointmentData.deliveryDate;
+    const packingLists = appointmentData.packingLists ?? [];
+
+    const row = (label: string, value: string) => `
+            <tr>
+                <td style="padding: 8px 0; font-weight: bold; color: #495057; width: 150px; vertical-align: top;">${label}</td>
+                <td style="padding: 8px 0; color: #212529;">${value}</td>
+            </tr>`;
+
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cita Cancelada</title>
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f4f4f4;">
+    <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+        <div style="text-align: center; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 2px solid #d6001c;">
+            <h1 style="color: #d6001c; margin: 0;">Cita Cancelada</h1>
+        </div>
+
+        <p>Estimado/a <strong>${escapeHtmlText(appointmentData.supplierName)}</strong>,</p>
+
+        <p>Le informamos que la siguiente cita de entrega ha sido <strong>cancelada</strong>:</p>
+
+        <div style="background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 15px 20px; margin: 20px 0;">
+            <table style="width: 100%; border-collapse: collapse;">
+                ${row('N° de Cita:', escapeHtmlText(appointmentData.appointmentNumber))}
+                ${row('Fecha:', escapeHtmlText(formattedDate))}
+                ${row('Horario:', escapeHtmlText(`${appointmentData.deliveryTime} - ${appointmentData.deliveryTimeEnd}`))}
+                ${appointmentData.warehouseName ? row('Almacén:', escapeHtmlText(appointmentData.warehouseName)) : ''}
+                ${packingLists.length > 0 ? row('Packing list anulados:', escapeHtmlText(packingLists.join(', '))) : ''}
+                ${row('Motivo:', escapeHtmlText(appointmentData.motivo).replace(/\n/g, '<br>'))}
+            </table>
+        </div>
+
+        <p>La entrega ya no será atendida en la fecha y horario indicados. Si corresponde reprogramar la entrega, se registrará una nueva cita y se le notificará.</p>
+
+        <p>Saludos cordiales,<br>
+        <strong>Equipo de Portal de Proveedores</strong></p>
+
+        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #dee2e6; text-align: center; color: #6c757d; font-size: 12px;">
+            <p>Este es un correo automático, por favor no responda a este mensaje.</p>
+        </div>
+    </div>
+</body>
+</html>`;
+
+    return sendNotificationEmail({
+        to: request.to,
+        subject: `Cita Cancelada - N° ${appointmentData.appointmentNumber}`,
+        html,
+    });
+}
+
 /**
  * Envía una notificación genérica
  */

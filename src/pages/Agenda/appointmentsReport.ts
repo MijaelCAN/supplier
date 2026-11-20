@@ -55,7 +55,8 @@ export const exportAppointmentsReport = async (
     weekStart: Date,
     weekEnd: Date
 ): Promise<number> => {
-    const sorted = [...appointments].sort((a, b) =>
+    // Las citas canceladas no salen en el Excel (OBS-031); en el calendario sí
+    const sorted = appointments.filter((apt) => apt.status !== 'Cancelada').sort((a, b) =>
         `${a.deliveryDate} ${a.deliveryTime}`.localeCompare(`${b.deliveryDate} ${b.deliveryTime}`)
     );
 
