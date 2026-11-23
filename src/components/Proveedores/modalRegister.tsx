@@ -17,12 +17,12 @@ import {
 } from "@heroui/react"
 import {useConfigData} from '@/store'
 import { useSuppliers as useExtendedSuppliers } from '@/store/extendedStore'
-import { useAuthStore } from '@/store/authStore'
 import { UserRole } from '@/routes/menuTypes'
 import { createSupplierProfile, fetchSunatSupplierData, fetchSuppliersListFromApi, type SupplierApiRecord } from '@/services/providers/providersApi';
 import { getBlackListRecord, type BlackListRecord } from '@/services/providers/blackListApi';
 import { fetchCondicionesPago, type CondicionPago } from '@/services/maestros/condicionesPagoApi';
 import { sendSupplierCredentials } from '@/services/email/emailApi';
+import { habilitarAcceso } from '@/services/auth/accessApi';
 import { UbigeoSelector } from '@/components/UbigeoSelector';
 
 // Schema de validación con Zod
@@ -98,7 +98,6 @@ const ModalRegister: FC<ModalRegisterProps> = ({
     const { suppliers, setSuppliers } = useExtendedSuppliers();
     const supplierList = Array.isArray(suppliers) ? suppliers : [];
     const { terminosPago } = useConfigData()
-    const createSupplierUser = useAuthStore((state) => state.createSupplierUser);
     const [isConsultingRuc, setIsConsultingRuc] = useState(false)
     const [sunatData, setSunatData] = useState<SunatData | null>(null)
     const [isRucValid, setIsRucValid] = useState(false)
@@ -134,7 +133,9 @@ const ModalRegister: FC<ModalRegisterProps> = ({
     const [emailSummary, setEmailSummary] = useState<{
         email: string;
         username: string;
-        tempPassword: string;
+        tempPassword: string | null;
+        /** Motivo si no se pudo habilitar el acceso en SAP */
+        accessError: string | null;
         portalLink: string;
         userFullName: string;
         supplierName: string;
@@ -268,15 +269,6 @@ const ModalRegister: FC<ModalRegisterProps> = ({
         }
     }
 
-    const generateTempPassword = () => {
-        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
-        let password = '';
-        for (let i = 0; i < 8; i++) {
-            password += chars.charAt(Math.floor(Math.random() * chars.length));
-        }
-        return password;
-    };
-
     const onSubmit = async (data: SupplierRegisterFormData) => {
         setErrorMessage(null);
 
@@ -383,35 +375,21 @@ const ModalRegister: FC<ModalRegisterProps> = ({
             // PASO 1: Crear proveedor en SAP primero
             const result = await createSupplierProfile(payload)
             
-            // Si llegamos aquí, SAP fue exitoso. Ahora crear en Firestore
-            const docEntryCode = result.record.doc_entry?.toString() ?? `USR-${Math.floor(Math.random() * 1_000_000)
-                .toString()
-                .padStart(6, '0')}`
             const username = data.cardCode.trim()
             const isNaturalPerson = username.startsWith('10')
             const userFullName = (isNaturalPerson ? data.cardName : data.cardName || data.contactPerson).trim() || data.contactPerson
-            const tempPassword = generateTempPassword()
 
-            // PASO 2: Crear usuario en Firestore solo si SAP fue exitoso
+            // PASO 2: Habilitar el acceso en SAP (UDO Acceso Desarrollo + contraseña). Antes se creaba un usuario en
+            // Firestore, pero el login va contra /api/Login (SAP) y esa contraseña no servía (TCK-001333).
+            // Si falla, el proveedor ya quedó creado: se avisa y se puede habilitar luego con "Habilitar acceso".
+            let tempPassword: string | null = null
+            let accessError: string | null = null
             try {
-                await createSupplierUser({
-                    username,
-                    email: data.email,
-                    userCode: docEntryCode,
-                    userName: userFullName,
-                    supplierId,
-                    tempPassword,
-                    companyName: data.cardName,
-                    phone: data.phone,
-                    avatar: result.supplier.avatar,
-                    useSupplierPortal: true,
-                    accountStatus: 'active',
-                    role: UserRole.PROVEEDOR,
-                });
-            } catch (firestoreError) {
-                // Si falla Firestore, informar pero el proveedor ya está en SAP
-                console.error('Error al crear usuario en Firestore:', firestoreError);
-                throw new Error(`El proveedor se creó en SAP pero hubo un error al crear el usuario: ${firestoreError instanceof Error ? firestoreError.message : 'Error desconocido'}`);
+                const acceso = await habilitarAcceso({ usuario: username, roleType: 'provider', rol: UserRole.PROVEEDOR })
+                tempPassword = acceso.password
+            } catch (accessErr) {
+                console.error('Error al habilitar el acceso del proveedor:', accessErr)
+                accessError = accessErr instanceof Error ? accessErr.message : 'Error desconocido'
             }
 
             // Actualizar la lista de proveedores
@@ -429,8 +407,8 @@ const ModalRegister: FC<ModalRegisterProps> = ({
                 }
             }
 
-            // Enviar correo con credenciales
-            try {
+            // Enviar correo con credenciales (solo si el acceso quedó habilitado)
+            if (tempPassword) try {
                 const emailResult = await sendSupplierCredentials({
                     to: data.email,
                     credentials: {
@@ -457,6 +435,7 @@ const ModalRegister: FC<ModalRegisterProps> = ({
                 email: data.email,
                 username,
                 tempPassword,
+                accessError,
                 portalLink,
                 userFullName,
                 supplierName: data.cardName,
@@ -1035,10 +1014,21 @@ const ModalRegister: FC<ModalRegisterProps> = ({
                     {(onClose) => (
                         <>
                             <ModalHeader>
-                                <h3 className="text-lg font-semibold">Resumen de credenciales enviadas</h3>
+                                <h3 className="text-lg font-semibold">
+                                    {emailSummary?.tempPassword ? 'Resumen de credenciales enviadas' : 'Proveedor creado sin acceso al portal'}
+                                </h3>
                             </ModalHeader>
                             <ModalBody>
-                                {emailSummary ? (
+                                {emailSummary && !emailSummary.tempPassword ? (
+                                    <div className="space-y-2 text-sm">
+                                        <p><strong>Proveedor:</strong> {emailSummary.supplierName} ({emailSummary.username})</p>
+                                        <p>El proveedor se creó en SAP, pero no se pudo habilitar su acceso al portal:</p>
+                                        <p className="text-danger">{emailSummary.accessError}</p>
+                                        <p className="text-xs text-default-500">
+                                            Habilítalo después desde Proveedores › Habilitar acceso, con su RUC.
+                                        </p>
+                                    </div>
+                                ) : emailSummary ? (
                                     <div className="space-y-2 text-sm">
                                         <p><strong>Proveedor:</strong> {emailSummary.supplierName}</p>
                                         <p><strong>Usuario (RUC):</strong> {emailSummary.username}</p>
