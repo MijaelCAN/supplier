@@ -1,7 +1,8 @@
 // src/services/agenda/cancelAppointment.ts
 // Cancelación de una cita (OBS-031). La hace Compras/Admin en cualquier estado (el límite se fijará después).
-// Orden: 1) elimina sus packing list (lógico en SAP; en WMS a mano con el ticket), 2) pasa la cita a Cancelada,
-// 3) guarda motivo/origen en Firestore (el API aún no tiene campo) y 4) avisa al proveedor por correo.
+// Orden: 1) elimina sus packing list (lógico en SAP; en WMS a mano con el ticket), 2) pasa la cita a Cancelada
+// con motivo y origen (ActualizarEstado los guarda en SAP), 3) registra la cancelación en Firestore (packing list
+// eliminados con su ticket, y respaldo del motivo mientras CitasProveedor no lo devuelva) y 4) avisa al proveedor.
 // Si falla un packing list se detiene sin cancelar la cita, para no dejarla cancelada con packing list vivos.
 import type { AppointmentStatus, DeliveryAppointment } from '@/store/types';
 import { deletePackingList, fetchPackingListFromApi, type PackingListApiRecord } from './packingListApi';
@@ -118,9 +119,9 @@ export const cancelAppointment = async (input: CancelAppointmentInput): Promise<
         }
     }
 
-    // 2) Estado de la cita (también registra el evento ESTADO en la trazabilidad)
+    // 2) Estado de la cita con motivo y origen en SAP (también registra el evento ESTADO en la trazabilidad)
     try {
-        await updateAppointmentStatus(codCita, 'Cancelada', usuario);
+        await updateAppointmentStatus(codCita, 'Cancelada', usuario, { u_motivo: motivo, u_origen: origen });
     } catch (error) {
         const detalle = error instanceof Error ? error.message : 'Error desconocido';
         throw new CancelAppointmentError(
@@ -131,7 +132,7 @@ export const cancelAppointment = async (input: CancelAppointmentInput): Promise<
         );
     }
 
-    // 3) Motivo y datos de la cancelación (Firestore, hasta que el API tenga el campo)
+    // 3) Packing list eliminados (con ticket WMS) y respaldo del motivo en Firestore
     const motivoGuardado = await registrarEventoCita(codCita, {
         tipo: 'CANCELACION',
         estado: 'Cancelada',

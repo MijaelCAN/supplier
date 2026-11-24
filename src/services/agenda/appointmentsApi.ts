@@ -40,6 +40,11 @@ export interface AppointmentApiRecord {
     u_estado:  'Pendiente' | 'PackingListCompletado' | 'TransporteCompletado' | 'DocumentosCompletados' | 'ListaParaEntrega' | 'Completada' | 'Cancelada' | 'Programado';
     datos_transporte?: AppointmentDatosTransporte;
     documents?: AppointmentDocument[];
+    // Cancelación (OBS-031): ActualizarEstado ya los guarda; CitasProveedor aún no los devuelve
+    u_motivo?: string | null;
+    u_origen?: string | null;
+    u_usuario?: string | null;
+    u_fecha_modificacion?: string | null;
 }
 
 interface AppointmentsApiResponse {
@@ -211,6 +216,16 @@ const mapApiRecordToAppointment = (record: AppointmentApiRecord, index: number):
         warehouse: record.u_almacen,
         transportData,
         documents,
+        ...(status === 'Cancelada' && record.u_motivo?.trim()
+            ? {
+                  cancellation: {
+                      motivo: record.u_motivo.trim(),
+                      origen: record.u_origen?.trim() ?? '',
+                      usuario: record.u_usuario?.trim() ?? '',
+                      fecha: record.u_fecha_modificacion?.trim() ?? '',
+                  },
+              }
+            : {}),
         // Se conserva el arreglo tal como lo devuelve el API (sin agrupar por tipo)
         // para poder mostrar/soportar múltiples archivos del mismo tipo de documento.
         rawDocuments: record.documents || [],

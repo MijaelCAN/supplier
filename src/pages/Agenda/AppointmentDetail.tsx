@@ -85,6 +85,7 @@ import {
     EventoCita,
     fetchCancelacionCita,
     ORIGEN_CANCELACION_LABELS,
+    type OrigenCancelacion,
     registrarEventoCita,
 } from '@/services/agenda/trazabilidadApi';
 import CancelAppointmentModal from './CancelAppointmentModal';
@@ -467,6 +468,39 @@ const AppointmentDetail: React.FC = () => {
         });
         return () => { ignore = true; };
     }, [appointment?.docEntry, appointment?.status]);
+
+    // Datos a mostrar de la cancelación: SAP primero (cuando CitasProveedor los devuelva), Firestore de respaldo
+    const cancelacionInfo = useMemo(() => {
+        const formatFecha = (value?: string) => {
+            if (!value) return '';
+            const date = new Date(value);
+            return Number.isNaN(date.getTime())
+                ? value
+                : date.toLocaleString('es-PE', { dateStyle: 'short', timeStyle: 'short' });
+        };
+        const origenLabel = (origen?: string) =>
+            origen ? ORIGEN_CANCELACION_LABELS[origen as OrigenCancelacion] ?? origen : '';
+        const api = appointment?.cancellation;
+        const fs = cancelacion?.cancelacion ? cancelacion : null;
+        if (api) {
+            return {
+                motivo: api.motivo,
+                origen: origenLabel(api.origen),
+                // El API devuelve el código; si Firestore tiene el nombre de ese mismo usuario, se muestra el nombre
+                usuario: (fs && fs.usuario === api.usuario && fs.usuarioNombre) || api.usuario,
+                fecha: formatFecha(api.fecha),
+            };
+        }
+        if (fs?.cancelacion) {
+            return {
+                motivo: fs.cancelacion.motivo,
+                origen: origenLabel(fs.cancelacion.origen),
+                usuario: fs.usuarioNombre || fs.usuario,
+                fecha: formatFecha(fs.fecha),
+            };
+        }
+        return null;
+    }, [appointment?.cancellation, cancelacion]);
 
     // Productos de la cita (mismos registros del reporte de citas por producto): de ellos salen los
     // Partes de Ingreso y la documentación completa. Se recargan al subir o eliminar documentos.
@@ -1509,24 +1543,30 @@ const AppointmentDetail: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Cita cancelada (OBS-031): solo lectura, con el motivo guardado en Firestore */}
+                    {/* Cita cancelada (OBS-031): solo lectura. Motivo/origen/usuario/fecha desde SAP (CitasProveedor)
+                        cuando el API los devuelva; si no, desde Firestore. Los packing list eliminados, de Firestore. */}
                     {isCancelled && (
                         <div className="flex items-start gap-3 p-4 mb-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">
                             <XCircleIcon className="w-6 h-6 flex-shrink-0 text-red-600" />
                             <div className="space-y-1">
                                 <p className="font-semibold">Cita cancelada. No será atendida y no se puede modificar.</p>
-                                {cancelacion?.cancelacion ? (
+                                {cancelacionInfo && (
                                     <>
                                         <p>
-                                            <span className="font-medium">Motivo:</span> {cancelacion.cancelacion.motivo}
-                                            {cancelacion.cancelacion.origen && (
-                                                <span className="text-red-700"> ({ORIGEN_CANCELACION_LABELS[cancelacion.cancelacion.origen]})</span>
+                                            <span className="font-medium">Motivo:</span> {cancelacionInfo.motivo}
+                                            {cancelacionInfo.origen && (
+                                                <span className="text-red-700"> ({cancelacionInfo.origen})</span>
                                             )}
                                         </p>
-                                        <p className="text-red-700">
-                                            {cancelacion.usuarioNombre || cancelacion.usuario}
-                                            {cancelacion.fecha && ` · ${new Date(cancelacion.fecha).toLocaleString('es-PE', { dateStyle: 'short', timeStyle: 'short' })}`}
-                                        </p>
+                                        {(cancelacionInfo.usuario || cancelacionInfo.fecha) && (
+                                            <p className="text-red-700">
+                                                {[cancelacionInfo.usuario, cancelacionInfo.fecha].filter(Boolean).join(' · ')}
+                                            </p>
+                                        )}
+                                    </>
+                                )}
+                                {cancelacion?.cancelacion ? (
+                                    <>
                                         {cancelacion.cancelacion.packingLists?.length > 0 && (
                                             <p className="text-red-700">
                                                 Packing list eliminados:{' '}
