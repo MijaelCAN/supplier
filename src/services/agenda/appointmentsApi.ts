@@ -108,6 +108,19 @@ const formatDateToISO = (dateStr: string): string => {
 };
 
 /**
+ * u_fecha_modificacion de CitasProveedor ("24/11/2026 14:39:15", DD/MM/YYYY hora local) a ISO.
+ * new Date() lo leería como MM/DD. Si llega en otro formato se devuelve tal cual.
+ */
+const parseApiDateTime = (value?: string | null): string => {
+    const text = value?.trim() ?? '';
+    const match = /^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/.exec(text);
+    if (!match) return text;
+    const [, d, m, y, hh = '0', mm = '0', ss = '0'] = match;
+    const date = new Date(Number(y), Number(m) - 1, Number(d), Number(hh), Number(mm), Number(ss));
+    return Number.isNaN(date.getTime()) ? text : date.toISOString();
+};
+
+/**
  * Convierte un registro de la API a DeliveryAppointment
  */
 const mapApiRecordToAppointment = (record: AppointmentApiRecord, index: number): DeliveryAppointment => {
@@ -222,7 +235,7 @@ const mapApiRecordToAppointment = (record: AppointmentApiRecord, index: number):
                       motivo: record.u_motivo.trim(),
                       origen: record.u_origen?.trim() ?? '',
                       usuario: record.u_usuario?.trim() ?? '',
-                      fecha: record.u_fecha_modificacion?.trim() ?? '',
+                      fecha: parseApiDateTime(record.u_fecha_modificacion),
                   },
               }
             : {}),
