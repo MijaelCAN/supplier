@@ -91,12 +91,7 @@ import { STATUS_CONFIG } from '@/services/agenda/appointmentStatus';
 import {ScheduleAppointmentModal} from "@/pages/Agenda/Scheduleappointmentmodal.tsx";
 import { sendAppointmentConfirmation } from "@/services/email/emailApi.ts";
 
-const WAREHOUSE_LABELS: Record<string, string> = {
-    ALM001: 'Sede Ancon',
-    ALM002: 'Sede Villas',
-    ALM003: 'Sede AN030',
-    ALM004: 'Sede AN043',
-};
+import { WAREHOUSE_LABELS } from '@/config/warehouses';
 
 /** Del 1 al último día del mes en curso, "YYYY-MM-DD" */
 const getCurrentMonthRange = () => {
@@ -584,7 +579,8 @@ const Agenda: React.FC = () => {
     const handleExportToExcel = () => {
         try {
             // Preparar los datos para exportar
-            const dataToExport = sortedListViewData.map(product => ({
+            // Las citas canceladas no salen en el Excel (OBS-031); en la vista sí
+            const dataToExport = sortedListViewData.filter(product => product.status_cita !== 'Cancelada').map(product => ({
                 'Fecha': formatDateFromAPI(product.u_fecha),
                 'N° Cita': getCodCita(product) || '-',
                 'Número OC': product.number,
@@ -2569,7 +2565,10 @@ const Agenda: React.FC = () => {
                                                                         <span className="font-medium text-gray-800 whitespace-nowrap">
                                                                             {apt.deliveryTime}{apt.deliveryTimeEnd ? ` - ${apt.deliveryTimeEnd}` : ''}
                                                                         </span>
-                                                                        <span className="truncate">{apt.supplierName}</span>
+                                                                        <span className={`truncate ${apt.status === 'Cancelada' ? 'line-through text-gray-400' : ''}`}>{apt.supplierName}</span>
+                                                                        {apt.status === 'Cancelada' && (
+                                                                            <span className="font-semibold text-red-600 whitespace-nowrap">Cancelada</span>
+                                                                        )}
                                                                     </div>
                                                                 ))}
                                                                 {dayAppointments.length > 3 && (
@@ -2720,7 +2719,10 @@ const Agenda: React.FC = () => {
                                                                     const leftPercent = layout ? (column * (100 / totalColumns)) : 0;
                                                                     
                                                                     // Estilos según el estado de la cita
+                                                                    // Cancelada (OBS-031): gris y tachada, para que no se confunda con las pendientes de atención
+                                                                    const isCancelledApt = apt.status === 'Cancelada';
                                                                     const getStatusStyles = () => {
+                                                                        if (isCancelledApt) return 'bg-gray-100 text-gray-500 border-gray-400 opacity-80';
                                                                         const statusConfig = STATUS_CONFIG[apt.status as keyof typeof STATUS_CONFIG];
                                                                         if (statusConfig) {
                                                                             const colorMap: Record<string, string> = {
@@ -2763,7 +2765,12 @@ const Agenda: React.FC = () => {
                                                                             }}
                                                                         >
                                                                             
-                                                                            <div className={`font-semibold truncate leading-tight ${isMobile ? 'text-xs' : 'text-[10px]'}`}>
+                                                                            {isCancelledApt && (
+                                                                                <div className={`font-bold uppercase text-red-600 leading-tight ${isMobile ? 'text-[11px]' : 'text-[9px]'}`}>
+                                                                                    Cancelada
+                                                                                </div>
+                                                                            )}
+                                                                            <div className={`font-semibold truncate leading-tight ${isCancelledApt ? 'line-through' : ''} ${isMobile ? 'text-xs' : 'text-[10px]'}`}>
                                                                                 {apt.supplierName}
                                                                             </div>
                                                                             <div className={`opacity-90 mt-0.5 ${isMobile ? 'text-[11px]' : 'text-[9px]'}`}>

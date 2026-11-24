@@ -40,6 +40,11 @@ export interface AppointmentApiRecord {
     u_estado:  'Pendiente' | 'PackingListCompletado' | 'TransporteCompletado' | 'DocumentosCompletados' | 'ListaParaEntrega' | 'Completada' | 'Cancelada' | 'Programado';
     datos_transporte?: AppointmentDatosTransporte;
     documents?: AppointmentDocument[];
+    // Cancelación (OBS-031): ActualizarEstado ya los guarda; CitasProveedor aún no los devuelve
+    u_motivo?: string | null;
+    u_origen?: string | null;
+    u_usuario?: string | null;
+    u_fecha_modificacion?: string | null;
 }
 
 interface AppointmentsApiResponse {
@@ -100,6 +105,19 @@ const formatDateToISO = (dateStr: string): string => {
     }
     // Si falla, retornar fecha actual
     return new Date().toISOString().split('T')[0];
+};
+
+/**
+ * u_fecha_modificacion de CitasProveedor ("24/11/2026 14:39:15", DD/MM/YYYY hora local) a ISO.
+ * new Date() lo leería como MM/DD. Si llega en otro formato se devuelve tal cual.
+ */
+const parseApiDateTime = (value?: string | null): string => {
+    const text = value?.trim() ?? '';
+    const match = /^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/.exec(text);
+    if (!match) return text;
+    const [, d, m, y, hh = '0', mm = '0', ss = '0'] = match;
+    const date = new Date(Number(y), Number(m) - 1, Number(d), Number(hh), Number(mm), Number(ss));
+    return Number.isNaN(date.getTime()) ? text : date.toISOString();
 };
 
 /**
@@ -211,6 +229,16 @@ const mapApiRecordToAppointment = (record: AppointmentApiRecord, index: number):
         warehouse: record.u_almacen,
         transportData,
         documents,
+        ...(status === 'Cancelada' && record.u_motivo?.trim()
+            ? {
+                  cancellation: {
+                      motivo: record.u_motivo.trim(),
+                      origen: record.u_origen?.trim() ?? '',
+                      usuario: record.u_usuario?.trim() ?? '',
+                      fecha: parseApiDateTime(record.u_fecha_modificacion),
+                  },
+              }
+            : {}),
         // Se conserva el arreglo tal como lo devuelve el API (sin agrupar por tipo)
         // para poder mostrar/soportar múltiples archivos del mismo tipo de documento.
         rawDocuments: record.documents || [],

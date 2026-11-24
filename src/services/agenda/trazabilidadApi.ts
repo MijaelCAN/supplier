@@ -1,7 +1,7 @@
 // src/services/agenda/trazabilidadApi.ts
 // Trazabilidad de la cita (fase 1). El API de citas solo guarda el estado actual, así que cada cambio que hace
 // el portal se registra aquí, en Firestore, con fecha, usuario y área. Solo existe desde que se publicó esta función.
-import { addDoc, collection, onSnapshot, query, serverTimestamp, Timestamp, where, type Unsubscribe } from 'firebase/firestore';
+import { addDoc, collection, getDocs, onSnapshot, query, serverTimestamp, Timestamp, where, type Unsubscribe } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuthStore } from '@/store/authStore';
 import { UserRole } from '@/routes/menuTypes';
@@ -10,8 +10,33 @@ import { fetchInvoicesByCardCode } from '@/services/invoices/invoicesApi';
 
 const COLLECTION = 'trazabilidadCitas';
 
-/** EVALUACION: detalle = código del criterio (PUNTUALIDAD, DOCUMENTACION, ESTADO_MERCADERIA, CANTIDAD_CORRECTA) */
-export type TipoEventoCita = 'ESTADO' | 'CITA_CREADA' | 'DOCUMENTO' | 'EVALUACION';
+/**
+ * EVALUACION: detalle = código del criterio (PUNTUALIDAD, DOCUMENTACION, ESTADO_MERCADERIA, CANTIDAD_CORRECTA)
+ * CANCELACION (OBS-031): datos de la cancelación; el API de citas aún no tiene campo de motivo.
+ */
+export type TipoEventoCita = 'ESTADO' | 'CITA_CREADA' | 'DOCUMENTO' | 'EVALUACION' | 'CANCELACION';
+
+/** Quién pidió la cancelación */
+export type OrigenCancelacion = 'PROVEEDOR' | 'VISTONY';
+
+export const ORIGEN_CANCELACION_LABELS: Record<OrigenCancelacion, string> = {
+    PROVEEDOR: 'A pedido del proveedor',
+    VISTONY: 'Por Vistony',
+};
+
+/** Packing list eliminado al cancelar la cita, con su ticket WMS a comunicar */
+export interface PackingListCancelado {
+    id: string;
+    number: string;
+    ticket: string;
+}
+
+export interface CancelacionCita {
+    motivo: string;
+    origen: OrigenCancelacion;
+    estadoAnterior: AppointmentStatus;
+    packingLists: PackingListCancelado[];
+}
 
 export interface EventoCita {
     id: string;
@@ -19,6 +44,7 @@ export interface EventoCita {
     tipo: TipoEventoCita;
     estado?: AppointmentStatus;
     detalle?: string;          // p. ej. el tipo de documento cargado
+    cancelacion?: CancelacionCita;
     usuario: string;           // código de usuario
     usuarioNombre: string;
     rol: UserRole | string;
@@ -40,13 +66,13 @@ export const AREA_POR_ROL: Record<string, string> = {
 
 /**
  * Registra un evento de la cita con el usuario en sesión. Nunca lanza: si Firestore falla, el flujo de la cita
- * (cambio de estado, carga de archivo) sigue igual y solo se pierde el registro.
+ * (cambio de estado, carga de archivo) sigue igual y solo se pierde el registro. Devuelve si se guardó.
  */
 export const registrarEventoCita = async (
     codCita: string | undefined,
-    evento: { tipo: TipoEventoCita; estado?: AppointmentStatus; detalle?: string }
-): Promise<void> => {
-    if (!codCita) return;
+    evento: { tipo: TipoEventoCita; estado?: AppointmentStatus; detalle?: string; cancelacion?: CancelacionCita }
+): Promise<boolean> => {
+    if (!codCita) return false;
     const user = useAuthStore.getState().currentUser;
     try {
         await addDoc(collection(db, COLLECTION), {
@@ -54,13 +80,16 @@ export const registrarEventoCita = async (
             tipo: evento.tipo,
             ...(evento.estado ? { estado: evento.estado } : {}),
             ...(evento.detalle ? { detalle: evento.detalle } : {}),
+            ...(evento.cancelacion ? { cancelacion: evento.cancelacion } : {}),
             usuario: user?.userCode || user?.username || '',
             usuarioNombre: user?.fullName || user?.username || '',
             rol: user?.role ?? '',
             fecha: serverTimestamp(),
         });
+        return true;
     } catch (error) {
         console.error('No se pudo registrar el evento de la cita:', error);
+        return false;
     }
 };
 
@@ -88,6 +117,26 @@ export const subscribeEventosCita = (
         },
         onError
     );
+
+/** Última cancelación registrada de la cita (OBS-031), o null si no hay o Firestore falla. */
+export const fetchCancelacionCita = async (codCita: string): Promise<EventoCita | null> => {
+    try {
+        const snapshot = await getDocs(
+            query(collection(db, COLLECTION), where('codCita', '==', String(codCita)), where('tipo', '==', 'CANCELACION'))
+        );
+        const eventos = snapshot.docs
+            .map((d) => {
+                const data = d.data();
+                const fecha = data.fecha instanceof Timestamp ? data.fecha.toDate().toISOString() : '';
+                return { ...(data as Omit<EventoCita, 'id' | 'fecha'>), id: d.id, fecha };
+            })
+            .sort((a, b) => b.fecha.localeCompare(a.fecha));
+        return eventos[0] ?? null;
+    } catch (error) {
+        console.error('No se pudo consultar la cancelación de la cita:', error);
+        return null;
+    }
+};
 
 /** "F041-00013408", "01-F041-13408" o "F041-13408" → "F041-13408" */
 export const normalizarComprobante = (value: string): string | null => {

@@ -422,6 +422,16 @@ export interface DeliveryAppointment {
     rawDocuments?: AppointmentDocumentRecord[];
     notificationSent: boolean;
     evaluation?: DeliveryEvaluation; // Calificación de la entrega
+    /** Cancelación guardada en SAP (OBS-031): solo si CitasProveedor devuelve u_motivo */
+    cancellation?: AppointmentCancellationApi;
+}
+
+/** Datos de la cancelación que devuelve CitasProveedor (u_motivo, u_origen, u_usuario, u_fecha_modificacion) */
+export interface AppointmentCancellationApi {
+    motivo: string;
+    origen: string; // texto libre en SAP; el portal envía PROVEEDOR o VISTONY
+    usuario: string;
+    fecha: string;
 }
 
 export interface PackingList {

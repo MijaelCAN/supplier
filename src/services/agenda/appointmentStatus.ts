@@ -198,6 +198,11 @@ export const canTransitionTo = (
     newStatus: AppointmentStatus,
     userRole: UserRole
 ): boolean => {
+    // OBS-031: Compras/Admin cancelan en cualquier estado (el límite se fijará después)
+    if (newStatus === 'Cancelada') {
+        return currentStatus !== 'Cancelada' && [UserRole.COMPRAS, UserRole.ADMIN].includes(userRole);
+    }
+
     const transition = VALID_TRANSITIONS[currentStatus];
     if (!transition) return false;
     
@@ -217,6 +222,8 @@ export interface UpdateStatusRequest {
     u_estado: AppointmentStatus; // Formato: "PROGRAMADA", "REPROGRAMADA", etc. (coherente con ActualizarCita)
     u_fecha_modificacion: string; // Formato ISO: "2026-02-10T11:27:00-05:00"
     u_usuario: string; // ID del usuario
+    u_motivo?: string; // Cancelación (OBS-031): texto libre
+    u_origen?: string; // Cancelación (OBS-031): PROVEEDOR / VISTONY (texto libre en SAP)
 }
 
 /**
@@ -235,12 +242,14 @@ export interface UpdateStatusResponse {
  * @param docEntry - DocEntry de la cita
  * @param newStatus - Nuevo estado a asignar
  * @param userId - ID del usuario que realiza la actualización
+ * @param extra - Motivo y origen (solo al cancelar)
  * @returns Promise que resuelve con el DocEntry actualizado
  */
 export const updateAppointmentStatus = async (
     docEntry: string,
     newStatus: AppointmentStatus,
-    userId: string
+    userId: string,
+    extra?: Pick<UpdateStatusRequest, 'u_motivo' | 'u_origen'>
 ): Promise<string> => {
     const baseUrl = getApiBaseUrl();
     const url = `${baseUrl}/api/Proveedores/ActualizarEstado?docEntry=${docEntry}`;
@@ -259,7 +268,9 @@ export const updateAppointmentStatus = async (
     const requestBody: UpdateStatusRequest = {
         u_estado: newStatus, // Coherente con el formato del endpoint ActualizarCita
         u_fecha_modificacion: fechaModificacion,
-        u_usuario: userId
+        u_usuario: userId,
+        ...(extra?.u_motivo ? { u_motivo: extra.u_motivo } : {}),
+        ...(extra?.u_origen ? { u_origen: extra.u_origen } : {}),
     };
     
     const response = await httpClient(url, {

@@ -81,7 +81,14 @@ import PackingListDocuments from './PackingListDocuments';
 import DocumentsModal, {LoadedDocument} from './DocumentsModal';
 import DeleteDocumentModal from './DeleteDocumentModal';
 import { getDocumentTypeByKey, isInvoiceXmlFileName, mapFileNameToDocumentType } from '@/config/commercialDocuments';
-import { registrarEventoCita } from '@/services/agenda/trazabilidadApi';
+import {
+    EventoCita,
+    fetchCancelacionCita,
+    ORIGEN_CANCELACION_LABELS,
+    type OrigenCancelacion,
+    registrarEventoCita,
+} from '@/services/agenda/trazabilidadApi';
+import CancelAppointmentModal from './CancelAppointmentModal';
 import CitaTrazabilidad from './trazabilidad/CitaTrazabilidad';
 import {areAllPackingListDocumentsComplete, groupDocumentsByPackingList} from '@/utils/packingListDocuments';
 import {
@@ -147,6 +154,9 @@ const AppointmentDetail: React.FC = () => {
     const [appointmentClaim, setAppointmentClaim] = useState<SupplierClaim | null>(null);
     const [claimRejectedProducts, setClaimRejectedProducts] = useState<ClaimProduct[]>([]);
     const [isClaimDetailOpen, setIsClaimDetailOpen] = useState(false);
+    // Cancelación de la cita (OBS-031): el motivo se guarda en Firestore hasta que el API tenga el campo
+    const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+    const [cancelacion, setCancelacion] = useState<EventoCita | null>(null);
 
     // Función helper para recargar el appointment desde el API
     const reloadAppointmentFromApi = async () => {
@@ -446,6 +456,52 @@ const AppointmentDetail: React.FC = () => {
         }
     }, [appointment?.docEntry]);
 
+    // Motivo de la cancelación (OBS-031), solo si la cita está cancelada
+    useEffect(() => {
+        if (!appointment?.docEntry || appointment.status !== 'Cancelada') {
+            setCancelacion(null);
+            return;
+        }
+        let ignore = false;
+        fetchCancelacionCita(appointment.docEntry).then((evento) => {
+            if (!ignore) setCancelacion(evento);
+        });
+        return () => { ignore = true; };
+    }, [appointment?.docEntry, appointment?.status]);
+
+    // Datos a mostrar de la cancelación: SAP primero (cuando CitasProveedor los devuelva), Firestore de respaldo
+    const cancelacionInfo = useMemo(() => {
+        const formatFecha = (value?: string) => {
+            if (!value) return '';
+            const date = new Date(value);
+            return Number.isNaN(date.getTime())
+                ? value
+                : date.toLocaleString('es-PE', { dateStyle: 'short', timeStyle: 'short' });
+        };
+        const origenLabel = (origen?: string) =>
+            origen ? ORIGEN_CANCELACION_LABELS[origen as OrigenCancelacion] ?? origen : '';
+        const api = appointment?.cancellation;
+        const fs = cancelacion?.cancelacion ? cancelacion : null;
+        if (api) {
+            return {
+                motivo: api.motivo,
+                origen: origenLabel(api.origen),
+                // El API devuelve el código; si Firestore tiene el nombre de ese mismo usuario, se muestra el nombre
+                usuario: (fs && fs.usuario === api.usuario && fs.usuarioNombre) || api.usuario,
+                fecha: formatFecha(api.fecha),
+            };
+        }
+        if (fs?.cancelacion) {
+            return {
+                motivo: fs.cancelacion.motivo,
+                origen: origenLabel(fs.cancelacion.origen),
+                usuario: fs.usuarioNombre || fs.usuario,
+                fecha: formatFecha(fs.fecha),
+            };
+        }
+        return null;
+    }, [appointment?.cancellation, cancelacion]);
+
     // Productos de la cita (mismos registros del reporte de citas por producto): de ellos salen los
     // Partes de Ingreso y la documentación completa. Se recargan al subir o eliminar documentos.
     const [appointmentProducts, setAppointmentProducts] = useState<ProductApiRecord[]>([]);
@@ -656,18 +712,23 @@ const AppointmentDetail: React.FC = () => {
     type EvaluationModalType = 'puntualidad' | 'documentacion' | 'estadoMercaderia' | 'cantidadCorrecta';
 
     // Verificar permisos según rol
+    // Cita cancelada (OBS-031): queda en solo lectura
+    const isCancelled = appointment.status === 'Cancelada';
+    // Cancelar ("Eliminar cita"): solo Compras y Admin, por ahora en cualquier estado (el límite se fijará después)
+    const canCancelAppointment = !isCancelled && !!appointment.docEntry &&
+        [UserRole.ADMIN, UserRole.COMPRAS].includes(currentUser?.role as UserRole);
     // Registrar y eliminar PackingList: solo Admin y Compras (OBS-009)
-    const canManagePackingList = [UserRole.ADMIN, UserRole.COMPRAS].includes(currentUser?.role || UserRole.ADMIN);
+    const canManagePackingList = !isCancelled && [UserRole.ADMIN, UserRole.COMPRAS].includes(currentUser?.role || UserRole.ADMIN);
     // Eliminar solo antes de que el proveedor llegue
     const canDeletePackingList = DELETE_PACKING_LIST_ENABLED && canManagePackingList &&
         (PACKING_LIST_DELETABLE_STATUSES as readonly string[]).includes(appointment.status);
-    const canManageTransport = currentUser?.role === UserRole.PROVEEDOR;
-    const canManageDocuments = currentUser?.role === UserRole.PROVEEDOR;
-    const canEditAppointment = [UserRole.ADMIN, UserRole.ALMACEN, UserRole.COMPRAS].includes(currentUser?.role || UserRole.ADMIN);
-    const canEvaluateSecurity = [UserRole.SEGURIDAD, UserRole.ADMIN].includes(currentUser?.role || UserRole.ADMIN);
-    const canEvaluateQuality = [UserRole.CALIDAD, UserRole.ADMIN].includes(currentUser?.role || UserRole.ADMIN);
-    const canEvaluateWarehouse = [UserRole.ALMACEN, UserRole.ADMIN].includes(currentUser?.role || UserRole.ADMIN);
-    const canValidatePCP = [UserRole.PLANEAMIENTO, UserRole.ADMIN].includes(currentUser?.role || UserRole.ADMIN);
+    const canManageTransport = !isCancelled && currentUser?.role === UserRole.PROVEEDOR;
+    const canManageDocuments = !isCancelled && currentUser?.role === UserRole.PROVEEDOR;
+    const canEditAppointment = !isCancelled && [UserRole.ADMIN, UserRole.ALMACEN, UserRole.COMPRAS].includes(currentUser?.role || UserRole.ADMIN);
+    const canEvaluateSecurity = !isCancelled && [UserRole.SEGURIDAD, UserRole.ADMIN].includes(currentUser?.role || UserRole.ADMIN);
+    const canEvaluateQuality = !isCancelled && [UserRole.CALIDAD, UserRole.ADMIN].includes(currentUser?.role || UserRole.ADMIN);
+    const canEvaluateWarehouse = !isCancelled && [UserRole.ALMACEN, UserRole.ADMIN].includes(currentUser?.role || UserRole.ADMIN);
+    const canValidatePCP = !isCancelled && [UserRole.PLANEAMIENTO, UserRole.ADMIN].includes(currentUser?.role || UserRole.ADMIN);
     const canViewEvaluation = [UserRole.PROVEEDOR, UserRole.ALMACEN, UserRole.CALIDAD, UserRole.SEGURIDAD, UserRole.PLANEAMIENTO].includes(currentUser?.role || UserRole.ADMIN);
     const canViewPartesIngreso = PARTES_INGRESO_ROLES.includes(currentUser?.role as UserRole);
     // Abre el parte en el visor de Partes de Ingreso: del día de la cita (una semana antes por si se registró
@@ -715,6 +776,7 @@ const AppointmentDetail: React.FC = () => {
     // OBS-005: el proveedor y el administrador pueden eliminar documentos mientras la Documentación no esté evaluada
     const canDeleteDocuments =
         DELETE_DOCUMENTS_ENABLED &&
+        !isCancelled &&
         [UserRole.PROVEEDOR, UserRole.COMPRAS].includes(currentUser?.role as UserRole) &&
         !isCriterionEvaluated('documentacion');
 
@@ -1452,7 +1514,7 @@ const AppointmentDetail: React.FC = () => {
                                             Marcar como Entregado
                                         </Button>
                                     )}
-                                    {[UserRole.ADMIN, UserRole.COMPRAS].includes(currentUser?.role || UserRole.ADMIN) && (
+                                    {!isCancelled && [UserRole.ADMIN, UserRole.COMPRAS].includes(currentUser?.role || UserRole.ADMIN) && (
                                         <Button
                                             color="primary"
                                             variant="solid"
@@ -1464,10 +1526,60 @@ const AppointmentDetail: React.FC = () => {
                                             Calificar
                                         </Button>
                                     )}
+                                    {canCancelAppointment && (
+                                        <Button
+                                            color="danger"
+                                            variant="flat"
+                                            onPress={() => setIsCancelModalOpen(true)}
+                                            size="md"
+                                            className="font-medium"
+                                            startContent={<TrashIcon className="w-4 h-4" />}
+                                        >
+                                            Eliminar cita
+                                        </Button>
+                                    )}
                                 </>
                             )}
                         </div>
                     </div>
+
+                    {/* Cita cancelada (OBS-031): solo lectura. Motivo/origen/usuario/fecha desde SAP (CitasProveedor)
+                        cuando el API los devuelva; si no, desde Firestore. Los packing list eliminados, de Firestore. */}
+                    {isCancelled && (
+                        <div className="flex items-start gap-3 p-4 mb-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">
+                            <XCircleIcon className="w-6 h-6 flex-shrink-0 text-red-600" />
+                            <div className="space-y-1">
+                                <p className="font-semibold">Cita cancelada. No será atendida y no se puede modificar.</p>
+                                {cancelacionInfo && (
+                                    <>
+                                        <p>
+                                            <span className="font-medium">Motivo:</span> {cancelacionInfo.motivo}
+                                            {cancelacionInfo.origen && (
+                                                <span className="text-red-700"> ({cancelacionInfo.origen})</span>
+                                            )}
+                                        </p>
+                                        {(cancelacionInfo.usuario || cancelacionInfo.fecha) && (
+                                            <p className="text-red-700">
+                                                {[cancelacionInfo.usuario, cancelacionInfo.fecha].filter(Boolean).join(' · ')}
+                                            </p>
+                                        )}
+                                    </>
+                                )}
+                                {cancelacion?.cancelacion ? (
+                                    <>
+                                        {cancelacion.cancelacion.packingLists?.length > 0 && (
+                                            <p className="text-red-700">
+                                                Packing list eliminados:{' '}
+                                                {cancelacion.cancelacion.packingLists
+                                                    .map((pl) => (pl.ticket ? `${pl.number} (ticket WMS ${pl.ticket})` : pl.number))
+                                                    .join(', ')}
+                                            </p>
+                                        )}
+                                    </>
+                                ) : null}
+                            </div>
+                        </div>
+                    )}
 
                     {/* Header Rediseñado */}
                     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
@@ -2836,6 +2948,20 @@ const AppointmentDetail: React.FC = () => {
                         codCita={appointment.docEntry}
                         usuario={currentUser?.userCode || currentUser?.id || currentUser?.username || 'system'}
                         onDeleted={reloadPackingLists}
+                    />
+                )}
+
+                {/* "Eliminar cita": la cancela y elimina sus packing list (OBS-031) */}
+                {appointment?.docEntry && (
+                    <CancelAppointmentModal
+                        isOpen={isCancelModalOpen}
+                        onOpenChange={setIsCancelModalOpen}
+                        appointment={appointment}
+                        usuario={currentUser?.userCode || currentUser?.id || currentUser?.username || 'system'}
+                        onChanged={() => {
+                            void reloadPackingLists();
+                            void reloadAppointmentFromApi();
+                        }}
                     />
                 )}
 
