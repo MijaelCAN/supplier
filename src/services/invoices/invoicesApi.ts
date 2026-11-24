@@ -137,11 +137,21 @@ interface PaymentScheduleInvoiceApi {
     doc_date: string;
     doc_due_date: string;
     num_at_card: string;
+    moneda?: string; // "S/" o "US$" (DocCur de SAP)
     doc_total: string;
     retencion: string;
     importe_pagar: string;
     total_pagar: string;
 }
+
+/** Moneda de SAP ("S/", "US$", "SOL", "USD"...) a código ISO. Sin dato se asume soles. */
+export const toCurrencyCode = (moneda?: string | null): 'PEN' | 'USD' => {
+    const value = (moneda ?? '').trim().toUpperCase();
+    return value.includes('US') ? 'USD' : 'PEN';
+};
+
+/** Símbolo para prefijos de inputs y mensajes. */
+export const currencySymbol = (currency?: string): string => currency === 'USD' ? 'US$' : 'S/';
 
 interface PaymentScheduleInvoiceApiResponse {
     status_code: number;
@@ -211,7 +221,7 @@ export const fetchInvoicesForPaymentSchedule = async (
                 supplierId: record.card_code,
                 supplierName: record.card_name,
                 amount: docTotal,
-                currency: 'PEN', // Por defecto PEN, ajustar si hay campo de moneda
+                currency: toCurrencyCode(record.moneda),
                 status: 'Recibida' as const,
                 receivedDate: parseDate(record.doc_date),
                 dueDate: parseDate(record.doc_due_date),
@@ -257,6 +267,7 @@ type SchedulePaymentInvoice = {
     u_total_pagar: string;
     u_estado: string;
     u_comentario: string;
+    u_moneda: string; // "S/" o "US$", igual que `moneda` de GET /api/Pagos/Factura
 };
 
 interface SchedulePaymentResponse {
@@ -305,7 +316,8 @@ export const schedulePaymentInvoices = async (
             u_importe_pagar: importePagar,
             u_total_pagar: totalPagar,
             u_estado: 'Y',
-            u_comentario: ''
+            u_comentario: '',
+            u_moneda: currencySymbol(invoice.currency)
         };
     });
     
@@ -373,6 +385,7 @@ interface ScheduledInvoiceApiResponse {
     u_total_pagar: string;
     u_estado: string;
     u_comentario: string;
+    u_moneda?: string; // Aún no lo devuelve el API (pedido al backend)
 }
 
 // Función para obtener facturas programadas
@@ -438,7 +451,8 @@ export const fetchScheduledInvoices = async (
                     supplierId: supplierId,
                     supplierName: item.u_nombre_proveedor || '',
                     amount: parseDecimal(item.u_importe_factura),
-                    currency: 'PEN', // Por defecto PEN, ajustar si el API proporciona moneda
+                    // Mientras FacturasProgramadas no traiga u_moneda, toda factura programada sale en soles
+                    currency: toCurrencyCode(item.u_moneda),
                     status: 'Aprobada', // Las facturas programadas se consideran aprobadas
                     receivedDate: parseScheduledDate(item.u_fecha_emision),
                     dueDate: parseScheduledDate(item.u_fecha_vencimiento),
