@@ -6,4 +6,6 @@ export interface HeaderCompProps{
     onRegisterOpen?:()=>void;
     onRegisterOrder?:()=>void;
     canCreate?: boolean;
+    /** Botones adicionales a la izquierda de "Nuevo Proveedor" */
+    extraActions?: import('react').ReactNode;
 }

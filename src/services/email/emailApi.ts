@@ -87,9 +87,16 @@ const generateSupplierCredentialsHTML = (data: {
     supplierName: string;
     userFullName: string;
     portalLink?: string;
+    /** true: el acceso ya existía y solo se restableció la contraseña */
+    isReset?: boolean;
 }): string => {
     const portalLink = data.portalLink || 'http://localhost:5173/login';
-    
+    const usuarioLabel = /^\d{8}$/.test(data.username.trim()) ? 'Usuario (DNI):' : 'Usuario (RUC):';
+    const heading = data.isReset ? 'Restablecimiento de contraseña' : 'Bienvenido al Portal de Proveedores';
+    const intro = data.isReset
+        ? `<p>Se restableció la contraseña de su acceso al <strong>Portal de Proveedores</strong>. La contraseña anterior ya no es válida.</p>`
+        : `<p>Le damos la bienvenida al Portal de Proveedores de <strong>${data.supplierName}</strong>.</p>`;
+
     return `<!DOCTYPE html>
 <html>
 <head>
@@ -180,18 +187,18 @@ const generateSupplierCredentialsHTML = (data: {
 <body>
     <div class="container">
         <div class="header">
-            <h1>Bienvenido al Portal de Proveedores</h1>
+            <h1>${heading}</h1>
         </div>
-        
+
         <p>Estimado/a <strong>${data.userFullName}</strong>,</p>
-        
-        <p>Le damos la bienvenida al Portal de Proveedores de <strong>${data.supplierName}</strong>.</p>
-        
+
+        ${intro}
+
         <p>Sus credenciales de acceso han sido generadas. Por favor, utilice la siguiente información para ingresar al portal:</p>
         
         <div class="credentials-box">
             <div class="credential-item">
-                <span class="credential-label">Usuario (RUC):</span>
+                <span class="credential-label">${usuarioLabel}</span>
                 <span class="credential-value">${data.username}</span>
             </div>
             <div class="credential-item">
@@ -339,6 +346,7 @@ export interface SupplierCredentialsRequest {
         supplierName: string;
         userFullName: string;
         portalLink?: string;
+        isReset?: boolean;
     };
 }
 
@@ -397,7 +405,9 @@ export const sendSupplierCredentials = async (
     
     return sendNotificationEmail({
         to: request.to,
-        subject: 'Bienvenida - Credenciales de Acceso al Portal de Proveedores',
+        subject: request.credentials.isReset
+            ? 'Restablecimiento de contraseña - Portal de Proveedores'
+            : 'Bienvenida - Credenciales de Acceso al Portal de Proveedores',
         html: html,
     });
 }
