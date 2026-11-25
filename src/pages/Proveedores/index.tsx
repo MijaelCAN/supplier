@@ -29,7 +29,9 @@ import {
     CheckCircleIcon,
     ExclamationTriangleIcon,
     BuildingOfficeIcon,
+    KeyIcon,
 } from "@heroicons/react/24/outline";
+import {ModalHabilitarAcceso} from "@/components/Proveedores/ModalHabilitarAcceso.tsx";
 import Dashboard from "@/layouts/Dashboard";
 import {Supplier, useSuppliers} from "@/store/extendedStore";
 import HeaderComponent from "@/components/headerComponent.tsx";
@@ -96,6 +98,15 @@ export default function SupplierManagement() {
     const { isOpen: isRegisterOpen, onOpen: onRegisterOpen, onClose: onRegisterClose } = useDisclosure();
     const { isOpen: isViewOpen, onClose: onViewClose } = useDisclosure();
     const { isOpen: isEditOpen, onOpen: onEditOpen, onClose: onEditClose } = useDisclosure();
+    const { isOpen: isAccessOpen, onOpen: onAccessOpen, onClose: onAccessClose } = useDisclosure();
+    const [accessRuc, setAccessRuc] = useState<string | undefined>(undefined);
+    // Habilitar acceso (TCK-001333): Compras y Admin
+    const canEnableAccess = currentUser?.role === UserRole.ADMIN || currentUser?.role === UserRole.COMPRAS;
+    const openAccessModal = (ruc?: string) => {
+        const digits = (ruc ?? '').replace(/\D/g, '');
+        setAccessRuc(digits.length === 11 ? digits : undefined);
+        onAccessOpen();
+    };
     // const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
 
     const todayString = useMemo(() => new Date().toISOString().slice(0, 10), []);
@@ -314,6 +325,15 @@ export default function SupplierManagement() {
                                 >
                                     Editar
                                 </DropdownItem>
+                                {canEnableAccess ? (
+                                    <DropdownItem
+                                        key="access"
+                                        startContent={<KeyIcon className="h-4 w-4" />}
+                                        onPress={() => openAccessModal(supplier.RUC || supplier.cardCode)}
+                                    >
+                                        Habilitar acceso
+                                    </DropdownItem>
+                                ) : null}
                                 {/* <DropdownItem
                                     key="delete"
                                     className="text-danger"
@@ -590,7 +610,13 @@ export default function SupplierManagement() {
         <Dashboard>
             <div className="w-full space-y-6">
 
-                <HeaderComponent title={title} subtitle={subtitle} isOptions={true} onRegisterOpen={onRegisterOpen} onExport={handleExport} canCreate={canCreateSupplier} />
+                <HeaderComponent title={title} subtitle={subtitle} isOptions={true} onRegisterOpen={onRegisterOpen} onExport={handleExport} canCreate={canCreateSupplier}
+                    extraActions={canEnableAccess ? (
+                        <Button variant="bordered" startContent={<KeyIcon className="h-4 w-4"/>} onPress={() => openAccessModal()}>
+                            Habilitar acceso
+                        </Button>
+                    ) : undefined}
+                />
                 {/* Stats Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"   >
                     <Card>
@@ -661,6 +687,7 @@ export default function SupplierManagement() {
                 />
 
                 <ModalRegister isRegisterOpen={isRegisterOpen} onRegisterClose={onRegisterClose} onRegistered={handleRefreshSuppliers} />
+                <ModalHabilitarAcceso isOpen={isAccessOpen} onClose={onAccessClose} initialRuc={accessRuc} />
                 <ModalDetail isViewOpen={isViewOpen} onViewClose={onViewClose} selectedSupplier={selectedSupplier} onEditOpen={onEditOpen} />
                 <ModalEdit isEditOpen={isEditOpen} onEditClose={onEditClose} selectedSupplier={selectedSupplier} updateSupplier={updateSupplier} onUpdated={handleRefreshSuppliers}/>
                 {/* <ModalDelete isDeleteOpen={isDeleteOpen} onDeleteClose={onDeleteClose} selectedSupplier={selectedSupplier} deleteSupplier={deleteSupplier} /> */}

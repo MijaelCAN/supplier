@@ -30,7 +30,7 @@ import { Invoice } from '@/store/types';
 import { DateInput } from '@/components/DateInput';
 import { useAuth } from '@/store/authStore';
 import { UserRole } from '@/routes/menuTypes';
-import { fetchInvoicesForPaymentSchedule, schedulePaymentInvoices } from '@/services/invoices/invoicesApi';
+import { currencySymbol, fetchInvoicesForPaymentSchedule, schedulePaymentInvoices } from '@/services/invoices/invoicesApi';
 import { findInvoiceValidationByNumber } from '@/services/agenda/sunatInvoiceApi';
 
 const ScheduleInvoices: React.FC = () => {
@@ -448,14 +448,14 @@ const ScheduleInvoices: React.FC = () => {
             <div className="flex items-center gap-3 mt-4">
               <DateInput
                 size="sm"
-                label="Fecha Inicio"
+                label="Vencimiento desde"
                 value={invoiceStartDate}
                 onValueChange={setInvoiceStartDate}
                 className="flex-1"
               />
               <DateInput
                 size="sm"
-                label="Fecha Fin"
+                label="Vencimiento hasta"
                 value={invoiceEndDate}
                 onValueChange={setInvoiceEndDate}
                 className="flex-1"
@@ -538,9 +538,6 @@ const ScheduleInvoices: React.FC = () => {
                       value={filterTotalPagar}
                       onClear={() => setFilterTotalPagar("")}
                       onValueChange={setFilterTotalPagar}
-                      startContent={
-                        <span className="text-gray-400 text-sm">S/</span>
-                      }
                     />
                     <div className="flex items-center gap-2 h-full pb-1">
                       <Checkbox
@@ -743,7 +740,7 @@ const ScheduleInvoices: React.FC = () => {
                                   max={maxImportePagar.toFixed(2)}
                                   step="0.01"
                                   isInvalid={isAmountExceedingMax}
-                                  errorMessage={isAmountExceedingMax ? `Máximo: S/ ${maxImportePagar.toFixed(2)}` : undefined}
+                                  errorMessage={isAmountExceedingMax ? `Máximo: ${currencySymbol(invoice.currency)} ${maxImportePagar.toFixed(2)}` : undefined}
                                   value={editedImportePagar[invoice.id] ?? String((invoice as Invoice & { importePagar?: number }).importePagar || 0)}
                                   onValueChange={(value) => {
                                     setEditedImportePagar(prev => ({
@@ -758,7 +755,7 @@ const ScheduleInvoices: React.FC = () => {
                                     inputWrapper: "w-40 ml-auto"
                                   }}
                                   startContent={
-                                    <span className="text-gray-400 text-xs">S/</span>
+                                    <span className="text-gray-400 text-xs">{currencySymbol(invoice.currency)}</span>
                                   }
                                 />
                               </div>
