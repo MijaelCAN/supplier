@@ -385,7 +385,8 @@ interface ScheduledInvoiceApiResponse {
     u_total_pagar: string;
     u_estado: string;
     u_comentario: string;
-    u_moneda?: string; // Aún no lo devuelve el API (pedido al backend)
+    moneda?: string | null; // "S/" o "US$"; el API lo devuelve vacío mientras ProgramarFacturas no lo guarde
+    u_moneda?: string | null;
 }
 
 // Función para obtener facturas programadas
@@ -451,8 +452,8 @@ export const fetchScheduledInvoices = async (
                     supplierId: supplierId,
                     supplierName: item.u_nombre_proveedor || '',
                     amount: parseDecimal(item.u_importe_factura),
-                    // Mientras FacturasProgramadas no traiga u_moneda, toda factura programada sale en soles
-                    currency: toCurrencyCode(item.u_moneda),
+                    // Sin moneda guardada (vacía) la factura programada sale en soles
+                    currency: toCurrencyCode(item.moneda || item.u_moneda),
                     status: 'Aprobada', // Las facturas programadas se consideran aprobadas
                     receivedDate: parseScheduledDate(item.u_fecha_emision),
                     dueDate: parseScheduledDate(item.u_fecha_vencimiento),
